@@ -1,0 +1,111 @@
+# ===========================
+# 构建输出
+# ===========================
+/output/
+/build/
+build-*/
+**/build/
+
+# ===========================
+# IDE 和编辑器
+# ===========================
+# Qt Creator
+*.user
+*.user.*
+*.qmlc
+*.jsc
+CMakeLists.txt.user*
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.vcxproj.user
+
+# JetBrains (IntelliJ, Android Studio, CLion)
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# VS Code
+.vscode/
+
+# ===========================
+# Gradle / Android
+# ===========================
+.gradle/
+/server/.gradle/
+/server/build/
+/server/local.properties
+gradle/wrapper/gradle-wrapper.jar
+
+# ===========================
+# 系统文件
+# ===========================
+.DS_Store
+*.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ===========================
+# 临时文件
+# ===========================
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+*.bak
+*.log
+
+# ===========================
+# 用户配置
+# ===========================
+userdata.ini
+config/userdata.ini
+Info_Mac.plist
+
+# ===========================
+# CI/CD 临时文件
+# ===========================
+/ci/build_temp/
+
+# ===========================
+# 备份文件夹
+# ===========================
+/备份/
+
+# ===========================
+# 二进制依赖 (可选择保留或排除)
+# ===========================
+# 如果你希望其他人自行下载依赖，取消下面的注释
+# /client/env/ffmpeg/
+# /client/env/adb/
+# /client/env/opencv/
+# /client/env/scrcpy-server
+
+# ===========================
+# 编译产物
+# ===========================
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+*.pdb
+*.ilk
+*.exp
+
+# 但保留 env 目录中的预编译依赖
+!/client/env/**/*.dll
+!/client/env/**/*.dylib
+!/client/env/**/*.a
+!/client/env/**/*.lib
+!/client/env/**/*.exe

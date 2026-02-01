@@ -1,0 +1,202 @@
+{
+    "keyMapNodes": [
+        {
+            "key": "Key_B",
+            "pos": {
+                "x": 0.4148,
+                "y": 0.7605
+            },
+            "script": "mapi.click();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "RightButton",
+            "pos": {
+                "x": 0.941,
+                "y": 0.5372
+            },
+            "script": "mapi.holdpress();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_R",
+            "pos": {
+                "x": 0.7729,
+                "y": 0.9353
+            },
+            "script": "mapi.holdpress();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_5",
+            "pos": {
+                "x": 0.682,
+                "y": 0.9434
+            },
+            "script": "mapi.holdpress();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_4",
+            "pos": {
+                "x": 0.3035,
+                "y": 0.932
+            },
+            "script": "mapi.holdpress();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_3",
+            "pos": {
+                "x": 0.6332,
+                "y": 0.7621
+            },
+            "script": "mapi.click();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "centerPos": {
+                "x": 0.1629,
+                "y": 0.7491
+            },
+            "comment": "方向盘",
+            "downKey": "Key_S",
+            "downOffset": 0.14498141263940523,
+            "leftKey": "Key_A",
+            "leftOffset": 0.07435254803675856,
+            "rightKey": "Key_D",
+            "rightOffset": 0.06683375104427736,
+            "type": "KMT_STEER_WHEEL",
+            "upKey": "Key_W",
+            "upOffset": 0.24349442379182157
+        },
+        {
+            "key": "QuoteLeft",
+            "pos": {
+                "x": 0.6742,
+                "y": 0.2175
+            },
+            "speedRatioX": 5.5,
+            "speedRatioY": 5.5,
+            "type": "KMT_CAMERA_MOVE"
+        },
+        {
+            "key": "LeftButton",
+            "pos": {
+                "x": 0.8304,
+                "y": 0.7286
+            },
+            "script": "mapi.holdpress();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_Space",
+            "pos": {
+                "x": 0.9323,
+                "y": 0.7026
+            },
+            "script": "mapi.holdpress();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_C",
+            "pos": {
+                "x": 0.8413,
+                "y": 0.9294
+            },
+            "script": "mapi.holdpress();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_Z",
+            "pos": {
+                "x": 0.9173,
+                "y": 0.8959
+            },
+            "script": "mapi.holdpress();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "MiddleButton",
+            "pos": {
+                "x": 0.9749,
+                "y": 0.4145
+            },
+            "script": "mapi.holdpress();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_Equal",
+            "pos": {
+                "x": 0.8371,
+                "y": 0.2677
+            },
+            "script": "mapi.holdpress();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_M",
+            "pos": {
+                "x": 0.9515,
+                "y": 0.0409
+            },
+            "script": "mapi.click();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_Q",
+            "pos": {
+                "x": 0.1429,
+                "y": 0.355
+            },
+            "script": "mapi.holdpress();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_E",
+            "pos": {
+                "x": 0.2107,
+                "y": 0.3607
+            },
+            "script": "mapi.holdpress();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_Tab",
+            "pos": {
+                "x": 0.091,
+                "y": 0.9159
+            },
+            "script": "mapi.click();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_V",
+            "pos": {
+                "x": 0.2213,
+                "y": 0.9401
+            },
+            "script": "mapi.click();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_1",
+            "pos": {
+                "x": 0.417,
+                "y": 0.8625
+            },
+            "script": "mapi.click();",
+            "type": "KMT_SCRIPT"
+        },
+        {
+            "key": "Key_2",
+            "pos": {
+                "x": 0.5815,
+                "y": 0.8544
+            },
+            "script": "mapi.click();",
+            "type": "KMT_SCRIPT"
+        }
+    ],
+    "mouseMoveMap": {}
+}

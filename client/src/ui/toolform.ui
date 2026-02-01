@@ -1,0 +1,315 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ToolForm</class>
+ <widget class="QWidget" name="ToolForm">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>64</width>
+    <height>320</height>
+   </rect>
+  </property>
+  <property name="sizePolicy">
+   <sizepolicy hsizetype="Fixed" vsizetype="Minimum">
+    <horstretch>0</horstretch>
+    <verstretch>0</verstretch>
+   </sizepolicy>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>64</width>
+    <height>0</height>
+   </size>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>120</width>
+    <height>16777215</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>工具栏</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">
+    QWidget#ToolForm {
+      background-color: rgba(24, 24, 27, 0.96);
+      border: 1px solid #27272a;
+      border-radius: 14px;
+    }
+   </string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="spacing">
+    <number>8</number>
+   </property>
+   <property name="leftMargin">
+    <number>10</number>
+   </property>
+   <property name="topMargin">
+    <number>12</number>
+   </property>
+   <property name="rightMargin">
+    <number>10</number>
+   </property>
+   <property name="bottomMargin">
+    <number>12</number>
+   </property>
+   <item alignment="Qt::AlignHCenter">
+    <widget class="QPushButton" name="keyMapBtn">
+     <property name="minimumSize">
+      <size>
+       <width>44</width>
+       <height>44</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>44</width>
+       <height>44</height>
+      </size>
+     </property>
+     <property name="toolTip">
+      <string>键位映射</string>
+     </property>
+     <property name="text">
+      <string/>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">
+       QPushButton {
+         background-color: #27272a;
+         border: 1px solid #3f3f46;
+         border-radius: 10px;
+         color: #fafafa;
+       }
+       QPushButton:hover {
+         background-color: #3f3f46;
+         border-color: #6366f1;
+       }
+       QPushButton:pressed {
+         background-color: #6366f1;
+       }
+      </string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QStackedWidget" name="stackedWidget">
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
+     </property>
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="page_normal">
+      <layout class="QVBoxLayout" name="verticalLayout_2">
+       <property name="spacing">
+        <number>8</number>
+       </property>
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item alignment="Qt::AlignHCenter">
+        <widget class="QPushButton" name="fullScreenBtn">
+         <property name="minimumSize">
+          <size>
+           <width>44</width>
+           <height>44</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>44</width>
+           <height>44</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>全屏切换</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">
+           QPushButton {
+             background-color: #27272a;
+             border: 1px solid #3f3f46;
+             border-radius: 10px;
+             color: #fafafa;
+           }
+           QPushButton:hover {
+             background-color: #3f3f46;
+             border-color: #6366f1;
+           }
+           QPushButton:pressed {
+             background-color: #6366f1;
+           }
+          </string>
+         </property>
+        </widget>
+       </item>
+       <item alignment="Qt::AlignHCenter">
+        <widget class="QPushButton" name="appSwitchBtn">
+         <property name="minimumSize">
+          <size>
+           <width>44</width>
+           <height>44</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>44</width>
+           <height>44</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>最近应用</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">
+           QPushButton {
+             background-color: #27272a;
+             border: 1px solid #3f3f46;
+             border-radius: 10px;
+             color: #fafafa;
+           }
+           QPushButton:hover {
+             background-color: #3f3f46;
+             border-color: #6366f1;
+           }
+           QPushButton:pressed {
+             background-color: #6366f1;
+           }
+          </string>
+         </property>
+        </widget>
+       </item>
+       <item alignment="Qt::AlignHCenter">
+        <widget class="QPushButton" name="returnBtn">
+         <property name="minimumSize">
+          <size>
+           <width>44</width>
+           <height>44</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>44</width>
+           <height>44</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>返回</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">
+           QPushButton {
+             background-color: #27272a;
+             border: 1px solid #3f3f46;
+             border-radius: 10px;
+             color: #fafafa;
+           }
+           QPushButton:hover {
+             background-color: #3f3f46;
+             border-color: #6366f1;
+           }
+           QPushButton:pressed {
+             background-color: #6366f1;
+           }
+          </string>
+         </property>
+        </widget>
+       </item>
+       <item alignment="Qt::AlignHCenter">
+        <widget class="QPushButton" name="homeBtn">
+         <property name="minimumSize">
+          <size>
+           <width>44</width>
+           <height>44</height>
+          </size>
+         </property>
+         <property name="maximumSize">
+          <size>
+           <width>44</width>
+           <height>44</height>
+          </size>
+         </property>
+         <property name="toolTip">
+          <string>主屏幕</string>
+         </property>
+         <property name="text">
+          <string/>
+         </property>
+         <property name="styleSheet">
+          <string notr="true">
+           QPushButton {
+             background-color: #27272a;
+             border: 1px solid #3f3f46;
+             border-radius: 10px;
+             color: #fafafa;
+           }
+           QPushButton:hover {
+             background-color: #3f3f46;
+             border-color: #6366f1;
+           }
+           QPushButton:pressed {
+             background-color: #6366f1;
+           }
+          </string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="page_keymap">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <layout class="QVBoxLayout" name="verticalLayout_3">
+       <property name="spacing">
+        <number>8</number>
+       </property>
+       <property name="leftMargin">
+        <number>0</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

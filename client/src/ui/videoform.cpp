@@ -1,0 +1,707 @@
+#include "videoform.h"
+#include "ui_videoform.h"
+#include "toolform.h"
+#include "qyuvopenglwidget.h"
+#include "iconhelper.h"
+#include "config.h"
+#include "mousetap.h"
+#include "keepratiowidget.h"
+#include "KeyMapItems.h"
+#include <QFileInfo>
+#include <QLabel>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QScreen>
+#include <QTimer>
+#include <QElapsedTimer>
+#include <QDebug>
+#include <QDateTime>
+#include <QMap>
+#include <QEventLoop>
+#include <QMetaEnum>
+#include <QMessageBox>
+#include <QByteArray>
+#include <QThread>
+#include <iostream>
+#include <QStyleOption>
+
+#if defined(Q_OS_WIN32)
+#include <Windows.h>
+#endif
+
+#include "QtScrcpyCore.h"
+
+// =======================================================
+// VideoForm 实现
+// =======================================================
+
+// ---------------------------------------------------------
+// 构造与析构
+// ---------------------------------------------------------
+VideoForm::VideoForm(bool framelessWindow, bool skin, bool showToolbar, QWidget *parent) : QWidget(parent), ui(new Ui::videoForm), m_skin(skin) {
+    ui->setupUi(this);
+    initUI();
+    updateShowSize(size());
+    this->show_toolbar = showToolbar;
+
+    // 如果启用皮肤，根据宽高比加载样式
+    if (m_skin) {
+        updateStyleSheet(size().height() > size().width());
+    }
+    // 设置无边框窗口
+    if (framelessWindow) {
+        setWindowFlags(windowFlags() | Qt::FramelessWindowHint);
+    }
+}
+
+VideoForm::~VideoForm() {
+    delete ui;
+}
+
+// ---------------------------------------------------------
+// 初始化UI
+// 设置OpenGL渲染控件、FPS显示标签以及键位编辑视图
+// ---------------------------------------------------------
+void VideoForm::initUI() {
+    // 加载手机皮肤资源
+    if (m_skin) {
+        QPixmap phone;
+        if (phone.load(":/res/phone.png")) {
+            m_widthHeightRatio = 1.0f * phone.width() / phone.height();
+        }
+#ifndef Q_OS_OSX
+        setWindowFlags(windowFlags() | Qt::FramelessWindowHint);
+        setAttribute(Qt::WA_TranslucentBackground);
+#endif
+    }
+
+    // 初始化视频渲染控件 (YUV OpenGL)
+    m_videoWidget = new QYUVOpenGLWidget();
+    m_videoWidget->hide();
+
+    // 设置保持比例容器
+    ui->keepRatioWidget->setWidget(m_videoWidget);
+    ui->keepRatioWidget->setWidthHeightRatio(m_widthHeightRatio);
+
+    // FPS 显示标签
+    m_fpsLabel = new QLabel(m_videoWidget);
+    QFont ft;
+    ft.setPointSize(15);
+    ft.setWeight(QFont::Light);
+    ft.setBold(true);
+    m_fpsLabel->setFont(ft);
+    m_fpsLabel->move(5, 15);
+    m_fpsLabel->setMinimumWidth(100);
+    m_fpsLabel->setStyleSheet("QLabel{color:#00FF00;}");
+
+    // 开启鼠标追踪
+    setMouseTracking(true);
+    m_videoWidget->setMouseTracking(true);
+    ui->keepRatioWidget->setMouseTracking(true);
+
+    // 初始化键位编辑覆盖层
+    m_keyMapEditView = new KeyMapEditView();
+    m_keyMapEditView->attachTo(m_videoWidget);
+}
+
+// ---------------------------------------------------------
+// 触摸与按键事件发送
+// 将本地坐标/事件转换为 Android 设备指令
+// ---------------------------------------------------------
+void VideoForm::sendTouchDown(int id, float x, float y) {
+    auto d = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+    if (!d) return;
+
+    QPoint l((int)(x * m_videoWidget->width()), (int)(y * m_videoWidget->height()));
+    QMouseEvent e(QEvent::MouseButtonPress, l, l, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    emit d->mouseEvent(&e, m_frameSize, m_videoWidget->size());
+}
+
+void VideoForm::sendTouchUp(int id, float x, float y) {
+    auto d = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+    if (!d) return;
+
+    QPoint l((int)(x * m_videoWidget->width()), (int)(y * m_videoWidget->height()));
+    QMouseEvent e(QEvent::MouseButtonRelease, l, l, Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+    emit d->mouseEvent(&e, m_frameSize, m_videoWidget->size());
+}
+
+void VideoForm::sendTouchMove(int id, float x, float y) {
+    auto d = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+    if (!d) return;
+
+    QPoint l((int)(x * m_videoWidget->width()), (int)(y * m_videoWidget->height()));
+    QMouseEvent e(QEvent::MouseMove, l, l, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier);
+    emit d->mouseEvent(&e, m_frameSize, m_videoWidget->size());
+}
+
+void VideoForm::sendKeyClick(int qtKey) {
+    auto d = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+    if (!d) return;
+
+    QKeyEvent e1(QEvent::KeyPress, qtKey, Qt::NoModifier);
+    emit d->keyEvent(&e1, m_frameSize, m_videoWidget->size());
+    QKeyEvent e2(QEvent::KeyRelease, qtKey, Qt::NoModifier);
+    emit d->keyEvent(&e2, m_frameSize, m_videoWidget->size());
+}
+
+// ---------------------------------------------------------
+// 获取当前视频帧 (用于图像识别)
+// ---------------------------------------------------------
+QImage VideoForm::grabCurrentFrame() {
+    if (m_videoWidget) {
+        return m_videoWidget->grabCurrentFrame();
+    }
+    return QImage();
+}
+
+// ---------------------------------------------------------
+// 键位映射加载逻辑
+// 读取JSON文件，更新内存配置，并下发脚本到 Core 库
+// ---------------------------------------------------------
+void VideoForm::loadKeyMap(const QString& filename) {
+    if (filename.isEmpty()) return;
+
+    if (m_keyMapEditView && m_keyMapEditView->scene()) {
+        m_keyMapEditView->scene()->clear();
+    }
+
+    QFile file("keymap/" + filename);
+    if (!file.open(QIODevice::ReadOnly)) return;
+
+    QByteArray data = file.readAll();
+    file.close();
+
+    // 1. 保存当前文件名
+    m_currentKeyMapFile = filename;
+
+    // 2. 将脚本更新到底层设备实例（立即生效）
+    auto d = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+    if (d) {
+        d->updateScript(data);
+    }
+
+    // 3. 记录配置，下次启动自动加载
+    Config::getInstance().setKeyMap(m_serial, filename);
+
+    // 4. 同步工具栏UI状态
+    if (m_toolForm) {
+        m_toolForm->setCurrentKeyMap(filename);
+    }
+
+    // 5. 解析 JSON 并在 UI 上绘制可视化键位
+    QJsonDocument doc = QJsonDocument::fromJson(data);
+    QJsonObject root = doc.object();
+    m_currentConfigBase = root;
+
+    KeyMapFactoryImpl factory;
+    QSize sz = m_videoWidget->size().isEmpty() ? QSize(100,100) : m_videoWidget->size();
+
+    if (root.contains("keyMapNodes")) {
+        QJsonArray nodes = root["keyMapNodes"].toArray();
+        for (const auto& nodeRef : nodes) {
+            QJsonObject node = nodeRef.toObject();
+
+            QString typeStr = node["type"].toString();
+            KeyMapType type = KeyMapHelper::getTypeFromString(typeStr);
+
+            if (type == KMT_STEER_WHEEL || type == KMT_SCRIPT || type == KMT_CAMERA_MOVE) {
+                KeyMapItemBase* item = factory.createItem(type);
+                if (item) {
+                    item->fromJson(node);
+                    double x = 0, y = 0;
+                    if (node.contains("pos")) {
+                        QJsonObject p = node["pos"].toObject();
+                        x = p["x"].toDouble();
+                        y = p["y"].toDouble();
+                    } else if (node.contains("centerPos")) {
+                        QJsonObject p = node["centerPos"].toObject();
+                        x = p["x"].toDouble();
+                        y = p["y"].toDouble();
+                    }
+
+                    m_keyMapEditView->scene()->addItem(item);
+                    item->setNormalizedPos(QPointF(x, y), sz);
+
+                    if (auto* w = dynamic_cast<KeyMapItemSteerWheel*>(item)) w->updateSubItemsPos();
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------
+// 键位映射保存逻辑
+// 检测按键冲突，生成 JSON 并写入文件
+// ---------------------------------------------------------
+void VideoForm::saveKeyMap() {
+    if (m_currentKeyMapFile.isEmpty()) m_currentKeyMapFile = "default.json";
+    if (!m_keyMapEditView || !m_keyMapEditView->scene()) return;
+
+    QList<QGraphicsItem*> items = m_keyMapEditView->scene()->items();
+
+    // 1. 重置冲突状态
+    for (auto i : items) {
+        if(auto* b = dynamic_cast<KeyMapItemBase*>(i)) {
+            b->setConflicted(false);
+            if(auto* w = dynamic_cast<KeyMapItemSteerWheel*>(b)) {
+                for(int j=0; j<4; j++) w->setSubItemConflicted(j, false);
+            }
+        }
+    }
+
+    // 2. 检测按键冲突
+    QMap<QString, int> keyCount;
+    QMap<QString, QList<QPair<KeyMapItemBase*, int>>> owners;
+
+    for (auto g : items) {
+        if (auto* item = dynamic_cast<KeyMapItemBase*>(g)) {
+            if (auto* w = dynamic_cast<KeyMapItemSteerWheel*>(item)) {
+                QString keys[] = {w->getUpKey(), w->getDownKey(), w->getLeftKey(), w->getRightKey()};
+                for(int i=0; i<4; i++) {
+                    if(!keys[i].isEmpty()) {
+                        keyCount[keys[i]]++;
+                        owners[keys[i]].append({item, i});
+                    }
+                }
+            } else if (auto* s = dynamic_cast<KeyMapItemScript*>(item)) {
+                QString k = s->getKey();
+                if (!k.isEmpty()) {
+                    keyCount[k]++;
+                    owners[k].append({item, -1});
+                }
+            } else if (auto* c = dynamic_cast<KeyMapItemCamera*>(item)) {
+                QString k = c->getKey();
+                if (!k.isEmpty()) {
+                    keyCount[k]++;
+                    owners[k].append({item, -1});
+                }
+            }
+        }
+    }
+
+    bool conflict = false;
+    for (auto it = keyCount.begin(); it != keyCount.end(); ++it) {
+        if (it.value() > 1) {
+            conflict = true;
+            for (auto o : owners[it.key()]) {
+                if (o.second == -1) o.first->setConflicted(true);
+                else dynamic_cast<KeyMapItemSteerWheel*>(o.first)->setSubItemConflicted(o.second, true);
+            }
+        }
+    }
+
+    if (conflict) {
+        QMessageBox::warning(this, "警告", "按键设置冲突，请修改红色标记的按键！");
+        return;
+    }
+
+    // 3. 序列化并保存
+    QJsonObject root = m_currentConfigBase;
+    QJsonArray nodes;
+    QJsonObject mouseMoveMap;
+
+    for (auto g : items) {
+        if (auto* item = dynamic_cast<KeyMapItemBase*>(g)) {
+            QJsonObject d = item->toJson();
+            nodes.append(d);
+        }
+    }
+
+    root["keyMapNodes"] = nodes;
+    root["mouseMoveMap"] = mouseMoveMap;
+
+    QFile file("keymap/" + m_currentKeyMapFile);
+    if (file.open(QIODevice::WriteOnly)) {
+        file.write(QJsonDocument(root).toJson());
+        file.close();
+
+        // 保存后重新加载以应用更改
+        loadKeyMap(m_currentKeyMapFile);
+    }
+}
+
+// ---------------------------------------------------------
+// 鼠标交互事件处理
+// 负责处理窗口拖拽、点击操作映射到手机
+// ---------------------------------------------------------
+void VideoForm::mousePressEvent(QMouseEvent *e) {
+    if (m_keyMapEditView && m_keyMapEditView->isVisible()) return;
+
+    // 记录按下状态（仅用于窗口拖拽判断，不阻止事件）
+    m_pressedButtons |= e->button();
+
+    // 快速判断是否在视频区域内
+    QRect videoRect = m_videoWidget->geometry();
+    if (videoRect.contains(e->pos())) {
+        auto d = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+        if(!d) return;
+        // 【关键】坐标必须转换为相对于 m_videoWidget 的坐标
+        // 因为 showSize 是 m_videoWidget->size()，坐标也必须匹配
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+        QPointF localPos = m_videoWidget->mapFrom(this, e->pos());
+        QMouseEvent ne(e->type(), localPos, e->globalPos(), e->button(), e->buttons(), e->modifiers());
+#else
+        QPointF localPos = m_videoWidget->mapFrom(this, e->position().toPoint());
+        QMouseEvent ne(e->type(), localPos, e->globalPosition(), e->button(), e->buttons(), e->modifiers());
+#endif
+        emit d->mouseEvent(&ne, m_frameSize, m_videoWidget->size());
+    } else {
+        // 在视频区域外：处理窗口拖拽
+        if (e->button()==Qt::LeftButton) {
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+            m_dragPosition = e->globalPos() - frameGeometry().topLeft();
+#else
+            m_dragPosition = e->globalPosition().toPoint() - frameGeometry().topLeft();
+#endif
+            e->accept();
+        }
+    }
+}
+
+void VideoForm::mouseReleaseEvent(QMouseEvent *e) {
+    if (m_keyMapEditView && m_keyMapEditView->isVisible()) return;
+
+    // 清除按下状态（仅用于窗口拖拽判断，不阻止事件）
+    m_pressedButtons &= ~e->button();
+
+    if(m_dragPosition.isNull()){
+        auto d = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+        if(!d) return;
+        // 【关键】坐标必须转换为相对于 m_videoWidget 的坐标
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+        QPointF localPos = m_videoWidget->mapFrom(this, e->pos());
+        QMouseEvent ne(e->type(), localPos, e->globalPos(), e->button(), e->buttons(), e->modifiers());
+#else
+        QPointF localPos = m_videoWidget->mapFrom(this, e->position().toPoint());
+        QMouseEvent ne(e->type(), localPos, e->globalPosition(), e->button(), e->buttons(), e->modifiers());
+#endif
+        emit d->mouseEvent(&ne, m_frameSize, m_videoWidget->size());
+    } else {
+        m_dragPosition = QPoint(0,0);
+    }
+}
+
+void VideoForm::mouseMoveEvent(QMouseEvent *e) {
+    if (m_keyMapEditView && m_keyMapEditView->isVisible()) return;
+
+    QRect videoRect = m_videoWidget->geometry();
+    if(videoRect.contains(e->pos())){
+        auto d = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+        if(!d) return;
+        // 【关键】坐标必须转换为相对于 m_videoWidget 的坐标
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+        QPointF localPos = m_videoWidget->mapFrom(this, e->pos());
+        QMouseEvent ne(e->type(), localPos, e->globalPos(), e->button(), e->buttons(), e->modifiers());
+#else
+        QPointF localPos = m_videoWidget->mapFrom(this, e->position().toPoint());
+        QMouseEvent ne(e->type(), localPos, e->globalPosition(), e->button(), e->buttons(), e->modifiers());
+#endif
+        emit d->mouseEvent(&ne, m_frameSize, m_videoWidget->size());
+    } else if(!m_dragPosition.isNull() && (e->buttons() & Qt::LeftButton)){
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+        move(e->globalPos() - m_dragPosition);
+#else
+        move(e->globalPosition().toPoint() - m_dragPosition);
+#endif
+        e->accept();
+    }
+}
+
+void VideoForm::mouseDoubleClickEvent(QMouseEvent *e) {
+    if (m_keyMapEditView && m_keyMapEditView->isVisible()) return;
+    auto d = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+
+    // 双击非视频区域去除黑边
+    if(e->button()==Qt::LeftButton && !m_videoWidget->geometry().contains(e->pos())) {
+        if(!isMaximized()) removeBlackRect();
+        return;  // 已处理，不再转发
+    }
+    // 右键双击熄屏/亮屏
+    if(e->button()==Qt::RightButton && d && !d->isCurrentCustomKeymap()) {
+        emit d->postBackOrScreenOn(true);  // 双击视为按下
+        return;  // 已处理，不再转发
+    }
+
+    // 【关键修复】将双击事件转换为普通的 Press 事件转发给游戏
+    // Qt 在检测到双击时会用 mouseDoubleClickEvent 替代第二次的 mousePressEvent
+    // 这导致快速连击时大约一半的点击被"吃掉"，严重影响响应速度
+    // 解决方案：将双击事件当作 Press 事件处理
+    if(m_videoWidget->geometry().contains(e->pos())){
+        if(!d) return;
+        // 转换事件类型：MouseButtonDblClick -> MouseButtonPress
+#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
+        QPointF global = e->globalPos();
+#else
+        QPointF global = e->globalPosition();
+#endif
+        QMouseEvent pressEvent(QEvent::MouseButtonPress, m_videoWidget->mapFrom(this, e->pos()), global, e->button(), e->buttons(), e->modifiers());
+        emit d->mouseEvent(&pressEvent, m_frameSize, m_videoWidget->size());
+    }
+}
+
+void VideoForm::wheelEvent(QWheelEvent *e) {
+    if (m_keyMapEditView && m_keyMapEditView->isVisible()) return;
+    auto d = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+#if QT_VERSION >= QT_VERSION_CHECK(5, 15, 0)
+    if(m_videoWidget->geometry().contains(e->position().toPoint())) {
+        if(!d) return;
+        QWheelEvent we(m_videoWidget->mapFrom(this, e->position().toPoint()), e->globalPosition(), e->pixelDelta(), e->angleDelta(), e->buttons(), e->modifiers(), e->phase(), e->inverted());
+        emit d->wheelEvent(&we, m_frameSize, m_videoWidget->size());
+    }
+#else
+    if(m_videoWidget->geometry().contains(e->pos())) {
+        if(!d) return;
+        QWheelEvent we(m_videoWidget->mapFrom(this, e->pos()), e->globalPosF(), e->pixelDelta(), e->angleDelta(), e->delta(), e->orientation(), e->buttons(), e->modifiers(), e->phase(), e->source(), e->inverted());
+        emit d->wheelEvent(&we, m_frameSize, m_videoWidget->size());
+    }
+#endif
+}
+
+// ---------------------------------------------------------
+// 键盘事件处理
+// 转发按键到手机，处理全屏退出
+// ---------------------------------------------------------
+void VideoForm::keyPressEvent(QKeyEvent *e) {
+    auto d = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+    if (!d) return;
+
+    if (Qt::Key_Escape == e->key() && !e->isAutoRepeat() && isFullScreen()) {
+        switchFullScreen();
+    }
+
+    emit d->keyEvent(e, m_frameSize, m_videoWidget->size());
+}
+
+void VideoForm::keyReleaseEvent(QKeyEvent *e) {
+    auto d = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+    if (!d) return;
+    emit d->keyEvent(e, m_frameSize, m_videoWidget->size());
+}
+
+// ---------------------------------------------------------
+// 辅助功能函数
+// ---------------------------------------------------------
+
+// 切换键位编辑模式
+void VideoForm::onKeyMapEditModeToggled(bool active) {
+    if (m_keyMapEditView) {
+        active ? m_keyMapEditView->show() : m_keyMapEditView->hide();
+    }
+    // 退出编辑时强制获取焦点，确保按键事件能被 VideoForm 接收
+    if (!active) {
+        this->setFocus();
+        this->activateWindow();
+    }
+}
+
+// 获取光标抓取区域
+QRect VideoForm::getGrabCursorRect() {
+#if defined(Q_OS_WIN32)
+    QRect rc = QRect(ui->keepRatioWidget->mapToGlobal(m_videoWidget->pos()), m_videoWidget->size());
+    rc.setTopLeft(rc.topLeft() * m_videoWidget->devicePixelRatioF());
+    rc.setBottomRight(rc.bottomRight() * m_videoWidget->devicePixelRatioF());
+#else
+    QRect rc = m_videoWidget->geometry();
+#endif
+    return rc.adjusted(10, 10, -20, -20);
+}
+
+const QSize &VideoForm::frameSize() { return m_frameSize; }
+
+void VideoForm::resizeSquare() {
+    resize(ui->keepRatioWidget->goodSize());
+}
+
+void VideoForm::removeBlackRect() {
+    resize(ui->keepRatioWidget->goodSize());
+}
+
+void VideoForm::showFPS(bool show) {
+    if (m_fpsLabel) m_fpsLabel->setVisible(show);
+}
+
+// 更新渲染画面
+void VideoForm::updateRender(int w, int h, uint8_t* y, uint8_t* u, uint8_t* v, int ly, int lu, int lv) {
+    if (m_videoWidget->isHidden()) m_videoWidget->show();
+    updateShowSize(QSize(w, h));
+    m_videoWidget->setFrameSize(QSize(w, h));
+    m_videoWidget->updateTextures(y, u, v, ly, lu, lv);
+}
+
+// 设置设备序列号并加载上次的键位配置
+void VideoForm::setSerial(const QString &s) {
+    m_serial = s;
+    QString savedKeyMap = Config::getInstance().getKeyMap(m_serial);
+    if (!savedKeyMap.isEmpty()) {
+        loadKeyMap(savedKeyMap);
+    }
+
+    // [新增] 设置帧获取回调，用于脚本图像识别
+    auto device = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+    if (device) {
+        device->setFrameGrabCallback([this]() -> QImage {
+            return grabCurrentFrame();
+        });
+    }
+}
+
+// 显示/隐藏工具栏
+void VideoForm::showToolForm(bool s) {
+    if (!m_toolForm) {
+        m_toolForm = new ToolForm(this, ToolForm::AP_OUTSIDE_RIGHT);
+        m_toolForm->setSerial(m_serial);
+        connect(m_toolForm, &ToolForm::keyMapEditModeToggled, this, &VideoForm::onKeyMapEditModeToggled);
+        connect(m_toolForm, &ToolForm::keyMapChanged, this, &VideoForm::loadKeyMap);
+        connect(m_toolForm, &ToolForm::keyMapSaveRequested, this, &VideoForm::saveKeyMap);
+
+        if (!m_currentKeyMapFile.isEmpty()) {
+            m_toolForm->setCurrentKeyMap(m_currentKeyMapFile);
+        }
+    }
+    m_toolForm->move(pos().x() + width(), pos().y() + 30);
+    m_toolForm->setVisible(s);
+}
+
+void VideoForm::moveCenter() {
+    move(QApplication::primaryScreen()->availableGeometry().center() - rect().center());
+}
+
+QRect VideoForm::getScreenRect() {
+    return QApplication::primaryScreen()->availableGeometry();
+}
+
+void VideoForm::updateStyleSheet(bool v) {
+    setStyleSheet(v ? R"(#videoForm{border-image:url(:/image/videoform/phone-v.png) 150px 65px 85px 65px;border-width:150px 65px 85px 65px;})"
+                    : R"(#videoForm{border-image:url(:/image/videoform/phone-h.png) 65px 85px 65px 150px;border-width:65px 85px 65px 150px;})");
+    layout()->setContentsMargins(getMargins(v));
+}
+
+QMargins VideoForm::getMargins(bool v) {
+    return v ? QMargins(10, 68, 12, 62) : QMargins(68, 12, 62, 10);
+}
+
+void VideoForm::updateShowSize(const QSize &s) {
+    if (m_frameSize != s) {
+        m_frameSize = s;
+        m_widthHeightRatio = 1.0f * s.width() / s.height();
+        ui->keepRatioWidget->setWidthHeightRatio(m_widthHeightRatio);
+
+        bool v = m_widthHeightRatio < 1.0f;
+        QSize ss = s;
+        if (m_skin) {
+            ss.setWidth(ss.width() + getMargins(v).left() + getMargins(v).right());
+            ss.setHeight(ss.height() + getMargins(v).top() + getMargins(v).bottom());
+        }
+        if (ss != size()) resize(ss);
+    }
+}
+
+// 切换全屏模式
+void VideoForm::switchFullScreen() {
+    if (isFullScreen()) {
+        // 退出全屏：恢复 Fit 模式
+        ui->keepRatioWidget->setScaleMode(KeepRatioWidget::FitMode);
+        if (m_widthHeightRatio > 1.0f) ui->keepRatioWidget->setWidthHeightRatio(m_widthHeightRatio);
+        showNormal();
+        resize(m_normalSize);
+        move(m_fullScreenBeforePos);
+        if (m_skin) updateStyleSheet(m_frameSize.height() > m_frameSize.width());
+        showToolForm(this->show_toolbar);
+#ifdef Q_OS_WIN32
+        ::SetThreadExecutionState(ES_CONTINUOUS);
+#endif
+    } else {
+        // 进入全屏：使用 Cover 模式（原比例填满，无黑边）
+        m_normalSize = size();
+        m_fullScreenBeforePos = pos();
+        showToolForm(false);
+        if (m_skin) layout()->setContentsMargins(0, 0, 0, 0);
+        ui->keepRatioWidget->setScaleMode(KeepRatioWidget::CoverMode);
+        showFullScreen();
+#ifdef Q_OS_WIN32
+        ::SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED | ES_DISPLAY_REQUIRED);
+#endif
+    }
+}
+
+bool VideoForm::isHost() {
+    return m_toolForm ? m_toolForm->isHost() : false;
+}
+
+void VideoForm::updateFPS(quint32 fps) {
+    if (m_fpsLabel) m_fpsLabel->setText(QString("FPS:%1").arg(fps));
+}
+
+void VideoForm::grabCursor(bool grab) {
+    QRect rc = getGrabCursorRect();
+    MouseTap::getInstance()->enableMouseEventTap(rc, grab);
+}
+
+void VideoForm::onFrame(int w, int h, uint8_t *y, uint8_t *u, uint8_t *v, int ly, int lu, int lv) {
+    if (QThread::currentThread() == thread()) {
+        updateRender(w, h, y, u, v, ly, lu, lv);
+        return;
+    }
+
+    const int ySize = ly * h;
+    const int uvH = h / 2;
+    const int uSize = lu * uvH;
+    const int vSize = lv * uvH;
+
+    QByteArray yBuf(ySize, Qt::Uninitialized);
+    QByteArray uBuf(uSize, Qt::Uninitialized);
+    QByteArray vBuf(vSize, Qt::Uninitialized);
+
+    memcpy(yBuf.data(), y, ySize);
+    memcpy(uBuf.data(), u, uSize);
+    memcpy(vBuf.data(), v, vSize);
+
+    QMetaObject::invokeMethod(this, [this, w, h, yBuf = std::move(yBuf), uBuf = std::move(uBuf), vBuf = std::move(vBuf), ly, lu, lv]() mutable {
+        updateRender(w, h,
+                     reinterpret_cast<uint8_t*>(yBuf.data()),
+                     reinterpret_cast<uint8_t*>(uBuf.data()),
+                     reinterpret_cast<uint8_t*>(vBuf.data()),
+                     ly, lu, lv);
+    }, Qt::QueuedConnection);
+}
+
+void VideoForm::staysOnTop(bool top) {
+    bool needShow = false;
+    if (isVisible()) needShow = true;
+    setWindowFlag(Qt::WindowStaysOnTopHint, top);
+    if (m_toolForm) m_toolForm->setWindowFlag(Qt::WindowStaysOnTopHint, top);
+    if (needShow) show();
+}
+
+void VideoForm::paintEvent(QPaintEvent *e) {
+    Q_UNUSED(e);
+    QStyleOption o;
+#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
+    o.initFrom(this);
+#else
+    o.init(this);
+#endif
+    QPainter p(this);
+    style()->drawPrimitive(QStyle::PE_Widget, &o, &p, this);
+}
+
+void VideoForm::showEvent(QShowEvent *e) {
+    Q_UNUSED(e);
+    if (!isFullScreen() && show_toolbar) {
+        QTimer::singleShot(500, this, [this](){ showToolForm(show_toolbar); });
+    }
+}
+
+void VideoForm::resizeEvent(QResizeEvent *e) {
+    Q_UNUSED(e);
+}
+
+void VideoForm::closeEvent(QCloseEvent *e) {
+    Q_UNUSED(e);
+    auto d = qsc::IDeviceManage::getInstance().getDevice(m_serial);
+    if (d) {
+        Config::getInstance().setRect(d->getSerial(), geometry());
+        d->disconnectDevice();
+    }
+}
