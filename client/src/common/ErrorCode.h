@@ -7,17 +7,17 @@
 namespace qsc {
 
 /**
- * @brief 统一错误码枚举
+ * @brief 统一错误码枚举 / Unified Error Code Enum
  *
- * 错误码分段规则：
- * - 0: 成功
- * - 1-99: 通用错误
- * - 100-199: ADB相关错误
- * - 200-299: 连接相关错误
- * - 300-399: 解码相关错误
- * - 400-499: 控制相关错误
- * - 500-599: 文件操作错误
- * - 600-699: 配置相关错误
+ * 错误码分段规则 / Error code segment rules:
+ * - 0: 成功 / Success
+ * - 1-99: 通用错误 / General errors
+ * - 100-199: ADB相关错误 / ADB-related errors
+ * - 200-299: 连接相关错误 / Connection errors
+ * - 300-399: 解码相关错误 / Decoding errors
+ * - 400-499: 控制相关错误 / Control errors
+ * - 500-599: 文件操作错误 / File operation errors
+ * - 600-699: 配置相关错误 / Configuration errors
  */
 enum class ErrorCode : int
 {

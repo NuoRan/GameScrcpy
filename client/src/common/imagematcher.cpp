@@ -3,6 +3,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QDebug>
+#include <QMutex>
 
 #ifdef ENABLE_IMAGE_MATCHING
 
@@ -14,6 +15,52 @@
 // opencv_matching headers
 #include "matcher.h"
 
+// 【修复】全局互斥锁保护 OpenCV 操作，防止多线程内存问题
+static QMutex s_opencvMutex;
+
+// ---------------------------------------------------------
+// 线程局部存储的匹配器管理
+// 每个线程拥有自己的 matcher，避免跨线程同步问题
+// ---------------------------------------------------------
+struct ThreadLocalMatcher {
+    template_matching::Matcher* matcher = nullptr;
+    double threshold = 0.0;
+    double maxAngle = 0.0;
+
+    ~ThreadLocalMatcher() {
+        if (matcher) {
+            delete matcher;
+            matcher = nullptr;
+        }
+    }
+
+    template_matching::Matcher* get(double newThreshold, double newMaxAngle) {
+        // 参数变化时重建
+        if (matcher && (threshold != newThreshold || maxAngle != newMaxAngle)) {
+            delete matcher;
+            matcher = nullptr;
+        }
+
+        if (!matcher) {
+            template_matching::MatcherParam param;
+            param.matcherType = template_matching::MatcherType::PATTERN;
+            param.maxCount = 1;
+            param.scoreThreshold = newThreshold;
+            param.iouThreshold = 0.0;
+            param.angle = newMaxAngle;
+            param.minArea = 256;
+
+            matcher = template_matching::GetMatcher(param);
+            threshold = newThreshold;
+            maxAngle = newMaxAngle;
+        }
+        return matcher;
+    }
+};
+
+// 线程局部存储
+static thread_local ThreadLocalMatcher t_matcher;
+
 // ---------------------------------------------------------
 // ImageMatcher::Impl - 内部实现类
 // ---------------------------------------------------------
@@ -22,6 +69,11 @@ class ImageMatcher::Impl
 public:
     Impl() = default;
     ~Impl() = default;
+
+    // 获取当前线程的匹配器（线程局部，无需加锁）
+    static template_matching::Matcher* getMatcher(double threshold, double maxAngle) {
+        return t_matcher.get(threshold, maxAngle);
+    }
 
     // QImage 转 cv::Mat
     static cv::Mat qImageToMat(const QImage& image) {
@@ -42,15 +94,12 @@ public:
     }
 
     // QImage 转增强灰度图 (使用 CLAHE 自适应直方图均衡)
-    // 这种方式能增强对比度，对半透明UI元素更友好
     static cv::Mat qImageToEnhancedGrayMat(const QImage& image) {
         cv::Mat gray = qImageToGrayMat(image);
 
-        // 使用 CLAHE (Contrast Limited Adaptive Histogram Equalization)
-        // 自适应直方图均衡能增强局部对比度，对半透明元素更有效
         cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE();
-        clahe->setClipLimit(2.0);  // 对比度限制
-        clahe->setTilesGridSize(cv::Size(8, 8));  // 分块大小
+        clahe->setClipLimit(2.0);
+        clahe->setTilesGridSize(cv::Size(8, 8));
 
         cv::Mat enhanced;
         clahe->apply(gray, enhanced);
@@ -90,6 +139,10 @@ ImageMatchResult ImageMatcher::findTemplate(
     const QRectF& searchRegion,
     double maxAngle)
 {
+    // 【修复】使用全局互斥锁保护 OpenCV 操作
+    // OpenCV 在多线程环境下可能存在内存管理问题
+    QMutexLocker locker(&s_opencvMutex);
+
     ImageMatchResult result;
     result.found = false;
 
@@ -137,17 +190,8 @@ ImageMatchResult ImageMatcher::findTemplate(
             return result;
         }
 
-        // 配置匹配参数
-        template_matching::MatcherParam param;
-        param.matcherType = template_matching::MatcherType::PATTERN;
-        param.maxCount = 1;  // 只找最佳匹配
-        param.scoreThreshold = threshold;
-        param.iouThreshold = 0.0;
-        param.angle = maxAngle;
-        param.minArea = 256;
-
-        // 创建匹配器
-        template_matching::Matcher* matcher = template_matching::GetMatcher(param);
+        // 获取或复用匹配器（单例）
+        template_matching::Matcher* matcher = Impl::getMatcher(threshold, maxAngle);
         if (!matcher) {
             qWarning() << "ImageMatcher: Failed to create matcher";
             return result;
@@ -160,8 +204,7 @@ ImageMatchResult ImageMatcher::findTemplate(
         std::vector<template_matching::MatchResult> matchResults;
         matcher->match(searchMat, matchResults);
 
-        // 清理匹配器
-        delete matcher;
+        // 不再 delete matcher，由 Impl 管理生命周期
 
         // 处理结果
         if (!matchResults.empty()) {
@@ -226,7 +269,7 @@ QString ImageMatcher::getImagesPath()
 
 QImage ImageMatcher::loadTemplateImage(const QString& imageName)
 {
-    QString fullPath = getImagesPath() + "/" + imageName;
+    QString fullPath = getImagesPath() + "/" + imageName + ".png";
     QImage image(fullPath);
 
     if (image.isNull()) {

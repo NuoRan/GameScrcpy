@@ -3,7 +3,7 @@
 
 #include <QObject>
 #include <QSettings>
-#include <QMutex>
+#include <QRecursiveMutex>
 #include <QVariant>
 #include <QMap>
 #include <QRect>
@@ -12,16 +12,17 @@
 
 namespace qsc {
 
-// 配置变更回调函数类型
+// 配置变更回调函数类型 / Configuration change callback function type
 using ConfigChangeListener = std::function<void(const QString& key, const QVariant& oldValue, const QVariant& newValue)>;
 
 /**
- * @brief 配置中心 - 单例模式
+ * @brief 配置中心 - 单例模式 / Configuration Center - Singleton Pattern
  *
  * 统一管理全局配置和用户配置，支持：
- * - 分层配置（默认值 -> 全局配置 -> 用户配置 -> 运行时覆盖）
- * - 配置变更监听
- * - 依赖注入（用于测试）
+ * Centralized management of global and user config, supporting:
+ * - 分层配置（默认值 -> 全局配置 -> 用户配置 -> 运行时覆盖）/ Layered config (default -> global -> user -> runtime override)
+ * - 配置变更监听 / Config change listeners
+ * - 依赖注入（用于测试）/ Dependency injection (for testing)
  */
 class ConfigCenter : public QObject
 {
@@ -61,7 +62,6 @@ public:
     int desktopOpenGL() const;
     bool useSkin() const;
     bool renderExpiredFrames() const;
-    QString pushFilePath() const;
     QString serverPath() const;
     QString adbPath() const;
     QString logLevel() const;
@@ -102,6 +102,34 @@ public:
     bool showToolbar() const;
     void setShowToolbar(bool show);
 
+    // 随机偏移范围 (0~100，对应 0~50像素)
+    int randomOffset() const;
+    void setRandomOffset(int value);
+
+    // 轮盘平滑度 (0~100，0=无平滑，100=高平滑)
+    int steerWheelSmooth() const;
+    void setSteerWheelSmooth(int value);
+
+    // 轮盘拟人曲线幅度 (0~100，0=无曲线，100=最大幅度)
+    int steerWheelCurve() const;
+    void setSteerWheelCurve(int value);
+
+    // 滑动轨迹曲线幅度 (0~100，0=直线，100=最大弧度)
+    int slideCurve() const;
+    void setSlideCurve(int value);
+
+    // 键位提示层透明度 (0~100，0=全透明，100=不透明)
+    int keyMapOverlayOpacity() const;
+    void setKeyMapOverlayOpacity(int value);
+
+    // 键位提示层是否显示
+    bool keyMapOverlayVisible() const;
+    void setKeyMapOverlayVisible(bool visible);
+
+    // 脚本弹窗透明度 (0~100，0=全透明，100=不透明)
+    int scriptTipOpacity() const;
+    void setScriptTipOpacity(int value);
+
     // --- 设备专属配置 ---
     QString nickName(const QString& serial) const;
     void setNickName(const QString& serial, const QString& name);
@@ -138,7 +166,7 @@ private:
 
     QSettings* m_globalConfig = nullptr;
     QSettings* m_userConfig = nullptr;
-    mutable QMutex m_mutex;
+    mutable QRecursiveMutex m_mutex;
     bool m_initialized = false;
 
     QMap<QString, QVariant> m_defaults;

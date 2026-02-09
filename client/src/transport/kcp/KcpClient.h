@@ -1,8 +1,9 @@
 /**
  * @file KcpClient.h
- * @brief KCP客户端统一接口 - 全新重构
+ * @brief KCP 客户端统一接口 / KCP Client Unified Interface
  *
- * 提供视频接收和控制通道的简化API
+ * 提供视频接收和控制通道的简化 API。
+ * Provides simplified API for video reception and control channel.
  */
 
 #ifndef KCP_CLIENT_H
@@ -18,12 +19,10 @@
 #include "KcpTransport.h"  // C-K05: 直接使用 KcpTransport 中定义的常量
 
 /**
- * @brief KCP视频接收器
+ * @brief KCP 视频接收器 / KCP Video Receiver
  *
- * 特点:
- * - 基于重构的KcpTransport
- * - 提供阻塞式接收接口（用于解码线程）
- * - 自动缓冲管理
+ * 基于重构的 KcpTransport，提供阻塞式接收接口（用于解码线程）。
+ * Based on refactored KcpTransport, provides blocking receive API for decode thread.
  */
 class KcpVideoClient : public QObject
 {
@@ -107,6 +106,7 @@ private:
     KcpTransport *m_transport = nullptr;
 
     QByteArray m_buffer;
+    int m_readOffset = 0;
     mutable QMutex m_mutex;
     QWaitCondition m_dataAvailable;
 

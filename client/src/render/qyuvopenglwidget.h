@@ -15,17 +15,18 @@
 #include <vector>
 #include <array>
 #include <atomic>
+#include <functional>
 
 /**
- * @brief 渲染统计信息
+ * @brief 渲染统计信息 / Render Statistics
  */
 struct RenderStatistics
 {
-    quint64 totalFrames = 0;        // 总帧数
-    quint64 droppedFrames = 0;      // 丢帧数
-    double avgUploadTimeMs = 0;     // 平均上传时间(毫秒)
-    double avgRenderTimeMs = 0;     // 平均渲染时间(毫秒)
-    bool pboEnabled = false;        // PBO 是否启用
+    quint64 totalFrames = 0;        // 总帧数 / Total frames
+    quint64 droppedFrames = 0;      // 丢帧数 / Dropped frames
+    double avgUploadTimeMs = 0;     // 平均上传时间(毫秒) / Average upload time (ms)
+    double avgRenderTimeMs = 0;     // 平均渲染时间(毫秒) / Average render time (ms)
+    bool pboEnabled = false;        // PBO 是否启用 / Whether PBO is enabled
 };
 
 /**
@@ -65,6 +66,42 @@ public:
     // YUV420P 格式更新 (默认)
     void updateTextures(quint8 *dataY, quint8 *dataU, quint8 *dataV, quint32 linesizeY, quint32 linesizeU, quint32 linesizeV);
 
+    /**
+     * @brief 零拷贝帧提交 (优化跨线程渲染)
+     *
+     * 接收包含 YUV420P 数据的 QByteArray，利用 Qt 隐式共享避免拷贝。
+     * 数据布局: Y(ly*h) + U(lu*h/2) + V(lv*h/2)
+     *
+     * @param frameData 帧数据（移动语义）
+     * @param width 帧宽度
+     * @param height 帧高度
+     * @param linesizeY Y 分量行字节数
+     * @param linesizeU U 分量行字节数
+     * @param linesizeV V 分量行字节数
+     */
+    void submitFrame(QByteArray frameData, int width, int height, int linesizeY, int linesizeU, int linesizeV);
+
+    /**
+     * @brief 零拷贝帧提交 - 直接指针版本
+     *
+     * 直接使用 YUV 数据指针渲染，无任何内存拷贝。
+     * 渲染完成后自动调用 releaseCallback 释放帧资源。
+     *
+     * @param dataY Y 分量指针
+     * @param dataU U 分量指针
+     * @param dataV V 分量指针
+     * @param width 帧宽度
+     * @param height 帧高度
+     * @param linesizeY Y 分量行字节数
+     * @param linesizeU U 分量行字节数
+     * @param linesizeV V 分量行字节数
+     * @param releaseCallback 渲染完成后的释放回调
+     */
+    void submitFrameDirect(uint8_t* dataY, uint8_t* dataU, uint8_t* dataV,
+                          int width, int height,
+                          int linesizeY, int linesizeU, int linesizeV,
+                          std::function<void()> releaseCallback);
+
     // NV12: 直接 NV12 格式更新 (避免格式转换)
     void updateTexturesNV12(quint8 *dataY, quint8 *dataUV, quint32 linesizeY, quint32 linesizeUV);
 
@@ -95,6 +132,13 @@ public:
      * @brief 检查硬件是否支持 PBO
      */
     bool isPBOSupported() const { return m_pboSupported; }
+
+    /**
+     * @brief 释放当前持有的直接指针帧
+     *
+     * 在窗口关闭时调用，确保帧在 session 失效前被正确释放。
+     */
+    void discardPendingFrame();
 
     /**
      * @brief 获取渲染统计信息
@@ -160,6 +204,28 @@ private:
     quint32 m_linesizeU = 0;
     quint32 m_linesizeV = 0;
     quint32 m_linesizeUV = 0;                               // NV12: UV stride
+    bool m_grabDataStale = false;                           // 截图缓存是否过期（懒拷贝标志）
+
+    // === 零拷贝帧存储 ===
+    QByteArray m_zeroCopyFrame;                             // 零拷贝帧数据（利用 Qt 隐式共享）
+    int m_zcFrameWidth = 0;
+    int m_zcFrameHeight = 0;
+    int m_zcLinesizeY = 0;
+    int m_zcLinesizeU = 0;
+    int m_zcLinesizeV = 0;
+    bool m_useZeroCopyFrame = false;                        // 是否使用零拷贝帧
+
+    // === 直接指针帧存储（完全零拷贝）===
+    uint8_t* m_directDataY = nullptr;
+    uint8_t* m_directDataU = nullptr;
+    uint8_t* m_directDataV = nullptr;
+    int m_directWidth = 0;
+    int m_directHeight = 0;
+    int m_directLinesizeY = 0;
+    int m_directLinesizeU = 0;
+    int m_directLinesizeV = 0;
+    bool m_useDirectFrame = false;
+    std::function<void()> m_directFrameReleaseCallback;     // 帧释放回调
 
     // === PBO 双缓冲 ===
     static constexpr int PBO_COUNT = 2;                     // 双缓冲
@@ -170,6 +236,7 @@ private:
     bool m_pboEnabled = true;                               // PBO 是否启用
     bool m_pboSupported = false;                            // 硬件是否支持 PBO
     bool m_pboInited = false;                               // PBO 是否已初始化
+    std::vector<uint8_t> m_pboTempBuffer;                   // PBO stride不匹配时的复用缓冲区
 
     // === 脏区域检测缓存 ===
     std::vector<uint8_t> m_prevFrameY;                      // 上一帧 Y 数据 (用于比较)

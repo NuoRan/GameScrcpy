@@ -48,12 +48,11 @@ void ConfigCenter::registerDefaults()
 {
     // 全局配置默认值
     m_defaults["common/language"] = "auto";
-    m_defaults["common/title"] = "QtScrcpy";
+    m_defaults["common/title"] = "GameScrcpy";
     m_defaults["common/maxFps"] = 60;
     m_defaults["common/desktopOpenGL"] = -1;
     m_defaults["common/skin"] = 1;
     m_defaults["common/renderExpiredFrames"] = 0;
-    m_defaults["common/pushFilePath"] = "/sdcard/";
     m_defaults["common/serverPath"] = "";
     m_defaults["common/adbPath"] = "";
     m_defaults["common/logLevel"] = "*:W";
@@ -77,6 +76,13 @@ void ConfigCenter::registerDefaults()
     m_defaults["user/simpleMode"] = false;
     m_defaults["user/autoUpdateDevice"] = true;
     m_defaults["user/showToolbar"] = true;
+    m_defaults["user/randomOffset"] = 0;  // 随机偏移范围 0~100
+    m_defaults["user/steerWheelSmooth"] = 0;  // 轮盘平滑度 0~100
+    m_defaults["user/steerWheelCurve"] = 0;   // 轮盘拟人曲线 0~100
+    m_defaults["user/slideCurve"] = 30;        // 滑动轨迹曲线 0~100
+    m_defaults["user/keyMapOverlayOpacity"] = 60;  // 键位提示层透明度 0~100
+    m_defaults["user/keyMapOverlayVisible"] = false;  // 键位提示层是否显示
+    m_defaults["user/scriptTipOpacity"] = 70;  // 脚本弹窗透明度 0~100
 }
 
 bool ConfigCenter::initialize(const QString& configPath, const QString& userDataPath)
@@ -207,12 +213,11 @@ void ConfigCenter::remove(const QString& key)
 
 // --- 全局配置快捷方法 ---
 QString ConfigCenter::language() const { return get<QString>("common/language", "auto"); }
-QString ConfigCenter::title() const { return get<QString>("common/title", "QtScrcpy"); }
+QString ConfigCenter::title() const { return get<QString>("common/title", "GameScrcpy"); }
 int ConfigCenter::maxFps() const { return get<int>("common/maxFps", 60); }
 int ConfigCenter::desktopOpenGL() const { return get<int>("common/desktopOpenGL", -1); }
 bool ConfigCenter::useSkin() const { return get<int>("common/skin", 1) != 0; }
 bool ConfigCenter::renderExpiredFrames() const { return get<int>("common/renderExpiredFrames", 0) != 0; }
-QString ConfigCenter::pushFilePath() const { return get<QString>("common/pushFilePath", "/sdcard/"); }
 QString ConfigCenter::serverPath() const { return get<QString>("common/serverPath", ""); }
 QString ConfigCenter::adbPath() const { return get<QString>("common/adbPath", ""); }
 QString ConfigCenter::logLevel() const { return get<QString>("common/logLevel", "*:W"); }
@@ -252,6 +257,27 @@ void ConfigCenter::setSimpleMode(bool enable) { set("user/simpleMode", enable); 
 
 bool ConfigCenter::showToolbar() const { return get<bool>("user/showToolbar", true); }
 void ConfigCenter::setShowToolbar(bool show) { set("user/showToolbar", show); }
+
+int ConfigCenter::randomOffset() const { return get<int>("user/randomOffset", 0); }
+void ConfigCenter::setRandomOffset(int value) { set("user/randomOffset", qBound(0, value, 100)); }
+
+int ConfigCenter::steerWheelSmooth() const { return get<int>("user/steerWheelSmooth", 0); }
+void ConfigCenter::setSteerWheelSmooth(int value) { set("user/steerWheelSmooth", qBound(0, value, 100)); }
+
+int ConfigCenter::steerWheelCurve() const { return get<int>("user/steerWheelCurve", 0); }
+void ConfigCenter::setSteerWheelCurve(int value) { set("user/steerWheelCurve", qBound(0, value, 100)); }
+
+int ConfigCenter::slideCurve() const { return get<int>("user/slideCurve", 30); }
+void ConfigCenter::setSlideCurve(int value) { set("user/slideCurve", qBound(0, value, 100)); }
+
+int ConfigCenter::keyMapOverlayOpacity() const { return get<int>("user/keyMapOverlayOpacity", 60); }
+void ConfigCenter::setKeyMapOverlayOpacity(int value) { set("user/keyMapOverlayOpacity", qBound(0, value, 100)); }
+
+bool ConfigCenter::keyMapOverlayVisible() const { return get<bool>("user/keyMapOverlayVisible", false); }
+void ConfigCenter::setKeyMapOverlayVisible(bool visible) { set("user/keyMapOverlayVisible", visible); }
+
+int ConfigCenter::scriptTipOpacity() const { return get<int>("user/scriptTipOpacity", 70); }
+void ConfigCenter::setScriptTipOpacity(int value) { set("user/scriptTipOpacity", qBound(0, value, 100)); }
 
 // --- 设备专属配置 ---
 QString ConfigCenter::deviceKey(const QString& serial, const QString& key) const

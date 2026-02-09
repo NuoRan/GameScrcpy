@@ -4,7 +4,8 @@
  */
 
 #include "KcpTransport.h"
-#include <QNetworkDatagram>
+#include "PerformanceMonitor.h"
+#include <QHostAddress>
 
 KcpTransport::KcpTransport(uint32_t conv, QObject *parent)
     : QObject(parent)
@@ -74,8 +75,14 @@ quint16 KcpTransport::localPort() const
 int KcpTransport::send(const char *data, int len)
 {
     if (!m_kcp || !m_active || len <= 0) return -1;
-    // C-K03: 移除立即flush，由定时器的update()自动flush，减少不必要的发送
-    return m_kcp->send(data, len);
+    int ret = m_kcp->send(data, len);
+    // 立即flush，减少延迟
+    if (ret >= 0) {
+        m_kcp->update(currentMs());
+        // 报告发送字节数
+        qsc::PerformanceMonitor::instance().reportBytesSent(len);
+    }
+    return ret;
 }
 
 int KcpTransport::send(const QByteArray &data)
@@ -90,7 +97,7 @@ QByteArray KcpTransport::recv()
     int size = m_kcp->peekSize();
     if (size <= 0) return QByteArray();
 
-    QByteArray data(size, 0);
+    QByteArray data(size, Qt::Uninitialized);  // 不零初始化，后续 ikcp_recv 会完全覆写
     int ret = m_kcp->recv(data.data(), size);
     if (ret < 0) return QByteArray();
 
@@ -111,6 +118,11 @@ int KcpTransport::pending() const
 void KcpTransport::setFastMode()
 {
     if (m_kcp) m_kcp->setFastMode();
+}
+
+void KcpTransport::setVideoStreamMode()
+{
+    if (m_kcp) m_kcp->setVideoStreamMode();
 }
 
 void KcpTransport::setNormalMode()
@@ -158,18 +170,30 @@ void KcpTransport::setStreamMode(int stream)
 
 void KcpTransport::onSocketReadyRead()
 {
+    // P-KCP: 使用 readDatagram + 预分配栈缓冲区，避免每个 UDP 包创建 QNetworkDatagram 堆对象
+    char buf[2048];  // MTU 通常 < 1500
+    QHostAddress sender;
+    quint16 senderPort;
+
     while (m_socket->hasPendingDatagrams()) {
-        QNetworkDatagram datagram = m_socket->receiveDatagram();
-        if (datagram.data().isEmpty()) continue;
+        qint64 size = m_socket->readDatagram(buf, sizeof(buf), &sender, &senderPort);
+        if (size <= 0) continue;
+
+        // 报告接收字节数
+        qsc::PerformanceMonitor::instance().reportBytesReceived(static_cast<int>(size));
 
         if (m_remotePort == 0) {
-            m_remoteAddress = datagram.senderAddress();
-            m_remotePort = datagram.senderPort();
+            m_remoteAddress = sender;
+            m_remotePort = senderPort;
             emit peerConnected();
         }
 
-        m_kcp->input(datagram.data().constData(), datagram.data().size());
+        m_kcp->input(buf, static_cast<int>(size));
     }
+
+    // 【关键优化】收到数据后立即update，让ACK最快发出
+    // 这避免了对端因为收不到ACK而触发重传
+    m_kcp->update(currentMs());
 
     if (m_kcp->peekSize() > 0) {
         emit dataReady();
@@ -179,7 +203,36 @@ void KcpTransport::onSocketReadyRead()
 void KcpTransport::onUpdateTimer()
 {
     if (!m_kcp || !m_active) return;
-    m_kcp->update(currentMs());
+
+    uint32_t current = currentMs();
+    m_kcp->update(current);
+
+    // 报告网络延迟（RTT）
+    int rtt = m_kcp->getRtt();
+    if (rtt > 0) {
+        qsc::PerformanceMonitor::instance().reportNetworkLatency(rtt);
+    }
+
+    // 【按需调度优化】使用 ikcp_check 计算下次需要更新的时间
+    scheduleNextUpdate();
+}
+
+void KcpTransport::scheduleNextUpdate()
+{
+    if (!m_kcp || !m_active || !m_updateTimer) return;
+
+    uint32_t current = currentMs();
+    uint32_t next = m_kcp->check(current);
+
+    // 计算下次更新的延迟时间
+    int delay = static_cast<int>(next - current);
+    delay = qBound(1, delay, 100);  // 限制在 1-100ms 范围内
+
+    // 动态调整 timer 间隔
+    // P-KCP: 添加阈值容差，避免微小变化时频繁重注册底层定时器
+    if (qAbs(m_updateTimer->interval() - delay) > 2) {
+        m_updateTimer->setInterval(delay);
+    }
 }
 
 int KcpTransport::udpOutput(const char *buf, int len)

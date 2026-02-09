@@ -9,6 +9,12 @@
 #include <QObject>
 #include <QPushButton>
 
+/**
+ * @brief 图标字体助手 / Icon Font Helper (Singleton)
+ *
+ * 使用 FontAwesome 等图标字体为控件设置图标。
+ * Uses icon fonts (FontAwesome, etc.) to set icons on widgets.
+ */
 class IconHelper : public QObject
 {
 private:

@@ -10,14 +10,15 @@
 #include "videosocket.h"
 
 /**
- * TcpServerHandler - TCP模式服务器管理
+ * TcpServerHandler - TCP模式服务器管理 / TCP Mode Server Manager
  *
  * 用于 USB 有线连接模式，使用 TCP 协议通过 adb forward/reverse 进行视频传输
- * 特点：稳定可靠，兼容性好
+ * Used for USB wired connection, TCP protocol via adb forward/reverse for video transport.
+ * 特点：稳定可靠，兼容性好 / Features: stable, reliable, good compatibility.
  *
- * 支持两种隧道模式：
- * - adb reverse (默认): 服务端连接到客户端
- * - adb forward: 客户端连接到服务端
+ * 支持两种隧道模式 / Supports two tunnel modes:
+ * - adb reverse (默认/default): 服务端连接到客户端 / server connects to client
+ * - adb forward: 客户端连接到服务端 / client connects to server
  */
 class TcpServerHandler : public QObject
 {

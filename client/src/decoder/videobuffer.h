@@ -14,30 +14,30 @@
 typedef struct AVFrame AVFrame;
 
 // ---------------------------------------------------------
-// 缓冲区统计信息
+// 缓冲区统计信息 / Buffer Statistics
 // ---------------------------------------------------------
 struct BufferStatistics {
-    quint64 totalFrames = 0;      // 总帧数
-    quint64 droppedFrames = 0;    // 丢弃帧数
-    quint64 renderedFrames = 0;   // 渲染帧数
-    double avgQueueDepth = 0.0;   // 平均队列深度
-    double dropRate() const {     // 丢帧率
+    quint64 totalFrames = 0;      // 总帧数 / Total frames
+    quint64 droppedFrames = 0;    // 丢弃帧数 / Dropped frames
+    quint64 renderedFrames = 0;   // 渲染帧数 / Rendered frames
+    double avgQueueDepth = 0.0;   // 平均队列深度 / Average queue depth
+    double dropRate() const {     // 丢帧率 / Drop rate (%)
         return totalFrames > 0 ? (double)droppedFrames / totalFrames * 100.0 : 0.0;
     }
 };
 
 // ---------------------------------------------------------
-// 三缓冲视频帧管理
-// 解决双缓冲的生产者-消费者阻塞问题
+// 三缓冲视频帧管理 / Triple-Buffered Video Frame Manager
+// 解决双缓冲的生产者-消费者阻塞问题 / Solves producer-consumer blocking of double-buffering
 // ---------------------------------------------------------
 class VideoBuffer : public QObject
 {
     Q_OBJECT
 public:
-    // 缓冲策略
+    // 缓冲策略 / Buffer strategy
     enum class BufferMode {
-        Double,     // 传统双缓冲（向后兼容）
-        Triple      // 三缓冲（新默认）
+        Double,     // 传统双缓冲 / Traditional double-buffering (backward compat)
+        Triple      // 三缓冲 / Triple-buffering (new default)
     };
 
     VideoBuffer(QObject *parent = Q_NULLPTR);

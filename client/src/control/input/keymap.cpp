@@ -78,13 +78,13 @@ void KeyMap::loadKeyMap(const QString &json)
 
     if (checkItemString(rootObj, "switchKey")) {
 
-        QPair<ActionType, int> sk = getItemKey(rootObj, "switchKey");
+        ParsedKey sk = getItemKey(rootObj, "switchKey");
 
-        if (sk.first != AT_INVALID) {
+        if (sk.type != AT_INVALID) {
 
-            m_switchKey.type = sk.first;
+            m_switchKey.type = sk.type;
 
-            m_switchKey.key = sk.second;
+            m_switchKey.key = sk.key;
 
         }
 
@@ -192,17 +192,17 @@ void KeyMap::loadKeyMap(const QString &json)
 
                 }
 
-                QPair<ActionType, int> leftKey = getItemKey(node, "leftKey");
+                ParsedKey leftKey = getItemKey(node, "leftKey");
 
-                QPair<ActionType, int> rightKey = getItemKey(node, "rightKey");
+                ParsedKey rightKey = getItemKey(node, "rightKey");
 
-                QPair<ActionType, int> upKey = getItemKey(node, "upKey");
+                ParsedKey upKey = getItemKey(node, "upKey");
 
-                QPair<ActionType, int> downKey = getItemKey(node, "downKey");
+                ParsedKey downKey = getItemKey(node, "downKey");
 
 
 
-                if (leftKey.first == AT_INVALID || rightKey.first == AT_INVALID || upKey.first == AT_INVALID || downKey.first == AT_INVALID) break;
+                if (leftKey.type == AT_INVALID || rightKey.type == AT_INVALID || upKey.type == AT_INVALID || downKey.type == AT_INVALID) break;
 
 
 
@@ -210,13 +210,13 @@ void KeyMap::loadKeyMap(const QString &json)
 
                 keyMapNode.type = type;
 
-                keyMapNode.data.steerWheel.left = { leftKey.first, leftKey.second, QPointF(0, 0), QPointF(0, 0), getItemDouble(node, "leftOffset") };
+                keyMapNode.data.steerWheel.left = { leftKey.type, leftKey.key, leftKey.modifiers, QPointF(0, 0), QPointF(0, 0), getItemDouble(node, "leftOffset") };
 
-                keyMapNode.data.steerWheel.right = { rightKey.first, rightKey.second, QPointF(0, 0), QPointF(0, 0), getItemDouble(node, "rightOffset") };
+                keyMapNode.data.steerWheel.right = { rightKey.type, rightKey.key, rightKey.modifiers, QPointF(0, 0), QPointF(0, 0), getItemDouble(node, "rightOffset") };
 
-                keyMapNode.data.steerWheel.up = { upKey.first, upKey.second, QPointF(0, 0), QPointF(0, 0), getItemDouble(node, "upOffset") };
+                keyMapNode.data.steerWheel.up = { upKey.type, upKey.key, upKey.modifiers, QPointF(0, 0), QPointF(0, 0), getItemDouble(node, "upOffset") };
 
-                keyMapNode.data.steerWheel.down = { downKey.first, downKey.second, QPointF(0, 0), QPointF(0, 0), getItemDouble(node, "downOffset") };
+                keyMapNode.data.steerWheel.down = { downKey.type, downKey.key, downKey.modifiers, QPointF(0, 0), QPointF(0, 0), getItemDouble(node, "downOffset") };
 
                 keyMapNode.data.steerWheel.centerPos = getItemPos(node, "centerPos");
 
@@ -232,9 +232,9 @@ void KeyMap::loadKeyMap(const QString &json)
 
                 if (!checkForAndroidKey(node)) break;
 
-                QPair<ActionType, int> key = getItemKey(node, "key");
+                ParsedKey key = getItemKey(node, "key");
 
-                if (key.first == AT_INVALID) break;
+                if (key.type == AT_INVALID) break;
 
 
 
@@ -242,9 +242,11 @@ void KeyMap::loadKeyMap(const QString &json)
 
                 keyMapNode.type = type;
 
-                keyMapNode.data.androidKey.keyNode.type = key.first;
+                keyMapNode.data.androidKey.keyNode.type = key.type;
 
-                keyMapNode.data.androidKey.keyNode.key = key.second;
+                keyMapNode.data.androidKey.keyNode.key = key.key;
+
+                keyMapNode.data.androidKey.keyNode.modifiers = key.modifiers;
 
                 keyMapNode.data.androidKey.keyNode.androidKey = static_cast<AndroidKeycode>(getItemDouble(node, "androidKey"));
 
@@ -258,9 +260,9 @@ void KeyMap::loadKeyMap(const QString &json)
 
                 if (!checkForScript(node)) break;
 
-                QPair<ActionType, int> key = getItemKey(node, "key");
+                ParsedKey key = getItemKey(node, "key");
 
-                if (key.first == AT_INVALID) break;
+                if (key.type == AT_INVALID) break;
 
 
 
@@ -268,9 +270,11 @@ void KeyMap::loadKeyMap(const QString &json)
 
                 keyMapNode.type = type;
 
-                keyMapNode.data.script.keyNode.type = key.first;
+                keyMapNode.data.script.keyNode.type = key.type;
 
-                keyMapNode.data.script.keyNode.key = key.second;
+                keyMapNode.data.script.keyNode.key = key.key;
+
+                keyMapNode.data.script.keyNode.modifiers = key.modifiers;
 
                 keyMapNode.data.script.keyNode.pos = getItemPos(node, "pos");
 
@@ -298,13 +302,13 @@ void KeyMap::loadKeyMap(const QString &json)
 
                 // 1. 设置开关按键 (这是核心，将 Camera 组件的按键设为 战斗模式开关)
 
-                QPair<ActionType, int> key = getItemKey(node, "key");
+                ParsedKey key = getItemKey(node, "key");
 
-                if (key.first != AT_INVALID) {
+                if (key.type != AT_INVALID) {
 
-                    m_switchKey.type = key.first;
+                    m_switchKey.type = key.type;
 
-                    m_switchKey.key = key.second;
+                    m_switchKey.key = key.key;
 
                 }
 
@@ -329,6 +333,48 @@ void KeyMap::loadKeyMap(const QString &json)
                 // 记录索引，让 isValidMouseMoveMap() 返回 true
 
                 m_idxMouseMove = m_keyMapNodes.size();
+
+                m_keyMapNodes.push_back(keyMapNode);
+
+            } break;
+
+
+
+            // 【新增】小眼睛自由视角
+
+            case KeyMap::KMT_FREE_LOOK: {
+
+                if (!checkForFreeLook(node)) {
+
+                    qWarning() << "json error: format error (freeLook)";
+
+                    break;
+
+                }
+
+                ParsedKey key = getItemKey(node, "key");
+
+                if (key.type == AT_INVALID) break;
+
+
+
+                KeyMapNode keyMapNode;
+
+                keyMapNode.type = type;
+
+                keyMapNode.data.freeLook.keyNode.type = key.type;
+
+                keyMapNode.data.freeLook.keyNode.key = key.key;
+
+                keyMapNode.data.freeLook.keyNode.modifiers = key.modifiers;
+
+                keyMapNode.data.freeLook.startPos = getItemPos(node, "startPos");
+
+                keyMapNode.data.freeLook.speedRatio.setX(getItemDouble(node, "speedRatioX"));
+
+                keyMapNode.data.freeLook.speedRatio.setY(getItemDouble(node, "speedRatioY"));
+
+                keyMapNode.data.freeLook.resetViewOnRelease = getItemBool(node, "resetViewOnRelease");
 
                 m_keyMapNodes.push_back(keyMapNode);
 
@@ -384,11 +430,41 @@ const KeyMap::KeyMapNode &KeyMap::getKeyMapNode(int key)
 
 
 
-const KeyMap::KeyMapNode &KeyMap::getKeyMapNodeKey(int key)
+const KeyMap::KeyMapNode &KeyMap::getKeyMapNodeKey(int key, Qt::KeyboardModifiers modifiers)
 
 {
 
-    return *m_rmapKey.value(key, &m_invalidNode);
+    // 首先尝试精确匹配（带修饰键）
+
+    qint64 hash = makeKeyHash(key, modifiers);
+
+    KeyMapNode *p = m_rmapKey.value(hash, nullptr);
+
+    if (p) {
+
+        return *p;
+
+    }
+
+
+
+    // 如果没有精确匹配，尝试仅匹配按键（无修饰键）
+
+    // 这样可以兼容旧的配置
+
+    hash = makeKeyHash(key, Qt::NoModifier);
+
+    p = m_rmapKey.value(hash, nullptr);
+
+    if (p) {
+
+        return *p;
+
+    }
+
+
+
+    return m_invalidNode;
 
 }
 
@@ -402,7 +478,104 @@ const KeyMap::KeyMapNode &KeyMap::getKeyMapNodeMouse(int key)
 
 }
 
+// 从显示名称转换为 Qt 键码和修饰键
+// 返回 QPair<key, modifiers>
+static QPair<int, Qt::KeyboardModifiers> displayNameToKeyWithModifiers(const QString& displayName)
+{
+    QString name = displayName.trimmed();
+    Qt::KeyboardModifiers modifiers = Qt::NoModifier;
 
+    // 处理组合键 (如 "Ctrl+J", "Shift+G", "Ctrl+Shift+A")
+    QStringList parts = name.split('+', Qt::SkipEmptyParts);
+    QString keyPart = name;
+
+    if (parts.size() > 1) {
+        keyPart = parts.last().trimmed();  // 最后一部分是实际按键
+        for (int i = 0; i < parts.size() - 1; ++i) {
+            QString mod = parts[i].trimmed().toLower();
+            if (mod == "ctrl" || mod == "control") {
+                modifiers |= Qt::ControlModifier;
+            } else if (mod == "shift") {
+                modifiers |= Qt::ShiftModifier;
+            } else if (mod == "alt") {
+                modifiers |= Qt::AltModifier;
+            } else if (mod == "meta" || mod == "win") {
+                modifiers |= Qt::MetaModifier;
+            }
+        }
+    }
+
+    // 鼠标按键
+    if (keyPart == "LMB" || keyPart.compare("LeftButton", Qt::CaseInsensitive) == 0) return {Qt::LeftButton, modifiers};
+    if (keyPart == "RMB" || keyPart.compare("RightButton", Qt::CaseInsensitive) == 0) return {Qt::RightButton, modifiers};
+    if (keyPart == "MMB" || keyPart.compare("MiddleButton", Qt::CaseInsensitive) == 0) return {Qt::MiddleButton, modifiers};
+
+    // 滚轮
+    if (keyPart.compare("WheelUp", Qt::CaseInsensitive) == 0 || keyPart == "滚上") return {WHEEL_UP, modifiers};
+    if (keyPart.compare("WheelDown", Qt::CaseInsensitive) == 0 || keyPart == "滚下") return {WHEEL_DOWN, modifiers};
+
+    // 符号键
+    if (keyPart == "=" || keyPart == "Equal") return {Qt::Key_Equal, modifiers};
+    if (keyPart == "+" || keyPart == "Plus") return {Qt::Key_Plus, modifiers};
+    if (keyPart == "-" || keyPart == "Minus") return {Qt::Key_Minus, modifiers};
+    if (keyPart == "*" || keyPart == "Asterisk") return {Qt::Key_Asterisk, modifiers};
+    if (keyPart == "/" || keyPart == "Slash") return {Qt::Key_Slash, modifiers};
+    if (keyPart == "`" || keyPart == "QuoteLeft") return {Qt::Key_QuoteLeft, modifiers};
+    if (keyPart == "~" || keyPart == "AsciiTilde") return {Qt::Key_AsciiTilde, modifiers};
+    if (keyPart == "\\" || keyPart == "Backslash") return {Qt::Key_Backslash, modifiers};
+    if (keyPart == "[" || keyPart == "BracketLeft") return {Qt::Key_BracketLeft, modifiers};
+    if (keyPart == "]" || keyPart == "BracketRight") return {Qt::Key_BracketRight, modifiers};
+    if (keyPart == ";" || keyPart == "Semicolon") return {Qt::Key_Semicolon, modifiers};
+    if (keyPart == "'" || keyPart == "Apostrophe") return {Qt::Key_Apostrophe, modifiers};
+    if (keyPart == "," || keyPart == "Comma") return {Qt::Key_Comma, modifiers};
+    if (keyPart == "." || keyPart == "Period") return {Qt::Key_Period, modifiers};
+
+    // 特殊键
+    if (keyPart.compare("Space", Qt::CaseInsensitive) == 0) return {Qt::Key_Space, modifiers};
+    if (keyPart.compare("Tab", Qt::CaseInsensitive) == 0) return {Qt::Key_Tab, modifiers};
+    if (keyPart.compare("Enter", Qt::CaseInsensitive) == 0 || keyPart.compare("Return", Qt::CaseInsensitive) == 0) return {Qt::Key_Return, modifiers};
+    if (keyPart.compare("Esc", Qt::CaseInsensitive) == 0 || keyPart.compare("Escape", Qt::CaseInsensitive) == 0) return {Qt::Key_Escape, modifiers};
+    if (keyPart.compare("Shift", Qt::CaseInsensitive) == 0) return {Qt::Key_Shift, modifiers};
+    if (keyPart.compare("Ctrl", Qt::CaseInsensitive) == 0 || keyPart.compare("Control", Qt::CaseInsensitive) == 0) return {Qt::Key_Control, modifiers};
+    if (keyPart.compare("Alt", Qt::CaseInsensitive) == 0) return {Qt::Key_Alt, modifiers};
+    if (keyPart.compare("Backspace", Qt::CaseInsensitive) == 0) return {Qt::Key_Backspace, modifiers};
+    if (keyPart.compare("Up", Qt::CaseInsensitive) == 0 || keyPart == "↑") return {Qt::Key_Up, modifiers};
+    if (keyPart.compare("Down", Qt::CaseInsensitive) == 0 || keyPart == "↓") return {Qt::Key_Down, modifiers};
+    if (keyPart.compare("Left", Qt::CaseInsensitive) == 0 || keyPart == "←") return {Qt::Key_Left, modifiers};
+    if (keyPart.compare("Right", Qt::CaseInsensitive) == 0 || keyPart == "→") return {Qt::Key_Right, modifiers};
+
+    // F1-F12
+    if (keyPart.length() >= 2 && keyPart.length() <= 3 && keyPart[0].toUpper() == 'F') {
+        bool ok;
+        int num = keyPart.mid(1).toInt(&ok);
+        if (ok && num >= 1 && num <= 12) {
+            return {Qt::Key_F1 + num - 1, modifiers};
+        }
+    }
+
+    // 单字符（字母、数字）
+    if (keyPart.length() == 1) {
+        QChar c = keyPart[0].toUpper();
+        if (c >= 'A' && c <= 'Z') return {Qt::Key_A + (c.toLatin1() - 'A'), modifiers};
+        if (c >= '0' && c <= '9') return {Qt::Key_0 + (c.toLatin1() - '0'), modifiers};
+    }
+
+    return {0, Qt::NoModifier};  // 未找到
+}
+
+const KeyMap::KeyMapNode &KeyMap::getKeyMapNodeByDisplayName(const QString& displayName)
+{
+    auto [key, modifiers] = displayNameToKeyWithModifiers(displayName);
+    if (key == 0) return m_invalidNode;
+
+    // 判断是键盘键还是鼠标按钮/滚轮
+    if (key == Qt::LeftButton || key == Qt::RightButton || key == Qt::MiddleButton ||
+        key == WHEEL_UP || key == WHEEL_DOWN) {
+        return getKeyMapNodeMouse(key);
+    } else {
+        return getKeyMapNodeKey(key, modifiers);
+    }
+}
 
 bool KeyMap::isSwitchOnKeyboard()
 
@@ -460,28 +633,60 @@ const KeyMap::KeyMapNode &KeyMap::getMouseMoveMap()
 
 
 
-bool KeyMap::updateSteerWheelOffset(double up, double down, double left, double right)
-
+void KeyMap::setSteerWheelCoefficient(double up, double down, double left, double right)
 {
+    // 设置临时系数，默认 1.0（不变）
+    m_steerWheelCoeff[0] = up;
+    m_steerWheelCoeff[1] = down;
+    m_steerWheelCoeff[2] = left;
+    m_steerWheelCoeff[3] = right;
 
+    // 标记系数已变化，需要实时更新
+    m_coefficientChanged = true;
+}
+
+void KeyMap::resetSteerWheelCoefficient()
+{
+    m_steerWheelCoeff[0] = 1.0;
+    m_steerWheelCoeff[1] = 1.0;
+    m_steerWheelCoeff[2] = 1.0;
+    m_steerWheelCoeff[3] = 1.0;
+    m_coefficientChanged = true;
+}
+
+double KeyMap::getSteerWheelCoefficient(int direction) const
+{
+    if (direction < 0 || direction > 3) return 1.0;
+    return m_steerWheelCoeff[direction];
+}
+
+const KeyMap::KeyMapNode* KeyMap::getSteerWheelNode() const
+{
+    if (m_idxSteerWheel >= 0 && m_idxSteerWheel < m_keyMapNodes.size()) {
+        return &m_keyMapNodes[m_idxSteerWheel];
+    }
+    return nullptr;
+}
+
+double KeyMap::getSteerWheelOffset(int direction) const
+{
     if (m_idxSteerWheel < 0 || m_idxSteerWheel >= m_keyMapNodes.size()) {
-
-        return false;
-
+        return 0.0;
     }
 
-    KeyMapNode &node = m_keyMapNodes[m_idxSteerWheel];
+    const KeyMapNode &node = m_keyMapNodes[m_idxSteerWheel];
+    double baseOffset = 0.0;
 
-    node.data.steerWheel.up.extendOffset = up;
+    switch (direction) {
+        case 0: baseOffset = node.data.steerWheel.up.extendOffset; break;
+        case 1: baseOffset = node.data.steerWheel.down.extendOffset; break;
+        case 2: baseOffset = node.data.steerWheel.left.extendOffset; break;
+        case 3: baseOffset = node.data.steerWheel.right.extendOffset; break;
+        default: return 0.0;
+    }
 
-    node.data.steerWheel.down.extendOffset = down;
-
-    node.data.steerWheel.left.extendOffset = left;
-
-    node.data.steerWheel.right.extendOffset = right;
-
-    return true;
-
+    // 应用系数
+    return baseOffset * m_steerWheelCoeff[direction];
 }
 
 
@@ -504,21 +709,47 @@ void KeyMap::makeReverseMap()
 
         case KMT_STEER_WHEEL: {
 
-            QMultiHash<int, KeyMapNode *> &ml = node.data.steerWheel.left.type == AT_KEY ? m_rmapKey : m_rmapMouse;
+            // 方向盘的四个方向键
 
-            ml.insert(node.data.steerWheel.left.key, &node);
+            if (node.data.steerWheel.left.type == AT_KEY) {
 
-            QMultiHash<int, KeyMapNode *> &mr = node.data.steerWheel.right.type == AT_KEY ? m_rmapKey : m_rmapMouse;
+                m_rmapKey.insert(makeKeyHash(node.data.steerWheel.left.key, node.data.steerWheel.left.modifiers), &node);
 
-            mr.insert(node.data.steerWheel.right.key, &node);
+            } else {
 
-            QMultiHash<int, KeyMapNode *> &mu = node.data.steerWheel.up.type == AT_KEY ? m_rmapKey : m_rmapMouse;
+                m_rmapMouse.insert(node.data.steerWheel.left.key, &node);
 
-            mu.insert(node.data.steerWheel.up.key, &node);
+            }
 
-            QMultiHash<int, KeyMapNode *> &md = node.data.steerWheel.down.type == AT_KEY ? m_rmapKey : m_rmapMouse;
+            if (node.data.steerWheel.right.type == AT_KEY) {
 
-            md.insert(node.data.steerWheel.down.key, &node);
+                m_rmapKey.insert(makeKeyHash(node.data.steerWheel.right.key, node.data.steerWheel.right.modifiers), &node);
+
+            } else {
+
+                m_rmapMouse.insert(node.data.steerWheel.right.key, &node);
+
+            }
+
+            if (node.data.steerWheel.up.type == AT_KEY) {
+
+                m_rmapKey.insert(makeKeyHash(node.data.steerWheel.up.key, node.data.steerWheel.up.modifiers), &node);
+
+            } else {
+
+                m_rmapMouse.insert(node.data.steerWheel.up.key, &node);
+
+            }
+
+            if (node.data.steerWheel.down.type == AT_KEY) {
+
+                m_rmapKey.insert(makeKeyHash(node.data.steerWheel.down.key, node.data.steerWheel.down.modifiers), &node);
+
+            } else {
+
+                m_rmapMouse.insert(node.data.steerWheel.down.key, &node);
+
+            }
 
         } break;
 
@@ -526,9 +757,15 @@ void KeyMap::makeReverseMap()
 
         case KMT_ANDROID_KEY: {
 
-            QMultiHash<int, KeyMapNode *> &m = node.data.androidKey.keyNode.type == AT_KEY ? m_rmapKey : m_rmapMouse;
+            if (node.data.androidKey.keyNode.type == AT_KEY) {
 
-            m.insert(node.data.androidKey.keyNode.key, &node);
+                m_rmapKey.insert(makeKeyHash(node.data.androidKey.keyNode.key, node.data.androidKey.keyNode.modifiers), &node);
+
+            } else {
+
+                m_rmapMouse.insert(node.data.androidKey.keyNode.key, &node);
+
+            }
 
         } break;
 
@@ -536,9 +773,31 @@ void KeyMap::makeReverseMap()
 
         case KMT_SCRIPT: {
 
-            QMultiHash<int, KeyMapNode *> &m = node.data.script.keyNode.type == AT_KEY ? m_rmapKey : m_rmapMouse;
+            if (node.data.script.keyNode.type == AT_KEY) {
 
-            m.insert(node.data.script.keyNode.key, &node);
+                m_rmapKey.insert(makeKeyHash(node.data.script.keyNode.key, node.data.script.keyNode.modifiers), &node);
+
+            } else {
+
+                m_rmapMouse.insert(node.data.script.keyNode.key, &node);
+
+            }
+
+        } break;
+
+
+
+        case KMT_FREE_LOOK: {
+
+            if (node.data.freeLook.keyNode.type == AT_KEY) {
+
+                m_rmapKey.insert(makeKeyHash(node.data.freeLook.keyNode.key, node.data.freeLook.keyNode.modifiers), &node);
+
+            } else {
+
+                m_rmapMouse.insert(node.data.freeLook.keyNode.key, &node);
+
+            }
 
         } break;
 
@@ -608,29 +867,165 @@ QPointF KeyMap::getItemPos(const QJsonObject &node, const QString &name)
 
 
 
-QPair<KeyMap::ActionType, int> KeyMap::getItemKey(const QJsonObject &node, const QString &name)
+KeyMap::ParsedKey KeyMap::getItemKey(const QJsonObject &node, const QString &name)
 
 {
 
     QString value = getItemString(node, name);
 
-    int key = m_metaEnumKey.keyToValue(value.toStdString().c_str());
+    ParsedKey result;
+
+    result.type = AT_INVALID;
+
+    result.key = Qt::Key_unknown;
+
+    result.modifiers = Qt::NoModifier;
+
+
+
+    if (value.isEmpty()) {
+
+        return result;
+
+    }
+
+
+
+    // 先检查是否是鼠标按钮
 
     int btn = m_metaEnumMouseButtons.keyToValue(value.toStdString().c_str());
 
-    if (key == -1 && btn == -1) {
+    if (btn != -1) {
 
-        return { AT_INVALID, -1 };
+        result.type = AT_MOUSE;
 
-    } else if (key != -1) {
+        result.key = btn;
 
-        return { AT_KEY, key };
-
-    } else {
-
-        return { AT_MOUSE, btn };
+        return result;
 
     }
+
+    // 检查是否是滚轮
+    if (value.compare("WheelUp", Qt::CaseInsensitive) == 0) {
+        result.type = AT_MOUSE;
+        result.key = WHEEL_UP;
+        return result;
+    }
+    if (value.compare("WheelDown", Qt::CaseInsensitive) == 0) {
+        result.type = AT_MOUSE;
+        result.key = WHEEL_DOWN;
+        return result;
+    }
+
+    // 解析组合键（如 "Shift+G", "Ctrl+Alt+X"）
+
+    Qt::KeyboardModifiers modifiers = Qt::NoModifier;
+
+    QString keyPart = value;
+
+
+
+    // 检查是否包含修饰键
+
+    if (value.contains('+')) {
+
+        QStringList parts = value.split('+');
+
+        keyPart = parts.last();  // 最后一部分是主键
+
+
+
+        for (int i = 0; i < parts.size() - 1; ++i) {
+
+            QString mod = parts[i].trimmed();
+
+            if (mod == "Shift") {
+
+                modifiers |= Qt::ShiftModifier;
+
+            } else if (mod == "Ctrl" || mod == "Control") {
+
+                modifiers |= Qt::ControlModifier;
+
+            } else if (mod == "Alt") {
+
+                modifiers |= Qt::AltModifier;
+
+            } else if (mod == "Meta" || mod == "Win") {
+
+                modifiers |= Qt::MetaModifier;
+
+            }
+
+        }
+
+    }
+
+
+
+    // 尝试解析键值
+
+    int key = -1;
+
+
+
+    // 首先尝试带 "Key_" 前缀
+
+    QString keyWithPrefix = keyPart;
+
+    if (!keyPart.startsWith("Key_")) {
+
+        keyWithPrefix = "Key_" + keyPart;
+
+    }
+
+    key = m_metaEnumKey.keyToValue(keyWithPrefix.toStdString().c_str());
+
+
+
+    // 如果失败，尝试不带前缀的原始值
+
+    if (key == -1) {
+
+        key = m_metaEnumKey.keyToValue(keyPart.toStdString().c_str());
+
+    }
+
+
+
+    // 如果还是失败，尝试使用 QKeySequence 解析单字符
+
+    if (key == -1 && keyPart.length() == 1) {
+
+        QChar c = keyPart[0].toUpper();
+
+        if (c >= 'A' && c <= 'Z') {
+
+            key = Qt::Key_A + (c.unicode() - 'A');
+
+        } else if (c >= '0' && c <= '9') {
+
+            key = Qt::Key_0 + (c.unicode() - '0');
+
+        }
+
+    }
+
+
+
+    if (key != -1) {
+
+        result.type = AT_KEY;
+
+        result.key = key;
+
+        result.modifiers = modifiers;
+
+    }
+
+
+
+    return result;
 
 }
 
@@ -747,6 +1142,18 @@ bool KeyMap::checkForCamera(const QJsonObject &node)
 {
 
     return checkItemString(node, "key") && checkItemPos(node, "pos")
+
+    && checkItemDouble(node, "speedRatioX") && checkItemDouble(node, "speedRatioY");
+
+}
+
+// 【新增】小眼睛自由视角检查
+
+bool KeyMap::checkForFreeLook(const QJsonObject &node)
+
+{
+
+    return checkItemString(node, "key") && checkItemPos(node, "startPos")
 
     && checkItemDouble(node, "speedRatioX") && checkItemDouble(node, "speedRatioY");
 

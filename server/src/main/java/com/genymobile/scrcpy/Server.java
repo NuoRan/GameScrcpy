@@ -1,3 +1,12 @@
+/*
+ * Server.java - scrcpy 服务端入口点
+ *
+ * Copyright (C) 2019-2026 Rankun
+ * Licensed under the Apache License, Version 2.0
+ *
+ * 基于 Genymobile/scrcpy 二次开发
+ */
+
 package com.genymobile.scrcpy;
 
 import com.genymobile.scrcpy.device.ConfigurationException;
@@ -15,13 +24,15 @@ import java.io.IOException;
 import java.lang.reflect.Field;
 
 /**
- * Server - scrcpy服务端入口点
- *
- * A-01 优化: 使用策略模式消除 KCP/TCP 代码重复
- *
+ * scrcpy 服务端入口点
+ * <p>
  * 支持两种传输模式:
- * - WiFi 模式 (use_kcp=true): 使用 KCP/UDP (低延迟) -> KcpSession
- * - USB 模式 (use_kcp=false): 使用 TCP + adb forward (兼容性好) -> TcpSession
+ * <ul>
+ *   <li>WiFi 模式 (use_kcp=true): 使用 KCP/UDP，低延迟</li>
+ *   <li>USB 模式 (use_kcp=false): 使用 TCP + adb forward，兼容性好</li>
+ * </ul>
+ * <p>
+ * 优化: 使用策略模式消除 KCP/TCP 代码重复
  */
 public final class Server {
 

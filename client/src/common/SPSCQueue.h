@@ -10,21 +10,18 @@
 namespace qsc {
 
 /**
- * @brief 无锁单生产者单消费者队列
+ * @brief 无锁单生产者单消费者队列 / Lock-free Single Producer Single Consumer Queue
  *
- * 基于环形缓冲区实现的无锁 SPSC (Single Producer Single Consumer) 队列。
- * 特点：
- * - 零锁竞争：生产者和消费者可以完全并行操作
- * - Cache-friendly：使用 cache line padding 避免伪共享
- * - 固定容量：编译时或运行时确定容量，无动态内存分配
- * - 高性能：适用于实时系统和低延迟场景
+ * 基于环形缓冲区实现的无锁 SPSC 队列。
+ * Lock-free SPSC queue based on ring buffer.
+ * 特点 / Features:
+ * - 零锁竞争 / Zero lock contention
+ * - Cache-friendly：使用 cache line padding 避免伪共享 / Uses cache line padding to avoid false sharing
+ * - 固定容量，无动态内存分配 / Fixed capacity, no dynamic memory allocation
+ * - 高性能，适用于实时系统 / High performance, suitable for real-time systems
  *
- * 使用场景：
- * - 控制消息从 UI 线程发送到网络线程
- * - 解码帧从解码线程传递到渲染线程
- *
- * @tparam T 元素类型
- * @tparam Capacity 队列容量（必须是2的幂）
+ * @tparam T 元素类型 / Element type
+ * @tparam Capacity 队列容量（必须是2的幂）/ Queue capacity (must be power of 2)
  */
 template<typename T, size_t Capacity = 1024>
 class SPSCQueue

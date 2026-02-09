@@ -6,8 +6,15 @@
 #include <QLineEdit>
 #include <QCheckBox>
 #include <QPushButton>
+#include <QSpinBox>
+#include <QLabel>
+#include <QEvent>
 
-// 设置对话框
+// ---------------------------------------------------------
+// 设置对话框 / Settings Dialog
+// 配置视频参数、显示选项、无线连接等
+// Configure video params, display options, wireless connection, etc.
+// ---------------------------------------------------------
 class SettingsDialog : public QDialog
 {
     Q_OBJECT
@@ -20,6 +27,8 @@ public:
     quint32 getBitRate() const;
     quint16 getMaxSize() const;
     int getMaxSizeIndex() const;
+    int getMaxFps() const;
+    int getMaxTouchPoints() const;
     bool isReverseConnect() const;
     bool showToolbar() const;
     bool isFrameless() const;
@@ -34,6 +43,8 @@ public:
     void setCurrentSerial(const QString &serial);
     void setBitRate(quint32 bitRate);
     void setMaxSizeIndex(int index);
+    void setMaxFps(int fps);
+    void setMaxTouchPoints(int points);
     void setReverseConnect(bool checked);
     void setShowToolbar(bool checked);
     void setFrameless(bool checked);
@@ -52,12 +63,28 @@ signals:
 private:
     void setupUI();
     void applyStyle();
+    void retranslateUi();
+
+protected:
+    void changeEvent(QEvent *event) override;
 
 private:
+    // 需要动态翻译的标签
+    QLabel *m_videoTitle;
+    QLabel *m_bitrateLabel;
+    QLabel *m_fpsLabel;
+    QLabel *m_sizeLabel;
+    QLabel *m_touchLabel;
+    QLabel *m_optionsTitle;
+    QLabel *m_wifiTitle;
+    QLabel *m_ipLabel;
+
     // 视频参数
     QLineEdit *m_bitRateEdit;
     QComboBox *m_bitRateUnit;
+    QSpinBox *m_fpsSpinBox;
     QComboBox *m_maxSizeBox;
+    QSpinBox *m_touchPointsSpinBox;
 
     // 显示选项
     QCheckBox *m_reverseCheck;

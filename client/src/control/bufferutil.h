@@ -2,6 +2,12 @@
 #define BUFFERUTIL_H
 #include <QBuffer>
 
+/**
+ * @brief 字节序列化工具 / Byte Serialization Utility
+ *
+ * 提供大端序 (Big-Endian) 的整数读写方法，用于 scrcpy 协议消息编解码。
+ * Provides big-endian integer read/write methods for scrcpy protocol encoding/decoding.
+ */
 class BufferUtil
 {
 public:

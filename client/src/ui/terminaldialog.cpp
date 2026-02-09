@@ -8,11 +8,11 @@ TerminalDialog::TerminalDialog(QWidget *parent)
 {
     setupUI();
     applyStyle();
+    retranslateUi();
 }
 
 void TerminalDialog::setupUI()
 {
-    setWindowTitle("终端调试");
     setMinimumSize(560, 380);
     resize(600, 420);
 
@@ -21,8 +21,8 @@ void TerminalDialog::setupUI()
     mainLayout->setContentsMargins(28, 24, 28, 24);
 
     // 标题
-    QLabel *title = new QLabel("ADB 终端");
-    title->setObjectName("dialogTitle");
+    m_titleLabel = new QLabel();
+    m_titleLabel->setObjectName("dialogTitle");
 
     // 命令输入行
     QHBoxLayout *cmdLayout = new QHBoxLayout();
@@ -34,18 +34,17 @@ void TerminalDialog::setupUI()
     promptLabel->setAlignment(Qt::AlignCenter);
 
     m_commandEdit = new QLineEdit();
-    m_commandEdit->setPlaceholderText("输入 ADB 命令，如: devices, shell ls");
     m_commandEdit->setMinimumHeight(44);
     m_commandEdit->setText("devices");
 
-    m_executeBtn = new QPushButton("执行");
+    m_executeBtn = new QPushButton();
     m_executeBtn->setObjectName("primaryBtn");
     m_executeBtn->setMinimumSize(80, 44);
 
-    m_stopBtn = new QPushButton("终止");
+    m_stopBtn = new QPushButton();
     m_stopBtn->setMinimumSize(80, 44);
 
-    m_clearBtn = new QPushButton("清空");
+    m_clearBtn = new QPushButton();
     m_clearBtn->setMinimumSize(80, 44);
 
     cmdLayout->addWidget(promptLabel);
@@ -55,20 +54,19 @@ void TerminalDialog::setupUI()
     cmdLayout->addWidget(m_clearBtn);
 
     // 输出区标签
-    QLabel *outputLabel = new QLabel("输出");
-    outputLabel->setObjectName("sectionLabel");
+    m_outputLabel = new QLabel();
+    m_outputLabel->setObjectName("sectionLabel");
 
     // 输出区
     m_outputEdit = new QTextEdit();
     m_outputEdit->setReadOnly(true);
-    m_outputEdit->setPlaceholderText("命令输出将显示在这里...");
 
     // 组装
-    mainLayout->addWidget(title);
+    mainLayout->addWidget(m_titleLabel);
     mainLayout->addSpacing(8);
     mainLayout->addLayout(cmdLayout);
     mainLayout->addSpacing(8);
-    mainLayout->addWidget(outputLabel);
+    mainLayout->addWidget(m_outputLabel);
     mainLayout->addWidget(m_outputEdit, 1);
 
     // 信号连接
@@ -181,4 +179,24 @@ void TerminalDialog::appendOutput(const QString &text)
 void TerminalDialog::clearOutput()
 {
     m_outputEdit->clear();
+}
+
+void TerminalDialog::changeEvent(QEvent *event)
+{
+    if (event->type() == QEvent::LanguageChange) {
+        retranslateUi();
+    }
+    QDialog::changeEvent(event);
+}
+
+void TerminalDialog::retranslateUi()
+{
+    setWindowTitle(tr("终端调试"));
+    m_titleLabel->setText(tr("ADB 终端"));
+    m_commandEdit->setPlaceholderText(tr("输入 ADB 命令，如: devices, shell ls"));
+    m_executeBtn->setText(tr("执行"));
+    m_stopBtn->setText(tr("终止"));
+    m_clearBtn->setText(tr("清空"));
+    m_outputLabel->setText(tr("输出"));
+    m_outputEdit->setPlaceholderText(tr("命令输出将显示在这里..."));
 }

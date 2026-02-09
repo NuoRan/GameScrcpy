@@ -1,3 +1,12 @@
+/*
+ * Options.java - 服务端启动选项
+ *
+ * Copyright (C) 2019-2026 Rankun
+ * Licensed under the Apache License, Version 2.0
+ *
+ * 基于 Genymobile/scrcpy 二次开发
+ */
+
 package com.genymobile.scrcpy;
 
 import com.genymobile.scrcpy.device.Orientation;
@@ -12,6 +21,16 @@ import android.util.Pair;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * 服务端启动选项
+ * <p>
+ * 解析客户端传递的启动参数，包括:
+ * <ul>
+ *   <li>视频参数: 编码、码率、帧率、分辨率</li>
+ *   <li>控制参数: 显示ID、触摸显示、保持唤醒</li>
+ *   <li>传输参数: KCP/TCP 模式、端口配置</li>
+ * </ul>
+ */
 public class Options {
 
     private Ln.Level logLevel = Ln.Level.DEBUG;

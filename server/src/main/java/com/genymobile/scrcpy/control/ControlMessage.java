@@ -101,6 +101,12 @@ public final class ControlMessage {
         return msg;
     }
 
+    public static ControlMessage createDisconnect() {
+        ControlMessage msg = new ControlMessage();
+        msg.type = TYPE_DISCONNECT;
+        return msg;
+    }
+
     // ========== Getters ==========
 
     public int getType() {

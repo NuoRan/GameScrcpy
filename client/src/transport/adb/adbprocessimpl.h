@@ -3,6 +3,12 @@
 #include <QProcess>
 #include "adbprocess.h"
 
+/**
+ * @brief ADB 进程实现 / ADB Process Implementation
+ *
+ * 封装 QProcess，提供 adb 命令执行能力（forward/reverse/push/install 等）。
+ * Wraps QProcess to provide adb command execution (forward/reverse/push/install, etc.).
+ */
 class AdbProcessImpl : public QProcess
 {
     Q_OBJECT

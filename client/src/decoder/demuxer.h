@@ -17,12 +17,16 @@ extern "C"
 class KcpVideoSocket;
 class VideoSocket;
 
+// 前向声明 IVideoChannel 接口
+namespace qsc { namespace core { class IVideoChannel; } }
+
 // ---------------------------------------------------------
-// 解复用器 (Demuxer)
+// 解复用器 (Demuxer) / Video Demuxer
 // 负责从网络读取 Scrcpy 协议流，解析出 H.264 数据包
-// 支持两种传输模式:
-// - KCP (KcpVideoSocket) - WiFi 模式，低延迟
-// - TCP (VideoSocket) - USB 模式，通过 adb forward
+// Reads Scrcpy protocol stream from network, parses H.264 data packets.
+// 支持两种传输模式 / Supports two transport modes:
+// - KCP (KcpVideoSocket) - WiFi 模式，低延迟 / WiFi mode, low latency
+// - TCP (VideoSocket) - USB 模式 / USB mode via adb forward
 // ---------------------------------------------------------
 class Demuxer : public QThread
 {
@@ -40,6 +44,9 @@ public:
 
     // TCP 模式 (USB，通过 adb forward)
     void installVideoSocket(VideoSocket* videoSocket);
+
+    // 【新架构】通过 IVideoChannel 接口安装视频通道
+    void installVideoChannel(qsc::core::IVideoChannel* channel);
 
     void setFrameSize(const QSize &frameSize);
     bool startDecode();
@@ -63,6 +70,7 @@ protected:
 private:
     QPointer<KcpVideoSocket> m_kcpVideoSocket;
     QPointer<VideoSocket> m_videoSocket;
+    qsc::core::IVideoChannel* m_videoChannel = nullptr;  // 新架构接口
 
     QSize m_frameSize;
     QElapsedTimer m_debugTimer;

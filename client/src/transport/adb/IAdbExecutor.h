@@ -12,42 +12,42 @@
 namespace qsc {
 
 /**
- * @brief ADB 执行结果
+ * @brief ADB 执行结果 / ADB Execution Result
  */
 enum class AdbExecResult
 {
-    Success,            // 执行成功
-    StartFailed,        // 启动失败
-    ExecFailed,         // 执行失败
-    Timeout,            // 超时
-    Cancelled           // 已取消
+    Success,            // 执行成功 / Success
+    StartFailed,        // 启动失败 / Start failed
+    ExecFailed,         // 执行失败 / Execution failed
+    Timeout,            // 超时 / Timeout
+    Cancelled           // 已取消 / Cancelled
 };
 
 /**
- * @brief 设备状态
+ * @brief 设备状态 / Device State
  */
 enum class DeviceState
 {
-    Unknown,            // 未知
-    Online,             // 在线
-    Offline,            // 离线
-    Unauthorized,       // 未授权
-    Bootloader,         // Bootloader 模式
-    Recovery,           // 恢复模式
-    Sideload,           // Sideload 模式
-    Disconnected        // 已断开
+    Unknown,            // 未知 / Unknown
+    Online,             // 在线 / Online
+    Offline,            // 离线 / Offline
+    Unauthorized,       // 未授权 / Unauthorized
+    Bootloader,         // Bootloader 模式 / Bootloader mode
+    Recovery,           // 恢复模式 / Recovery mode
+    Sideload,           // Sideload 模式 / Sideload mode
+    Disconnected        // 已断开 / Disconnected
 };
 
 /**
- * @brief 设备信息
+ * @brief 设备信息 / Device Information
  */
 struct DeviceInfo
 {
-    QString serial;             // 设备序列号
-    DeviceState state;          // 设备状态
-    QString model;              // 设备型号
-    QString product;            // 产品名
-    QString device;             // 设备名
+    QString serial;             // 设备序列号 / Device serial number
+    DeviceState state;          // 设备状态 / Device state
+    QString model;              // 设备型号 / Device model
+    QString product;            // 产品名 / Product name
+    QString device;             // 设备名 / Device name
     QString transportId;        // 传输 ID
     bool isWireless = false;    // 是否为无线连接
 };

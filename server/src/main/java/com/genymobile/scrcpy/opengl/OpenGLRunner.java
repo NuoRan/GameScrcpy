@@ -38,6 +38,8 @@ public final class OpenGLRunner {
 
     private boolean stopped;
 
+    private float[] transformMatrix;
+
     public OpenGLRunner(OpenGLFilter filter, float[] overrideTransformMatrix) {
         this.filter = filter;
         this.overrideTransformMatrix = overrideTransformMatrix;
@@ -82,7 +84,8 @@ public final class OpenGLRunner {
     public Surface start(Size inputSize, Size outputSize, Surface outputSurface) throws OpenGLException {
         initOnce();
 
-        // The whole OpenGL execution must be performed on a Handler, so that SurfaceTexture.setOnFrameAvailableListener() works correctly.
+        // The whole OpenGL execution must be performed on a Handler, so that
+        // SurfaceTexture.setOnFrameAvailableListener() works correctly.
         // See <https://github.com/Genymobile/scrcpy/issues/5444>
         try {
             Threads.executeSynchronouslyOn(handler, new Callable<Void>() {
@@ -99,7 +102,8 @@ public final class OpenGLRunner {
             throw new OpenGLException("Asynchronous OpenGL runner init failed", throwable);
         }
 
-        // Synchronization is ok: inputSurface is written before sem.release() and read after sem.acquire()
+        // Synchronization is ok: inputSurface is written before sem.release() and read
+        // after sem.acquire()
         return inputSurface;
     }
 
@@ -201,8 +205,11 @@ public final class OpenGLRunner {
         if (overrideTransformMatrix != null) {
             matrix = overrideTransformMatrix;
         } else {
-            matrix = new float[16];
-            surfaceTexture.getTransformMatrix(matrix);
+            if (transformMatrix == null) {
+                transformMatrix = new float[16];
+            }
+            surfaceTexture.getTransformMatrix(transformMatrix);
+            matrix = transformMatrix;
         }
 
         filter.draw(textureId, matrix);

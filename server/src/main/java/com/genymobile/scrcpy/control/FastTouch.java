@@ -19,7 +19,7 @@ import com.genymobile.scrcpy.util.Ln;
 public class FastTouch {
 
     private static final int DEFAULT_DEVICE_ID = 0;
-    private static final int MAX_POINTERS = 10;
+    private static final int MAX_POINTERS = 50;
     private static final int MAX_SEQ_ID = 256;
 
     // C-02: 移除自定义对象池，使用 MotionEvent 内置池
@@ -43,6 +43,9 @@ public class FastTouch {
     private volatile int displayWidth = 1920;
     private volatile int displayHeight = 1080;
     private volatile int targetDisplayId = 0;
+    // P-KCP: 预计算缩放因子，避免每次事件都做浮点除法
+    private volatile float scaleX = 1920f / 65535f;
+    private volatile float scaleY = 1080f / 65535f;
 
     // Global DOWN time
     private long globalDownTime = 0;
@@ -85,7 +88,7 @@ public class FastTouch {
      * 移除自定义对象池，避免重复管理。
      */
     private MotionEvent obtainMotionEvent(long downTime, long eventTime, int action,
-                                          int pointerCount, int displayId) {
+            int pointerCount, int displayId) {
         // 直接使用 MotionEvent.obtain() 的内置对象池
         return MotionEvent.obtain(
                 downTime, eventTime, action, pointerCount, props, coords,
@@ -106,6 +109,9 @@ public class FastTouch {
     public void setDisplaySize(int width, int height) {
         this.displayWidth = width;
         this.displayHeight = height;
+        // P-KCP: 更新预计算缩放因子
+        this.scaleX = width / 65535f;
+        this.scaleY = height / 65535f;
     }
 
     public void setTargetDisplayId(int displayId) {
@@ -132,7 +138,7 @@ public class FastTouch {
      * C-01: 释放指定索引位置的触摸点
      * 使用交换删除法保持数组紧凑
      *
-     * @param index 要释放的触摸点在活动列表中的索引
+     * @param index  要释放的触摸点在活动列表中的索引
      * @param seqIdx seqId 的低 8 位，用于更新查找表
      */
     private void releasePointerAt(int index, int seqIdx) {
@@ -161,8 +167,9 @@ public class FastTouch {
         int idx = seqId & 0xFF;
         long now = SystemClock.uptimeMillis();
 
-        float fx = (float) x / 65535f * displayWidth;
-        float fy = (float) y / 65535f * displayHeight;
+        // P-KCP: 使用预计算的缩放因子，一次乘法代替除法+乘法
+        float fx = x * scaleX;
+        float fy = y * scaleY;
 
         int motionAction;
 
@@ -269,6 +276,10 @@ public class FastTouch {
                 motionAction = MotionEvent.ACTION_MOVE;
                 break;
 
+            case 3: // RESET - 释放全部触摸点
+                reset();
+                return true;
+
             default:
                 return false;
         }
@@ -291,23 +302,26 @@ public class FastTouch {
         }
 
         // Simple insertion sort by props[i].id
-        for (int i = 1; i < activeCount; i++) {
-            int keyId = props[i].id;
-            float keyX = coords[i].x;
-            float keyY = coords[i].y;
-            float keyP = coords[i].pressure;
-            int j = i - 1;
-            while (j >= 0 && props[j].id > keyId) {
-                props[j + 1].id = props[j].id;
-                coords[j + 1].x = coords[j].x;
-                coords[j + 1].y = coords[j].y;
-                coords[j + 1].pressure = coords[j].pressure;
-                j--;
+        // P-KCP: 单触摸点时跳过排序（最常见场景）
+        if (activeCount > 1) {
+            for (int i = 1; i < activeCount; i++) {
+                int keyId = props[i].id;
+                float keyX = coords[i].x;
+                float keyY = coords[i].y;
+                float keyP = coords[i].pressure;
+                int j = i - 1;
+                while (j >= 0 && props[j].id > keyId) {
+                    props[j + 1].id = props[j].id;
+                    coords[j + 1].x = coords[j].x;
+                    coords[j + 1].y = coords[j].y;
+                    coords[j + 1].pressure = coords[j].pressure;
+                    j--;
+                }
+                props[j + 1].id = keyId;
+                coords[j + 1].x = keyX;
+                coords[j + 1].y = keyY;
+                coords[j + 1].pressure = keyP;
             }
-            props[j + 1].id = keyId;
-            coords[j + 1].x = keyX;
-            coords[j + 1].y = keyY;
-            coords[j + 1].pressure = keyP;
         }
 
         long downTime = globalDownTime > 0 ? globalDownTime : eventTime;

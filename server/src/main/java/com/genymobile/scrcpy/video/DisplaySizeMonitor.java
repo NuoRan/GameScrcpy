@@ -46,26 +46,26 @@ public class DisplaySizeMonitor {
         assert this.displayId == Device.DISPLAY_ID_NONE;
         this.displayId = displayId;
 
+        Ln.i("DisplaySizeMonitor: start() displayId=" + displayId + " USE_DEFAULT_METHOD=" + USE_DEFAULT_METHOD + " SDK=" + Build.VERSION.SDK_INT);
+
         if (USE_DEFAULT_METHOD) {
             handlerThread = new HandlerThread("DisplayListener");
             handlerThread.start();
             Handler handler = new Handler(handlerThread.getLooper());
             displayListenerHandle = ServiceManager.getDisplayManager().registerDisplayListener(eventDisplayId -> {
-                if (Ln.isEnabled(Ln.Level.VERBOSE)) {
-                    Ln.v("DisplaySizeMonitor: onDisplayChanged(" + eventDisplayId + ")");
-                }
+                Ln.i("DisplaySizeMonitor: onDisplayChanged(" + eventDisplayId + ")");
 
                 if (eventDisplayId == displayId) {
                     checkDisplaySizeChanged();
                 }
             }, handler);
+            Ln.i("DisplaySizeMonitor: DisplayListener registered");
         } else {
             displayWindowListener = new DisplayWindowListener() {
                 @Override
                 public void onDisplayConfigurationChanged(int eventDisplayId, Configuration newConfig) {
-                    if (Ln.isEnabled(Ln.Level.VERBOSE)) {
-                        Ln.v("DisplaySizeMonitor: onDisplayConfigurationChanged(" + eventDisplayId + ")");
-                    }
+                    Ln.i("DisplaySizeMonitor: onDisplayConfigurationChanged(" + eventDisplayId + ") orientation=" +
+                         (newConfig != null ? newConfig.orientation : "null"));
 
                     if (eventDisplayId == displayId) {
                         checkDisplaySizeChanged();
@@ -73,6 +73,7 @@ public class DisplaySizeMonitor {
                 }
             };
             ServiceManager.getWindowManager().registerDisplayWindowListener(displayWindowListener);
+            Ln.i("DisplaySizeMonitor: DisplayWindowListener registered");
         }
     }
 
@@ -107,17 +108,18 @@ public class DisplaySizeMonitor {
     }
 
     private void checkDisplaySizeChanged() {
+        Ln.i("DisplaySizeMonitor: checkDisplaySizeChanged() called");
         DisplayInfo di = ServiceManager.getDisplayManager().getDisplayInfo(displayId);
         if (di == null) {
             Ln.w("DisplayInfo for " + displayId + " cannot be retrieved");
             // We can't compare with the current size, so reset unconditionally
-            if (Ln.isEnabled(Ln.Level.VERBOSE)) {
-                Ln.v("DisplaySizeMonitor: requestReset(): " + getSessionDisplaySize() + " -> (unknown)");
-            }
+            Ln.i("DisplaySizeMonitor: requestReset(): " + getSessionDisplaySize() + " -> (unknown)");
             setSessionDisplaySize(null);
             listener.onDisplaySizeChanged();
         } else {
             Size size = di.getSize();
+            int rotation = di.getRotation();
+            Ln.i("DisplaySizeMonitor: current display size=" + size + " rotation=" + rotation);
 
             // The field is hidden on purpose, to read it with synchronization
             @SuppressWarnings("checkstyle:HiddenField")
@@ -126,15 +128,13 @@ public class DisplaySizeMonitor {
             // .equals() also works if sessionDisplaySize == null
             if (!size.equals(sessionDisplaySize)) {
                 // Reset only if the size is different
-                if (Ln.isEnabled(Ln.Level.VERBOSE)) {
-                    Ln.v("DisplaySizeMonitor: requestReset(): " + sessionDisplaySize + " -> " + size);
-                }
+                Ln.i("DisplaySizeMonitor: SIZE CHANGED! " + sessionDisplaySize + " -> " + size + ", triggering reset");
                 // Set the new size immediately, so that a future onDisplayChanged() event called before the asynchronous prepare()
                 // considers that the current size is the requested size (to avoid a duplicate requestReset())
                 setSessionDisplaySize(size);
                 listener.onDisplaySizeChanged();
-            } else if (Ln.isEnabled(Ln.Level.VERBOSE)) {
-                Ln.v("DisplaySizeMonitor: Size not changed (" + size + "): do not requestReset()");
+            } else {
+                Ln.i("DisplaySizeMonitor: Size not changed (" + size + "): do not requestReset()");
             }
         }
     }

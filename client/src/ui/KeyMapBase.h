@@ -8,18 +8,20 @@
 #include <QGraphicsSceneMouseEvent>
 
 // ---------------------------------------------------------
-// 键位类型枚举定义
+// 键位类型枚举 / Key Map Type Enumeration
 // ---------------------------------------------------------
 enum KeyMapType {
     KMT_INVALID = -1,
-    KMT_STEER_WHEEL = 2,    // 轮盘（方向控制）
-    KMT_SCRIPT = 10,        // 脚本宏
-    KMT_CAMERA_MOVE = 20,   // 视角控制（鼠标移动映射）
+    KMT_STEER_WHEEL = 2,    // 轮盘（方向控制）/ Steer wheel (direction control)
+    KMT_SCRIPT = 10,        // 脚本宏 / Script macro
+    KMT_CAMERA_MOVE = 20,   // 视角控制（鼠标移动映射）/ Camera control (mouse move mapping)
+    KMT_FREE_LOOK = 21,     // 小眼睛自由视角 / Free-look (eye icon)
 };
 
 // ---------------------------------------------------------
-// 可视化键位基类
-// 所有的具体键位（如轮盘、点击）都继承自此类
+// 可视化键位基类 / Visual Key Map Item Base Class
+// 所有具体键位（如轮盘、点击）都继承自此类。
+// All specific key map items (steer wheel, click, etc.) inherit from this.
 // ---------------------------------------------------------
 class KeyMapItemBase : public QGraphicsObject
 {

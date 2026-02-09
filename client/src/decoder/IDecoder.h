@@ -15,25 +15,25 @@ struct AVFrame;
 namespace qsc {
 
 /**
- * @brief 解码器状态枚举
+ * @brief 解码器状态枚举 / Decoder State Enumeration
  */
 enum class DecoderState
 {
-    Idle,           // 空闲
-    Opening,        // 正在打开
-    Ready,          // 就绪
-    Decoding,       // 解码中
-    Error,          // 错误
-    Closed          // 已关闭
+    Idle,           // 空闲 / Idle
+    Opening,        // 正在打开 / Opening
+    Ready,          // 就绪 / Ready
+    Decoding,       // 解码中 / Decoding
+    Error,          // 错误 / Error
+    Closed          // 已关闭 / Closed
 };
 
 /**
- * @brief 解码器类型
+ * @brief 解码器类型 / Decoder Type
  */
 enum class DecoderType
 {
-    Software,       // 软件解码
-    Hardware,       // 硬件解码 (自动选择)
+    Software,       // 软件解码 / Software decoding
+    Hardware,       // 硬件解码 (自动选择) / Hardware (auto-select)
     DXVA2,          // Windows DXVA2
     D3D11VA,        // Windows D3D11
     VAAPI,          // Linux VA-API
@@ -46,12 +46,15 @@ enum class DecoderType
 /**
  * @brief 解码器配置
  */
+/**
+ * @brief 解码器配置 / Decoder Configuration
+ */
 struct DecoderConfig
 {
     DecoderType preferredType = DecoderType::Hardware;
-    bool allowFallback = true;          // 允许回退到软件解码
-    int threadCount = 0;                // 解码线程数，0为自动
-    bool lowLatency = true;             // 低延迟模式
+    bool allowFallback = true;          // 允许回退到软件解码 / Allow fallback to software decoding
+    int threadCount = 0;                // 解码线程数，0为自动 / Decode threads, 0=auto
+    bool lowLatency = true;             // 低延迟模式 / Low-latency mode
 };
 
 /**
@@ -77,10 +80,10 @@ using FrameCallback = std::function<void(
 using RGBFrameCallback = std::function<void(int width, int height, uint8_t* dataRGB32)>;
 
 /**
- * @brief 解码器抽象接口
+ * @brief 解码器抽象接口 / Decoder Abstract Interface
  *
  * 定义解码器的标准接口，支持软件解码和硬件加速解码。
- * 实现类需要处理 AVPacket 输入并输出 YUV 帧数据。
+ * Standard decoder interface supporting software and hardware-accelerated decoding.
  */
 class IDecoder : public QObject
 {

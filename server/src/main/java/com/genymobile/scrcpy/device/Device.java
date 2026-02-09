@@ -1,3 +1,12 @@
+/*
+ * Device.java - 设备工具类
+ *
+ * Copyright (C) 2019-2026 Rankun
+ * Licensed under the Apache License, Version 2.0
+ *
+ * 基于 Genymobile/scrcpy 二次开发
+ */
+
 package com.genymobile.scrcpy.device;
 
 import com.genymobile.scrcpy.AndroidVersions;
@@ -29,6 +38,17 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * 设备工具类
+ * <p>
+ * 提供设备操作的静态方法:
+ * <ul>
+ *   <li>输入事件注入 (按键、触摸)</li>
+ *   <li>屏幕电源控制</li>
+ *   <li>剪贴板操作</li>
+ *   <li>应用启动</li>
+ * </ul>
+ */
 public final class Device {
 
     public static final int DISPLAY_ID_NONE = -1;

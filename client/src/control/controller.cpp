@@ -2,17 +2,21 @@
 #include <QClipboard>
 #include <QElapsedTimer>
 #include <QDebug>
+#include <QKeyEvent>
+#include <QMouseEvent>
+#include <QWheelEvent>
 
 #include "controller.h"
-#include "controlmsg.h"
-#include "controlmsgpool.h"
 #include "controlsender.h"
-#include "inputconvertgame.h"
+#include "SessionContext.h"
 #include "kcpcontrolsocket.h"
+#include "fastmsg.h"
+#include "interfaces/IControlChannel.h"
+#include "PerformanceMonitor.h"
 
 // ---------------------------------------------------------
 // 构造函数
-// 初始化输入转换模块和异步发送器
+// 初始化 SessionContext 和异步发送器
 // ---------------------------------------------------------
 Controller::Controller(KcpSendCallback sendCallback, QString gameScript, QObject *parent)
     : QObject(parent)
@@ -26,9 +30,6 @@ Controller::Controller(KcpSendCallback sendCallback, QString gameScript, QObject
     connect(m_controlSender, &ControlSender::sendError, this, [](const QString &error) {
         qWarning() << "[Controller] Send error:" << error;
     });
-    connect(m_controlSender, &ControlSender::bufferWarning, this, [](int pending, int threshold) {
-        qWarning() << "[Controller] Buffer warning:" << pending << "/" << threshold << "bytes";
-    });
 
     updateScript(gameScript);
 }
@@ -36,6 +37,12 @@ Controller::Controller(KcpSendCallback sendCallback, QString gameScript, QObject
 Controller::~Controller()
 {
     stopSender();
+
+    // 删除 SessionContext
+    if (m_sessionContext) {
+        delete m_sessionContext;
+        m_sessionContext = nullptr;
+    }
 }
 
 void Controller::startSender()
@@ -55,28 +62,30 @@ void Controller::stopSender()
     }
 }
 
-void Controller::postControlMsg(ControlMsg *controlMsg)
-{
-    if (controlMsg) {
-        QByteArray data = controlMsg->serializeData();
-        if (m_controlSender) {
-            m_controlSender->send(data);
-        }
-        // 【优化】使用对象池回收 ControlMsg，减少内存分配开销
-        ControlMsgPool::instance().release(controlMsg);
-    }
-}
-
 // ---------------------------------------------------------
 // FastMsg 协议快速发送
-// 直接发送已序列化的二进制数据，无需构造 ControlMsg 对象
 // ---------------------------------------------------------
 void Controller::postFastMsg(const QByteArray &data)
 {
     if (data.isEmpty()) return;
 
+    // 报告输入事件
+    qsc::PerformanceMonitor::instance().reportInputProcessed();
+
     if (m_controlSender) {
         m_controlSender->send(data);
+    }
+}
+
+void Controller::postFastMsg(const char *data, int len)
+{
+    if (!data || len <= 0) return;
+
+    // P-KCP: 零分配快速路径 — 直接从栈缓冲区构造 QByteArray（浅引用）
+    qsc::PerformanceMonitor::instance().reportInputProcessed();
+
+    if (m_controlSender) {
+        m_controlSender->send(QByteArray::fromRawData(data, len));
     }
 }
 
@@ -85,55 +94,51 @@ void Controller::recvDeviceMsg(DeviceMsg *deviceMsg)
     Q_UNUSED(deviceMsg);
 }
 
-void Controller::test(QRect rc)
-{
-    ControlMsg *controlMsg = new ControlMsg(ControlMsg::CMT_INJECT_TOUCH);
-    controlMsg->setInjectTouchMsgData(
-        static_cast<quint64>(POINTER_ID_MOUSE), AMOTION_EVENT_ACTION_DOWN, AMOTION_EVENT_BUTTON_PRIMARY, AMOTION_EVENT_BUTTON_PRIMARY, rc, 1.0f);
-    postControlMsg(controlMsg);
-}
-
 // ---------------------------------------------------------
 // 更新键位映射脚本
-// [修改] 强制始终使用 InputConvertGame，不再创建 InputConvertNormal
 // ---------------------------------------------------------
-void Controller::updateScript(QString gameScript)
+void Controller::updateScript(QString gameScript, bool runAutoStartScripts)
 {
-    if (m_inputConvert) {
-        delete m_inputConvert;
-        m_inputConvert = nullptr;
+    // 删除旧的 SessionContext
+    if (m_sessionContext) {
+        delete m_sessionContext;
+        m_sessionContext = nullptr;
     }
 
-    // 无论有没有脚本，都使用 InputConvertGame
-    // 如果没有脚本，InputConvertGame 内部 m_keyMap 为空，但会处理光标逻辑
-    InputConvertGame *convertgame = new InputConvertGame(this);
+    // 创建新的 SessionContext
+    m_sessionContext = new SessionContext("default", this, this);
 
     if (!gameScript.isEmpty()) {
-        convertgame->loadKeyMap(gameScript);
+        m_sessionContext->loadKeyMap(gameScript, runAutoStartScripts);
     }
 
-    m_inputConvert = convertgame;
-
-    // [修复] 3. 新对象创建好了，赶紧把刚才记住的分辨率塞进去！
-    if (m_inputConvert && m_mobileSize.isValid()) {
-        m_inputConvert->setMobileSize(m_mobileSize);
+    // 设置分辨率
+    if (m_mobileSize.isValid()) {
+        m_sessionContext->setMobileSize(m_mobileSize);
     }
 
-    // [修复] 重新设置帧获取回调 (用于脚本图像识别)
+    // 重新设置帧获取回调
     if (m_frameGrabCallback) {
-        convertgame->setFrameGrabCallback(m_frameGrabCallback);
+        m_sessionContext->setFrameGrabCallback(m_frameGrabCallback);
     }
 
-    Q_ASSERT(m_inputConvert);
-    connect(m_inputConvert, &InputConvertBase::grabCursor, this, &Controller::grabCursor);
+    // 重新连接 tip 信号
+    if (m_scriptTipCallback) {
+        m_sessionContext->connectScriptTipSignal(m_scriptTipCallback);
+    }
+
+    // 重新连接键位覆盖层更新信号
+    if (m_overlayUpdateCallback) {
+        m_sessionContext->connectKeyMapOverlayUpdateSignal(m_overlayUpdateCallback);
+    }
+
+    // 连接光标抓取信号
+    connect(m_sessionContext, &SessionContext::grabCursor, this, &Controller::grabCursor);
 }
 
 bool Controller::isCurrentCustomKeymap()
 {
-    if (!m_inputConvert) {
-        return false;
-    }
-    return m_inputConvert->isCurrentCustomKeymap();
+    return m_sessionContext ? m_sessionContext->isCurrentCustomKeymap() : false;
 }
 
 // ---------------------------------------------------------
@@ -141,10 +146,9 @@ bool Controller::isCurrentCustomKeymap()
 // ---------------------------------------------------------
 void Controller::postBackOrScreenOn(bool down)
 {
-    ControlMsg *controlMsg = new ControlMsg(ControlMsg::CMT_BACK_OR_SCREEN_ON);
-    controlMsg->setBackOrScreenOnData(down);
-    if (!controlMsg) return;
-    postControlMsg(controlMsg);
+    if (down) {
+        postKeyCodeClick(AKEYCODE_BACK);
+    }
 }
 
 void Controller::postGoHome() { postKeyCodeClick(AKEYCODE_HOME); }
@@ -156,43 +160,25 @@ void Controller::postVolumeUp() { postKeyCodeClick(AKEYCODE_VOLUME_UP); }
 void Controller::postVolumeDown() { postKeyCodeClick(AKEYCODE_VOLUME_DOWN); }
 
 // ---------------------------------------------------------
-// 输入事件转发
-// 将 Qt 事件传递给 InputConvert 进行处理
+// 输入事件转发（委托给 SessionContext）
 // ---------------------------------------------------------
 void Controller::mouseEvent(const QMouseEvent *from, const QSize &frameSize, const QSize &showSize)
 {
-    if (m_inputConvert) m_inputConvert->mouseEvent(from, frameSize, showSize);
+    if (m_sessionContext) m_sessionContext->mouseEvent(from, frameSize, showSize);
 }
 
 void Controller::wheelEvent(const QWheelEvent *from, const QSize &frameSize, const QSize &showSize)
 {
-    if (m_inputConvert) m_inputConvert->wheelEvent(from, frameSize, showSize);
+    if (m_sessionContext) m_sessionContext->wheelEvent(from, frameSize, showSize);
 }
 
 void Controller::keyEvent(const QKeyEvent *from, const QSize &frameSize, const QSize &showSize)
 {
-    if (m_inputConvert) m_inputConvert->keyEvent(from, frameSize, showSize);
-}
-
-// ---------------------------------------------------------
-// 事件处理循环
-// 处理 ControlMsg 事件，序列化并发送数据
-// ---------------------------------------------------------
-bool Controller::event(QEvent *event)
-{
-    if (event && static_cast<ControlMsg::Type>(event->type()) == ControlMsg::Control) {
-        ControlMsg *controlMsg = dynamic_cast<ControlMsg *>(event);
-        if (controlMsg) {
-            sendControl(controlMsg->serializeData());
-        }
-        return true;
-    }
-    return QObject::event(event);
+    if (m_sessionContext) m_sessionContext->keyEvent(from, frameSize, showSize);
 }
 
 // ---------------------------------------------------------
 // 发送控制数据（非阻塞）
-// 使用智能缓冲区管理，避免阻塞主线程
 // ---------------------------------------------------------
 bool Controller::sendControl(const QByteArray &buffer)
 {
@@ -203,80 +189,109 @@ bool Controller::sendControl(const QByteArray &buffer)
         return false;
     }
 
-    // 非阻塞发送，缓冲区满时会丢弃消息
     return m_controlSender->send(buffer);
 }
 
 // 发送完整的按键点击动作 (按下 + 抬起)
 void Controller::postKeyCodeClick(AndroidKeycode keycode)
 {
-    ControlMsg *controlEventDown = new ControlMsg(ControlMsg::CMT_INJECT_KEYCODE);
-    if (controlEventDown) {
-        controlEventDown->setInjectKeycodeMsgData(AKEY_EVENT_ACTION_DOWN, keycode, 0, AMETA_NONE);
-        postControlMsg(controlEventDown);
+    QByteArray data = FastMsg::keyClick(static_cast<quint16>(keycode));
+    postFastMsg(data);
     }
 
-    ControlMsg *controlEventUp = new ControlMsg(ControlMsg::CMT_INJECT_KEYCODE);
-    if (controlEventUp) {
-        controlEventUp->setInjectKeycodeMsgData(AKEY_EVENT_ACTION_UP, keycode, 0, AMETA_NONE);
-        postControlMsg(controlEventUp);
-    }
-}
-
-// [新增] 实现
 void Controller::setMobileSize(const QSize &size)
 {
-    m_mobileSize = size; // 【必须有这一行】保存到成员变量
-    if (m_inputConvert) {
-        m_inputConvert->setMobileSize(size);
+    m_mobileSize = size;
+    if (m_sessionContext) {
+        m_sessionContext->setMobileSize(size);
     }
 }
 
-// [新增] 设置控制 socket (WiFi 模式)，启用非阻塞发送模式
 void Controller::setControlSocket(KcpControlSocket *socket)
 {
     if (m_controlSender && socket) {
-        // 切换到 KCP socket 模式
         m_controlSender->setSocket(socket);
-        // 清除回调，使用 socket 直接发送
         m_controlSender->setSendCallback(nullptr);
     }
 }
 
-// [新增] 设置 TCP 控制 socket (USB 模式)
 void Controller::setTcpControlSocket(QTcpSocket *socket)
 {
     if (m_controlSender && socket) {
-        // 切换到 TCP socket 模式
+        // TCP_NODELAY: 禁用 Nagle 算法，控制消息立即发出，不等待合并
+        socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
         m_controlSender->setTcpSocket(socket);
-        // 清除回调，使用 socket 直接发送
         m_controlSender->setSendCallback(nullptr);
     }
 }
 
-// [新增] 设置帧获取回调 (用于脚本图像识别)
-void Controller::setFrameGrabCallback(std::function<QImage()> callback)
+void Controller::setControlChannel(qsc::core::IControlChannel* channel)
 {
-    // 存储回调，以便在 InputConvertGame 重建时可以重新设置
-    m_frameGrabCallback = callback;
-
-    // 立即转发到当前的 InputConvertGame
-    InputConvertGame *gameConvert = qobject_cast<InputConvertGame*>(m_inputConvert.data());
-    if (gameConvert) {
-        gameConvert->setFrameGrabCallback(callback);
+    if (m_controlSender && channel) {
+        m_controlSender->setControlChannel(channel);
+        m_controlSender->setSendCallback(nullptr);
     }
 }
 
-// [新增] 发送断开消息给服务端
+void Controller::setFrameGrabCallback(std::function<QImage()> callback)
+{
+    m_frameGrabCallback = callback;
+
+    if (m_sessionContext) {
+        m_sessionContext->setFrameGrabCallback(callback);
+    }
+}
+
+void Controller::connectScriptTipSignal(std::function<void(const QString&, int, int)> callback)
+{
+    m_scriptTipCallback = callback;
+
+    if (m_sessionContext) {
+        m_sessionContext->connectScriptTipSignal(callback);
+    }
+}
+
+void Controller::connectKeyMapOverlayUpdateSignal(std::function<void()> callback)
+{
+    m_overlayUpdateCallback = callback;
+
+    if (m_sessionContext) {
+        m_sessionContext->connectKeyMapOverlayUpdateSignal(callback);
+    }
+}
+
 void Controller::postDisconnect()
 {
-    ControlMsg *controlMsg = new ControlMsg(ControlMsg::CMT_DISCONNECT);
-    if (controlMsg) {
-        // 直接发送，不用异步模式，因为这是关闭前的最后一个消息
         if (m_controlSender) {
-            m_controlSender->send(controlMsg->serializeData());
-        }
-        delete controlMsg;
-        qInfo() << "[Controller] Sent disconnect message to server";
+        m_controlSender->send(FastMsg::disconnect());
     }
+    qInfo() << "[Controller] Sent disconnect message to server";
+}
+
+void Controller::onWindowFocusLost()
+{
+    if (m_sessionContext) {
+        m_sessionContext->onWindowFocusLost();
+    }
+}
+
+void Controller::resetScriptState()
+{
+    if (m_sessionContext) {
+        m_sessionContext->resetScriptState();
+    }
+}
+
+void Controller::runAutoStartScripts()
+{
+    if (m_sessionContext) {
+        m_sessionContext->runAutoStartScripts();
+    }
+}
+
+void Controller::resetAllTouchPoints()
+{
+    // 发送 FTA_RESET 命令到服务器，释放所有触摸点
+    QByteArray data = FastMsg::serializeTouch(FastTouchEvent(0, FTA_RESET, 0, 0));
+    postFastMsg(data);
 }

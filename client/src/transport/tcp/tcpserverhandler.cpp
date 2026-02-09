@@ -436,6 +436,7 @@ void TcpServerHandler::onConnectTimer()
         qWarning("video socket connect to server failed");
         goto result;
     }
+    videoSocket->setSocketOption(QAbstractSocket::LowDelayOption, 1);  // TCP_NODELAY
 
     controlSocket->connectToHost(QHostAddress::LocalHost, m_params.localPortCtrl);
     if (!controlSocket->waitForConnected(1000)) {
@@ -443,6 +444,7 @@ void TcpServerHandler::onConnectTimer()
         qWarning("control socket connect to server failed");
         goto result;
     }
+    controlSocket->setSocketOption(QAbstractSocket::LowDelayOption, 1);  // TCP_NODELAY
 
     if (QTcpSocket::ConnectedState == videoSocket->state()) {
         videoSocket->waitForReadyRead(1000);

@@ -28,9 +28,10 @@
 #include <QUrl>
 #include <QTextStream>
 #include <QInputDialog>
+#include <QCheckBox>
 
 // ---------------------------------------------------------
-// 辅助工具类：类型与字符串的转换
+// 辅助工具类：类型与字符串的转换 / Helper: Type-String Conversion
 // ---------------------------------------------------------
 class KeyMapHelper {
 public:
@@ -38,6 +39,7 @@ public:
         if (typeStr == "KMT_STEER_WHEEL") return KMT_STEER_WHEEL;
         if (typeStr == "KMT_SCRIPT") return KMT_SCRIPT;
         if (typeStr == "KMT_CAMERA_MOVE") return KMT_CAMERA_MOVE;
+        if (typeStr == "KMT_FREE_LOOK") return KMT_FREE_LOOK;
         return KMT_INVALID;
     }
 
@@ -46,8 +48,65 @@ public:
         case KMT_STEER_WHEEL: return "KMT_STEER_WHEEL";
         case KMT_SCRIPT: return "KMT_SCRIPT";
         case KMT_CAMERA_MOVE: return "KMT_CAMERA_MOVE";
+        case KMT_FREE_LOOK: return "KMT_FREE_LOOK";
         default: return "KMT_INVALID";
         }
+    }
+
+    // 将按键转换为存储用的字符串（支持修饰键）
+    static QString keyToString(int key, Qt::KeyboardModifiers modifiers = Qt::NoModifier) {
+        // 修饰键单独处理
+        switch (key) {
+        case Qt::Key_Control: return "Key_Control";
+        case Qt::Key_Shift: return "Key_Shift";
+        case Qt::Key_Alt: return "Key_Alt";
+        case Qt::Key_Meta: return "Key_Meta";
+        }
+        // 普通按键
+        if (modifiers != Qt::NoModifier) {
+            return QKeySequence(key | modifiers).toString(QKeySequence::PortableText);
+        }
+        QMetaEnum m = QMetaEnum::fromType<Qt::Key>();
+        const char* s = m.valueToKey(key);
+        return s ? QString(s) : QKeySequence(key).toString();
+    }
+
+    // 将按键字符串转换为显示用的字符串（符号化）
+    static QString keyToDisplay(const QString& keyStr) {
+        QString t = keyStr;
+        if (t.startsWith("Key_")) t = t.mid(4);
+        // 鼠标按键简化
+        if (t == "LeftButton" || t == "Left") return "LMB";
+        if (t == "RightButton" || t == "Right") return "RMB";
+        if (t == "MiddleButton" || t == "Middle") return "MMB";
+        // 滚轮
+        if (t == "WheelUp") return "滚上";
+        if (t == "WheelDown") return "滚下";
+        // 符号替换 - 注意区分主键盘和小键盘
+        if (t == "Equal") return "=";           // 主键盘 = 键
+        if (t == "Plus") return "+";            // 小键盘 + 键
+        if (t == "Minus") return "-";
+        if (t == "Asterisk") return "*";
+        if (t == "Slash") return "/";
+        if (t == "QuoteLeft") return "`";       // 反引号
+        if (t == "AsciiTilde") return "~";      // 波浪号
+        if (t == "Backslash") return "\\";
+        if (t == "BracketLeft") return "[";
+        if (t == "BracketRight") return "]";
+        if (t == "Semicolon") return ";";
+        if (t == "Apostrophe") return "'";
+        if (t == "Comma") return ",";
+        if (t == "Period") return ".";
+        if (t == "Space") return "Space";
+        if (t == "Tab") return "Tab";
+        if (t == "Return" || t == "Enter") return "Enter";
+        if (t == "Backspace") return "Backspace";
+        if (t == "Escape") return "Esc";
+        if (t == "Control") return "Ctrl";
+        if (t == "Alt") return "Alt";
+        if (t == "Shift") return "Shift";
+        if (t == "Meta") return "Win";
+        return t;
     }
 };
 
@@ -146,7 +205,7 @@ class KeyMapItemScript : public KeyMapItemBase
 public:
     KeyMapItemScript(QGraphicsItem *parent = nullptr) : KeyMapItemBase(parent) {
         setFlags(ItemIsMovable | ItemIsSelectable | ItemSendsGeometryChanges);
-        m_key = "F";
+        m_key = "";  // 默认为空，需要用户设置
         m_comment = "Script";
 
         // 光标闪烁定时器，用于编辑模式
@@ -175,17 +234,11 @@ public:
     }
     bool isEditing() const { return m_isEditing; }
 
-    // 处理按键录入
+    // 处理按键录入（支持修饰键）
     void inputKey(QKeyEvent* event) {
         int key = event->key();
-        if (key == Qt::Key_Control || key == Qt::Key_Shift || key == Qt::Key_Alt || key == Qt::Key_Meta || key == Qt::Key_unknown) return;
-        if (event->modifiers() != Qt::NoModifier) {
-            m_key = QKeySequence(key | event->modifiers()).toString(QKeySequence::PortableText);
-        } else {
-            QMetaEnum m = QMetaEnum::fromType<Qt::Key>();
-            const char* s = m.valueToKey(key);
-            m_key = s ? QString(s) : QKeySequence(key).toString();
-        }
+        if (key == Qt::Key_unknown) return;
+        m_key = KeyMapHelper::keyToString(key, event->modifiers());
         m_displayKey = m_key;
         update();
     }
@@ -202,6 +255,14 @@ public:
         default: return;
         }
         if (!keyName.isEmpty()) { m_key = keyName; m_displayKey = keyName; update(); }
+    }
+
+    // 处理滚轮录入
+    void inputWheel(int delta) {
+        QString keyName = (delta > 0) ? "WheelUp" : "WheelDown";
+        m_key = keyName;
+        m_displayKey = keyName;
+        update();
     }
 
     // JSON序列化
@@ -249,8 +310,7 @@ protected:
         QFont font = painter->font();
         font.setBold(true);
 
-        QString t = m_isEditing ? (m_displayKey + (m_showCursor?"|":"")) : m_key;
-        if(t.startsWith("Key_")) t=t.mid(4);
+        QString t = m_isEditing ? (KeyMapHelper::keyToDisplay(m_displayKey) + (m_showCursor?"|":"")) : KeyMapHelper::keyToDisplay(m_key);
 
         // 根据文字长度自适应字体大小
         int fontSize = 10;
@@ -338,7 +398,7 @@ class KeyMapItemCamera : public KeyMapItemBase
 public:
     KeyMapItemCamera(QGraphicsItem *parent = nullptr) : KeyMapItemBase(parent) {
         setFlags(ItemIsMovable | ItemIsSelectable | ItemSendsGeometryChanges);
-        m_key = "QuoteLeft";
+        m_key = "";  // 默认为空，需要用户设置
         m_comment = "Camera";
 
         m_cursorTimer = new QTimer(this);
@@ -362,8 +422,9 @@ public:
 
         if (!wasEditing || m_editMode != newMode) {
             m_editMode = newMode;
-            if (m_editMode == Edit_X) m_inputBuffer = QString::number(m_speedX);
-            else if (m_editMode == Edit_Y) m_inputBuffer = QString::number(m_speedY);
+            // 点击 XY 时清空 buffer，实现"全选"效果
+            if (m_editMode == Edit_X) m_inputBuffer = "";
+            else if (m_editMode == Edit_Y) m_inputBuffer = "";
             else m_displayKey = "";
 
             m_showCursor = true;
@@ -395,14 +456,8 @@ public:
     void inputKey(QKeyEvent* event) {
         if (m_editMode == Edit_Key) {
             int key = event->key();
-            if (key == Qt::Key_Control || key == Qt::Key_Shift || key == Qt::Key_Alt || key == Qt::Key_Meta || key == Qt::Key_unknown) return;
-            if (event->modifiers() != Qt::NoModifier) {
-                m_key = QKeySequence(key | event->modifiers()).toString(QKeySequence::PortableText);
-            } else {
-                QMetaEnum m = QMetaEnum::fromType<Qt::Key>();
-                const char* s = m.valueToKey(key);
-                m_key = s ? QString(s) : QKeySequence(key).toString();
-            }
+            if (key == Qt::Key_unknown) return;
+            m_key = KeyMapHelper::keyToString(key, event->modifiers());
             m_displayKey = m_key;
             update();
         } else if (m_editMode == Edit_X || m_editMode == Edit_Y) {
@@ -415,9 +470,12 @@ public:
                 }
             }
 
+            // 如果 buffer 为空，保持原值
+            if (!m_inputBuffer.isEmpty()) {
             double val = m_inputBuffer.toDouble();
             if (m_editMode == Edit_X) m_speedX = val;
             else m_speedY = val;
+            }
             update();
         }
     }
@@ -435,6 +493,14 @@ public:
         default: return;
         }
         if (!keyName.isEmpty()) { m_key = keyName; m_displayKey = keyName; update(); }
+    }
+
+    void inputWheel(int delta) {
+        if (m_editMode != Edit_Key) return;
+        QString keyName = (delta > 0) ? "WheelUp" : "WheelDown";
+        m_key = keyName;
+        m_displayKey = keyName;
+        update();
     }
 
     QJsonObject toJson() const override {
@@ -501,14 +567,9 @@ protected:
         // 激活按键
         font.setPointSize(10);
         painter->setFont(font);
-        QString t = (m_isEditing && m_editMode == Edit_Key) ? (m_displayKey + (m_showCursor?"|":"")) : m_key;
-        if(t.startsWith("Key_")) t=t.mid(4);
+        QString t = (m_isEditing && m_editMode == Edit_Key) ? (KeyMapHelper::keyToDisplay(m_displayKey) + (m_showCursor?"|":"")) : KeyMapHelper::keyToDisplay(m_key);
         painter->drawText(QRectF(-20, -25, 40, 50), Qt::AlignCenter, t.isEmpty()?"?":t);
-
-        if (!m_isEditing) {
-            painter->setPen(Qt::yellow);
-            painter->drawText(QRectF(-20, 10, 40, 15), Qt::AlignCenter, "👁");
-        }
+        // 已移除底部图标
     }
 
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override {
@@ -530,6 +591,261 @@ private:
 };
 
 // ---------------------------------------------------------
+// 小眼睛自由视角键位类 (KeyMapItemFreeLook)
+// 按住热键后启用自由视角，松开后恢复
+// 与Camera不同：无边缘修正、无空闲回中
+// ---------------------------------------------------------
+class KeyMapItemFreeLook : public KeyMapItemBase
+{
+    Q_OBJECT
+public:
+    KeyMapItemFreeLook(QGraphicsItem *parent = nullptr) : KeyMapItemBase(parent) {
+        setFlags(ItemIsMovable | ItemIsSelectable | ItemSendsGeometryChanges);
+        m_key = "";  // 默认为空，需要用户设置
+        m_comment = "FreeLook";
+
+        m_cursorTimer = new QTimer(this);
+        m_cursorTimer->setInterval(600);
+        connect(m_cursorTimer, &QTimer::timeout, this, [this](){ m_showCursor = !m_showCursor; update(); });
+    }
+
+    KeyMapType typeId() const override { return KMT_FREE_LOOK; }
+
+    enum EditMode { Edit_None, Edit_Key, Edit_X, Edit_Y };
+
+    void startEditing(const QPointF& pos) {
+        bool wasEditing = m_isEditing;
+        m_isEditing = true;
+
+        EditMode newMode = Edit_None;
+        if (pos.x() < -15) newMode = Edit_X;
+        else if (pos.x() > 15) newMode = Edit_Y;
+        else newMode = Edit_Key;
+
+        if (!wasEditing || m_editMode != newMode) {
+            m_editMode = newMode;
+            // 点击 XY 时清空 buffer，实现"全选"效果
+            if (m_editMode == Edit_X) m_inputBuffer = "";
+            else if (m_editMode == Edit_Y) m_inputBuffer = "";
+            else m_displayKey = "";
+
+            m_showCursor = true;
+            if (!m_cursorTimer->isActive()) m_cursorTimer->start();
+            setSelected(true);
+            update();
+        }
+    }
+
+    void setEditing(bool edit) {
+        if (m_isEditing == edit) return;
+        m_isEditing = edit;
+        if (m_isEditing) {
+            m_editMode = Edit_Key;
+            m_displayKey = "";
+            m_showCursor = true;
+            m_cursorTimer->start();
+            setSelected(true);
+        } else {
+            m_editMode = Edit_None;
+            m_cursorTimer->stop();
+            m_showCursor = false;
+        }
+        update();
+    }
+    bool isEditing() const { return m_isEditing; }
+
+    void inputKey(QKeyEvent* event) {
+        if (m_editMode == Edit_Key) {
+            int key = event->key();
+            if (key == Qt::Key_unknown) return;
+            m_key = KeyMapHelper::keyToString(key, event->modifiers());
+            m_displayKey = m_key;
+            update();
+        } else if (m_editMode == Edit_X || m_editMode == Edit_Y) {
+            if (event->key() == Qt::Key_Backspace) {
+                if (!m_inputBuffer.isEmpty()) m_inputBuffer.chop(1);
+            } else {
+                QString text = event->text();
+                if (!text.isEmpty() && (text.at(0).isDigit() || text.at(0) == '.')) {
+                    m_inputBuffer.append(text);
+                }
+            }
+
+            if (!m_inputBuffer.isEmpty()) {
+                double val = m_inputBuffer.toDouble();
+                if (m_editMode == Edit_X) m_speedX = val;
+                else m_speedY = val;
+            }
+            update();
+        }
+    }
+
+    void inputMouse(Qt::MouseButton button) {
+        if (m_editMode != Edit_Key) return;
+
+        QString keyName;
+        switch (button) {
+        case Qt::LeftButton: keyName = "LeftButton"; break;
+        case Qt::RightButton: keyName = "RightButton"; break;
+        case Qt::MiddleButton: keyName = "MiddleButton"; break;
+        case Qt::XButton1: keyName = "SideButton1"; break;
+        case Qt::XButton2: keyName = "SideButton2"; break;
+        default: return;
+        }
+        if (!keyName.isEmpty()) { m_key = keyName; m_displayKey = keyName; update(); }
+    }
+
+    void inputWheel(int delta) {
+        if (m_editMode != Edit_Key) return;
+        QString keyName = (delta > 0) ? "WheelUp" : "WheelDown";
+        m_key = keyName;
+        m_displayKey = keyName;
+        update();
+    }
+
+    bool resetViewOnRelease() const { return m_resetViewOnRelease; }
+    void setResetViewOnRelease(bool reset) { m_resetViewOnRelease = reset; }
+
+    QJsonObject toJson() const override {
+        QJsonObject json;
+        json["type"] = "KMT_FREE_LOOK";
+        QPointF r = getNormalizedPos(scene()?scene()->sceneRect().size():QSizeF(1,1));
+        QJsonObject pos;
+        pos["x"]=QString::number(r.x(),'f',4).toDouble();
+        pos["y"]=QString::number(r.y(),'f',4).toDouble();
+        json["startPos"] = pos;  // 用于游戏逻辑解析
+        json["pos"] = pos;       // 用于 UI 加载位置
+        json["key"] = m_key;
+        json["speedRatioX"] = m_speedX;
+        json["speedRatioY"] = m_speedY;
+        json["resetViewOnRelease"] = m_resetViewOnRelease;
+        return json;
+    }
+
+    void fromJson(const QJsonObject& json) override {
+        if (json.contains("key")) m_key = json["key"].toString();
+        if (json.contains("speedRatioX")) m_speedX = json["speedRatioX"].toDouble();
+        if (json.contains("speedRatioY")) m_speedY = json["speedRatioY"].toDouble();
+        if (json.contains("resetViewOnRelease")) m_resetViewOnRelease = json["resetViewOnRelease"].toBool();
+    }
+
+    QString getKey() const override { return m_key; }
+
+protected:
+    // 椭圆形外观
+    QRectF boundingRect() const override { return QRectF(-50, -20, 100, 40); }
+
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override {
+        Q_UNUSED(option); Q_UNUSED(widget);
+        painter->setRenderHint(QPainter::Antialiasing);
+
+        // 使用不同的颜色与Camera区分：紫色调
+        QColor bg = m_isConflicted ? QColor(255, 50, 50, 200) :
+                        (m_isEditing ? QColor(40,40,40,230) :
+                             (isSelected() ? QColor(156, 39, 176, 200) : QColor(0, 0, 0, 150)));
+
+        painter->setPen(Qt::NoPen);
+        painter->setBrush(bg);
+        painter->drawEllipse(boundingRect());  // 椭圆形
+
+        painter->setPen(m_isEditing ? QPen(Qt::white, 1) : QPen(Qt::white, 2));
+        painter->setBrush(Qt::NoBrush);
+        painter->drawEllipse(boundingRect());
+
+        QFont font = painter->font();
+        font.setBold(true);
+        painter->setPen(Qt::white);
+
+        // X轴灵敏度（左侧）
+        font.setPointSize(7);
+        painter->setFont(font);
+        QString xStr = (m_isEditing && m_editMode == Edit_X) ? (m_inputBuffer + (m_showCursor?"|":"")) : QString::number(m_speedX);
+        painter->drawText(QRectF(-48, -18, 30, 36), Qt::AlignCenter, QString("X\n%1").arg(xStr));
+
+        // Y轴灵敏度（右侧）
+        QString yStr = (m_isEditing && m_editMode == Edit_Y) ? (m_inputBuffer + (m_showCursor?"|":"")) : QString::number(m_speedY);
+        painter->drawText(QRectF(18, -18, 30, 36), Qt::AlignCenter, QString("Y\n%1").arg(yStr));
+
+        // 激活按键（中间）
+        font.setPointSize(9);
+        painter->setFont(font);
+        QString t = (m_isEditing && m_editMode == Edit_Key) ? (KeyMapHelper::keyToDisplay(m_displayKey) + (m_showCursor?"|":"")) : KeyMapHelper::keyToDisplay(m_key);
+        painter->drawText(QRectF(-15, -18, 30, 36), Qt::AlignCenter, t.isEmpty()?"?":t);
+        // 绘制设置齿轮图标（中间顶部）
+        drawGear(painter);
+    }
+
+    // 绘制设置齿轮图标（中间顶部）
+    void drawGear(QPainter* painter) {
+        painter->save();
+        painter->translate(0, -14);  // 中间顶部位置
+        painter->setPen(QPen(Qt::lightGray, 1.2));
+        painter->setBrush(Qt::darkGray);
+        painter->drawEllipse(QPoint(0,0), 5, 5);
+        painter->setBrush(Qt::lightGray);
+        painter->drawEllipse(QPoint(0,0), 2, 2);
+        for(int i=0; i<8; ++i) { painter->rotate(45); painter->drawLine(0, 5, 0, 7); }
+        painter->restore();
+    }
+
+    // 打开设置对话框
+    void openSettingsDialog() {
+        QDialog dlg;
+        dlg.setWindowTitle("小眼睛设置");
+        dlg.setFixedSize(280, 120);
+
+        auto* layout = new QVBoxLayout(&dlg);
+        layout->setSpacing(12);
+        layout->setContentsMargins(16, 16, 16, 16);
+
+        // 复选框：松开时是否重置视角
+        auto* checkBox = new QCheckBox("松开热键时重置视角", &dlg);
+        checkBox->setChecked(m_resetViewOnRelease);
+        checkBox->setToolTip("启用后，松开小眼睛热键时会自动将视角重置到初始位置");
+        layout->addWidget(checkBox);
+
+        // 按钮
+        auto* btnLayout = new QHBoxLayout();
+        auto* okBtn = new QPushButton("确定", &dlg);
+        auto* cancelBtn = new QPushButton("取消", &dlg);
+        btnLayout->addStretch();
+        btnLayout->addWidget(okBtn);
+        btnLayout->addWidget(cancelBtn);
+        layout->addLayout(btnLayout);
+
+        QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+        QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
+
+        if (dlg.exec() == QDialog::Accepted) {
+            m_resetViewOnRelease = checkBox->isChecked();
+        }
+    }
+
+    void mousePressEvent(QGraphicsSceneMouseEvent *event) override {
+        if (m_isEditing) {
+            event->ignore();
+            return;
+        }
+        KeyMapItemBase::mousePressEvent(event);
+    }
+
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override {
+        Q_UNUSED(event);
+        openSettingsDialog();
+    }
+
+private:
+    double m_speedX = 1.0;
+    double m_speedY = 1.0;
+    bool m_isEditing = false; bool m_showCursor = false;
+    EditMode m_editMode = Edit_None;
+    QString m_displayKey;
+    QString m_inputBuffer;
+    QTimer* m_cursorTimer;
+    bool m_resetViewOnRelease = false;  // 松开时是否重置视角
+};
+
+// ---------------------------------------------------------
 // SteerWheelSubItem 实现部分 (内联函数)
 // ---------------------------------------------------------
 inline SteerWheelSubItem::SteerWheelSubItem(Direction dir, KeyMapItemSteerWheel* parentWheel) : QGraphicsObject(parentWheel), m_dir(dir), m_parentWheel(parentWheel) {
@@ -543,9 +859,9 @@ inline void SteerWheelSubItem::setEditing(bool edit) {
     else { m_cursorTimer->stop(); m_showCursor = false; } update();
 }
 inline void SteerWheelSubItem::inputKey(QKeyEvent* event) {
-    int key = event->key(); if (key == Qt::Key_Control || key == Qt::Key_Shift || key == Qt::Key_Alt || key == Qt::Key_Meta || key == Qt::Key_unknown) return;
-    if (event->modifiers() != Qt::NoModifier) { m_key = QKeySequence(key | event->modifiers()).toString(QKeySequence::PortableText); }
-    else { QMetaEnum m = QMetaEnum::fromType<Qt::Key>(); const char* s = m.valueToKey(key); m_key = s ? QString(s) : QKeySequence(key).toString(); }
+    int key = event->key();
+    if (key == Qt::Key_unknown) return;
+    m_key = KeyMapHelper::keyToString(key, event->modifiers());
     m_displayKey = m_key; update();
 }
 inline void SteerWheelSubItem::inputMouse(Qt::MouseButton button) {
@@ -560,15 +876,19 @@ inline void SteerWheelSubItem::inputMouse(Qt::MouseButton button) {
     }
     if (!keyName.isEmpty()) { m_key = keyName; m_displayKey = keyName; update(); }
 }
-inline void SteerWheelSubItem::inputWheel(int) {}
+inline void SteerWheelSubItem::inputWheel(int delta) {
+    QString keyName = (delta > 0) ? "WheelUp" : "WheelDown";
+    m_key = keyName;
+    m_displayKey = keyName;
+    update();
+}
 inline void SteerWheelSubItem::paint(QPainter *p, const QStyleOptionGraphicsItem *, QWidget *) {
     p->setRenderHint(QPainter::Antialiasing);
     QColor bg = m_isConflicted ? QColor(255,0,0,100) : (m_isEditing ? QColor(40,40,40,230) : QColor(0, 153, 255, 200));
     p->setBrush(bg); p->setPen(m_isConflicted?QPen(Qt::red,3):(m_isEditing?QPen(Qt::white,1):QPen(Qt::black,1)));
     p->drawEllipse(boundingRect());
     p->setPen(Qt::white); QFont f = p->font(); f.setBold(true);
-    QString t = m_isEditing ? (m_displayKey + (m_showCursor?"|":"")) : m_key;
-    if(t.startsWith("Key_")) t=t.mid(4);
+    QString t = m_isEditing ? (KeyMapHelper::keyToDisplay(m_displayKey) + (m_showCursor?"|":"")) : KeyMapHelper::keyToDisplay(m_key);
     // 根据文字长度自适应字体大小
     int fontSize = 9;
     if (t.length() > 6) fontSize = 6;
@@ -660,6 +980,7 @@ public:
         case KMT_STEER_WHEEL: return new KeyMapItemSteerWheel();
         case KMT_SCRIPT: return new KeyMapItemScript();
         case KMT_CAMERA_MOVE: return new KeyMapItemCamera();
+        case KMT_FREE_LOOK: return new KeyMapItemFreeLook();
         default: return nullptr;
         }
     }

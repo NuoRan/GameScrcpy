@@ -1,9 +1,10 @@
 /**
  * @file KcpCore.h
- * @brief KCP核心封装 - 全新重构
+ * @brief KCP 核心封装 / KCP Core Wrapper
  *
- * 严格按照 kcp-master/test.cpp 的使用方式实现
- * 参考: https://github.com/skywind3000/kcp
+ * 严格按照 kcp-master/test.cpp 的使用方式实现。
+ * Implements KCP following the usage pattern from kcp-master/test.cpp.
+ * 参考 / Reference: https://github.com/skywind3000/kcp
  *
  * 使用示例 (参考 test.cpp):
  * @code
@@ -137,12 +138,22 @@ public:
     //=========================================================================
 
     /**
-     * @brief 快速模式 (参考 test.cpp mode=2)
+     * @brief 快速模式 - 极致低延迟
      *
-     * 配置: nodelay=2, interval=10, resend=2, nc=1
+     * 配置: nodelay=2, interval=1, resend=2, nc=1, rx_minrto=1
      * 适用于游戏、投屏等低延迟场景
      */
     void setFastMode();
+
+    /**
+     * @brief 视频流模式 - 高带宽优化
+     *
+     * 在快速模式基础上：
+     * - 启用流模式（无消息边界）
+     * - 更大窗口（512x512）
+     * 适用于视频流传输
+     */
+    void setVideoStreamMode();
 
     /**
      * @brief 普通模式 (参考 test.cpp mode=1)
@@ -204,6 +215,11 @@ public:
      * @return 0正常，-1死链
      */
     int state() const;
+
+    /**
+     * @brief 获取平滑RTT（毫秒）
+     */
+    int getRtt() const;
 
 private:
     // KCP输出回调（静态，传递给ikcp）

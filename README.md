@@ -1,234 +1,259 @@
-# QtScrcpy
+# GameScrcpy
+
+**[English](README_EN.md)** | 中文
+
+<h3 align="center">🎮 功能强大的 Android 设备投屏控制工具</h3>
 
 <p align="center">
-  <img src="client/src/ui/resources/icons/logo.png" alt="QtScrcpy Logo" width="128">
+  <a href="../../releases"><img src="https://img.shields.io/github/v/release/nicenick14/GameScrcpy?style=flat-square&color=blue" alt="Release"></a>
+  <img src="https://img.shields.io/badge/Version-2.2.1-blue?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11-blue?style=flat-square" alt="Platform">
+  <img src="https://img.shields.io/badge/Qt-6.x-41CD52?style=flat-square&logo=qt" alt="Qt Version">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License"></a>
+  <img src="https://img.shields.io/badge/Android-5.0%2B-3DDC84?style=flat-square&logo=android" alt="Android">
 </p>
 
 <p align="center">
-  <strong>基于 Qt 的 Android 设备投屏控制工具</strong>
-</p>
-
-<p align="center">
-  <a href="#功能特性">功能特性</a> •
-  <a href="#快速开始">快速开始</a> •
-  <a href="#构建指南">构建指南</a> •
-  <a href="#使用说明">使用说明</a> •
-  <a href="#许可证">许可证</a>
+  <a href="#-核心特性">核心特性</a> •
+  <a href="#-快速开始">快速开始</a> •
+  <a href="#️-键位映射">键位映射</a> •
+  <a href="#-脚本系统">脚本系统</a> •
+  <a href="#-从源码构建">构建</a>
 </p>
 
 ---
 
-## 📖 简介
+## ⭐ 核心特性
 
-QtScrcpy 是一个跨平台的 Android 设备投屏控制工具，基于 [scrcpy](https://github.com/Genymobile/scrcpy) 协议实现，使用 Qt 框架开发。它允许你通过 USB 或 WiFi 连接 Android 设备，在电脑上实时显示和控制手机屏幕。
+### 🖥️ 高清投屏
 
-### 主要特性
+- **高清低延迟** — H.264/H.265 硬件解码，延迟 < 100ms
+- **USB / WiFi** — 支持有线和无线两种连接方式
+- **KCP 协议** — WiFi 连接自动启用 KCP，弱网环境下更低延迟
+- **帧率可调** — 0-999 FPS 自由设置，0 = 不限制
+- **性能监控** — 实时 FPS、解码延迟、网络延迟、CPU/内存等指标
 
-- 🖥️ **跨平台支持** - Windows、macOS、Linux
-- 📱 **USB/WiFi 连接** - 支持有线和无线两种连接方式
-- 🎮 **键鼠映射** - 自定义键盘鼠标映射，适配手游操作
-- 🚀 **KCP 传输** - 支持 KCP 协议，优化网络传输性能
-- 📹 **高清低延迟** - H.264/H.265 硬件解码，延迟低于 100ms
-- 🎯 **图像匹配** - 支持 OpenCV 图像识别（可选）
-- 📋 **剪贴板同步** - 电脑与手机剪贴板双向同步
+---
 
-## 🚀 快速开始
+### 🎮 游戏键位映射
+
+- **可视化编辑** — 拖拽式键位映射编辑器，所见即所得
+- **多种映射类型** — 点击、方向轮盘、视角控制、自由视角、技能轮盘
+- **键位覆盖层** — 实时半透明显示当前键位映射状态，支持脚本动态移动/隐藏
+- **组合键支持** — `Shift+G`、`Ctrl+A`、`Alt+Tab` 等
+- **配置热加载** — 修改 JSON 配置后无需重启
+
+| 映射类型 | 说明 | 适用场景 |
+|:---------|:-----|:---------|
+| `click` | 单击 | 技能、菜单 |
+| `steerWheel` | 方向轮盘 | WASD 移动 |
+| `drag` | 拖拽 | 技能方向 |
+| `freeLook` | 自由视角 | FPS 小眼睛 |
+| `script` | 脚本 | 自定义逻辑 |
+
+---
+
+### 🤖 脚本系统
+
+- **JavaScript 引擎** — 基于 QJSEngine 的沙箱化脚本系统
+- **25+ API** — 触摸、按键、滑动、缩放、延时、图像识别、全局状态等
+- **脚本编辑器** — 内置编辑器 + 快捷指令面板 + 代码片段插入
+- **多脚本并行** — 独立沙箱、独立线程、互不干扰
+- **自动启动** — 脚本可在投屏开始时自动运行（`// @autoStart`）
+- **悬浮提示** — `toast()` 在画面上显示实时状态，支持拖拽移动
+
+```javascript
+// 示例：自动连点
+while (!mapi.isInterrupted()) {
+    mapi.click(0.5, 0.5);
+    mapi.sleep(100);
+}
+```
+
+---
+
+### 📷 图像识别
+
+- **OpenCV 模板匹配** — 精准找图定位
+- **区域限定** — 坐标区域或自定义选区编号，提高效率
+- **选区编辑器** — 可视化创建/编辑搜索区域，自动生成代码
+- **模板截取** — 直接在预览画面上截取保存模板图片
+- **置信度控制** — 自定义匹配精度阈值
+
+```javascript
+// 按坐标区域找图
+var result = mapi.findImage("button", 0.7, 0.5, 1.0, 1.0, 0.8);
+if (result.found) {
+    mapi.click(result.x, result.y);
+}
+
+// 按选区编号找图（选区在编辑器中创建）
+var result = mapi.findImageByRegion("button", 3, 0.8);
+```
+
+---
+
+### 🛡️ 拟人化操作
+
+- **触摸随机偏移** — 每次点击/滑动自动添加随机偏移，避免坐标完全一致
+- **滑动轨迹曲线** — 三层正弦叠加模拟真人滑动轨迹（主曲线 + 次曲线 + 微振动）
+- **方向轮盘平滑** — 移动输入自然过渡
+- **可调强度** — UI 滑块实时调节偏移量和曲线幅度 (0~100)
+
+---
+
+## 📥 快速开始
 
 ### 系统要求
 
-- **Android 设备**: Android 5.0 (API 21) 或更高版本
-- **电脑系统**: Windows 10+、macOS 10.15+、Ubuntu 20.04+
-- **开发环境** (仅构建需要):
-  - Qt 6.2+ 或 Qt 5.15+
-  - CMake 3.19+
-  - C++17 编译器
+| 项目 | 要求 |
+|:-----|:-----|
+| **操作系统** | Windows 10 / 11 (64位) |
+| **Android 设备** | Android 5.0+ (API 21+) |
+| **连接方式** | USB 数据线 或 WiFi 同一局域网 |
 
-### 预编译版本
+### 下载安装
 
-从 [Releases](../../releases) 页面下载对应平台的预编译版本。
+从 [Releases](../../releases) 页面下载最新版本，解压后直接运行 `GameScrcpy.exe`。
 
 ### 使用步骤
 
 1. **启用 USB 调试**
-   - 在 Android 设备上打开 `设置` → `关于手机`
-   - 连续点击 `版本号` 7 次启用开发者选项
-   - 进入 `开发者选项`，启用 `USB 调试`
+   ```
+   设置 → 关于手机 → 连续点击"版本号" 7 次
+   设置 → 开发者选项 → 启用 USB 调试
+   ```
 
-2. **连接设备**
-   - USB 连接：直接用数据线连接电脑和手机
-   - WiFi 连接：确保设备和电脑在同一网络
+2. **连接设备** — USB 数据线连接，或输入设备 IP 进行 WiFi 连接
 
-3. **运行 QtScrcpy**
-   - 启动程序后，点击 `刷新设备` 按钮
-   - 选择设备，点击 `启动投屏`
+3. **开始投屏** — 点击「刷新设备」→ 选择设备 → 点击「开始投屏」
 
-## 🔧 构建指南
 
-### 依赖项
 
-| 依赖 | 版本 | 说明 |
-|------|------|------|
-| Qt | 6.2+ / 5.15+ | GUI 框架 |
-| CMake | 3.19+ | 构建系统 |
-| FFmpeg | 4.x | 视频解码 |
-| OpenCV | 4.x | 图像匹配 (可选) |
-| Android SDK | - | 构建服务端 |
+---
 
-### Windows 构建
+## 🤖 脚本 API
 
-```powershell
-# 1. 克隆仓库
-git clone https://github.com/YOUR_USERNAME/QtScrcpy.git
-cd QtScrcpy
+通过 `mapi` 对象调用，完整文档见 **[脚本 API 文档](docs/SCRIPT_API.md)**。
 
-# 2. 创建构建目录
-mkdir build && cd build
+### 常用 API 速览
 
-# 3. 配置 CMake (使用 Qt Creator 或命令行)
-cmake -G "Visual Studio 17 2022" -A x64 ../client
+```javascript
+// 触摸操作
+mapi.click(x, y)              // 点击
+mapi.holdpress(x, y)          // 按住（松开宏键自动释放）
+mapi.releaseAll()              // 释放所有触摸点
+mapi.slide(x1, y1, x2, y2, duration, steps)  // 滑动
+mapi.pinch(cx, cy, scale, duration, steps)    // 双指缩放
 
-# 4. 构建
-cmake --build . --config Release
+// 控制流
+mapi.sleep(ms)                // 延时
+mapi.isInterrupted()          // 检查是否中断
+mapi.isPress()                // 当前宏键是否按下
 
-# 5. 构建服务端 (需要 Android SDK)
-cd ../server
-./gradlew assembleRelease
+// 按键与工具
+mapi.key("T", 50)             // 模拟键位按键
+mapi.toast("消息", 3000)      // 悬浮提示
+mapi.getKeyState("W")         // 获取按键状态 (1/0)
+mapi.setKeyUIPos("J", x, y)   // 动态设置按键 UI 位置
+
+// 全局状态（跨脚本共享）
+mapi.setGlobal("key", value)
+mapi.getGlobal("key")
+
+// 游戏控制
+mapi.shotmode(true)           // 切换射击/光标模式
+mapi.resetview()              // 重置视角
+mapi.resetwheel()             // 重置方向轮盘
+mapi.setRadialParam(up, down, left, right)  // 设置移动速度
+
+// 图像识别
+mapi.findImage("name", x1, y1, x2, y2, threshold)
+mapi.findImageByRegion("name", regionId, threshold)
+
+// 模块
+mapi.loadModule("utils.js")   // 加载 ES6 模块
 ```
 
-### macOS 构建
+---
 
-```bash
-# 1. 安装依赖
-brew install qt cmake ffmpeg
-
-# 2. 克隆并构建
-git clone https://github.com/YOUR_USERNAME/QtScrcpy.git
-cd QtScrcpy/client
-
-mkdir build && cd build
-cmake .. -DCMAKE_PREFIX_PATH=$(brew --prefix qt)
-make -j$(sysctl -n hw.ncpu)
-```
-
-### Linux 构建
-
-```bash
-# 1. 安装依赖 (Ubuntu/Debian)
-sudo apt update
-sudo apt install -y qt6-base-dev qt6-multimedia-dev cmake \
-    libavcodec-dev libavformat-dev libavutil-dev libswscale-dev
-
-# 2. 克隆并构建
-git clone https://github.com/YOUR_USERNAME/QtScrcpy.git
-cd QtScrcpy/client
-
-mkdir build && cd build
-cmake ..
-make -j$(nproc)
-```
-
-### 服务端构建
-
-```bash
-cd server
-
-# 使用 Gradle 构建
-./gradlew assembleRelease
-
-# 或不使用 Gradle
-./build_without_gradle.sh
-```
-
-构建产物位于 `server/build/outputs/apk/release/`
-
-## 📁 项目结构
+## 🏗️ 技术架构
 
 ```
-QtScrcpy/
+GameScrcpy/
 ├── client/                 # 客户端 (Qt/C++)
 │   ├── src/
-│   │   ├── app/           # 应用入口
-│   │   ├── ui/            # 用户界面
-│   │   ├── control/       # 控制模块
-│   │   ├── transport/     # 传输模块 (TCP/KCP)
-│   │   ├── decoder/       # 视频解码
-│   │   ├── render/        # 渲染模块
-│   │   └── common/        # 公共模块
-│   ├── env/               # 预编译依赖
-│   │   ├── ffmpeg/        # FFmpeg 库
-│   │   ├── adb/           # ADB 工具
-│   │   └── opencv/        # OpenCV 库
-│   └── keymap/            # 键盘映射配置
+│   │   ├── app/           # 应用入口、配置
+│   │   ├── ui/            # 用户界面、键位覆盖层、脚本编辑器、选区编辑器
+│   │   ├── control/       # 控制、键位映射、脚本引擎 (沙箱化)
+│   │   ├── transport/     # 传输 (TCP / KCP / ADB)
+│   │   ├── decoder/       # FFmpeg 视频解码 (零拷贝)
+│   │   ├── render/        # OpenGL 渲染
+│   │   └── common/        # 配置中心、性能监控、图像识别
+│   └── env/               # 预编译依赖 (FFmpeg, ADB, OpenCV)
 │
 ├── server/                 # 服务端 (Android/Java)
-│   └── src/main/java/
-│       └── com/genymobile/scrcpy/
-│
-├── config/                 # 配置文件
-└── ci/                     # CI/CD 脚本
+├── keymap/                 # 键位配置文件
+│   ├── images/            # 模板图片
+│   ├── scripts/           # 脚本模块
+│   └── regions.json       # 自定义选区
+└── config/                 # 全局配置
 ```
 
-## ⌨️ 键盘映射
+### 核心依赖
 
-QtScrcpy 支持自定义键盘映射，配置文件位于 `client/keymap/` 目录。
+| 组件 | 说明 |
+|:-----|:-----|
+| Qt 6.x (MSVC 2022) | GUI 框架、多媒体 |
+| FFmpeg 7.1 | 视频解码 |
+| OpenCV 4.10 | 图像识别 (可选) |
+| KCP | 低延迟 UDP 传输 |
 
-### 配置示例
+---
 
-```json
-{
-  "switchKey": "~",
-  "mouseMoveMap": {
-    "startPos": { "x": 0.5, "y": 0.5 },
-    "speedRatio": 1.0
-  },
-  "keyMapNodes": [
-    {
-      "type": "click",
-      "key": "W",
-      "pos": { "x": 0.3, "y": 0.7 }
-    }
-  ]
-}
+## 🔧 从源码构建
+
+详细构建指南见 **[BUILD.md](docs/BUILD.md)**。
+
+### 一键脚本 (推荐)
+
+```powershell
+cd ci\win
+.\build_all.bat --qt "C:\Qt\6.5.0"
 ```
 
-### 内置配置
+### Qt Creator
 
-- `default.json` - 默认配置
-- `gameforpeace.json` - 和平精英
-- `identityv.json` - 第五人格
+1. 安装 Qt 6.5+ (MSVC 2022 64-bit)
+2. 用 Qt Creator 打开 `client/CMakeLists.txt`
+3. 选择 Release 配置，点击构建
 
-## 🔌 传输协议
+### 服务端构建 (可选)
 
-### TCP 模式 (默认)
+> 已内置预编译服务端，通常无需自行构建
 
-通过 ADB 端口转发建立 TCP 连接，稳定可靠。
+```powershell
+cd server
+.\gradlew.bat assembleRelease
+```
 
-### KCP 模式
-
-使用 KCP 协议进行 UDP 传输，适合网络不稳定的场景：
-- 更低的延迟
-- 更好的丢包恢复
-- 适合 WiFi 连接
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-请参阅 [CONTRIBUTING.md](CONTRIBUTING.md) 了解贡献指南。
+---
 
 ## 📄 许可证
 
-本项目基于 [Apache License 2.0](LICENSE) 开源。
+[Apache License 2.0](LICENSE)
+
+---
 
 ## 🙏 致谢
 
-- [scrcpy](https://github.com/Genymobile/scrcpy) - 原始协议实现
-- [FFmpeg](https://ffmpeg.org/) - 视频解码
-- [Qt](https://www.qt.io/) - GUI 框架
-- [KCP](https://github.com/skywind3000/kcp) - 可靠 UDP 传输
+- [scrcpy](https://github.com/Genymobile/scrcpy) — Android 投屏先驱
+- [QtScrcpy](https://github.com/barry-ran/QtScrcpy) — 项目基础
+- [opencv_matching](https://github.com/acai66/opencv_matching) — OpenCV 图像匹配封装
+- [FFmpeg](https://ffmpeg.org/) / [Qt](https://www.qt.io/) / [OpenCV](https://opencv.org/) / [KCP](https://github.com/skywind3000/kcp)
 
 ---
 
 <p align="center">
-  如果这个项目对你有帮助，请给一个 ⭐ Star！
+  如果这个项目对你有帮助，欢迎给一个 ⭐ Star！
 </p>

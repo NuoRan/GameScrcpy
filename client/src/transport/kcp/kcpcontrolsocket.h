@@ -1,11 +1,11 @@
 /**
  * @file kcpcontrolsocket.h
- * @brief KCP控制Socket - 适配器模式
+ * @brief KCP 控制 Socket - 适配器模式 / KCP Control Socket - Adapter Pattern
  *
- * 设计说明 (C-S02):
- * 此类作为适配器，将 KcpControlClient 适配为类似 QTcpSocket 的接口
- * 保留此封装是为了与 QTcpSocket (TCP模式) 保持统一的使用方式
- * 这样 Controller/ControlSender 等上层代码可以透明地切换 KCP/TCP 模式
+ * 将 KcpControlClient 适配为类似 QTcpSocket 的接口，
+ * 使上层代码可以透明地切换 KCP/TCP 模式。
+ * Adapts KcpControlClient to a QTcpSocket-like interface,
+ * allowing upper-layer code to transparently switch between KCP/TCP modes.
  */
 
 #ifndef KCPCONTROLSOCKET_H
@@ -20,9 +20,10 @@
 class KcpControlClient;
 
 /**
- * @brief KCP控制Socket - 兼容旧接口的封装
+ * @brief KCP 控制 Socket - 兼容旧接口的封装 / KCP Control Socket - Legacy-Compatible Wrapper
  *
- * 内部使用全新重构的 KcpControlClient
+ * 内部使用重构的 KcpControlClient。
+ * Internally uses the refactored KcpControlClient.
  */
 class KcpControlSocket : public QObject
 {
@@ -30,7 +31,7 @@ class KcpControlSocket : public QObject
 
 public:
     static constexpr quint32 KCP_CONV_CONTROL = 0x22334455;
-    static constexpr int UPDATE_INTERVAL_MS = 10;
+    static constexpr int UPDATE_INTERVAL_MS = 5;  // 极致低延迟：5ms
     static constexpr int MAX_RECV_BUFFER = 64 * 1024;
 
     explicit KcpControlSocket(QObject *parent = nullptr);

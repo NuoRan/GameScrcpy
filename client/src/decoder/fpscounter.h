@@ -2,6 +2,12 @@
 #define FPSCOUNTER_H
 #include <QObject>
 
+/**
+ * @brief 帧率统计器 / FPS Counter
+ *
+ * 统计渲染帧率和丢帧数，定时发射 updateFPS 信号。
+ * Tracks rendered FPS and dropped frames, emits updateFPS signal periodically.
+ */
 class FpsCounter : public QObject
 {
     Q_OBJECT

@@ -1,7 +1,4 @@
 #include <QDebug>
-#include <QDateTime>
-#include <QThread>
-#include <QMutex>
 
 #include "compat.h"
 #include "decoder.h"
@@ -11,82 +8,21 @@ extern "C" {
 #include "libavutil/imgutils.h"
 }
 
-// 调试日志
-#define DECODER_LOG(msg) qDebug() << "[Decoder]" << QDateTime::currentDateTime().toString("hh:mm:ss.zzz") \
-                                  << "[" << QThread::currentThreadId() << "]" << msg
-
-/**
- * HW 优化: 硬件加速类型优先级
- * - Windows: D3D11VA > DXVA2 > CUDA (D3D11VA 延迟最低)
- * - macOS: VideoToolbox (唯一选择，性能最佳)
- * - Linux: VAAPI > VDPAU > CUDA
- */
+// 硬件加速类型优先级（Windows: D3D11VA > DXVA2 > CUDA）
 static const AVHWDeviceType hwDeviceTypes[] = {
 #ifdef _WIN32
-    AV_HWDEVICE_TYPE_D3D11VA,   // HW: 优先 D3D11VA (Windows 8+)
-    AV_HWDEVICE_TYPE_DXVA2,     // HW: 次选 DXVA2 (兼容 Windows 7)
+    AV_HWDEVICE_TYPE_D3D11VA,
+    AV_HWDEVICE_TYPE_DXVA2,
     AV_HWDEVICE_TYPE_CUDA,
 #elif defined(__APPLE__)
-    AV_HWDEVICE_TYPE_VIDEOTOOLBOX,  // HW: macOS 唯一选择
+    AV_HWDEVICE_TYPE_VIDEOTOOLBOX,
 #elif defined(__linux__)
-    AV_HWDEVICE_TYPE_VAAPI,    // HW: 优先 VAAPI (Intel/AMD)
+    AV_HWDEVICE_TYPE_VAAPI,
     AV_HWDEVICE_TYPE_VDPAU,
     AV_HWDEVICE_TYPE_CUDA,
 #endif
     AV_HWDEVICE_TYPE_NONE
 };
-
-/**
- * P-02: 硬件解码器缓存
- * 避免每次创建 Decoder 时重复检测硬件能力
- */
-struct HwDecoderCache {
-    QMutex mutex;
-    bool initialized = false;
-    AVHWDeviceType cachedType = AV_HWDEVICE_TYPE_NONE;
-    AVPixelFormat cachedPixFmt = AV_PIX_FMT_NONE;
-    QString cachedName;
-
-    // P-02: 检测并缓存可用的硬件解码器
-    void detectOnce(AVCodecID codecId) {
-        QMutexLocker locker(&mutex);
-        if (initialized) return;
-        initialized = true;
-
-        const AVCodec* codec = avcodec_find_decoder(codecId);
-        if (!codec) return;
-
-        for (int i = 0; hwDeviceTypes[i] != AV_HWDEVICE_TYPE_NONE; i++) {
-            AVHWDeviceType type = hwDeviceTypes[i];
-
-            for (int j = 0;; j++) {
-                const AVCodecHWConfig *config = avcodec_get_hw_config(codec, j);
-                if (!config) break;
-
-                if (config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX &&
-                    config->device_type == type) {
-
-                    AVBufferRef *testCtx = nullptr;
-                    int ret = av_hwdevice_ctx_create(&testCtx, type, nullptr, nullptr, 0);
-                    if (ret >= 0) {
-                        cachedType = type;
-                        cachedPixFmt = config->pix_fmt;
-                        cachedName = QString::fromUtf8(av_hwdevice_get_type_name(type));
-                        av_buffer_unref(&testCtx);
-                        qInfo("P-02: Cached hardware decoder: %s for codec %s",
-                              qPrintable(cachedName), avcodec_get_name(codecId));
-                        return;
-                    }
-                }
-            }
-        }
-        qInfo("P-02: No hardware decoder available for codec %s", avcodec_get_name(codecId));
-    }
-};
-
-// P-02: 全局缓存 (H.264 和 H.265 分开缓存)
-static HwDecoderCache s_h264Cache;
-static HwDecoderCache s_h265Cache;
 
 // 静态成员：存储当前解码器的硬件像素格式
 static AVPixelFormat s_hwPixFmt = AV_PIX_FMT_NONE;
@@ -126,36 +62,14 @@ enum AVPixelFormat Decoder::getHwFormat(AVCodecContext *ctx, const enum AVPixelF
 }
 
 // ---------------------------------------------------------
-// P-02: 初始化硬件解码器 (使用缓存)
+// 初始化硬件解码器
 // ---------------------------------------------------------
 bool Decoder::initHardwareDecoder(const AVCodec* codec)
 {
-    // P-02: 根据编码类型选择缓存
-    HwDecoderCache *cache = nullptr;
-    if (codec->id == AV_CODEC_ID_H264) {
-        cache = &s_h264Cache;
-    } else if (codec->id == AV_CODEC_ID_HEVC) {
-        cache = &s_h265Cache;
-    }
-
-    // P-02: 使用缓存的硬件解码器信息
-    if (cache && cache->initialized && cache->cachedType != AV_HWDEVICE_TYPE_NONE) {
-        int ret = av_hwdevice_ctx_create(&m_hwDeviceCtx, cache->cachedType, nullptr, nullptr, 0);
-        if (ret >= 0) {
-            m_hwPixFmt = cache->cachedPixFmt;
-            s_hwPixFmt = m_hwPixFmt;
-            m_hwDecoderName = cache->cachedName;
-            qInfo("P-02: Using cached hardware decoder: %s (format: %s)",
-                  qPrintable(m_hwDecoderName),
-                  av_get_pix_fmt_name(m_hwPixFmt));
-            return true;
-        }
-    }
-
-    // 回退到完整检测
     for (int i = 0; hwDeviceTypes[i] != AV_HWDEVICE_TYPE_NONE; i++) {
         AVHWDeviceType type = hwDeviceTypes[i];
 
+        // 检查编解码器是否支持此硬件类型
         for (int j = 0;; j++) {
             const AVCodecHWConfig *config = avcodec_get_hw_config(codec, j);
             if (!config) {
@@ -164,6 +78,7 @@ bool Decoder::initHardwareDecoder(const AVCodec* codec)
             if (config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX &&
                 config->device_type == type) {
 
+                // 尝试创建硬件设备上下文
                 int ret = av_hwdevice_ctx_create(&m_hwDeviceCtx, type, nullptr, nullptr, 0);
                 if (ret >= 0) {
                     m_hwPixFmt = config->pix_fmt;
@@ -206,29 +121,14 @@ bool Decoder::transferHwFrame(AVFrame* hwFrame, AVFrame* swFrame)
 }
 
 // ---------------------------------------------------------
-// H265: 初始化解码器 (支持 H.264 和 H.265)
+// 初始化解码器
 // ---------------------------------------------------------
 bool Decoder::open()
 {
-    return open(AV_CODEC_ID_H264);  // 默认 H.264
-}
-
-bool Decoder::open(AVCodecID codecId)
-{
-    // H265: 支持 H.264 和 H.265
-    const char* codecName = (codecId == AV_CODEC_ID_HEVC) ? "H.265/HEVC" : "H.264";
-
-    // P-02: 预先检测并缓存硬件解码器
-    if (codecId == AV_CODEC_ID_H264) {
-        s_h264Cache.detectOnce(codecId);
-    } else if (codecId == AV_CODEC_ID_HEVC) {
-        s_h265Cache.detectOnce(codecId);
-    }
-
-    // 查找解码器
-    const AVCodec* codec = avcodec_find_decoder(codecId);
+    // 查找 H.264 解码器
+    const AVCodec* codec = avcodec_find_decoder(AV_CODEC_ID_H264);
     if (!codec) {
-        qCritical("%s decoder not found!", codecName);
+        qCritical("H.264 decoder not found");
         return false;
     }
 
@@ -253,33 +153,25 @@ bool Decoder::open(AVCodecID codecId)
             return false;
         }
     } else {
-        qInfo("Hardware decoding not available for %s, using software decoder", codecName);
+        qInfo("Hardware decoding not available, using software decoder");
     }
 
     // 低延迟设置
     m_codecCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
     m_codecCtx->flags2 |= AV_CODEC_FLAG2_FAST;
 
-    // H265: 额外的低延迟选项
-    if (codecId == AV_CODEC_ID_HEVC) {
-        // HEVC 特定优化
-        m_codecCtx->thread_count = 4;  // 多线程解码
-    }
-
     // 打开解码器
     if (avcodec_open2(m_codecCtx, codec, nullptr) < 0) {
-        qCritical("Could not open %s codec", codecName);
+        qCritical("Could not open H.264 codec");
         return false;
     }
 
     m_isCodecCtxOpen = true;
-    m_codecId = codecId;
 
     if (hwEnabled) {
-        qInfo("Decoder opened with hardware acceleration: %s (%s)",
-              qPrintable(m_hwDecoderName), codecName);
+        qInfo("Decoder opened with hardware acceleration: %s", qPrintable(m_hwDecoderName));
     } else {
-        qInfo("Decoder opened with software decoding (%s)", codecName);
+        qInfo("Decoder opened with software decoding");
     }
 
     return true;
@@ -308,9 +200,6 @@ void Decoder::close()
     }
 
     if (m_codecCtx) {
-        if (m_isCodecCtxOpen) {
-            avcodec_close(m_codecCtx);
-        }
         avcodec_free_context(&m_codecCtx);
         m_codecCtx = nullptr;
     }
@@ -329,7 +218,7 @@ bool Decoder::push(const AVPacket *packet)
         return false;
     }
 
-#ifdef QTSCRCPY_LAVF_HAS_NEW_ENCODING_DECODING_API
+#ifdef KZSCRCPY_LAVF_HAS_NEW_ENCODING_DECODING_API
     int ret = avcodec_send_packet(m_codecCtx, packet);
     if (ret < 0) {
         char errorbuf[256];
@@ -414,10 +303,8 @@ void Decoder::onNewFrame() {
 
     m_vb->lock();
     const AVFrame *frame = m_vb->consumeRenderedFrame();
-    if (frame) {
         m_onFrame(frame->width, frame->height,
                   frame->data[0], frame->data[1], frame->data[2],
                   frame->linesize[0], frame->linesize[1], frame->linesize[2]);
-    }
     m_vb->unLock();
 }

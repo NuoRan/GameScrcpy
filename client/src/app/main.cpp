@@ -1,4 +1,18 @@
-﻿#include <QApplication>
+﻿/**
+ * @file main.cpp
+ * @brief GameScrcpy 应用程序入口 / GameScrcpy Application Entry Point
+ *
+ * Copyright (C) 2019-2026 Rankun
+ * Licensed under the Apache License, Version 2.0
+ *
+ * 主要功能 / Main Features:
+ * - 初始化 Qt 应用程序 / Initialize Qt application
+ * - 加载样式表和翻译文件 / Load stylesheets and translation files
+ * - 初始化鼠标钩子、性能监控等组件 / Initialize mouse hooks, performance monitor, etc.
+ * - 创建并显示主对话框 / Create and show main dialog
+ */
+
+#include <QApplication>
 #include <QDebug>
 #include <QFile>
 #ifdef Q_OS_LINUX
@@ -16,16 +30,18 @@
 #include "config.h"
 #include "dialog.h"
 #include "mousetap.h"
+#include "ConfigCenter.h"
+#include "PerformanceMonitor.h"
 
 static Dialog *g_mainDlg = Q_NULLPTR;
 static QtMessageHandler g_oldMessageHandler = Q_NULLPTR;
 void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg);
-void installTranslator();
+void installTranslator(const QString &langOverride = QString());
 
 static QtMsgType g_msgType = QtInfoMsg;
 QtMsgType covertLogLevel(const QString &logLevel);
 
-// Windows 异常处理器
+// Windows 异常处理器 / Windows unhandled exception handler
 #ifdef Q_OS_WIN32
 #include <windows.h>
 LONG WINAPI MyUnhandledExceptionFilter(EXCEPTION_POINTERS *ExceptionInfo)
@@ -47,10 +63,10 @@ int main(int argc, char *argv[])
     // 在Windows下指定ADB、Server、Keymap和配置文件的路径
     // ---------------------------------------------------------
 #ifdef Q_OS_WIN32
-    qputenv("QTSCRCPY_ADB_PATH", "../../../QtScrcpy/QtScrcpyCore/src/third_party/adb/win/adb.exe");
-    qputenv("QTSCRCPY_SERVER_PATH", "../../../QtScrcpy/QtScrcpyCore/src/third_party/scrcpy-server");
-    qputenv("QTSCRCPY_KEYMAP_PATH", "../../../keymap");
-    qputenv("QTSCRCPY_CONFIG_PATH", "../../../config");
+    qputenv("KZSCRCPY_ADB_PATH", "../env/adb/win/adb.exe");
+    qputenv("KZSCRCPY_SERVER_PATH", "../env/scrcpy-server");
+    qputenv("KZSCRCPY_KEYMAP_PATH", "../../../keymap");
+    qputenv("KZSCRCPY_CONFIG_PATH", "../../../config");
 #endif
 
     g_msgType = covertLogLevel(Config::getInstance().getLogLevel());
@@ -59,11 +75,16 @@ int main(int argc, char *argv[])
     QSurfaceFormat varFormat = QSurfaceFormat::defaultFormat();
     varFormat.setVersion(2, 0);
     varFormat.setProfile(QSurfaceFormat::NoProfile);
+    varFormat.setSwapInterval(1);  // 启用 VSync，保证帧节奏与显示器刷新同步，消除画面抖动
     QSurfaceFormat::setDefaultFormat(varFormat);
 
     // 安装自定义消息处理器（日志系统）
     g_oldMessageHandler = qInstallMessageHandler(myMessageOutput);
     QApplication a(argc, argv);
+
+    // 【重要】预初始化性能监控器，确保在 GUI 线程中创建
+    // 必须在 QApplication 之后、其他组件之前调用
+    qsc::PerformanceMonitor::instance();
 
     // 规范化版本号格式
     QStringList versionList = QCoreApplication::applicationVersion().split(".");
@@ -73,7 +94,7 @@ int main(int argc, char *argv[])
     }
 
     // 安装翻译文件
-    installTranslator();
+    installTranslator();  // 首次调用读取配置
 
     // 初始化鼠标钩子（用于全局事件捕获）
 #if defined(Q_OS_WIN32) || defined(Q_OS_OSX)
@@ -94,6 +115,9 @@ int main(int argc, char *argv[])
 
     qsc::AdbProcess::setAdbPath(Config::getInstance().getAdbPath());
 
+    // 初始化配置中心（使用默认路径）
+    qsc::ConfigCenter::instance().initialize();
+
     // 创建并显示主对话框
     g_mainDlg = new Dialog {};
     g_mainDlg->show();
@@ -108,20 +132,32 @@ int main(int argc, char *argv[])
 }
 
 // ---------------------------------------------------------
-// 安装翻译器
-// 根据配置加载对应的语言包（中/英/日）
+// 安装/切换翻译器（支持运行时切换）
+// Install/switch translator (supports runtime switching)
+// 传入语言代码（如 "zh_CN" "en_US"），空串则读取配置
 // ---------------------------------------------------------
-void installTranslator()
+void installTranslator(const QString &langOverride)
 {
-    static QTranslator translator;
+    static QTranslator *translator = nullptr;
+
+    // 先移除旧的翻译器
+    if (translator) {
+        qApp->removeTranslator(translator);
+        delete translator;
+        translator = nullptr;
+    }
+
+    // 确定目标语言
+    QString langCode = langOverride.isEmpty() ? Config::getInstance().getLanguage() : langOverride;
+
     QLocale locale;
     QLocale::Language language = locale.language();
 
-    if (Config::getInstance().getLanguage() == "zh_CN") {
+    if (langCode == "zh_CN") {
         language = QLocale::Chinese;
-    } else if (Config::getInstance().getLanguage() == "en_US") {
+    } else if (langCode == "en_US") {
         language = QLocale::English;
-    } else if (Config::getInstance().getLanguage() == "ja_JP") {
+    } else if (langCode == "ja_JP") {
         language = QLocale::Japanese;
     }
 
@@ -139,11 +175,12 @@ void installTranslator()
         break;
     }
 
-    auto loaded = translator.load(languagePath);
+    translator = new QTranslator();
+    auto loaded = translator->load(languagePath);
     if (!loaded) {
         qWarning() << "Failed to load translation file:" << languagePath;
     }
-    qApp->installTranslator(&translator);
+    qApp->installTranslator(translator);
 }
 
 // 日志级别转换

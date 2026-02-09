@@ -24,16 +24,24 @@ void FastMsg::writeU32(QByteArray& buf, quint32 v) {
 // ========== 单事件序列化 ==========
 
 QByteArray FastMsg::serializeTouch(const FastTouchEvent& event) {
-    QByteArray buf;
-    buf.reserve(10);
+    // P-KCP: 使用零分配内部方法 + QByteArray::fromRawData 避免堆分配
+    char buf[10];
+    int len = serializeTouchInto(buf, event);
+    return QByteArray(buf, len);
+}
 
-    writeU8(buf, FMT_FAST_TOUCH);
-    writeU32(buf, event.seqId);
-    writeU8(buf, event.action);
-    writeU16(buf, event.x);
-    writeU16(buf, event.y);
-
-    return buf;
+int FastMsg::serializeTouchInto(char* buf, const FastTouchEvent& event) {
+    buf[0] = static_cast<char>(FMT_FAST_TOUCH);
+    buf[1] = static_cast<char>((event.seqId >> 24) & 0xFF);
+    buf[2] = static_cast<char>((event.seqId >> 16) & 0xFF);
+    buf[3] = static_cast<char>((event.seqId >> 8) & 0xFF);
+    buf[4] = static_cast<char>(event.seqId & 0xFF);
+    buf[5] = static_cast<char>(event.action);
+    buf[6] = static_cast<char>((event.x >> 8) & 0xFF);
+    buf[7] = static_cast<char>(event.x & 0xFF);
+    buf[8] = static_cast<char>((event.y >> 8) & 0xFF);
+    buf[9] = static_cast<char>(event.y & 0xFF);
+    return 10;
 }
 
 QByteArray FastMsg::serializeKey(const FastKeyEvent& event) {
@@ -107,8 +115,17 @@ QByteArray FastMsg::keyUp(quint16 keycode) {
 }
 
 QByteArray FastMsg::keyClick(quint16 keycode) {
+    // P-KCP: 直接序列化 DOWN+UP，避免创建 3 个临时 QByteArray
     QByteArray buf;
-    buf.append(keyDown(keycode));
-    buf.append(keyUp(keycode));
+    buf.reserve(8);
+    writeU8(buf, FMT_FAST_KEY); writeU8(buf, FKA_DOWN); writeU16(buf, keycode);
+    writeU8(buf, FMT_FAST_KEY); writeU8(buf, FKA_UP);   writeU16(buf, keycode);
+    return buf;
+}
+
+QByteArray FastMsg::disconnect() {
+    QByteArray buf;
+    buf.reserve(1);
+    writeU8(buf, FMT_DISCONNECT);
     return buf;
 }

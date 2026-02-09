@@ -5,7 +5,7 @@
 #include "mousetap.h"
 
 // ---------------------------------------------------------
-// Windows 鼠标限制具体实现类
+// Windows 鼠标限制具体实现类 / Windows Mouse Clip Implementation
 // ---------------------------------------------------------
 class WinMouseTap : public MouseTap
 {

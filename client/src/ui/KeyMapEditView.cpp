@@ -279,7 +279,7 @@ void KeyMapEditView::dropEvent(QDropEvent *event) {
         QByteArray data = event->mimeData()->data("application/x-keymap-type");
         KeyMapType type = (KeyMapType)data.toInt();
 
-        if (type != KMT_STEER_WHEEL && type != KMT_SCRIPT && type != KMT_CAMERA_MOVE) return;
+        if (type != KMT_STEER_WHEEL && type != KMT_SCRIPT && type != KMT_CAMERA_MOVE && type != KMT_FREE_LOOK) return;
 
         KeyMapFactoryImpl factory;
         KeyMapItemBase* item = factory.createItem(type);
@@ -311,6 +311,7 @@ void KeyMapEditView::clearEditingState() {
         if (auto* sub = dynamic_cast<SteerWheelSubItem*>(m_editingItem)) sub->setEditing(false);
         else if (auto* script = dynamic_cast<KeyMapItemScript*>(m_editingItem)) script->setEditing(false);
         else if (auto* cam = dynamic_cast<KeyMapItemCamera*>(m_editingItem)) cam->setEditing(false);
+        else if (auto* freeLook = dynamic_cast<KeyMapItemFreeLook*>(m_editingItem)) freeLook->setEditing(false);
         m_editingItem = nullptr;
     }
 }
@@ -349,11 +350,20 @@ void KeyMapEditView::mousePressEvent(QMouseEvent *event)
                     return;
                 }
             }
+            // 小眼睛同样处理
+            if (auto* freeLook = dynamic_cast<KeyMapItemFreeLook*>(m_editingItem)) {
+                QPointF localPos = freeLook->mapFromScene(scenePos);
+                if (localPos.x() < -20 || localPos.x() > 20) {
+                    freeLook->startEditing(localPos);
+                    return;
+                }
+            }
             // 处理鼠标按键录入
             // 注意：左键也可以录入，因为正在编辑模式下点击同一个item应该录入按键而不是拖拽
             if (auto* sub = dynamic_cast<SteerWheelSubItem*>(m_editingItem)) { if(sub->isEditing()) { sub->inputMouse(event->button()); return; } }
             else if (auto* script = dynamic_cast<KeyMapItemScript*>(m_editingItem)) { if(script->isEditing()) { script->inputMouse(event->button()); return; } }
             else if (auto* cam = dynamic_cast<KeyMapItemCamera*>(m_editingItem)) { if(cam->isEditing()) { cam->inputMouse(event->button()); return; } }
+            else if (auto* freeLook = dynamic_cast<KeyMapItemFreeLook*>(m_editingItem)) { if(freeLook->isEditing()) { freeLook->inputMouse(event->button()); return; } }
         }
     }
 
@@ -364,6 +374,15 @@ void KeyMapEditView::mousePressEvent(QMouseEvent *event)
             if (localPos.x() < -20 || localPos.x() > 20) {
                 cam->startEditing(localPos);
                 m_editingItem = cam;
+                return;
+            }
+        }
+        // 小眼睛同样处理
+        if (auto* freeLook = dynamic_cast<KeyMapItemFreeLook*>(clickedItem)) {
+            QPointF localPos = freeLook->mapFromScene(scenePos);
+            if (localPos.x() < -20 || localPos.x() > 20) {
+                freeLook->startEditing(localPos);
+                m_editingItem = freeLook;
                 return;
             }
         }
@@ -388,7 +407,16 @@ void KeyMapEditView::mouseMoveEvent(QMouseEvent *event) { QGraphicsView::mouseMo
 void KeyMapEditView::wheelEvent(QWheelEvent *event) {
     event->accept();
     if (m_editingItem) {
-        if (auto* sub = dynamic_cast<SteerWheelSubItem*>(m_editingItem)) { if(sub->isEditing()) sub->inputWheel(event->angleDelta().y()); }
+        int delta = event->angleDelta().y();
+        if (auto* sub = dynamic_cast<SteerWheelSubItem*>(m_editingItem)) {
+            if (sub->isEditing()) sub->inputWheel(delta);
+        } else if (auto* script = dynamic_cast<KeyMapItemScript*>(m_editingItem)) {
+            if (script->isEditing()) script->inputWheel(delta);
+        } else if (auto* cam = dynamic_cast<KeyMapItemCamera*>(m_editingItem)) {
+            if (cam->isEditing()) cam->inputWheel(delta);
+        } else if (auto* freeLook = dynamic_cast<KeyMapItemFreeLook*>(m_editingItem)) {
+            if (freeLook->isEditing()) freeLook->inputWheel(delta);
+        }
     }
 }
 
@@ -424,6 +452,10 @@ void KeyMapEditView::mouseDoubleClickEvent(QMouseEvent *event) {
         QPointF localPos = cam->mapFromScene(scenePos);
         cam->startEditing(localPos);
         m_editingItem = cam;
+    } else if (auto* freeLook = dynamic_cast<KeyMapItemFreeLook*>(item)) {
+        QPointF localPos = freeLook->mapFromScene(scenePos);
+        freeLook->startEditing(localPos);
+        m_editingItem = freeLook;
     }
 }
 
@@ -439,6 +471,7 @@ void KeyMapEditView::keyPressEvent(QKeyEvent *event) {
         if (auto* sub = dynamic_cast<SteerWheelSubItem*>(m_editingItem)) editing = sub->isEditing();
         else if (auto* script = dynamic_cast<KeyMapItemScript*>(m_editingItem)) editing = script->isEditing();
         else if (auto* cam = dynamic_cast<KeyMapItemCamera*>(m_editingItem)) editing = cam->isEditing();
+        else if (auto* freeLook = dynamic_cast<KeyMapItemFreeLook*>(m_editingItem)) editing = freeLook->isEditing();
 
         if (editing) {
             if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Escape) clearEditingState();
@@ -446,6 +479,7 @@ void KeyMapEditView::keyPressEvent(QKeyEvent *event) {
                 if (auto* sub = dynamic_cast<SteerWheelSubItem*>(m_editingItem)) sub->inputKey(event);
                 else if (auto* script = dynamic_cast<KeyMapItemScript*>(m_editingItem)) script->inputKey(event);
                 else if (auto* cam = dynamic_cast<KeyMapItemCamera*>(m_editingItem)) cam->inputKey(event);
+                else if (auto* freeLook = dynamic_cast<KeyMapItemFreeLook*>(m_editingItem)) freeLook->inputKey(event);
             }
             return;
         }

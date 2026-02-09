@@ -4,10 +4,12 @@
 #include <QTcpServer>
 
 /**
- * @brief TCP 服务器
+ * @brief TCP 服务器 / TCP Server
  *
- * 用于 USB 模式下接受来自 adb forward 的连接
- * 按顺序接受两个连接：先视频后控制
+ * 用于 USB 模式下接受来自 adb forward 的连接。
+ * Accepts adb forward connections in USB mode.
+ * 按顺序接受两个连接：先视频后控制。
+ * Accepts two connections sequentially: video first then control.
  */
 class TcpServer : public QTcpServer
 {

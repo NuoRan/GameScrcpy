@@ -6,6 +6,7 @@
 #include "demuxer.h"
 #include "kcpvideosocket.h"
 #include "videosocket.h"
+#include "interfaces/IVideoChannel.h"
 
 #define HEADER_SIZE 12
 
@@ -57,7 +58,7 @@ static void avLogCallback(void *avcl, int level, const char *fmt, va_list vl)
 // ---------------------------------------------------------
 bool Demuxer::init()
 {
-#ifdef QTSCRCPY_LAVF_REQUIRES_REGISTER_ALL
+#ifdef KZSCRCPY_LAVF_REQUIRES_REGISTER_ALL
     av_register_all();
 #endif
     if (avformat_network_init()) {
@@ -76,6 +77,7 @@ void Demuxer::installKcpVideoSocket(KcpVideoSocket *kcpVideoSocket)
 {
     m_kcpVideoSocket = kcpVideoSocket;
     m_videoSocket = nullptr;  // 互斥
+    m_videoChannel = nullptr;
 }
 
 void Demuxer::installVideoSocket(VideoSocket *videoSocket)
@@ -84,6 +86,14 @@ void Demuxer::installVideoSocket(VideoSocket *videoSocket)
     videoSocket->moveToThread(this);
     m_videoSocket = videoSocket;
     m_kcpVideoSocket = nullptr;  // 互斥
+    m_videoChannel = nullptr;
+}
+
+void Demuxer::installVideoChannel(qsc::core::IVideoChannel* channel)
+{
+    m_videoChannel = channel;
+    m_kcpVideoSocket = nullptr;
+    m_videoSocket = nullptr;
 }
 
 void Demuxer::setFrameSize(const QSize &frameSize)
@@ -93,12 +103,20 @@ void Demuxer::setFrameSize(const QSize &frameSize)
 
 // ---------------------------------------------------------
 // 网络数据接收封装
-// 支持 KCP (WiFi) 和 TCP (USB) 两种模式
+// 支持三种模式：
+// 1. IVideoChannel 接口（新架构推荐）
+// 2. KCP (KcpVideoSocket) - WiFi 模式
+// 3. TCP (VideoSocket) - USB 模式
 // ---------------------------------------------------------
 qint32 Demuxer::recvData(quint8 *buf, qint32 bufSize)
 {
     if (!buf || m_stopRequested.load()) {
         return 0;
+    }
+
+    // 【新架构】优先使用 IVideoChannel 接口
+    if (m_videoChannel) {
+        return m_videoChannel->recv(buf, bufSize);
     }
 
     // KCP 模式 (WiFi)

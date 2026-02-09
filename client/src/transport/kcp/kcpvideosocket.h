@@ -1,11 +1,11 @@
 /**
- * @file kcpvideosocket.h
- * @brief KCP视频接收Socket - 适配器模式
+ * @file KcpVideoSocket.h
+ * @brief KCP 视频接收 Socket / KCP Video Receive Socket
  *
- * 设计说明 (C-S01):
- * 此类作为适配器，将 KcpVideoClient 适配为类似 QTcpSocket 的接口
- * 保留此封装是为了与 VideoSocket (TCP模式) 保持统一的使用方式
- * 这样 Server/Demuxer 等上层代码可以透明地切换 KCP/TCP 模式
+ * 适配器，将 KcpVideoClient 适配为类似 QTcpSocket 的接口，
+ * 使上层代码可以透明地切换 KCP/TCP 模式。
+ * Adapter: wraps KcpVideoClient with a QTcpSocket-like interface,
+ * allowing upper-layer code to transparently switch between KCP/TCP modes.
  */
 
 #ifndef KCPVIDEOSOCKET_H
@@ -20,9 +20,10 @@
 class KcpVideoClient;
 
 /**
- * @brief KCP视频Socket - 兼容旧接口的封装
+ * @brief KCP 视频 Socket - 兼容旧接口的封装 / KCP Video Socket - Legacy-Compatible Wrapper
  *
- * 内部使用全新重构的 KcpVideoClient
+ * 内部使用重构的 KcpVideoClient。
+ * Internally uses the refactored KcpVideoClient.
  */
 class KcpVideoSocket : public QObject
 {

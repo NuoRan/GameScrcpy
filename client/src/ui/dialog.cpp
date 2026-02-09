@@ -5,6 +5,8 @@
 #include <QRandomGenerator>
 #include <QTime>
 #include <QTimer>
+#include <QStandardPaths>
+#include <QDir>
 
 #include "config.h"
 #include "dialog.h"
@@ -12,17 +14,22 @@
 #include "videoform.h"
 #include "settingsdialog.h"
 #include "terminaldialog.h"
+#include "ScriptEngine.h"
+#include "service/DeviceSession.h"
 
 #ifdef Q_OS_WIN32
 #include "winutils.h"
 #endif
+
+// 来自 main.cpp 的语言切换函数
+extern void installTranslator(const QString &langOverride);
 
 QString s_keyMapPath = "";
 
 const QString &getKeyMapPath()
 {
     if (s_keyMapPath.isEmpty()) {
-        s_keyMapPath = QString::fromLocal8Bit(qgetenv("QTSCRCPY_KEYMAP_PATH"));
+        s_keyMapPath = QString::fromLocal8Bit(qgetenv("KZSCRCPY_KEYMAP_PATH"));
         QFileInfo fileInfo(s_keyMapPath);
         if (s_keyMapPath.isEmpty() || !fileInfo.isDir()) {
             s_keyMapPath = QCoreApplication::applicationDirPath() + "/keymap";
@@ -88,7 +95,7 @@ Dialog::Dialog(QWidget *parent) : QWidget(parent), ui(new Ui::Widget)
             } else if (args.contains("show") && args.contains("wlan0")) {
                 QString ip = m_adb.getDeviceIPFromStdOut();
                 if (ip.isEmpty()) {
-                    log = "未找到IP";
+                    log = tr("未找到IP");
                     break;
                 }
                 if (m_settingsDialog) {
@@ -97,7 +104,7 @@ Dialog::Dialog(QWidget *parent) : QWidget(parent), ui(new Ui::Widget)
             } else if (args.contains("ifconfig") && args.contains("wlan0")) {
                 QString ip = m_adb.getDeviceIPFromStdOut();
                 if (ip.isEmpty()) {
-                    log = "未找到IP";
+                    log = tr("未找到IP");
                     break;
                 }
                 if (m_settingsDialog) {
@@ -106,7 +113,7 @@ Dialog::Dialog(QWidget *parent) : QWidget(parent), ui(new Ui::Widget)
             } else if (args.contains("ip -o a")) {
                 QString ip = m_adb.getDeviceIPByIpFromStdOut();
                 if (ip.isEmpty()) {
-                    log = "未找到IP";
+                    log = tr("未找到IP");
                     break;
                 }
                 if (m_settingsDialog) {
@@ -233,6 +240,17 @@ void Dialog::applyModernStyle()
             background-color: #27272a;
             color: #fafafa;
         }
+        QPushButton#langBtn {
+            background-color: transparent;
+            border: 1px solid #3f3f46;
+            border-radius: 8px;
+            color: #a1a1aa;
+            font-size: 13px;
+        }
+        QPushButton#langBtn:hover {
+            background-color: #27272a;
+            color: #fafafa;
+        }
         QPushButton#updateDevice {
             background-color: #27272a;
             border-radius: 6px;
@@ -303,7 +321,7 @@ void Dialog::applyModernStyle()
 void Dialog::initUI()
 {
     setAttribute(Qt::WA_DeleteOnClose);
-    setWindowTitle("KzScrcpy");
+    setWindowTitle("GameScrcpy");
 
     // 确保自动刷新复选框无背景填充
     ui->autoUpdatecheckBox->setAutoFillBackground(false);
@@ -339,6 +357,9 @@ void Dialog::initUI()
 
     // 初始化设置对话框数据
     syncSettingsToDialog();
+
+    // 初始化语言按钮显示
+    updateLangBtnText();
 }
 
 // ---------------------------------------------------------
@@ -354,6 +375,8 @@ void Dialog::syncSettingsToDialog()
         m_settingsDialog->setBitRate(config.bitRate);
     }
     m_settingsDialog->setMaxSizeIndex(config.maxSizeIndex);
+    m_settingsDialog->setMaxFps(config.maxFps);
+    m_settingsDialog->setMaxTouchPoints(config.maxTouchPoints);
     m_settingsDialog->setReverseConnect(config.reverseConnect);
     m_settingsDialog->setShowToolbar(config.showToolbar);
     m_settingsDialog->setFrameless(config.framelessWindow);
@@ -381,16 +404,82 @@ void Dialog::on_terminalBtn_clicked()
 }
 
 // ---------------------------------------------------------
+// 语言切换按钮
+// ---------------------------------------------------------
+void Dialog::on_langBtn_clicked()
+{
+    // 当前语言判断：如果配置是 zh_CN 或 Auto 且系统是中文，则切换到英文，反之切换到中文
+    QString current = Config::getInstance().getLanguage();
+    QString next;
+    if (current == "en_US") {
+        next = "zh_CN";
+    } else if (current == "zh_CN") {
+        next = "en_US";
+    } else {
+        // Auto 或其他 — 检测当前实际语言
+        QLocale locale;
+        if (locale.language() == QLocale::Chinese) {
+            next = "en_US";
+        } else {
+            next = "zh_CN";
+        }
+    }
+
+    Config::getInstance().setLanguage(next);
+    installTranslator(next);
+    // QEvent::LanguageChange 会自动触发 changeEvent
+}
+
+void Dialog::updateLangBtnText()
+{
+    QString lang = Config::getInstance().getLanguage();
+    if (lang == "zh_CN" || (lang == "Auto" && QLocale().language() == QLocale::Chinese)) {
+        ui->langBtn->setText(QString::fromUtf8("🌐 EN"));
+    } else {
+        ui->langBtn->setText(QString::fromUtf8("🌐 中文"));
+    }
+}
+
+void Dialog::changeEvent(QEvent *event)
+{
+    if (event->type() == QEvent::LanguageChange) {
+        retranslateUi();
+    }
+    QWidget::changeEvent(event);
+}
+
+void Dialog::retranslateUi()
+{
+    // dialog.ui 中的字符串
+    ui->connectTitle->setText(tr("快速连接"));
+    ui->usbConnectBtn->setText(tr("USB 连接"));
+    ui->wifiConnectBtn->setText(tr("WiFi 连接"));
+    ui->deviceTitle->setText(tr("设备列表"));
+    ui->deviceHint->setText(tr("双击连接"));
+    ui->autoUpdatecheckBox->setText(tr("自动刷新"));
+    ui->updateDevice->setText(tr("刷新"));
+    ui->settingsBtn->setText(tr("⚙  设置"));
+    ui->terminalBtn->setText(tr("⌨  终端"));
+
+    // 系统托盘
+    m_showWindow->setText(tr("显示"));
+    m_quit->setText(tr("退出"));
+
+    // 更新语言按钮显示
+    updateLangBtnText();
+}
+
+// ---------------------------------------------------------
 // 设置对话框信号处理
 // ---------------------------------------------------------
 void Dialog::onStartServer()
 {
     if (m_currentSerial.isEmpty()) {
-        outLog("错误: 请先选择设备");
+        outLog(tr("错误: 请先选择设备"));
         return;
     }
 
-    outLog("正在启动...", false);
+    outLog(tr("正在启动..."), false);
 
     QString maxSizeText = QString::number(m_settingsDialog->getMaxSize());
     quint16 videoSize = maxSizeText.toUShort();
@@ -399,16 +488,18 @@ void Dialog::onStartServer()
     params.serial = m_currentSerial;
     params.maxSize = videoSize;
     params.bitRate = m_settingsDialog->getBitRate();
-    params.maxFps = static_cast<quint32>(Config::getInstance().getMaxFps());
+    params.maxFps = static_cast<quint32>(m_settingsDialog->getMaxFps());
     params.renderExpiredFrames = Config::getInstance().getRenderExpiredFrames();
     params.serverLocalPath = getServerPath();
     params.serverRemotePath = Config::getInstance().getServerPath();
-    params.pushFilePath = Config::getInstance().getPushFilePath();
     params.gameScript = "";
     params.logLevel = Config::getInstance().getLogLevel();
     params.codecOptions = Config::getInstance().getCodecOptions();
     params.codecName = Config::getInstance().getCodecName();
     params.scid = QRandomGenerator::global()->bounded(1, 10000) & 0x7FFFFFFF;
+
+    // 设置最大触摸点数
+    ScriptEngine::setMaxTouchPoints(m_settingsDialog->getMaxTouchPoints());
 
     qsc::IDeviceManage::getInstance().connectDevice(params);
 }
@@ -416,14 +507,14 @@ void Dialog::onStartServer()
 void Dialog::onStopServer()
 {
     if (qsc::IDeviceManage::getInstance().disconnectDevice(m_currentSerial)) {
-        outLog("已停止服务");
+        outLog(tr("已停止服务"));
     }
 }
 
 void Dialog::onStopAllServers()
 {
     qsc::IDeviceManage::getInstance().disconnectAllDevice();
-    outLog("已停止所有服务");
+    outLog(tr("已停止所有服务"));
 }
 
 void Dialog::onWirelessConnect()
@@ -434,7 +525,7 @@ void Dialog::onWirelessConnect()
     QString port = m_settingsDialog->getDevicePort();
 
     if (ip.isEmpty()) {
-        outLog("错误: 请输入IP地址");
+        outLog(tr("错误: 请输入IP地址"));
         return;
     }
 
@@ -451,7 +542,7 @@ void Dialog::onWirelessConnect()
         Config::getInstance().savePortHistory(port);
     }
 
-    outLog("正在连接 " + addr + "...", false);
+    outLog(tr("正在连接 %1...").arg(addr), false);
     m_adb.execute("", QStringList() << "connect" << addr);
 }
 
@@ -460,7 +551,7 @@ void Dialog::onWirelessDisconnect()
     if (checkAdbRun()) return;
 
     QString addr = m_settingsDialog->getDeviceIP();
-    outLog("正在断开...", false);
+    outLog(tr("正在断开..."), false);
     m_adb.execute("", QStringList() << "disconnect" << addr);
 }
 
@@ -468,7 +559,7 @@ void Dialog::onGetDeviceIP()
 {
     if (checkAdbRun()) return;
 
-    outLog("正在获取IP...", false);
+    outLog(tr("正在获取IP..."), false);
     m_adb.execute(m_settingsDialog->getSerial(), QStringList() << "shell" << "ifconfig" << "wlan0");
 }
 
@@ -476,7 +567,7 @@ void Dialog::onStartAdbd()
 {
     if (checkAdbRun()) return;
 
-    outLog("正在开启ADBD...", false);
+    outLog(tr("正在开启ADBD..."), false);
     m_adb.execute(m_settingsDialog->getSerial(), QStringList() << "tcpip" << "5555");
 }
 
@@ -520,6 +611,8 @@ void Dialog::updateBootConfig(bool toView)
         if (m_settingsDialog) {
             config.bitRate = m_settingsDialog->getBitRate();
             config.maxSizeIndex = m_settingsDialog->getMaxSizeIndex();
+            config.maxFps = m_settingsDialog->getMaxFps();
+            config.maxTouchPoints = m_settingsDialog->getMaxTouchPoints();
             config.reverseConnect = m_settingsDialog->isReverseConnect();
             config.showFPS = m_settingsDialog->showFPS();
             config.framelessWindow = m_settingsDialog->isFrameless();
@@ -585,7 +678,7 @@ void Dialog::on_usbConnectBtn_clicked()
 
     int firstUsbDevice = findDeviceFromeSerialBox(false);
     if (-1 == firstUsbDevice) {
-        outLog("未找到USB设备！");
+        outLog(tr("未找到USB设备！"));
         return;
     }
 
@@ -605,7 +698,7 @@ void Dialog::on_wifiConnectBtn_clicked()
 
     int firstUsbDevice = findDeviceFromeSerialBox(false);
     if (-1 == firstUsbDevice) {
-        outLog("未找到USB设备！");
+        outLog(tr("未找到USB设备！"));
         return;
     }
 
@@ -632,7 +725,7 @@ void Dialog::on_wifiConnectBtn_clicked()
 
     int firstWifiDevice = findDeviceFromeSerialBox(true);
     if (-1 == firstWifiDevice) {
-        outLog("未找到WiFi设备！");
+        outLog(tr("未找到WiFi设备！"));
         return;
     }
 
@@ -688,46 +781,54 @@ void Dialog::onDeviceConnected(bool success, const QString &serial, const QStrin
     bool showFPS = m_settingsDialog ? m_settingsDialog->showFPS() : false;
 
     auto videoForm = new VideoForm(frameless, Config::getInstance().getSkin(), showToolbar);
-    videoForm->setSerial(serial);
 
-    qsc::IDeviceManage::getInstance().getDevice(serial)->setUserData(static_cast<void*>(videoForm));
-    qsc::IDeviceManage::getInstance().getDevice(serial)->registerDeviceObserver(videoForm);
+    // UI 完全解耦：直接获取 DeviceSession，使用纯信号槽交互
+    // 【重要】必须先 bindSession 后 setSerial，否则 loadKeyMap 时 m_session 为空
+    auto* session = qsc::IDeviceManage::getInstance().getSession(serial);
+    if (session) {
+        videoForm->bindSession(session);
+    }
+
+    // 记录映射关系
+    m_videoForms[serial] = videoForm;
+
+    // 设置序列号并加载键位配置（此时 m_session 已绑定）
+    videoForm->setSerial(serial);
 
     videoForm->showFPS(showFPS);
 
-#ifndef Q_OS_WIN32
-    videoForm->show();
-#endif
     QString name = Config::getInstance().getNickName(serial);
-    if (name.isEmpty()) name = "KzScrcpy";
+    if (name.isEmpty()) name = "GameScrcpy";
 
     videoForm->setWindowTitle(name + " - " + serial);
     videoForm->updateShowSize(size);
 
-    bool deviceVer = size.height() > size.width();
-    QRect rc = Config::getInstance().getRect(serial);
-    bool rcVer = rc.height() > rc.width();
-    if (rc.isValid() && (deviceVer == rcVer)) {
-        videoForm->resize(rc.size());
-        videoForm->setGeometry(rc);
-    }
+    // 恢复窗口位置和大小（必须在 show 之前调用）
+    videoForm->restoreWindowGeometry();
 
 #ifdef Q_OS_WIN32
     QTimer::singleShot(200, videoForm, [videoForm](){videoForm->show();});
+#else
+    videoForm->show();
 #endif
 }
 
 void Dialog::onDeviceDisconnected(QString serial)
 {
-    auto device = qsc::IDeviceManage::getInstance().getDevice(serial);
-    if (!device) return;
+    // 从映射中找到对应的 VideoForm
+    auto it = m_videoForms.find(serial);
+    if (it == m_videoForms.end()) {
+        return;
+    }
 
-    auto data = device->getUserData();
-    if (data) {
-        VideoForm* vf = static_cast<VideoForm*>(data);
-        qsc::IDeviceManage::getInstance().getDevice(serial)->deRegisterDeviceObserver(vf);
+    VideoForm* vf = it.value();
+    m_videoForms.erase(it);
+
+    if (vf) {
+        // UI 解耦：bindSession(nullptr) 会断开所有信号连接
+        vf->bindSession(nullptr);
+        // close() 会触发 closeEvent，但因为 m_closing 标志，不会重复处理
         vf->close();
-        vf->deleteLater();
     }
 }
 
@@ -749,11 +850,51 @@ const QString &Dialog::getServerPath()
 {
     static QString serverPath;
     if (serverPath.isEmpty()) {
-        serverPath = QString::fromLocal8Bit(qgetenv("QTSCRCPY_SERVER_PATH"));
+        // 1. 首先检查环境变量
+        serverPath = QString::fromLocal8Bit(qgetenv("KZSCRCPY_SERVER_PATH"));
         QFileInfo fileInfo(serverPath);
-        if (serverPath.isEmpty() || !fileInfo.isFile()) {
-            serverPath = QCoreApplication::applicationDirPath() + "/scrcpy-server";
+        if (!serverPath.isEmpty() && fileInfo.isFile()) {
+            return serverPath;
         }
+
+        // 2. 检查应用目录下的外部文件
+        QString externalPath = QCoreApplication::applicationDirPath() + "/scrcpy-server";
+        if (QFile::exists(externalPath)) {
+            serverPath = externalPath;
+            return serverPath;
+        }
+
+        // 3. 从内嵌资源提取到临时目录
+        QString tempDir = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+        QString extractedPath = tempDir + "/kzscrcpy-server";
+
+        // 检查是否需要重新提取（比较文件大小）
+        QFile resourceFile(":/scrcpy-server");
+        QFile extractedFile(extractedPath);
+        bool needExtract = true;
+
+        if (extractedFile.exists() && resourceFile.open(QIODevice::ReadOnly)) {
+            qint64 resourceSize = resourceFile.size();
+            resourceFile.close();
+            if (extractedFile.size() == resourceSize) {
+                needExtract = false;  // 文件已存在且大小相同，无需重新提取
+            }
+        }
+
+        if (needExtract) {
+            if (resourceFile.open(QIODevice::ReadOnly)) {
+                QByteArray data = resourceFile.readAll();
+                resourceFile.close();
+
+                if (extractedFile.open(QIODevice::WriteOnly)) {
+                    extractedFile.write(data);
+                    extractedFile.close();
+                    qDebug() << "Extracted scrcpy-server to:" << extractedPath;
+                }
+            }
+        }
+
+        serverPath = extractedPath;
     }
     return serverPath;
 }
@@ -778,7 +919,7 @@ bool Dialog::filterLog(const QString &log)
 bool Dialog::checkAdbRun()
 {
     if (m_adb.isRuning()) {
-        outLog("请等待当前命令执行完成");
+        outLog(tr("请等待当前命令执行完成"));
     }
     return m_adb.isRuning();
 }

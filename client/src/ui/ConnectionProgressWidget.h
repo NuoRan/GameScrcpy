@@ -1,11 +1,11 @@
 /**
- * ConnectionProgressWidget - 连接进度指示器
+ * ConnectionProgressWidget - 连接进度指示器 / Connection Progress Indicator
  *
- * 功能:
- * - 显示连接状态的动画进度
- * - 显示各阶段的详细状态信息
- * - 支持取消操作
- * - 超时自动处理
+ * 功能 / Features:
+ * - 显示连接状态的动画进度 / Animated connection status progress
+ * - 显示各阶段的详细状态信息 / Detailed phase status information
+ * - 支持取消操作 / Cancel operation support
+ * - 超时自动处理 / Automatic timeout handling
  */
 
 #ifndef CONNECTIONPROGRESSWIDGET_H

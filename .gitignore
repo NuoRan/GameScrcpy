@@ -4,7 +4,9 @@
 /output/
 /build/
 build-*/
-**/build/
+/client/build/
+/server/build/
+
 
 # ===========================
 # IDE 和编辑器
@@ -19,7 +21,6 @@ CMakeLists.txt.user*
 # Visual Studio
 .vs/
 *.suo
-*.user
 *.userosscache
 *.sln.docstates
 *.vcxproj.user
@@ -63,11 +64,14 @@ Desktop.ini
 *.log
 
 # ===========================
-# 用户配置
+# 用户配置和脚本
 # ===========================
 userdata.ini
 config/userdata.ini
 Info_Mac.plist
+
+# 用户自定义脚本（保护隐私）
+/我的脚本/
 
 # ===========================
 # CI/CD 临时文件
@@ -80,13 +84,12 @@ Info_Mac.plist
 /备份/
 
 # ===========================
-# 二进制依赖 (可选择保留或排除)
+# 二进制依赖 - 只忽略 DLL (需要用户自行下载)
 # ===========================
-# 如果你希望其他人自行下载依赖，取消下面的注释
-# /client/env/ffmpeg/
-# /client/env/adb/
-# /client/env/opencv/
-# /client/env/scrcpy-server
+/client/env/ffmpeg/bin/
+/client/env/ffmpeg/doc/
+/client/env/ffmpeg/presets/
+/client/env/opencv/build/x64/vc16/bin/
 
 # ===========================
 # 编译产物
@@ -103,9 +106,6 @@ Info_Mac.plist
 *.ilk
 *.exp
 
-# 但保留 env 目录中的预编译依赖
-!/client/env/**/*.dll
-!/client/env/**/*.dylib
-!/client/env/**/*.a
-!/client/env/**/*.lib
-!/client/env/**/*.exe
+# 保留 ADB 和 scrcpy-server
+!/client/env/adb/
+!/client/env/scrcpy-server

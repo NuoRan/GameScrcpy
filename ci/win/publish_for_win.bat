@@ -9,7 +9,7 @@ echo ---------------------------------------------------------------
 :: 从环境变量获取必要参数
 :: example: D:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvarsall.bat
 set vcvarsall="%ENV_VCVARSALL%"
-:: 例如 d:\a\QtScrcpy\Qt\5.12.7
+:: 例如 d:\a\GameScrcpy\Qt\6.5.0
 set qt_msvc_path="%ENV_QT_PATH%"
 :: 设置了VCINSTALLDIR，windeployqt会自动copy vc_redist.x**.exe(vcruntime dll安装包)
 :: set VCINSTALLDIR="%ENV_VCINSTALL%"
@@ -40,8 +40,8 @@ echo current build mode: %cpu_mode%
 echo current publish dir: %publish_dir%
 
 :: 环境变量设置
-set adb_path=%script_path%..\..\QtScrcpy\QtScrcpyCore\src\third_party\adb\win\*.*
-set jar_path=%script_path%..\..\QtScrcpy\QtScrcpyCore\src\third_party\scrcpy-server
+set adb_path=%script_path%..\..\client\env\adb\win\*.*
+set jar_path=%script_path%..\..\client\env\scrcpy-server
 set keymap_path=%script_path%..\..\keymap
 set config_path=%script_path%..\..\config
 
@@ -75,7 +75,7 @@ xcopy %keymap_path% %publish_path%keymap\ /E /Y
 xcopy %config_path% %publish_path%config\ /E /Y
 
 :: 添加qt依赖包
-windeployqt %publish_path%\QtScrcpy.exe
+windeployqt %publish_path%\GameScrcpy.exe
 
 :: 删除多余qt依赖包
 rmdir /s/q %publish_path%\iconengines
@@ -110,7 +110,7 @@ if /i %cpu_mode% == x64 (
     cp "C:\Windows\SysWOW64\msvcp140_1.dll" %publish_path%\msvcp140_1.dll
     cp "C:\Windows\SysWOW64\msvcp140.dll" %publish_path%\msvcp140.dll
     cp "C:\Windows\SysWOW64\vcruntime140.dll" %publish_path%\vcruntime140.dll
-    
+
 )
 
 ::cp "C:\Program Files (x86)\Microsoft Visual Studio\Installer\VCRUNTIME140.dll" %publish_path%\VCRUNTIME140.dll

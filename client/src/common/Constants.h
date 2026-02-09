@@ -1,3 +1,18 @@
+/**
+ * @file Constants.h
+ * @brief 全局常量定义 / Global Constants Definition
+ *
+ * Copyright (C) 2019-2026 Rankun
+ * Licensed under the Apache License, Version 2.0
+ *
+ * 定义了项目中使用的各类常量 / Defines various constants used in the project:
+ * - 网络参数 (端口、超时、缓冲区大小) / Network params (ports, timeouts, buffer sizes)
+ * - 视频参数 (码率、帧率、分辨率) / Video params (bitrate, FPS, resolution)
+ * - 控制参数 (触摸点数、消息大小) / Control params (touch points, message size)
+ * - UI 参数 (窗口尺寸、动画时长) / UI params (window size, animation duration)
+ * - 脚本参数 (超时、缓存大小) / Script params (timeout, cache size)
+ */
+
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
@@ -79,7 +94,7 @@ namespace control {
     constexpr int CONTROL_FLUSH_INTERVAL_MS = 2;            // 2ms 刷新间隔
 
     // 鼠标移动
-    constexpr int MOUSE_MOVE_SEND_INTERVAL_MS = 8;          // 8ms (约125fps)
+    constexpr int MOUSE_MOVE_SEND_INTERVAL_MS = 1;          // 8ms (约125fps)
     constexpr int CURSOR_POS_CHECK_INTERVAL = 50;
 }
 

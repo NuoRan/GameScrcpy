@@ -17,24 +17,24 @@ namespace template_matching {
 }
 
 // ---------------------------------------------------------
-// 图像模板匹配结果
+// 图像模板匹配结果 / Image Template Match Result
 // ---------------------------------------------------------
 struct ImageMatchResult
 {
-    bool found = false;       // 是否找到匹配
-    double x = 0.0;           // 匹配中心点 x (0.0~1.0)
-    double y = 0.0;           // 匹配中心点 y (0.0~1.0)
-    double confidence = 0.0;  // 匹配置信度
-    double angle = 0.0;       // 匹配角度
+    bool found = false;       // 是否找到匹配 / Whether a match was found
+    double x = 0.0;           // 匹配中心点 x (0.0~1.0) / Match center x (0.0~1.0)
+    double y = 0.0;           // 匹配中心点 y (0.0~1.0) / Match center y (0.0~1.0)
+    double confidence = 0.0;  // 匹配置信度 / Match confidence
+    double angle = 0.0;       // 匹配角度 / Match angle
 
-    // 像素坐标 (内部使用)
+    // 像素坐标 (内部使用) / Pixel coordinates (internal use)
     int pixelX = 0;
     int pixelY = 0;
 };
 
 // ---------------------------------------------------------
-// 图像模板匹配器
-// 基于 opencv_matching 的快速金字塔模板匹配
+// 图像模板匹配器 / Image Template Matcher
+// 基于 opencv_matching 的快速金字塔模板匹配 / Fast pyramid template matching based on opencv_matching
 // ---------------------------------------------------------
 class ImageMatcher
 {

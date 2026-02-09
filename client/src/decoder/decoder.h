@@ -12,15 +12,11 @@ extern "C"
 #include <functional>
 
 class VideoBuffer;
-
-/**
- * Decoder - 视频解码器
- *
- * 优化特性:
- * - H265: 支持 H.264 和 H.265/HEVC 编码
- * - HW: VideoToolbox/DXVA2 优先的硬解策略
- * - P-02: 缓存硬件解码器类型避免重复检测
- */
+// ---------------------------------------------------------
+// 视频解码器 / Video Decoder
+// 基于 FFmpeg 的 H.264/H.265 解码，支持硬件加速
+// FFmpeg-based H.264/H.265 decoding with hardware acceleration support
+// ---------------------------------------------------------
 class Decoder : public QObject
 {
     Q_OBJECT
@@ -28,9 +24,7 @@ public:
     Decoder(std::function<void(int width, int height, uint8_t* dataY, uint8_t* dataU, uint8_t* dataV, int linesizeY, int linesizeU, int linesizeV)> onFrame, QObject *parent = Q_NULLPTR);
     virtual ~Decoder();
 
-    // H265: 支持指定编码类型
-    bool open();                              // 默认 H.264
-    bool open(AVCodecID codecId);             // 指定编码 (AV_CODEC_ID_H264 或 AV_CODEC_ID_HEVC)
+    bool open();
     void close();
     bool push(const AVPacket *packet);
     void peekFrame(std::function<void(int width, int height, uint8_t* dataRGB32)> onFrame);
@@ -38,10 +32,6 @@ public:
     // 硬解状态
     bool isHardwareAccelerated() const { return m_hwDeviceCtx != nullptr; }
     QString hwDecoderName() const { return m_hwDecoderName; }
-
-    // H265: 获取当前编码类型
-    AVCodecID codecId() const { return m_codecId; }
-    bool isHEVC() const { return m_codecId == AV_CODEC_ID_HEVC; }
 
 signals:
     void updateFPS(quint32 fps);
@@ -67,9 +57,7 @@ private:
     enum AVPixelFormat m_hwPixFmt = AV_PIX_FMT_NONE;
     bool m_isCodecCtxOpen = false;
     QString m_hwDecoderName;
-    AVCodecID m_codecId = AV_CODEC_ID_H264;  // H265: 当前编码类型
     std::function<void(int, int, uint8_t*, uint8_t*, uint8_t*, int, int, int)> m_onFrame = Q_NULLPTR;
 };
 
 #endif // DECODER_H
-

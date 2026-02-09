@@ -17,6 +17,7 @@ import android.media.MediaCodec;
 import android.media.MediaCodecInfo;
 import android.media.MediaFormat;
 import android.os.Build;
+import android.os.Bundle;
 import android.os.Looper;
 import android.os.SystemClock;
 import android.view.Surface;
@@ -29,15 +30,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class SurfaceEncoder implements AsyncProcessor {
 
     private static final int DEFAULT_I_FRAME_INTERVAL = 2; // seconds (reduced from 10s for faster recovery)
-    private static final int REPEAT_FRAME_DELAY_US = 100_000; // repeat after 100ms
     private static final String KEY_MAX_FPS_TO_ENCODER = "max-fps-to-encoder";
 
-    // 丢帧策略常量
-    private static final int FRAME_DROP_THRESHOLD_MS = 50; // 编码超过50ms开始丢帧
-    private static final int MAX_PENDING_FRAMES = 3; // 最大缓冲帧数
+    // ABR (Average Bitrate) 控制参数
+    private static final long ABR_WINDOW_MS = 500; // 码率统计窗口 500ms
+    private static final float ABR_OVERSHOOT = 1.2f; // 超过目标 20% 时降码率
+    private static final float ABR_UNDERSHOOT = 0.7f; // 低于目标 70% 时升码率
+    private static final float ABR_MIN_RATIO = 0.25f; // 最低降至目标的 25%
 
     // Keep the values in descending order
-    private static final int[] MAX_SIZE_FALLBACK = {2560, 1920, 1600, 1280, 1024, 800};
+    private static final int[] MAX_SIZE_FALLBACK = { 2560, 1920, 1600, 1280, 1024, 800 };
     private static final int MAX_CONSECUTIVE_ERRORS = 3;
 
     private final SurfaceCapture capture;
@@ -50,11 +52,6 @@ public class SurfaceEncoder implements AsyncProcessor {
 
     private boolean firstFrameSent;
     private int consecutiveErrors;
-
-    // 智能丢帧统计
-    private int droppedFrames = 0;
-    private long lastEncodeTime = 0;
-    private int pendingFrameCount = 0;
 
     private Thread thread;
     private final AtomicBoolean stopped = new AtomicBoolean();
@@ -115,15 +112,18 @@ public class SurfaceEncoder implements AsyncProcessor {
                     } else {
                         boolean resetRequested = reset.consumeReset();
                         if (!resetRequested) {
-                            // If a reset is requested during encode(), it will interrupt the encoding by an EOS
+                            // If a reset is requested during encode(), it will interrupt the encoding by an
+                            // EOS
                             encode(mediaCodec, streamer);
                         }
-                        // The capture might have been closed internally (for example if the camera is disconnected)
+                        // The capture might have been closed internally (for example if the camera is
+                        // disconnected)
                         alive = !stopped.get() && !capture.isClosed();
                     }
                 } catch (IllegalStateException | IllegalArgumentException | IOException e) {
                     if (IO.isBrokenPipe(e)) {
-                        // Do not retry on broken pipe, which is expected on close because the socket is closed by the client
+                        // Do not retry on broken pipe, which is expected on close because the socket is
+                        // closed by the client
                         throw e;
                     }
                     Ln.e("Capture/encoding error: " + e.getClass().getName() + ": " + e.getMessage());
@@ -173,7 +173,8 @@ public class SurfaceEncoder implements AsyncProcessor {
             return false;
         }
 
-        // Downsizing on error is only enabled if an encoding failure occurs before the first frame (downsizing later could be surprising)
+        // Downsizing on error is only enabled if an encoding failure occurs before the
+        // first frame (downsizing later could be surprising)
 
         int newMaxSize = chooseMaxSizeFallback(currentSize);
         if (newMaxSize == 0) {
@@ -205,52 +206,84 @@ public class SurfaceEncoder implements AsyncProcessor {
 
     private void encode(MediaCodec codec, IStreamer streamer) throws IOException {
         MediaCodec.BufferInfo bufferInfo = new MediaCodec.BufferInfo();
-        long encodeStartTime;
-        long encodeDuration;
-        long lastFrameTime = SystemClock.uptimeMillis();
-        int frameCount = 0;
+
+        // ABR 控制状态
+        long abrWindowStart = SystemClock.elapsedRealtime();
+        long abrWindowBytes = 0;
+        int abrCurrentBitrate = videoBitRate;
+
+        // 网络拥塞反馈（可选）
+        BitrateControl bitrateControl = (streamer instanceof BitrateControl) ? (BitrateControl) streamer : null;
 
         boolean eos;
         do {
-            encodeStartTime = SystemClock.uptimeMillis();
             int outputBufferId = codec.dequeueOutputBuffer(bufferInfo, -1);
-
-            // Debug: log frame timing
-            frameCount++;
-            long now = SystemClock.uptimeMillis();
-            if (frameCount <= 10 || frameCount % 30 == 0) {
-                Ln.d("Encoder frame #" + frameCount + ": interval=" + (now - lastFrameTime) +
-                     "ms, size=" + bufferInfo.size + ", flags=" + bufferInfo.flags);
-            }
-            lastFrameTime = now;
 
             try {
                 eos = (bufferInfo.flags & MediaCodec.BUFFER_FLAG_END_OF_STREAM) != 0;
-                // On EOS, there might be data or not, depending on bufferInfo.size
                 if (outputBufferId >= 0 && bufferInfo.size > 0) {
-                    // 智能丢帧：检查编码耗时和缓冲队列
-                    encodeDuration = SystemClock.uptimeMillis() - encodeStartTime;
-                    boolean shouldDrop = shouldDropFrame(bufferInfo, encodeDuration);
+                    ByteBuffer codecBuffer = codec.getOutputBuffer(outputBufferId);
 
-                    if (shouldDrop) {
-                        droppedFrames++;
-                        if (droppedFrames % 30 == 1) {
-                            Ln.d("Frame dropped (total: " + droppedFrames + ", pending: " + pendingFrameCount + ")");
-                        }
-                    } else {
-                        ByteBuffer codecBuffer = codec.getOutputBuffer(outputBufferId);
-
-                        boolean isConfig = (bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
-                        if (!isConfig) {
-                            // If this is not a config packet, then it contains a frame
-                            firstFrameSent = true;
-                            consecutiveErrors = 0;
-                        }
-
-                        streamer.writePacket(codecBuffer, bufferInfo);
+                    boolean isConfig = (bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
+                    if (!isConfig) {
+                        firstFrameSent = true;
+                        consecutiveErrors = 0;
                     }
 
-                    lastEncodeTime = SystemClock.uptimeMillis();
+                    streamer.writePacket(codecBuffer, bufferInfo);
+
+                    // =================== ABR 码率控制 ===================
+                    if (!isConfig) {
+                        abrWindowBytes += bufferInfo.size;
+                        long now = SystemClock.elapsedRealtime();
+                        long elapsed = now - abrWindowStart;
+
+                        if (elapsed >= ABR_WINDOW_MS) {
+                            // 计算窗口内实际码率 (bps)
+                            long actualBitrate = abrWindowBytes * 8 * 1000 / elapsed;
+                            float ratio = (float) actualBitrate / videoBitRate;
+
+                            int newTarget;
+                            if (ratio > ABR_OVERSHOOT) {
+                                // 实际码率超标，按比例降低编码器目标
+                                newTarget = (int) (abrCurrentBitrate / ratio);
+                            } else if (ratio < ABR_UNDERSHOOT) {
+                                // 实际码率偏低，逐步恢复（+10%）
+                                newTarget = Math.min(videoBitRate, (int) (abrCurrentBitrate * 1.1f));
+                            } else {
+                                // 在目标范围内，保持不变
+                                newTarget = abrCurrentBitrate;
+                            }
+
+                            // Clamp 到合理范围
+                            newTarget = Math.max((int) (videoBitRate * ABR_MIN_RATIO),
+                                    Math.min(videoBitRate, newTarget));
+
+                            // 叠加网络拥塞反馈：取 ABR 和网络建议的较小值
+                            if (bitrateControl != null) {
+                                int networkSuggested = bitrateControl.getSuggestedBitrate(videoBitRate);
+                                newTarget = Math.min(newTarget, networkSuggested);
+                            }
+
+                            // 码率变化超过 5% 才实际调整，避免频繁设置
+                            if (Math.abs(newTarget - abrCurrentBitrate) > abrCurrentBitrate * 0.05f) {
+                                try {
+                                    Bundle params = new Bundle();
+                                    params.putInt(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, newTarget);
+                                    codec.setParameters(params);
+                                    abrCurrentBitrate = newTarget;
+                                    Ln.d("ABR adjust: " + abrCurrentBitrate / 1000 + " kbps"
+                                            + " (actual=" + actualBitrate / 1000 + " kbps)");
+                                } catch (IllegalStateException e) {
+                                    // 部分编码器不支持动态码率
+                                }
+                            }
+
+                            // 重置统计窗口
+                            abrWindowStart = now;
+                            abrWindowBytes = 0;
+                        }
+                    }
                 }
             } finally {
                 if (outputBufferId >= 0) {
@@ -260,48 +293,26 @@ public class SurfaceEncoder implements AsyncProcessor {
         } while (!eos);
     }
 
-    /**
-     * 智能丢帧策略：基于编码耗时和帧类型决定是否丢帧
-     */
-    private boolean shouldDropFrame(MediaCodec.BufferInfo bufferInfo, long encodeDuration) {
-        // 永不丢弃 I 帧和配置帧
-        boolean isKeyFrame = (bufferInfo.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0;
-        boolean isConfig = (bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
-        if (isKeyFrame || isConfig) {
-            pendingFrameCount = 0; // 重置缓冲计数
-            return false;
-        }
-
-        // 编码超时，考虑丢帧
-        if (encodeDuration > FRAME_DROP_THRESHOLD_MS) {
-            pendingFrameCount++;
-            // 超过最大缓冲帧数，丢弃 B/P 帧
-            if (pendingFrameCount > MAX_PENDING_FRAMES) {
-                return true;
-            }
-        } else {
-            pendingFrameCount = Math.max(0, pendingFrameCount - 1);
-        }
-
-        return false;
-    }
-
-    private static MediaCodec createMediaCodec(Codec codec, String encoderName) throws IOException, ConfigurationException {
+    private static MediaCodec createMediaCodec(Codec codec, String encoderName)
+            throws IOException, ConfigurationException {
         if (encoderName != null) {
             Ln.d("Creating encoder by name: '" + encoderName + "'");
             try {
                 MediaCodec mediaCodec = MediaCodec.createByCodecName(encoderName);
                 String mimeType = Codec.getMimeType(mediaCodec);
                 if (!codec.getMimeType().equals(mimeType)) {
-                    Ln.e("Video encoder type for \"" + encoderName + "\" (" + mimeType + ") does not match codec type (" + codec.getMimeType() + ")");
+                    Ln.e("Video encoder type for \"" + encoderName + "\" (" + mimeType + ") does not match codec type ("
+                            + codec.getMimeType() + ")");
                     throw new ConfigurationException("Incorrect encoder type: " + encoderName);
                 }
                 return mediaCodec;
             } catch (IllegalArgumentException e) {
-                Ln.e("Video encoder '" + encoderName + "' for " + codec.getName() + " not found\n" + LogUtils.buildVideoEncoderListMessage());
+                Ln.e("Video encoder '" + encoderName + "' for " + codec.getName() + " not found\n"
+                        + LogUtils.buildVideoEncoderListMessage());
                 throw new ConfigurationException("Unknown encoder: " + encoderName);
             } catch (IOException e) {
-                Ln.e("Could not create video encoder '" + encoderName + "' for " + codec.getName() + "\n" + LogUtils.buildVideoEncoderListMessage());
+                Ln.e("Could not create video encoder '" + encoderName + "' for " + codec.getName() + "\n"
+                        + LogUtils.buildVideoEncoderListMessage());
                 throw e;
             }
         }
@@ -311,24 +322,32 @@ public class SurfaceEncoder implements AsyncProcessor {
             Ln.d("Using video encoder: '" + mediaCodec.getName() + "'");
             return mediaCodec;
         } catch (IOException | IllegalArgumentException e) {
-            Ln.e("Could not create default video encoder for " + codec.getName() + "\n" + LogUtils.buildVideoEncoderListMessage());
+            Ln.e("Could not create default video encoder for " + codec.getName() + "\n"
+                    + LogUtils.buildVideoEncoderListMessage());
             throw e;
         }
     }
 
-    private static MediaFormat createFormat(String videoMimeType, int bitRate, float maxFps, List<CodecOption> codecOptions) {
+    private static MediaFormat createFormat(String videoMimeType, int bitRate, float maxFps,
+            List<CodecOption> codecOptions) {
         MediaFormat format = new MediaFormat();
         format.setString(MediaFormat.KEY_MIME, videoMimeType);
         format.setInteger(MediaFormat.KEY_BIT_RATE, bitRate);
-        // must be present to configure the encoder, but does not impact the actual frame rate, which is variable
-        format.setInteger(MediaFormat.KEY_FRAME_RATE, 60);
+        // must be present to configure the encoder, but does not impact the actual
+        // frame rate, which is variable
+        format.setInteger(MediaFormat.KEY_FRAME_RATE, maxFps > 0 ? (int) maxFps : 60);
         format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
         if (Build.VERSION.SDK_INT >= AndroidVersions.API_24_ANDROID_7_0) {
             format.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED);
         }
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, DEFAULT_I_FRAME_INTERVAL);
-        // display the very first frame, and recover from bad quality when no new frames
-        format.setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, REPEAT_FRAME_DELAY_US); // µs
+
+        // 不显式设置 KEY_BITRATE_MODE，让编码器使用默认模式（通常是 VBR）
+        // encode() 中的 ABR 控制器通过 setParameters 动态调节码率，不依赖此设置
+        // 注意：显式设置 BITRATE_MODE_VBR/CBR 或 KEY_PROFILE 在部分设备上
+        // 会导致编码输出格式变化，客户端解码器无法识别
+
+        // 不设置 KEY_REPEAT_PREVIOUS_FRAME_AFTER，有新帧才编码发送，没帧不发
         if (maxFps > 0) {
             // The key existed privately before Android 10:
             // <https://android.googlesource.com/platform/frameworks/base/+/625f0aad9f7a259b6881006ad8710adce57d1384%5E%21/>
@@ -359,7 +378,8 @@ public class SurfaceEncoder implements AsyncProcessor {
             try {
                 streamCapture();
             } catch (ConfigurationException e) {
-                // Do not print stack trace, a user-friendly error-message has already been logged
+                // Do not print stack trace, a user-friendly error-message has already been
+                // logged
                 fatalError = true;
             } catch (IOException e) {
                 // Broken pipe is expected on close, because the socket is closed by the client

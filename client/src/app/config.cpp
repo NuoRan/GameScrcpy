@@ -21,9 +21,6 @@
 #define COMMON_TITLE_KEY "WindowTitle"
 #define COMMON_TITLE_DEF QCoreApplication::applicationName()
 
-#define COMMON_PUSHFILE_KEY "PushFilePath"
-#define COMMON_PUSHFILE_DEF "/sdcard/"
-
 #define COMMON_SERVER_PATH_KEY "ServerPath"
 #define COMMON_SERVER_PATH_DEF "/data/local/tmp/scrcpy-server.jar"
 
@@ -66,6 +63,12 @@
 
 #define COMMON_LOCK_ORIENTATION_INDEX_KEY "LockDirectionIndex"
 #define COMMON_LOCK_ORIENTATION_INDEX_DEF 0
+
+#define COMMON_MAX_FPS_USER_KEY "MaxFpsUser"
+#define COMMON_MAX_FPS_USER_DEF 60
+
+#define COMMON_MAX_TOUCH_POINTS_KEY "MaxTouchPoints"
+#define COMMON_MAX_TOUCH_POINTS_DEF 10
 
 #define COMMON_RECORD_SCREEN_KEY "RecordScreen"
 #define COMMON_RECORD_SCREEN_DEF false
@@ -153,7 +156,7 @@ Config &Config::getInstance()
 const QString &Config::getConfigPath()
 {
     if (s_configPath.isEmpty()) {
-        s_configPath = QString::fromLocal8Bit(qgetenv("QTSCRCPY_CONFIG_PATH"));
+        s_configPath = QString::fromLocal8Bit(qgetenv("KZSCRCPY_CONFIG_PATH"));
         QFileInfo fileInfo(s_configPath);
         if (s_configPath.isEmpty() || !fileInfo.isDir()) {
 #ifdef Q_OS_OSX
@@ -181,6 +184,8 @@ void Config::setUserBootConfig(const UserBootConfig &config)
     m_userData->setValue(COMMON_RECORD_FORMAT_INDEX_KEY, config.recordFormatIndex);
     m_userData->setValue(COMMON_FRAMELESS_WINDOW_KEY, config.framelessWindow);
     m_userData->setValue(COMMON_LOCK_ORIENTATION_INDEX_KEY, config.lockOrientationIndex);
+    m_userData->setValue(COMMON_MAX_FPS_USER_KEY, config.maxFps);
+    m_userData->setValue(COMMON_MAX_TOUCH_POINTS_KEY, config.maxTouchPoints);
     m_userData->setValue(COMMON_RECORD_SCREEN_KEY, config.recordScreen);
     m_userData->setValue(COMMON_RECORD_BACKGROUD_KEY, config.recordBackground);
     m_userData->setValue(COMMON_REVERSE_CONNECT_KEY, config.reverseConnect);
@@ -204,6 +209,8 @@ UserBootConfig Config::getUserBootConfig()
     config.maxSizeIndex = m_userData->value(COMMON_MAX_SIZE_INDEX_KEY, COMMON_MAX_SIZE_INDEX_DEF).toInt();
     config.recordFormatIndex = m_userData->value(COMMON_RECORD_FORMAT_INDEX_KEY, COMMON_RECORD_FORMAT_INDEX_DEF).toInt();
     config.lockOrientationIndex = m_userData->value(COMMON_LOCK_ORIENTATION_INDEX_KEY, COMMON_LOCK_ORIENTATION_INDEX_DEF).toInt();
+    config.maxFps = m_userData->value(COMMON_MAX_FPS_USER_KEY, COMMON_MAX_FPS_USER_DEF).toInt();
+    config.maxTouchPoints = m_userData->value(COMMON_MAX_TOUCH_POINTS_KEY, COMMON_MAX_TOUCH_POINTS_DEF).toInt();
     config.framelessWindow = m_userData->value(COMMON_FRAMELESS_WINDOW_KEY, COMMON_FRAMELESS_WINDOW_DEF).toBool();
     config.recordScreen = m_userData->value(COMMON_RECORD_SCREEN_KEY, COMMON_RECORD_SCREEN_DEF).toBool();
     config.recordBackground = m_userData->value(COMMON_RECORD_BACKGROUD_KEY, COMMON_RECORD_BACKGROUD_DEF).toBool();
@@ -242,9 +249,18 @@ bool Config::getTrayMessageShown()
 // ---------------------------------------------------------
 // 设备特定配置（位置、昵称）
 // ---------------------------------------------------------
+
+// 辅助函数：将 serial 转换为安全的组名（替换特殊字符）
+static QString safeGroupName(const QString &serial) {
+    QString safe = serial;
+    safe.replace(':', '_');  // WiFi 设备 serial 包含冒号
+    safe.replace('/', '_');
+    return safe;
+}
+
 void Config::setRect(const QString &serial, const QRect &rc)
 {
-    m_userData->beginGroup(serial);
+    m_userData->beginGroup(safeGroupName(serial));
     m_userData->setValue(SERIAL_WINDOW_RECT_KEY_X, rc.left());
     m_userData->setValue(SERIAL_WINDOW_RECT_KEY_Y, rc.top());
     m_userData->setValue(SERIAL_WINDOW_RECT_KEY_W, rc.width());
@@ -256,7 +272,7 @@ void Config::setRect(const QString &serial, const QRect &rc)
 QRect Config::getRect(const QString &serial)
 {
     QRect rc;
-    m_userData->beginGroup(serial);
+    m_userData->beginGroup(safeGroupName(serial));
     rc.setX(m_userData->value(SERIAL_WINDOW_RECT_KEY_X, SERIAL_WINDOW_RECT_KEY_DEF).toInt());
     rc.setY(m_userData->value(SERIAL_WINDOW_RECT_KEY_Y, SERIAL_WINDOW_RECT_KEY_DEF).toInt());
     rc.setWidth(m_userData->value(SERIAL_WINDOW_RECT_KEY_W, SERIAL_WINDOW_RECT_KEY_DEF).toInt());
@@ -267,7 +283,7 @@ QRect Config::getRect(const QString &serial)
 
 void Config::setNickName(const QString &serial, const QString &name)
 {
-    m_userData->beginGroup(serial);
+    m_userData->beginGroup(safeGroupName(serial));
     m_userData->setValue(SERIAL_NICK_NAME_KEY, name);
     m_userData->endGroup();
     m_userData->sync();
@@ -276,7 +292,7 @@ void Config::setNickName(const QString &serial, const QString &name)
 QString Config::getNickName(const QString &serial)
 {
     QString name;
-    m_userData->beginGroup(serial);
+    m_userData->beginGroup(safeGroupName(serial));
     name = m_userData->value(SERIAL_NICK_NAME_KEY, SERIAL_NICK_NAME_DEF).toString();
     m_userData->endGroup();
     return name;
@@ -322,15 +338,6 @@ int Config::getRenderExpiredFrames()
     renderExpiredFrames = m_settings->value(COMMON_RENDER_EXPIRED_FRAMES_KEY, COMMON_RENDER_EXPIRED_FRAMES_DEF).toInt();
     m_settings->endGroup();
     return renderExpiredFrames;
-}
-
-QString Config::getPushFilePath()
-{
-    QString pushFile;
-    m_settings->beginGroup(GROUP_COMMON);
-    pushFile = m_settings->value(COMMON_PUSHFILE_KEY, COMMON_PUSHFILE_DEF).toString();
-    m_settings->endGroup();
-    return pushFile;
 }
 
 QString Config::getServerPath()
@@ -390,11 +397,27 @@ void Config::deleteGroup(const QString &serial)
 
 QString Config::getLanguage()
 {
+    // 优先读取用户设置 (userdata.ini)
+    m_userData->beginGroup(GROUP_COMMON);
+    QString userLang = m_userData->value(COMMON_LANGUAGE_KEY, "").toString();
+    m_userData->endGroup();
+    if (!userLang.isEmpty()) {
+        return userLang;
+    }
+    // 回退到全局配置 (config.ini)
     QString language;
     m_settings->beginGroup(GROUP_COMMON);
     language = m_settings->value(COMMON_LANGUAGE_KEY, COMMON_LANGUAGE_DEF).toString();
     m_settings->endGroup();
     return language;
+}
+
+void Config::setLanguage(const QString &lang)
+{
+    m_userData->beginGroup(GROUP_COMMON);
+    m_userData->setValue(COMMON_LANGUAGE_KEY, lang);
+    m_userData->endGroup();
+    m_userData->sync();
 }
 
 QString Config::getTitle()
@@ -472,7 +495,7 @@ void Config::clearPortHistory()
 // ---------------------------------------------------------
 void Config::setKeyMap(const QString &serial, const QString &keyMapFile)
 {
-    m_userData->beginGroup(serial);
+    m_userData->beginGroup(safeGroupName(serial));
     m_userData->setValue(SERIAL_KEYMAP_KEY, keyMapFile);
     m_userData->endGroup();
     m_userData->sync();
@@ -481,7 +504,7 @@ void Config::setKeyMap(const QString &serial, const QString &keyMapFile)
 QString Config::getKeyMap(const QString &serial)
 {
     QString file;
-    m_userData->beginGroup(serial);
+    m_userData->beginGroup(safeGroupName(serial));
     file = m_userData->value(SERIAL_KEYMAP_KEY, SERIAL_KEYMAP_DEF).toString();
     m_userData->endGroup();
     return file;

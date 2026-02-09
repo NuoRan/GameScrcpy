@@ -132,11 +132,56 @@ void KcpCore::setFastMode()
     if (!m_kcp) return;
 
     std::unique_lock<std::shared_mutex> lock(m_mutex);
-    // 快速模式配置: nodelay=2, interval=10, resend=2, nc=1
-    ikcp_nodelay(m_kcp, 2, 10, 2, 1);
-    m_kcp->rx_minrto = 10;
+
+    // ============================================
+    // 【极致低延迟配置】
+    // ============================================
+
+    // nodelay=2: 最激进模式，立即发送不等待
+    // interval=1: 内部更新间隔1ms（最小值）
+    // resend=2: 2次ACK跨越立即重传
+    // nc=1: 关闭拥塞控制，不减速
+    ikcp_nodelay(m_kcp, 2, 1, 2, 1);
+
+    // 最小RTO=1ms（默认30ms，我们追求极致）
+    m_kcp->rx_minrto = 1;
+
+    // 快速重传触发阈值
     m_kcp->fastresend = 1;
-    ikcp_wndsize(m_kcp, 128, 128);
+
+    // 死链检测（可选，避免无限等待）
+    m_kcp->dead_link = 50;
+
+    // 窗口大小：发送256，接收256（足够8Mbps@60fps）
+    ikcp_wndsize(m_kcp, 256, 256);
+}
+
+void KcpCore::setVideoStreamMode()
+{
+    if (!m_kcp) return;
+
+    std::unique_lock<std::shared_mutex> lock(m_mutex);
+
+    // ============================================
+    // 【视频流专用配置】
+    // 针对高码率视频流优化
+    // ============================================
+
+    // 最激进的nodelay配置
+    ikcp_nodelay(m_kcp, 2, 1, 2, 1);
+
+    // 最小RTO
+    m_kcp->rx_minrto = 1;
+    m_kcp->fastresend = 1;
+
+    // 流模式：视频不需要消息边界
+    m_kcp->stream = 1;
+
+    // 大窗口：支持高码率
+    ikcp_wndsize(m_kcp, 512, 512);
+
+    // 死链检测宽松一点（视频偶尔卡顿正常）
+    m_kcp->dead_link = 100;
 }
 
 void KcpCore::setNormalMode()
@@ -219,4 +264,11 @@ int KcpCore::kcpOutputCallback(const char *buf, int len, ikcpcb *kcp, void *user
 
     // 调用用户设置的输出回调
     return self->m_output(buf, len, self->m_user);
+}
+
+int KcpCore::getRtt() const
+{
+    if (!m_kcp) return 0;
+    std::shared_lock<std::shared_mutex> lock(m_mutex);
+    return m_kcp->rx_srtt;
 }

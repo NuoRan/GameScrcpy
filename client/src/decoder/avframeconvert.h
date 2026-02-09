@@ -9,6 +9,12 @@ extern "C"
 #include "libswscale/swscale.h"
 }
 
+/**
+ * @brief AVFrame 格式转换器 / AVFrame Format Converter
+ *
+ * 使用 FFmpeg swscale 进行视频帧像素格式转换和缩放。
+ * Uses FFmpeg swscale for pixel format conversion and scaling.
+ */
 class AVFrameConvert
 {
 public:

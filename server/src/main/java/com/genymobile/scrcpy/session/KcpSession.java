@@ -1,3 +1,10 @@
+/*
+ * KcpSession.java - WiFi 模式会话
+ *
+ * Copyright (C) 2019-2026 Rankun
+ * Licensed under the Apache License, Version 2.0
+ */
+
 package com.genymobile.scrcpy.session;
 
 import com.genymobile.scrcpy.Options;
@@ -10,14 +17,14 @@ import com.genymobile.scrcpy.util.Ln;
 import java.io.IOException;
 
 /**
- * KcpSession - WiFi 模式会话 (KCP/UDP)
- *
- * A-01 优化: 从 Server.scrcpyKcp() 提取的专用实现
- *
+ * WiFi 模式会话 (KCP/UDP)
+ * <p>
  * 特点:
- * - 使用 KCP 协议实现可靠 UDP 传输
- * - 低延迟, 适合 WiFi 环境
- * - 需要 client_ip 参数
+ * <ul>
+ *   <li>使用 KCP 协议实现可靠 UDP 传输</li>
+ *   <li>低延迟，适合 WiFi 环境</li>
+ *   <li>需要 client_ip 参数指定客户端地址</li>
+ * </ul>
  */
 public class KcpSession extends ScrcpySession {
 

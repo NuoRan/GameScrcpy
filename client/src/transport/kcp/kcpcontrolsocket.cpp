@@ -63,8 +63,9 @@ qint64 KcpControlSocket::write(const QByteArray &data)
 
 QByteArray KcpControlSocket::readAll()
 {
-    QByteArray result = m_readBuffer;
-    m_readBuffer.clear();
+    // P-KCP: move 语义避免 COW detach 拷贝
+    QByteArray result;
+    result.swap(m_readBuffer);
     return result;
 }
 

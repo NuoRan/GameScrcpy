@@ -1,9 +1,9 @@
 /**
  * @file KcpTransport.h
- * @brief KCP传输层 - 全新重构
+ * @brief KCP 传输层 / KCP Transport Layer
  *
- * 封装UDP收发和KCP定时更新
- * 提供简洁的Qt风格API
+ * 封装 UDP 收发和 KCP 定时更新，提供简洁的 Qt 风格 API。
+ * Encapsulates UDP send/recv and KCP timer update with a clean Qt-style API.
  *
  * 使用示例:
  * @code
@@ -39,12 +39,12 @@
 #include "KcpCore.h"
 
 /**
- * @brief KCP传输层 - UDP + KCP协议栈
+ * @brief KCP 传输层 - UDP + KCP 协议栈 / KCP Transport - UDP + KCP Protocol Stack
  *
- * 职责:
- * - 管理UDP套接字
- * - 定时调用KCP update
- * - 转发数据收发
+ * 职责 / Responsibilities:
+ * - 管理 UDP 套接字 / Manage UDP socket
+ * - 定时调用 KCP update / Periodically call KCP update
+ * - 转发数据收发 / Forward data send/recv
  */
 class KcpTransport : public QObject
 {
@@ -143,14 +143,20 @@ public:
     //=========================================================================
 
     /**
-     * @brief 快速模式 - 最低延迟（游戏/投屏推荐）
+     * @brief 快速模式 - 极致低延迟（游戏/投屏推荐）
      *
-     * 参考 test.cpp mode=2:
-     * - nodelay=2, interval=10, resend=2, nc=1
-     * - rx_minrto=10, fastresend=1
-     * - window=128x128
+     * - nodelay=2, interval=1, resend=2, nc=1
+     * - rx_minrto=1, fastresend=1
+     * - window=256x256
      */
     void setFastMode();
+
+    /**
+     * @brief 视频流模式 - 高带宽优化
+     *
+     * 在快速模式基础上启用流模式和更大窗口
+     */
+    void setVideoStreamMode();
 
     /**
      * @brief 普通模式 - 关闭流控
@@ -241,6 +247,9 @@ private:
     // 获取当前毫秒时间戳
     uint32_t currentMs() const;
 
+    // 【按需调度优化】计算并设置下次更新时间
+    void scheduleNextUpdate();
+
 private:
     std::unique_ptr<KcpCore> m_kcp;
 
@@ -252,7 +261,7 @@ private:
     quint16 m_remotePort = 0;
 
     bool m_active = false;
-    int m_updateInterval = 10;  // 参考 test.cpp: 每1ms调用一次update
+    int m_updateInterval = 1;  // 每1ms调用一次update，保证低延迟
 };
 
 #endif // KCP_TRANSPORT_H

@@ -6,6 +6,11 @@
 class AdbProcessImpl;
 namespace qsc {
 
+// ---------------------------------------------------------
+// ADB 进程管理器 / ADB Process Manager
+// 封装 ADB 命令执行，提供设备连接、文件推送、端口转发等功能
+// Wraps ADB command execution: device connection, file push, port forwarding, etc.
+// ---------------------------------------------------------
 class AdbProcess : public QObject
 {
     Q_OBJECT

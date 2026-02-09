@@ -13,39 +13,39 @@
 namespace qsc {
 
 /**
- * @brief 渲染器状态
+ * @brief 渲染器状态 / Renderer State
  */
 enum class RendererState
 {
-    Uninitialized,  // 未初始化
-    Ready,          // 就绪
-    Rendering,      // 渲染中
-    Paused,         // 暂停
-    Error           // 错误
+    Uninitialized,  // 未初始化 / Uninitialized
+    Ready,          // 就绪 / Ready
+    Rendering,      // 渲染中 / Rendering
+    Paused,         // 暂停 / Paused
+    Error           // 错误 / Error
 };
 
 /**
- * @brief 渲染器类型
+ * @brief 渲染器类型 / Renderer Type
  */
 enum class RendererType
 {
-    OpenGL,         // OpenGL 渲染
-    OpenGLES,       // OpenGL ES 渲染
-    D3D11,          // Direct3D 11 渲染
-    Vulkan,         // Vulkan 渲染
-    Software        // 软件渲染
+    OpenGL,         // OpenGL 渲染 / OpenGL rendering
+    OpenGLES,       // OpenGL ES 渲染 / OpenGL ES rendering
+    D3D11,          // Direct3D 11 渲染 / Direct3D 11 rendering
+    Vulkan,         // Vulkan 渲染 / Vulkan rendering
+    Software        // 软件渲染 / Software rendering
 };
 
 /**
- * @brief 像素格式
+ * @brief 像素格式 / Pixel Format
  */
 enum class PixelFormat
 {
-    YUV420P,        // YUV 4:2:0 平面格式
-    NV12,           // YUV 4:2:0 半平面格式
-    RGB24,          // RGB 24位
-    RGBA32,         // RGBA 32位
-    BGRA32          // BGRA 32位
+    YUV420P,        // YUV 4:2:0 平面格式 / Planar format
+    NV12,           // YUV 4:2:0 半平面格式 / Semi-planar format
+    RGB24,          // RGB 24位 / 24-bit
+    RGBA32,         // RGBA 32位 / 32-bit
+    BGRA32          // BGRA 32位 / 32-bit
 };
 
 /**

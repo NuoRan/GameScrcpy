@@ -17,6 +17,18 @@ KcpServer::KcpServer(QObject *parent) : QObject(parent)
 
 KcpServer::~KcpServer() {}
 
+bool KcpServer::killOldServer()
+{
+    if (m_workProcess.isRuning()) {
+        m_workProcess.kill();
+    }
+    // 杀死设备上旧的 scrcpy 进程，避免端口占用
+    QStringList args;
+    args << "shell" << "pkill" << "-f" << "scrcpy";
+    m_workProcess.execute(m_params.serial, args);
+    return true;
+}
+
 bool KcpServer::pushServer()
 {
     if (m_workProcess.isRuning()) {
@@ -112,7 +124,7 @@ bool KcpServer::start(KcpServer::ServerParams params)
 {
     m_params = params;
     qInfo() << "KcpServer: Starting WiFi/KCP mode for" << m_params.serial;
-    m_serverStartStep = SSS_PUSH;
+    m_serverStartStep = SSS_KILL_SERVER;  // 先杀死旧进程
     return startServerByStep();
 }
 
@@ -163,6 +175,9 @@ bool KcpServer::startServerByStep()
     bool stepSuccess = false;
     if (SSS_NULL != m_serverStartStep) {
         switch (m_serverStartStep) {
+        case SSS_KILL_SERVER:
+            stepSuccess = killOldServer();
+            break;
         case SSS_PUSH:
             stepSuccess = pushServer();
             break;
@@ -287,6 +302,16 @@ void KcpServer::onWorkProcessResult(qsc::AdbProcess::ADB_EXEC_RESULT processResu
     if (sender() == &m_workProcess) {
         if (SSS_NULL != m_serverStartStep) {
             switch (m_serverStartStep) {
+            case SSS_KILL_SERVER:
+                // 无论成功失败都继续（可能没有旧进程）
+                if (qsc::AdbProcess::AER_SUCCESS_EXEC == processResult ||
+                    qsc::AdbProcess::AER_ERROR_EXEC == processResult) {
+                    m_serverStartStep = SSS_PUSH;
+                    startServerByStep();
+                } else if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
+                    // 等待命令完成
+                }
+                break;
             case SSS_PUSH:
                 if (qsc::AdbProcess::AER_SUCCESS_EXEC == processResult) {
                     m_serverStartStep = SSS_EXECUTE_SERVER;

@@ -14,13 +14,13 @@ class KcpControlSocket;
 class VideoSocket;
 
 /**
- * Server - 统一的服务器管理接口
+ * @brief 统一的服务器管理接口 / Unified Server Management Interface
  *
- * 自动根据设备 serial 格式选择连接模式:
+ * 自动根据设备 serial 格式选择连接模式 / Auto-selects connection mode by serial format:
  * - 包含 ':' (如 192.168.1.100:5555): WiFi 模式 (KCP)
+ *   Contains ':': WiFi mode (KCP)
  * - 不包含 ':' (如 abcd1234): USB 模式 (TCP)
- *
- * 作为代理类，内部持有 KcpServer 或 TcpServerHandler 实例
+ *   No ':': USB mode (TCP)
  */
 class Server : public QObject
 {
@@ -29,11 +29,11 @@ class Server : public QObject
 public:
     struct ServerParams
     {
-        // necessary
-        QString serial = "";              // 设备序列号
-        QString serverLocalPath = "";     // 本地安卓server路径
+        // 必需参数 / Required parameters
+        QString serial = "";              // 设备序列号 / Device serial
+        QString serverLocalPath = "";     // 本地 server 路径 / Local server path
 
-        // optional
+        // 可选参数 / Optional parameters
         QString serverRemotePath = "/data/local/tmp/scrcpy-server.jar";
         quint16 maxSize = 720;
         quint32 bitRate = 8000000;
@@ -48,13 +48,13 @@ public:
         QString crop = "";
         bool control = true;
 
-        // TCP 模式参数
-        quint16 localPort = 27183;        // TCP 本地端口 (USB 模式)
-        quint16 localPortCtrl = 27184;    // TCP 控制端口
-        bool useReverse = true;           // TCP 模式: 先尝试 reverse
+        // TCP 模式参数 / TCP mode parameters
+        quint16 localPort = 27183;        // TCP 本地端口 (USB 模式) / TCP local port (USB)
+        quint16 localPortCtrl = 27184;    // TCP 控制端口 / TCP control port
+        bool useReverse = true;           // TCP 模式: 先尝试 reverse / TCP: try reverse first
 
-        // KCP 模式参数
-        quint16 kcpPort = 27185;          // KCP UDP 视频端口 (控制端口 = kcpPort + 1)
+        // KCP 模式参数 / KCP mode parameters
+        quint16 kcpPort = 27185;          // KCP UDP 视频端口 / KCP UDP video port (ctrl = kcpPort+1)
 
         qint32 scid = -1;
     };

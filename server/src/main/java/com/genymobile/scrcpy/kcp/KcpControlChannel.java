@@ -51,6 +51,8 @@ public final class KcpControlChannel implements IControlChannel, KcpTransport.Li
         transport.setStreamMode(0);
         // 控制通道使用较小窗口
         transport.setWindowSize(64, 64);
+        // P-KCP: 控制通道极致低延迟 — minRTO=1ms
+        transport.setMinRto(1);
 
         // 绑定端口
         try {
@@ -191,9 +193,8 @@ public final class KcpControlChannel implements IControlChannel, KcpTransport.Li
 
         @Override
         public void write(byte[] b, int off, int len) throws IOException {
-            byte[] data = new byte[len];
-            System.arraycopy(b, off, data, 0, len);
-            int ret = transport.send(data);
+            // P-KCP: 使用 sendImmediate 直接 kcp.send()+flush()，绕过排队延迟
+            int ret = transport.sendImmediate(b, off, len);
             if (ret < 0) {
                 throw new IOException("KCP send failed: " + ret);
             }

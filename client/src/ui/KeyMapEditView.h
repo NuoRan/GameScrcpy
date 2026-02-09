@@ -14,7 +14,7 @@
 class SteerWheelSubItem;
 
 // ---------------------------------------------------------
-// 撤销命令：移动项目
+// 撤销命令：移动项目 / Undo Command: Move Item
 // ---------------------------------------------------------
 class MoveItemCommand : public QUndoCommand
 {
@@ -33,7 +33,7 @@ private:
 };
 
 // ---------------------------------------------------------
-// 撤销命令：添加项目
+// 撤销命令：添加项目 / Undo Command: Add Item
 // ---------------------------------------------------------
 class AddItemCommand : public QUndoCommand
 {

@@ -17,7 +17,7 @@
    </size>
   </property>
   <property name="windowTitle">
-   <string notr="true">KzScrcpy</string>
+   <string notr="true">GameScrcpy</string>
   </property>
   <layout class="QVBoxLayout" name="mainLayout">
    <property name="spacing">
@@ -75,7 +75,7 @@
         <item>
          <widget class="QLabel" name="logoLabel">
           <property name="text">
-           <string>KzScrcpy</string>
+           <string>GameScrcpy</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignCenter</set>
@@ -198,7 +198,7 @@
          <item>
           <layout class="QHBoxLayout" name="deviceHeader">
            <property name="spacing">
-            <number>12</number>
+            <number>8</number>
            </property>
            <item>
             <widget class="QLabel" name="deviceTitle">
@@ -237,7 +237,7 @@
            <item>
             <widget class="QPushButton" name="updateDevice">
              <property name="minimumSize">
-              <size><width>72</width><height>34</height></size>
+              <size><width>0</width><height>34</height></size>
              </property>
              <property name="text">
               <string>刷新</string>
@@ -274,20 +274,33 @@
      </property>
      <layout class="QHBoxLayout" name="toolbarLayout">
       <property name="spacing">
-       <number>16</number>
+       <number>8</number>
       </property>
       <property name="leftMargin">
-       <number>28</number>
+       <number>16</number>
       </property>
       <property name="topMargin">
        <number>12</number>
       </property>
       <property name="rightMargin">
-       <number>28</number>
+       <number>16</number>
       </property>
       <property name="bottomMargin">
        <number>16</number>
       </property>
+      <item>
+       <widget class="QPushButton" name="langBtn">
+        <property name="minimumSize">
+         <size><width>60</width><height>36</height></size>
+        </property>
+        <property name="text">
+         <string notr="true">🌐 EN</string>
+        </property>
+        <property name="toolTip">
+         <string>Switch Language</string>
+        </property>
+       </widget>
+      </item>
       <item>
        <spacer name="toolbarLeftSpacer">
         <property name="orientation">
@@ -301,7 +314,7 @@
       <item>
        <widget class="QPushButton" name="settingsBtn">
         <property name="minimumSize">
-         <size><width>110</width><height>40</height></size>
+         <size><width>0</width><height>36</height></size>
         </property>
         <property name="text">
          <string>⚙  设置</string>
@@ -311,7 +324,7 @@
       <item>
        <widget class="QPushButton" name="terminalBtn">
         <property name="minimumSize">
-         <size><width>110</width><height>40</height></size>
+         <size><width>0</width><height>36</height></size>
         </property>
         <property name="text">
          <string>⌨  终端</string>

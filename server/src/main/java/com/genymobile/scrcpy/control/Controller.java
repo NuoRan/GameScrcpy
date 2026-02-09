@@ -1,3 +1,12 @@
+/*
+ * Controller.java - 设备控制器
+ *
+ * Copyright (C) 2019-2026 Rankun
+ * Licensed under the Apache License, Version 2.0
+ *
+ * 基于 Genymobile/scrcpy 二次开发
+ */
+
 package com.genymobile.scrcpy.control;
 
 import com.genymobile.scrcpy.AndroidVersions;
@@ -25,8 +34,14 @@ import java.io.IOException;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * 游戏投屏控制器 - 极简版本
- * 只处理：按键注入、触摸注入、返回键/亮屏
+ * 设备控制器 - 处理输入事件注入
+ * <p>
+ * 主要功能:
+ * <ul>
+ * <li>按键注入 (常规按键、快速按键)</li>
+ * <li>触摸注入 (单点、多点、快速触摸)</li>
+ * <li>返回键/亮屏处理</li>
+ * </ul>
  */
 public class Controller implements AsyncProcessor, VirtualDisplayListener {
 
@@ -166,6 +181,8 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
                 listener.onTerminated(fatalError);
             }
         }, "control-recv");
+        // P-KCP: 控制线程设最高优先级，减少调度延迟
+        thread.setPriority(Thread.MAX_PRIORITY);
         thread.start();
         sender.start();
     }
@@ -354,8 +371,10 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
                             pointerCount, pointerProperties,
                             pointerCoords, 0, buttons, 1f, 1f, DEFAULT_DEVICE_ID, 0, source, 0);
                     if (!Device.injectEvent(downEvent, targetDisplayId, Device.INJECT_MODE_ASYNC)) {
+                        downEvent.recycle();
                         return false;
                     }
+                    downEvent.recycle();
                 }
 
                 // Any button pressed: ACTION_BUTTON_PRESS
@@ -363,11 +382,14 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
                         pointerCount, pointerProperties,
                         pointerCoords, 0, buttons, 1f, 1f, DEFAULT_DEVICE_ID, 0, source, 0);
                 if (!InputManager.setActionButton(pressEvent, actionButton)) {
+                    pressEvent.recycle();
                     return false;
                 }
                 if (!Device.injectEvent(pressEvent, targetDisplayId, Device.INJECT_MODE_ASYNC)) {
+                    pressEvent.recycle();
                     return false;
                 }
+                pressEvent.recycle();
 
                 return true;
             }
@@ -378,11 +400,14 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
                         pointerCount, pointerProperties,
                         pointerCoords, 0, buttons, 1f, 1f, DEFAULT_DEVICE_ID, 0, source, 0);
                 if (!InputManager.setActionButton(releaseEvent, actionButton)) {
+                    releaseEvent.recycle();
                     return false;
                 }
                 if (!Device.injectEvent(releaseEvent, targetDisplayId, Device.INJECT_MODE_ASYNC)) {
+                    releaseEvent.recycle();
                     return false;
                 }
+                releaseEvent.recycle();
 
                 if (buttons == 0) {
                     // Last button released: ACTION_UP
@@ -390,8 +415,10 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
                             pointerProperties,
                             pointerCoords, 0, buttons, 1f, 1f, DEFAULT_DEVICE_ID, 0, source, 0);
                     if (!Device.injectEvent(upEvent, targetDisplayId, Device.INJECT_MODE_ASYNC)) {
+                        upEvent.recycle();
                         return false;
                     }
+                    upEvent.recycle();
                 }
 
                 return true;
@@ -401,7 +428,9 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
         MotionEvent event = MotionEvent.obtain(lastTouchDown, now, action, pointerCount, pointerProperties,
                 pointerCoords, 0, buttons, 1f, 1f,
                 DEFAULT_DEVICE_ID, 0, source, 0);
-        return Device.injectEvent(event, targetDisplayId, Device.INJECT_MODE_ASYNC);
+        boolean result = Device.injectEvent(event, targetDisplayId, Device.INJECT_MODE_ASYNC);
+        event.recycle();
+        return result;
     }
 
     private boolean pressBackOrTurnScreenOn(int action) {

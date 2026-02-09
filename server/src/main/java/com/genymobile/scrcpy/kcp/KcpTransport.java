@@ -7,6 +7,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetSocketAddress;
 import java.net.SocketException;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.LockSupport;
 
@@ -16,12 +17,14 @@ import java.util.concurrent.locks.LockSupport;
  * 封装UDP收发和KCP定时更新
  *
  * 使用示例 (参考 test.cpp 主循环):
+ *
  * <pre>
  * KcpTransport transport = new KcpTransport(0x11223344);
  * transport.setListener(new KcpTransport.Listener() {
  *     public void onReceive(byte[] data, int len) {
  *         processData(data, len);
  *     }
+ *
  *     public void onError(Exception e) {
  *         handleError(e);
  *     }
@@ -54,6 +57,7 @@ public final class KcpTransport implements KcpCore.Output {
      */
     public interface Listener {
         void onReceive(byte[] data, int offset, int len);
+
         void onError(Exception e);
     }
 
@@ -73,9 +77,17 @@ public final class KcpTransport implements KcpCore.Output {
     private Thread updateThread;
     private Thread recvThread;
 
+    // 发送唤醒标志
+    private volatile boolean sendPending = false;
+
+    // 无锁发送队列：发送线程投递数据，updateLoop 线程统一消费
+    // 消除 send() 的 synchronized 锁竞争
+    private final ConcurrentLinkedQueue<byte[]> pendingSendQueue = new ConcurrentLinkedQueue<>();
+
     // 缓冲区
     private final byte[] recvBuffer = new byte[UDP_BUFFER_SIZE];
-    private final byte[] dataBuffer = new byte[64 * 1024];  // 64KB for assembled data
+    private final byte[] dataBuffer = new byte[64 * 1024]; // 64KB for assembled data
+    private final DatagramPacket sendPacket = new DatagramPacket(new byte[0], 0); // 复用发送包
 
     // 统计
     private volatile long bytesSent = 0;
@@ -83,6 +95,7 @@ public final class KcpTransport implements KcpCore.Output {
 
     /**
      * 创建传输层
+     *
      * @param conv 会话ID
      */
     public KcpTransport(int conv) {
@@ -100,9 +113,9 @@ public final class KcpTransport implements KcpCore.Output {
         this.listener = listener;
     }
 
-    //=========================================================================
+    // =========================================================================
     // 配置
-    //=========================================================================
+    // =========================================================================
 
     /**
      * 快速模式 (游戏/投屏)
@@ -148,6 +161,7 @@ public final class KcpTransport implements KcpCore.Output {
 
     /**
      * 设置流模式
+     *
      * @param stream 0=消息模式(保持消息边界), 1=流模式(合并数据)
      */
     public void setStreamMode(int stream) {
@@ -161,9 +175,9 @@ public final class KcpTransport implements KcpCore.Output {
         kcp.setDeadLink(deadlink);
     }
 
-    //=========================================================================
+    // =========================================================================
     // 连接管理
-    //=========================================================================
+    // =========================================================================
 
     /**
      * 绑定本地端口 (服务端模式)
@@ -237,22 +251,24 @@ public final class KcpTransport implements KcpCore.Output {
             updateThread.interrupt();
             try {
                 updateThread.join(100);
-            } catch (InterruptedException ignored) {}
+            } catch (InterruptedException ignored) {
+            }
         }
 
         if (recvThread != null) {
             recvThread.interrupt();
             try {
                 recvThread.join(100);
-            } catch (InterruptedException ignored) {}
+            } catch (InterruptedException ignored) {
+            }
         }
 
         Ln.i("KCP transport closed: sent=" + bytesSent + ", recv=" + bytesRecv);
     }
 
-    //=========================================================================
+    // =========================================================================
     // 数据传输
-    //=========================================================================
+    // =========================================================================
 
     /**
      * 发送数据 (可靠传输)
@@ -262,23 +278,34 @@ public final class KcpTransport implements KcpCore.Output {
     }
 
     /**
-     * 发送数据 (可靠传输)
+     * 发送数据 (可靠传输) - 无锁，通过 ConcurrentLinkedQueue 将数据排入队列
+     * 由 updateLoop 统一消费，避免发送线程被 flush() 的长锁阻塞
      */
-    public synchronized int send(byte[] data, int offset, int len) {
-        // 确保KCP已初始化
-        long now = System.currentTimeMillis();
-        kcp.update(now);
+    public int send(byte[] data, int offset, int len) {
+        byte[] copy = new byte[len];
+        System.arraycopy(data, offset, copy, 0, len);
+        pendingSendQueue.offer(copy);
+        // 通知 updateLoop 尽快 flush，实现低延迟
+        sendPending = true;
+        Thread t = updateThread;
+        if (t != null) {
+            LockSupport.unpark(t);
+        }
+        return 0;
+    }
 
-        // 参考 test.cpp: ikcp_send(kcp1, buffer, 8)
-        int ret = kcp.send(data, offset, len);
-        if (ret < 0) {
-            Ln.w("KCP send failed: " + ret);
+    /**
+     * P-KCP: 立即发送数据 — 绕过队列，直接 kcp.send() + flush()
+     * 用于控制通道等对延迟极其敏感的场景，避免排队+线程调度延迟
+     */
+    public int sendImmediate(byte[] data, int offset, int len) {
+        synchronized (this) {
+            int ret = kcp.send(data, offset, len);
+            if (ret >= 0) {
+                kcp.flush();
+            }
             return ret;
         }
-
-        // 立即刷新 (减少延迟)
-        kcp.flush();
-        return ret;
     }
 
     /**
@@ -302,9 +329,9 @@ public final class KcpTransport implements KcpCore.Output {
         return kcp.getState() == -1;
     }
 
-    //=========================================================================
+    // =========================================================================
     // KcpCore.Output 实现 - UDP输出回调
-    //=========================================================================
+    // =========================================================================
 
     @Override
     public int send(byte[] data, int offset, int len, KcpCore kcp) {
@@ -314,8 +341,10 @@ public final class KcpTransport implements KcpCore.Output {
         }
 
         try {
-            DatagramPacket packet = new DatagramPacket(data, offset, len, remoteAddress);
-            socket.send(packet);
+            // 复用 DatagramPacket 对象，避免每次发送都创建新对象
+            sendPacket.setData(data, offset, len);
+            sendPacket.setSocketAddress(remoteAddress);
+            socket.send(sendPacket);
             bytesSent += len;
             return len;
         } catch (IOException e) {
@@ -324,9 +353,9 @@ public final class KcpTransport implements KcpCore.Output {
         }
     }
 
-    //=========================================================================
+    // =========================================================================
     // 内部线程
-    //=========================================================================
+    // =========================================================================
 
     /**
      * 更新循环 (参考 test.cpp 主循环)
@@ -338,9 +367,18 @@ public final class KcpTransport implements KcpCore.Output {
             long nextTime;
 
             synchronized (this) {
+                // 先消费无锁发送队列 (不需要额外加锁即可 drain)
+                byte[] d;
+                while ((d = pendingSendQueue.poll()) != null) {
+                    int ret = kcp.send(d);
+                    if (ret < 0) {
+                        Ln.w("KCP send failed: " + ret);
+                    }
+                }
                 // 参考 test.cpp: ikcp_check + ikcp_update
                 nextTime = kcp.check(now);
-                if (now >= nextTime) {
+                if (now >= nextTime || sendPending) {
+                    sendPending = false;
                     kcp.update(now);
                 }
             }
@@ -351,7 +389,8 @@ public final class KcpTransport implements KcpCore.Output {
                 // 不会抛出 InterruptedException，通过 running 标志检查中断
                 LockSupport.parkNanos(sleepTime * 1_000_000L);
             } else {
-                Thread.yield();
+                // 避免忙等待(Thread.yield)导致 CPU 100%，至少休眠 1ms
+                LockSupport.parkNanos(1_000_000L);
             }
 
             // 检查中断状态
@@ -372,14 +411,16 @@ public final class KcpTransport implements KcpCore.Output {
                 socket.receive(packet);
                 bytesRecv += packet.getLength();
 
-                InetSocketAddress source = (InetSocketAddress) packet.getSocketAddress();
-                if (remoteAddress == null || !remoteAddress.equals(source)) {
-                    remoteAddress = source;
+                // 仅在远端地址未设置时获取，避免每包分配 InetSocketAddress 对象
+                if (remoteAddress == null) {
+                    remoteAddress = (InetSocketAddress) packet.getSocketAddress();
                 }
 
                 synchronized (this) {
                     kcp.input(packet.getData(), packet.getOffset(), packet.getLength());
-                    kcp.flush();
+                    // P-KCP: 收到数据后立即 update/flush，确保 ACK 即时发出
+                    // 避免等待 updateLoop 下次唤醒（最坏延迟 DEFAULT_UPDATE_INTERVAL ms）
+                    kcp.update(System.currentTimeMillis());
                     processReceivedData();
                 }
 

@@ -1,4 +1,4 @@
-# QtScrcpy Client - 重构后的 CMakeLists.txt
+# GameScrcpy Client - 重构后的 CMakeLists.txt
 # 目录结构:
 #   src/app       - 应用入口
 #   src/ui        - 用户界面
@@ -14,7 +14,7 @@ cmake_minimum_required(VERSION 3.19 FATAL_ERROR)
 #
 # 项目配置
 #
-set(QC_PROJECT_NAME "QtScrcpy")
+set(QC_PROJECT_NAME "GameScrcpy")
 set(QC_PROJECT_VERSION "2.2.1")
 
 project(${QC_PROJECT_NAME} VERSION ${QC_PROJECT_VERSION} LANGUAGES C CXX)
@@ -109,7 +109,7 @@ endif()
 #
 # OpenCV 配置 (可选)
 #
-set(OPENCV_LOCAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../opencv/build")
+set(OPENCV_LOCAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/env/opencv/build/x64/vc16/lib")
 if(EXISTS "${OPENCV_LOCAL_DIR}/OpenCVConfig.cmake")
     set(OpenCV_DIR "${OPENCV_LOCAL_DIR}")
 endif()
@@ -120,9 +120,36 @@ if(OpenCV_FOUND)
     message(STATUS "[${PROJECT_NAME}] OpenCV version: ${OpenCV_VERSION}")
     set(ENABLE_IMAGE_MATCHING ON)
     list(APPEND LINK_LIBS ${OpenCV_LIBS})
+
+    # opencv_matching 库 (模板匹配)
+    set(OPENCV_MATCHING_DIR "${CMAKE_CURRENT_SOURCE_DIR}/env/opencv_matching")
+    if(EXISTS "${OPENCV_MATCHING_DIR}/include/matcher.h")
+        include_directories(${OPENCV_MATCHING_DIR}/include)
+        include_directories(${OPENCV_MATCHING_DIR}/matcher)
+        include_directories(${OPENCV_MATCHING_DIR}/matcher/base_matcher)
+        include_directories(${OPENCV_MATCHING_DIR}/matcher/Pattern_Matching)
+        # spdlog 日志库 (opencv_matching 依赖)
+        include_directories(${OPENCV_MATCHING_DIR}/3rdParty/spdlog/include)
+        message(STATUS "[${PROJECT_NAME}] opencv_matching found")
+
+        # 添加 opencv_matching 源文件
+        set(SRC_OPENCV_MATCHING
+            ${OPENCV_MATCHING_DIR}/matcher/matcher.cpp
+            ${OPENCV_MATCHING_DIR}/matcher/base_matcher/base_matcher.cpp
+            ${OPENCV_MATCHING_DIR}/matcher/Pattern_Matching/PatternMatching.cpp
+        )
+        # 禁用 opencv_matching 的警告当错误（第三方代码）
+        if(MSVC)
+            set_source_files_properties(${SRC_OPENCV_MATCHING} PROPERTIES COMPILE_FLAGS "/W0")
+        endif()
+    else()
+        message(WARNING "[${PROJECT_NAME}] opencv_matching not found, using basic matching")
+        set(SRC_OPENCV_MATCHING "")
+    endif()
 else()
     message(WARNING "[${PROJECT_NAME}] OpenCV not found, image matching disabled")
     set(ENABLE_IMAGE_MATCHING OFF)
+    set(SRC_OPENCV_MATCHING "")
 endif()
 
 #
@@ -183,10 +210,18 @@ set(SRC_UI
     src/ui/ConnectionProgressWidget.h
     src/ui/KeyMapEditView.cpp
     src/ui/KeyMapEditView.h
+    src/ui/KeyMapOverlay.cpp
+    src/ui/KeyMapOverlay.h
+    src/ui/ScriptTipWidget.cpp
+    src/ui/ScriptTipWidget.h
     src/ui/imagecapturedialog.h
     src/ui/scripteditordialog.h
+    src/ui/selectionregionmanager.h
+    src/ui/selectioneditordialog.h
     src/ui/KeyMapBase.h
     src/ui/KeyMapItems.h
+    src/ui/PerformanceDialog.h
+    src/ui/PerformanceDialog.cpp
     # widgets
     src/ui/widgets/keepratiowidget.cpp
     src/ui/widgets/keepratiowidget.h
@@ -204,20 +239,41 @@ set(SRC_CONTROL
     src/control/controlsender.h
     src/control/bufferutil.cpp
     src/control/bufferutil.h
+    # session
+    src/control/session/SessionContext.cpp
+    src/control/session/SessionContext.h
+    src/control/session/SessionVars.cpp
+    src/control/session/SessionVars.h
+    src/control/session/ScriptBridge.cpp
+    src/control/session/ScriptBridge.h
+    src/control/session/InputDispatcher.cpp
+    src/control/session/InputDispatcher.h
+    # handlers
+    src/control/handlers/IInputHandler.h
+    src/control/handlers/HandlerChain.cpp
+    src/control/handlers/HandlerChain.h
+    src/control/handlers/SteerWheelHandler.cpp
+    src/control/handlers/SteerWheelHandler.h
+    src/control/handlers/ViewportHandler.cpp
+    src/control/handlers/ViewportHandler.h
+    src/control/handlers/FreeLookHandler.cpp
+    src/control/handlers/FreeLookHandler.h
+    src/control/handlers/CursorHandler.cpp
+    src/control/handlers/CursorHandler.h
+    src/control/handlers/KeyboardHandler.cpp
+    src/control/handlers/KeyboardHandler.h
     # input
-    src/control/input/controlmsg.cpp
-    src/control/input/controlmsg.h
-    src/control/input/controlmsgpool.h
     src/control/input/fastmsg.cpp
     src/control/input/fastmsg.h
-    src/control/input/inputconvertbase.cpp
-    src/control/input/inputconvertbase.h
-    src/control/input/inputconvertgame.cpp
-    src/control/input/inputconvertgame.h
     src/control/input/keymap.cpp
     src/control/input/keymap.h
-    src/control/input/scriptapi.cpp
-    src/control/input/scriptapi.h
+    # script - 脚本引擎
+    src/control/script/ScriptEngine.cpp
+    src/control/script/ScriptEngine.h
+    src/control/script/ScriptSandbox.cpp
+    src/control/script/ScriptSandbox.h
+    src/control/script/ScriptWatchdog.cpp
+    src/control/script/ScriptWatchdog.h
     # receiver
     src/control/receiver/devicemsg.cpp
     src/control/receiver/devicemsg.h
@@ -230,8 +286,7 @@ set(SRC_TRANSPORT
     # server
     src/transport/server/server.cpp
     src/transport/server/server.h
-    src/transport/server/device.cpp
-    src/transport/server/device.h
+    # device.cpp/h 已删除，被 core/service/DeviceAdapter 替代
     src/transport/server/devicemanage.cpp
     src/transport/server/devicemanage.h
     # tcp
@@ -295,13 +350,68 @@ set(SRC_COMMON
     src/common/input.h
     src/common/keycodes.h
     src/common/qscrcpyevent.h
-    src/common/QtScrcpyCore.h
-    src/common/QtScrcpyCoreDef.h
+    src/common/GameScrcpyCore.h
+    src/common/GameScrcpyCoreDef.h
     src/common/ConfigCenter.cpp
     src/common/ConfigCenter.h
     src/common/Constants.h
     src/common/ErrorCode.h
     src/common/SPSCQueue.h
+    src/common/Logger.h
+    src/common/PerformanceMonitor.h
+    src/common/PerformanceMonitor.cpp
+)
+
+# core - 核心层 (新架构)
+set(SRC_CORE
+    # infra - 基础设施
+    src/core/infra/FrameData.h
+    src/core/infra/SessionParams.h
+    src/core/infra/FramePool.h
+    src/core/infra/FramePool.cpp
+    src/core/infra/FrameQueue.h
+    # interfaces - 接口定义
+    src/core/interfaces/IDecoder.h
+    src/core/interfaces/IVideoChannel.h
+    src/core/interfaces/IControlChannel.h
+    src/core/interfaces/IRenderer.h
+    src/core/interfaces/IInputProcessor.h
+    # impl - 接口实现 (适配器)
+    src/core/impl/TcpVideoChannel.h
+    src/core/impl/TcpVideoChannel.cpp
+    src/core/impl/KcpVideoChannel.h
+    src/core/impl/KcpVideoChannel.cpp
+    src/core/impl/TcpControlChannel.h
+    src/core/impl/TcpControlChannel.cpp
+    src/core/impl/KcpControlChannel.h
+    src/core/impl/KcpControlChannel.cpp
+    src/core/impl/FFmpegDecoderImpl.h
+    src/core/impl/FFmpegDecoderImpl.cpp
+    src/core/impl/OpenGLRenderer.h
+    src/core/impl/OpenGLRenderer.cpp
+    src/core/impl/GameInputProcessor.h
+    src/core/impl/GameInputProcessor.cpp
+    # impl - 零拷贝组件
+    src/core/impl/ZeroCopyDecoder.h
+    src/core/impl/ZeroCopyDecoder.cpp
+    src/core/impl/ZeroCopyRenderer.h
+    src/core/impl/ZeroCopyRenderer.cpp
+    # service - 服务层
+    src/core/service/ConnectionManager.h
+    src/core/service/ConnectionManager.cpp
+    src/core/service/DeviceSession.h
+    src/core/service/DeviceSession.cpp
+    src/core/service/SessionFactory.h
+    src/core/service/SessionFactory.cpp
+    src/core/service/StreamManager.h
+    src/core/service/StreamManager.cpp
+    src/core/service/InputManager.h
+    src/core/service/ScriptEngine.h
+    src/core/service/ScriptEngine.cpp
+    src/core/service/InputManager.cpp
+    # service - 零拷贝流管理
+    src/core/service/ZeroCopyStreamManager.h
+    src/core/service/ZeroCopyStreamManager.cpp
 )
 
 # imagematch (总是编译，辅助函数不依赖 OpenCV)
@@ -317,10 +427,10 @@ set(SRC_RESOURCES
 
 # 平台特定文件
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    set(SRC_PLATFORM src/ui/resources/QtScrcpy.rc)
+    set(SRC_PLATFORM src/ui/resources/GameScrcpy.rc)
 endif()
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
-    set(SRC_PLATFORM src/ui/resources/QtScrcpy.icns)
+    set(SRC_PLATFORM src/ui/resources/GameScrcpy.icns)
 endif()
 
 # 所有源文件
@@ -332,7 +442,9 @@ set(ALL_SOURCES
     ${SRC_DECODER}
     ${SRC_RENDER}
     ${SRC_COMMON}
+    ${SRC_CORE}
     ${SRC_IMAGEMATCH}
+    ${SRC_OPENCV_MATCHING}
     ${SRC_RESOURCES}
     ${SRC_PLATFORM}
 )
@@ -345,6 +457,7 @@ source_group(transport FILES ${SRC_TRANSPORT})
 source_group(decoder FILES ${SRC_DECODER})
 source_group(render FILES ${SRC_RENDER})
 source_group(common FILES ${SRC_COMMON})
+source_group(core FILES ${SRC_CORE})
 
 #
 # 可执行文件
@@ -367,8 +480,11 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/widgets
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/session
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/handlers
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/input
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/receiver
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/script
     ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/server
     ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/tcp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/kcp
@@ -376,6 +492,12 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/decoder
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common
+    # core - 新架构
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/interfaces
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/infra
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/impl
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/core/service
 )
 
 # FFmpeg include
@@ -397,24 +519,51 @@ set(QSC_DEPLOY_PATH ${QSC_BIN_OUTPUT_PATH})
 
 # Windows
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    set(FFMPEG_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/ffmpeg/lib/${QC_CPU_ARCH}")
+    set(FFMPEG_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/ffmpeg/lib")
     target_link_directories(${PROJECT_NAME} PUBLIC ${FFMPEG_LIB_PATH})
     target_link_libraries(${PROJECT_NAME} PRIVATE avformat avcodec avutil swscale)
 
     # 复制 DLL 和工具
-    set(FFMPEG_BIN_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/ffmpeg/bin/${QC_CPU_ARCH}")
+    set(FFMPEG_BIN_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/ffmpeg/bin")
     set(ADB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/adb/win")
+    set(OPENCV_BIN_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/opencv/build/x64/vc16/bin")
+
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_BIN_PATH}/avcodec-58.dll" "${QSC_DEPLOY_PATH}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_BIN_PATH}/avformat-58.dll" "${QSC_DEPLOY_PATH}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_BIN_PATH}/avutil-56.dll" "${QSC_DEPLOY_PATH}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_BIN_PATH}/swscale-5.dll" "${QSC_DEPLOY_PATH}"
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_BIN_PATH}/swresample-3.dll" "${QSC_DEPLOY_PATH}"
+        # ============ FFmpeg DLLs ============
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_BIN_PATH}/avcodec-62.dll" "${QSC_DEPLOY_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_BIN_PATH}/avformat-62.dll" "${QSC_DEPLOY_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_BIN_PATH}/avutil-60.dll" "${QSC_DEPLOY_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_BIN_PATH}/swscale-9.dll" "${QSC_DEPLOY_PATH}"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_BIN_PATH}/swresample-6.dll" "${QSC_DEPLOY_PATH}"
+        # ============ ADB 工具 ============
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ADB_PATH}/adb.exe" "${QSC_DEPLOY_PATH}"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ADB_PATH}/AdbWinApi.dll" "${QSC_DEPLOY_PATH}"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ADB_PATH}/AdbWinUsbApi.dll" "${QSC_DEPLOY_PATH}"
+        # ============ scrcpy-server ============
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/env/scrcpy-server" "${QSC_DEPLOY_PATH}"
+        # ============ OpenCV DLLs (如果存在) ============
+        COMMAND ${CMAKE_COMMAND} -E $<IF:$<BOOL:${OpenCV_FOUND}>,copy_if_different,true> "$<IF:$<BOOL:${OpenCV_FOUND}>,${OPENCV_BIN_PATH}/opencv_world4120.dll,>" "$<IF:$<BOOL:${OpenCV_FOUND}>,${QSC_DEPLOY_PATH},>"
+        COMMAND ${CMAKE_COMMAND} -E $<IF:$<BOOL:${OpenCV_FOUND}>,copy_if_different,true> "$<IF:$<BOOL:${OpenCV_FOUND}>,${OPENCV_BIN_PATH}/opencv_videoio_ffmpeg4120_64.dll,>" "$<IF:$<BOOL:${OpenCV_FOUND}>,${QSC_DEPLOY_PATH},>"
+        COMMENT "Deploying runtime dependencies to ${QSC_DEPLOY_PATH}"
     )
+
+    # ============ windeployqt: 自动收集 Qt 运行时 DLL ============
+    # 查找 windeployqt 工具
+    find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}" "${QT${QT_DESIRED_VERSION}_DIR}/../../../bin")
+    if(WINDEPLOYQT_EXECUTABLE)
+        add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+            COMMAND "${WINDEPLOYQT_EXECUTABLE}"
+                --no-translations
+                --no-system-d3d-compiler
+                --no-opengl-sw
+                "$<TARGET_FILE:${PROJECT_NAME}>"
+            COMMENT "Running windeployqt to gather Qt runtime DLLs..."
+        )
+        message(STATUS "[${PROJECT_NAME}] windeployqt found: ${WINDEPLOYQT_EXECUTABLE}")
+    else()
+        message(WARNING "[${PROJECT_NAME}] windeployqt NOT found! Qt DLLs will not be auto-deployed. "
+            "Make sure Qt bin directory is in PATH, or set CMAKE_PREFIX_PATH correctly.")
+    endif()
 endif()
 
 # MacOS

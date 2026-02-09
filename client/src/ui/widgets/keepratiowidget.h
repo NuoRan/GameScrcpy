@@ -5,17 +5,18 @@
 #include <QWidget>
 
 // ---------------------------------------------------------
-// 保持比例容器控件
+// 保持比例容器控件 / Keep-Aspect-Ratio Container Widget
 // 无论窗口如何缩放，始终保持子控件的宽高比
+// Always maintains child widget's aspect ratio regardless of window resize
 // ---------------------------------------------------------
 class KeepRatioWidget : public QWidget
 {
     Q_OBJECT
 public:
-    // 缩放模式
+    // 缩放模式 / Scale mode
     enum ScaleMode {
-        FitMode,   // 保持比例，完整显示，可能有黑边
-        CoverMode  // 保持比例，填满容器，裁剪超出部分（无黑边）
+        FitMode,   // 保持比例，完整显示，可能有黑边 / Fit: full display, may have letterbox
+        CoverMode  // 保持比例，填满容器，裁剪超出部分 / Cover: fill container, crop overflow
     };
 
     explicit KeepRatioWidget(QWidget *parent = nullptr);

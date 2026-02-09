@@ -5,8 +5,15 @@
 #include <QLineEdit>
 #include <QTextEdit>
 #include <QPushButton>
+#include <QLabel>
+#include <QEvent>
 
-// 终端调试对话框
+/**
+ * @brief 终端调试对话框 / Terminal Debug Dialog
+ *
+ * 提供命令输入和输出显示，用于调试 adb 命令。
+ * Provides command input and output display for debugging adb commands.
+ */
 class TerminalDialog : public QDialog
 {
     Q_OBJECT
@@ -25,8 +32,14 @@ signals:
 private:
     void setupUI();
     void applyStyle();
+    void retranslateUi();
+
+protected:
+    void changeEvent(QEvent *event) override;
 
 private:
+    QLabel *m_titleLabel;
+    QLabel *m_outputLabel;
     QLineEdit *m_commandEdit;
     QTextEdit *m_outputEdit;
     QPushButton *m_executeBtn;

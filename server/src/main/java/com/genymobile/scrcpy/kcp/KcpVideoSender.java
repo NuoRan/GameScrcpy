@@ -4,6 +4,7 @@ import com.genymobile.scrcpy.device.IStreamer;
 import com.genymobile.scrcpy.device.Size;
 import com.genymobile.scrcpy.util.Codec;
 import com.genymobile.scrcpy.util.Ln;
+import com.genymobile.scrcpy.video.BitrateControl;
 
 import android.media.MediaCodec;
 
@@ -18,7 +19,7 @@ import java.nio.ByteBuffer;
  * - 低延迟可靠传输
  * - 自动丢帧控制
  */
-public final class KcpVideoSender implements IStreamer {
+public final class KcpVideoSender implements IStreamer, BitrateControl {
 
     private static final long PACKET_FLAG_CONFIG = 1L << 63;
     private static final long PACKET_FLAG_KEY_FRAME = 1L << 62;
@@ -41,9 +42,11 @@ public final class KcpVideoSender implements IStreamer {
     // P-01: RTT 自适应参数
     private int baseWindowSize; // 基础窗口大小
     private long lastRttUpdateTime = 0; // 上次RTT更新时间
-    private static final long RTT_UPDATE_INTERVAL = 1000; // RTT更新间隔 (ms)
-    private int smoothedRtt = 100; // 平滑RTT (ms)
-    private int rttVariation = 50; // RTT变化量
+    private static final long RTT_UPDATE_INTERVAL = 500; // RTT更新间隔 (ms)，更频繁响应
+
+    // 预分配缓冲区 (避免每帧分配)
+    private static final int MAX_FRAME_SIZE = 512 * 1024 + 12; // 512KB + 头部 (单帧H.264通常远小于此)
+    private final byte[] packetData = new byte[MAX_FRAME_SIZE];
 
     /**
      * 创建视频发送器
@@ -66,6 +69,9 @@ public final class KcpVideoSender implements IStreamer {
         // 创建传输层
         transport = new KcpTransport(KcpTransport.CONV_VIDEO);
 
+        // 启用流模式，允许 KCP 合并小包减少协议开销
+        transport.setStreamMode(1);
+
         // 根据码率配置窗口
         int windowSize = calculateWindowSize(bitrateBps);
         transport.setWindowSize(windowSize, windowSize);
@@ -84,8 +90,8 @@ public final class KcpVideoSender implements IStreamer {
     }
 
     private int calculateWindowSize(int bitrateBps) {
-        // P-01: 基于码率计算窗口大小 (150ms 缓冲，降低延迟)
-        int window = (bitrateBps / 8 * 150 / 1000) / 1376;
+        // 基于码率计算窗口大小 (300ms 缓冲，为 VBR 运动峰值预留余量)
+        int window = (bitrateBps / 8 * 300 / 1000) / 1376;
         if (window < 128)
             window = 128;
         else if (window > 2048)
@@ -178,11 +184,9 @@ public final class KcpVideoSender implements IStreamer {
         // 滞回丢帧控制
         if (pending > dropThreshold && !dropping) {
             dropping = true;
-            Ln.d("Start dropping frames: pending=" + pending + ", threshold=" + dropThreshold);
         }
         if (dropping && pending < resumeThreshold) {
             dropping = false;
-            Ln.d("Stop dropping frames: pending=" + pending + ", resume=" + resumeThreshold);
         }
 
         // 丢弃非关键帧
@@ -192,16 +196,15 @@ public final class KcpVideoSender implements IStreamer {
         }
 
         // 帧大小检查
-        if (dataSize > 2 * 1024 * 1024) {
-            Ln.w("Frame too large: " + dataSize);
+        int headerSize = sendFrameMeta ? 12 : 0;
+        int packetSize = headerSize + dataSize;
+        if (packetSize > MAX_FRAME_SIZE) {
             droppedFrames++;
             return;
         }
 
-        // 构造数据包
-        int packetSize = (sendFrameMeta ? 12 : 0) + dataSize;
-        ByteBuffer packet = ByteBuffer.allocate(packetSize);
-
+        // 直接写入预分配 byte[]，避免 ByteBuffer 中转拷贝
+        int offset = 0;
         if (sendFrameMeta) {
             long ptsAndFlags;
             if (config) {
@@ -212,23 +215,31 @@ public final class KcpVideoSender implements IStreamer {
                     ptsAndFlags |= PACKET_FLAG_KEY_FRAME;
                 }
             }
-            packet.putLong(ptsAndFlags);
-            packet.putInt(dataSize);
+            // 手动写入 long (big-endian)
+            packetData[0] = (byte) (ptsAndFlags >> 56);
+            packetData[1] = (byte) (ptsAndFlags >> 48);
+            packetData[2] = (byte) (ptsAndFlags >> 40);
+            packetData[3] = (byte) (ptsAndFlags >> 32);
+            packetData[4] = (byte) (ptsAndFlags >> 24);
+            packetData[5] = (byte) (ptsAndFlags >> 16);
+            packetData[6] = (byte) (ptsAndFlags >> 8);
+            packetData[7] = (byte) ptsAndFlags;
+            // 手动写入 int (big-endian)
+            packetData[8] = (byte) (dataSize >> 24);
+            packetData[9] = (byte) (dataSize >> 16);
+            packetData[10] = (byte) (dataSize >> 8);
+            packetData[11] = (byte) dataSize;
+            offset = 12;
         }
 
-        packet.put(buffer);
-        packet.flip();
+        // 直接从 codecBuffer 拷贝到 packetData，仅一次拷贝
+        buffer.get(packetData, offset, dataSize);
+        int sendSize = offset + dataSize;
 
-        // 发送
-        byte[] data = new byte[packet.remaining()];
-        packet.get(data);
-
-        int ret = transport.send(data);
-        if (ret >= 0) {
-            totalPackets++;
-            totalBytes += data.length;
-        } else if (ret == -2) {
-            Ln.w("Frame too large for KCP: " + data.length);
+        int ret = transport.send(packetData, 0, sendSize);
+        totalPackets++;
+        totalBytes += sendSize;
+        if (ret < 0) {
             droppedFrames++;
         }
     }
@@ -242,13 +253,37 @@ public final class KcpVideoSender implements IStreamer {
         writePacket(codecBuffer, pts, config, keyFrame);
     }
 
+    // =========================================================================
+    // BitrateControl: 基于 KCP 拥塞状态反馈建议码率
+    // =========================================================================
+
+    @Override
+    public int getSuggestedBitrate(int baseBitrate) {
+        int pending = transport.pending();
+        if (pending <= 0) {
+            return baseBitrate;
+        }
+
+        float ratio = (float) pending / baseWindowSize;
+
+        if (ratio > 0.5f) {
+            // 严重拥塞：降至 33%，大幅减少编码输出
+            return baseBitrate / 3;
+        } else if (ratio > 0.3f) {
+            // 中等拥塞：降至 50%
+            return baseBitrate / 2;
+        } else if (ratio > 0.15f) {
+            // 轻度拥塞：降至 75%
+            return baseBitrate * 3 / 4;
+        }
+
+        return baseBitrate; // 无拥塞，保持原始码率
+    }
+
     private void sendBuffer(ByteBuffer buffer) throws IOException {
         byte[] data = new byte[buffer.remaining()];
         buffer.get(data);
-        int ret = transport.send(data);
-        if (ret < 0) {
-            throw new IOException("KCP send failed: " + ret);
-        }
+        transport.send(data);
         totalBytes += data.length;
     }
 

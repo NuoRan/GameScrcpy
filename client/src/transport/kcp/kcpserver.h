@@ -10,10 +10,12 @@
 #include "kcpcontrolsocket.h"
 
 /**
- * KcpServer - KCP模式服务器管理
+ * KcpServer - KCP模式服务器管理 / KCP Mode Server Manager
  *
  * 用于 WiFi 无线连接模式，使用 KCP/UDP 协议进行视频传输
+ * Used for WiFi wireless connection, KCP/UDP protocol for video transport.
  * 特点：低延迟，适合实时投屏
+ * Features: low latency, suitable for real-time screen mirroring.
  */
 class KcpServer : public QObject
 {
@@ -22,6 +24,7 @@ class KcpServer : public QObject
     enum SERVER_START_STEP
     {
         SSS_NULL,
+        SSS_KILL_SERVER,    // 先杀死旧进程，避免端口占用
         SSS_PUSH,
         SSS_EXECUTE_SERVER,
         SSS_RUNNING,
@@ -71,6 +74,7 @@ protected:
     void timerEvent(QTimerEvent *event);
 
 private:
+    bool killOldServer();   // 杀死旧的 scrcpy 进程
     bool pushServer();
     bool execute();
     bool startServerByStep();
