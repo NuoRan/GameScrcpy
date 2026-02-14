@@ -16,6 +16,7 @@
 #include <array>
 #include <atomic>
 #include <functional>
+#include <memory>
 
 /**
  * @brief 渲染统计信息 / Render Statistics
@@ -47,7 +48,27 @@ enum class YUVFormat {
  * - YUV420P 到 RGB 的 GPU 加速转换 (BT.709)
  * - NV12: 支持直接 NV12 渲染避免格式转换
  * - 线程安全的帧获取接口
+ * - 无锁帧提交: submitFrameDirect ↔ paintGL 使用原子指针交换
  */
+
+/**
+ * @brief 直接帧数据槽 (用于无锁帧传递)
+ *
+ * 将帧的所有元数据打包为单个结构体，
+ * 通过 atomic<DirectFrameSlot*> 的 exchange 操作实现无锁传递，
+ * 消除 submitFrameDirect ↔ paintGL 之间的 QMutex 竞争。
+ */
+struct DirectFrameSlot {
+    uint8_t* dataY = nullptr;
+    uint8_t* dataU = nullptr;
+    uint8_t* dataV = nullptr;
+    int width = 0;
+    int height = 0;
+    int linesizeY = 0;
+    int linesizeU = 0;
+    int linesizeV = 0;
+    std::function<void()> releaseCallback;
+};
 class QYUVOpenGLWidget
     : public QOpenGLWidget
     , protected QOpenGLFunctions
@@ -215,7 +236,14 @@ private:
     int m_zcLinesizeV = 0;
     bool m_useZeroCopyFrame = false;                        // 是否使用零拷贝帧
 
-    // === 直接指针帧存储（完全零拷贝）===
+    // === 直接指针帧存储（完全零拷贝 + 无锁）===
+    // 使用原子指针交换代替 QMutex
+    // 解码线程: exchange 写入 m_pendingDirectFrame
+    // GUI线程: exchange 读取 m_pendingDirectFrame, 渲染后存入 m_renderedFrame
+    std::atomic<DirectFrameSlot*> m_pendingDirectFrame{nullptr};  // 无锁帧邮箱
+    DirectFrameSlot* m_renderedFrame = nullptr;                   // 仅 GUI 线程访问
+
+    // 以下字段保留用于旧路径兼容（submitFrame/updateTextures）
     uint8_t* m_directDataY = nullptr;
     uint8_t* m_directDataU = nullptr;
     uint8_t* m_directDataV = nullptr;

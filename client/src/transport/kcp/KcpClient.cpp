@@ -14,15 +14,14 @@ KcpVideoClient::KcpVideoClient(QObject *parent)
 {
     m_transport = new KcpTransport(CONV_VIDEO, this);
 
-    // 【视频通道极致优化】
-    // 使用专门为视频流设计的模式
+    // 视频流模式
     m_transport->setVideoStreamMode();
 
     // MTU优化：1400是安全值，避免分片
     m_transport->setMtu(1400);
 
-    // C-K04: 预分配缓冲区，避免频繁重新分配
-    m_buffer.reserve(DEFAULT_BUFFER_SIZE);
+    // 环形缓冲区预分配
+    m_ringBuffer.reserve(DEFAULT_BUFFER_SIZE);
     connect(m_transport, &KcpTransport::dataReady, this, &KcpVideoClient::onDataReady);
     connect(m_transport, &KcpTransport::peerConnected, this, &KcpVideoClient::connected);
     connect(m_transport, &KcpTransport::disconnected, this, &KcpVideoClient::disconnected);
@@ -46,6 +45,9 @@ void KcpVideoClient::configureBitrate(int bitrateBps)
 
     // 缓冲区大小：200ms的数据量
     m_maxBufferSize = qBound(512 * 1024, bitrateBps / 8 / 5, 16 * 1024 * 1024);
+
+    // 环形缓冲区动态扩容
+    m_ringBuffer.reserve(m_maxBufferSize);
 
     m_transport->setWindowSize(windowSize, windowSize);
 }
@@ -75,24 +77,16 @@ int KcpVideoClient::recvBlocking(char *buf, int bufSize, int timeoutMs)
     if (!buf || bufSize <= 0 || m_closed) return 0;
 
     QMutexLocker locker(&m_mutex);
-    int available = m_buffer.size() - m_readOffset;
-    while (available < bufSize) {
+    // 环形缓冲区 O(1) 读取
+    while (m_ringBuffer.available() < bufSize) {
         if (m_closed) return 0;
         bool ok = timeoutMs < 0 ? m_dataAvailable.wait(&m_mutex)
                                 : m_dataAvailable.wait(&m_mutex, timeoutMs);
-        available = m_buffer.size() - m_readOffset;
-        if (!ok && available < bufSize) return 0;
+        if (!ok && m_ringBuffer.available() < bufSize) return 0;
     }
 
-    int toRead = qMin(bufSize, available);
-    memcpy(buf, m_buffer.constData() + m_readOffset, toRead);
-    m_readOffset += toRead;
-
-    // 当已消费数据超过一半时才压缩，避免每次都 O(n) 搬移
-    if (m_readOffset > m_buffer.size() / 2) {
-        m_buffer.remove(0, m_readOffset);
-        m_readOffset = 0;
-    }
+    int toRead = qMin(bufSize, m_ringBuffer.available());
+    m_ringBuffer.read(buf, toRead);
     return toRead;
 }
 
@@ -104,7 +98,7 @@ QByteArray KcpVideoClient::recv()
 int KcpVideoClient::available() const
 {
     QMutexLocker locker(&m_mutex);
-    return m_buffer.size() - m_readOffset;
+    return m_ringBuffer.available();
 }
 
 void KcpVideoClient::close()
@@ -117,7 +111,7 @@ void KcpVideoClient::close()
 QString KcpVideoClient::stats() const
 {
     return QString("recv=%1,buf=%2,pend=%3")
-        .arg(m_totalRecv.load()).arg(m_buffer.size() - m_readOffset)
+        .arg(m_totalRecv.load()).arg(m_ringBuffer.available())
         .arg(m_transport ? m_transport->pending() : 0);
 }
 
@@ -125,8 +119,7 @@ void KcpVideoClient::onDataReady()
 {
     if (!m_transport || m_closed) return;
 
-    // P-KCP: 先在锁外收集所有数据，然后一次加锁、一次 append、一次唤醒
-    // 避免循环内逐条 lock/unlock + wakeAll 的开销
+    // P-KCP: 先在锁外收集所有数据，然后一次加锁、一次写入、一次唤醒
     QByteArray batch;
     while (m_transport->peekSize() > 0) {
         QByteArray data = m_transport->recv();
@@ -139,20 +132,14 @@ void KcpVideoClient::onDataReady()
 
     QMutexLocker locker(&m_mutex);
 
-    if (m_buffer.size() + batch.size() - m_readOffset > m_maxBufferSize) {
-        // 先压缩已读部分
-        if (m_readOffset > 0) {
-            m_buffer.remove(0, m_readOffset);
-            m_readOffset = 0;
-        }
-        // 仍然超过，丢弃旧数据
-        if (m_buffer.size() + batch.size() > m_maxBufferSize) {
-            int dropSize = (m_buffer.size() + batch.size()) - m_maxBufferSize;
-            m_buffer.remove(0, dropSize);
-        }
+    // 环形缓冲区 O(1) 写入
+    // 如果空间不足，丢弃最旧的数据
+    if (m_ringBuffer.freeSpace() < batch.size()) {
+        int dropSize = batch.size() - m_ringBuffer.freeSpace();
+        m_ringBuffer.drop(dropSize);
     }
 
-    m_buffer.append(batch);
+    m_ringBuffer.write(batch.constData(), batch.size());
     m_dataAvailable.wakeAll();
 }
 
@@ -165,8 +152,7 @@ KcpControlClient::KcpControlClient(QObject *parent)
 {
     m_transport = new KcpTransport(CONV_CONTROL, this);
 
-    // 【控制通道优化】
-    // 1. 消息模式：保持消息边界，控制命令需要完整性
+    // 消息模式：保持消息边界
     m_transport->setStreamMode(0);
 
     // 2. 窗口大小：控制消息小，64足够

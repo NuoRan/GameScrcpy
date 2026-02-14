@@ -76,9 +76,10 @@ void FFmpegDecoderImpl::close()
     m_isOpen = false;
 }
 
-bool FFmpegDecoderImpl::decode(const uint8_t* data, int size, int64_t pts)
+bool FFmpegDecoderImpl::decode(const uint8_t* data, int size, int64_t pts, int flags)
 {
-    Q_UNUSED(pts);
+    Q_UNUSED(pts)
+    Q_UNUSED(flags)
 
     if (!m_decoder || !m_isOpen) {
         return false;

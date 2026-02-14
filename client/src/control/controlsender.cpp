@@ -16,6 +16,12 @@
 ControlSender::ControlSender(QObject *parent)
     : QObject(parent)
 {
+    // [超低延迟优化] 零延迟合并定时器
+    // 使用 0ms 单次定时器，在下一次事件循环迭代时 flush
+    m_coalesceTimer = new QTimer(this);
+    m_coalesceTimer->setSingleShot(true);
+    m_coalesceTimer->setInterval(0);
+    connect(m_coalesceTimer, &QTimer::timeout, this, &ControlSender::flushCoalesced);
 }
 
 ControlSender::~ControlSender()
@@ -47,6 +53,15 @@ void ControlSender::setControlChannel(qsc::core::IControlChannel* channel)
 void ControlSender::setSendCallback(SendCallback callback)
 {
     m_sendCallback = callback;
+}
+
+void ControlSender::setCoalesceEnabled(bool enabled)
+{
+    m_coalesceEnabled = enabled;
+    if (!enabled && !m_coalesceBuf.isEmpty()) {
+        flushCoalesced();
+    }
+    qInfo() << "[ControlSender] Coalesce mode:" << (enabled ? "enabled" : "disabled");
 }
 
 void ControlSender::start()
@@ -104,7 +119,11 @@ qint64 ControlSender::doWriteTcp(const QByteArray &data)
         return m_sendCallback(data);
     }
     if (m_tcpSocket && m_tcpSocket->state() == QAbstractSocket::ConnectedState) {
-        return m_tcpSocket->write(data);
+        qint64 written = m_tcpSocket->write(data);
+        // [优化] 不再每次 write 后同步 flush()
+        // Qt 内部写缓冲区会在事件循环返回时自动 flush
+        // 高频输入时避免每次发送都阻塞等待内核缓冲区
+        return written;
     }
     return -1;
 }
@@ -113,6 +132,18 @@ bool ControlSender::send(const QByteArray &data)
 {
     if (data.isEmpty() || !m_running.load(std::memory_order_relaxed)) {
         return false;
+    }
+
+    // [超低延迟优化] 事件循环合并模式
+    // 将同一事件循环迭代内的多条消息合并为一次 write()
+    // 零额外延迟：如果当前已有 pending 的消息，追加到缓冲区；
+    // 否则启动 0ms 定时器，在下次事件循环迭代时一次性发送
+    if (m_coalesceEnabled) {
+        m_coalesceBuf.append(data);
+        if (!m_coalesceTimer->isActive()) {
+            m_coalesceTimer->start();
+        }
+        return true;
     }
 
     // P-KCP: 直接发送，不重试不sleep
@@ -126,4 +157,22 @@ bool ControlSender::send(const QByteArray &data)
 
     m_droppedCount++;
     return false;
+}
+
+void ControlSender::flushCoalesced()
+{
+    if (m_coalesceBuf.isEmpty()) return;
+
+    qint64 written = m_tcpSocket ? doWriteTcp(m_coalesceBuf) : doWriteKcp(m_coalesceBuf);
+
+    if (written == m_coalesceBuf.size()) {
+        m_sentCount++;
+        m_batchCount++;
+    } else {
+        m_droppedCount++;
+    }
+
+    m_coalesceBuf.clear();
+    // 预留空间，减少下次 append 的内存分配
+    m_coalesceBuf.reserve(128);
 }

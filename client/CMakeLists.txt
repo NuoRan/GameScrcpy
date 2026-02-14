@@ -342,6 +342,8 @@ set(SRC_RENDER
     src/render/qyuvopenglwidget.cpp
     src/render/qyuvopenglwidget.h
     src/render/IVideoRenderer.h
+    src/render/D3D11GLInterop.h
+    src/render/D3D11GLInterop.cpp
 )
 
 # common - 通用模块
@@ -522,6 +524,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(FFMPEG_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/ffmpeg/lib")
     target_link_directories(${PROJECT_NAME} PUBLIC ${FFMPEG_LIB_PATH})
     target_link_libraries(${PROJECT_NAME} PRIVATE avformat avcodec avutil swscale)
+
+    # [低延迟优化 Step12] D3D11-GL interop 需要 d3d11 + opengl32 (WGL 函数)
+    target_link_libraries(${PROJECT_NAME} PRIVATE d3d11 opengl32)
 
     # 复制 DLL 和工具
     set(FFMPEG_BIN_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/ffmpeg/bin")

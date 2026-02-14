@@ -106,7 +106,8 @@ void ScriptSandbox::start()
     }, Qt::QueuedConnection);
 
     m_watchdog->start();
-    m_thread->start();
+    // 使用 NormalPriority 避免在 MMCSS 环境下 InheritPriority 导致 "参数错误"
+    m_thread->start(QThread::NormalPriority);
 }
 
 void ScriptSandbox::stop()

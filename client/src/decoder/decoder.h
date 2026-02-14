@@ -14,8 +14,8 @@ extern "C"
 class VideoBuffer;
 // ---------------------------------------------------------
 // 视频解码器 / Video Decoder
-// 基于 FFmpeg 的 H.264/H.265 解码，支持硬件加速
-// FFmpeg-based H.264/H.265 decoding with hardware acceleration support
+// 基于 FFmpeg 的 H.264 解码，支持硬件加速
+// FFmpeg-based H.264 decoding with hardware acceleration support
 // ---------------------------------------------------------
 class Decoder : public QObject
 {

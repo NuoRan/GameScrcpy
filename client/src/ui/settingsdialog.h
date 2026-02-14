@@ -29,6 +29,8 @@ public:
     int getMaxSizeIndex() const;
     int getMaxFps() const;
     int getMaxTouchPoints() const;
+    int getVideoCodecIndex() const;
+    QString getVideoCodecName() const;
     bool isReverseConnect() const;
     bool showToolbar() const;
     bool isFrameless() const;
@@ -49,6 +51,7 @@ public:
     void setShowToolbar(bool checked);
     void setFrameless(bool checked);
     void setShowFPS(bool checked);
+    void setVideoCodecIndex(int index);
     void setDeviceIP(const QString &ip);
     void setDevicePort(const QString &port);
     void setIpHistory(const QStringList &ips);
@@ -75,6 +78,7 @@ private:
     QLabel *m_fpsLabel;
     QLabel *m_sizeLabel;
     QLabel *m_touchLabel;
+    QLabel *m_codecLabel;
     QLabel *m_optionsTitle;
     QLabel *m_wifiTitle;
     QLabel *m_ipLabel;
@@ -85,6 +89,7 @@ private:
     QSpinBox *m_fpsSpinBox;
     QComboBox *m_maxSizeBox;
     QSpinBox *m_touchPointsSpinBox;
+    QComboBox *m_codecBox;
 
     // 显示选项
     QCheckBox *m_reverseCheck;

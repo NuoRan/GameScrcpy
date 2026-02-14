@@ -37,6 +37,7 @@
 #include <memory>
 
 #include "KcpCore.h"
+#include "FecCodec.h"
 
 /**
  * @brief KCP 传输层 - UDP + KCP 协议栈 / KCP Transport - UDP + KCP Protocol Stack
@@ -190,6 +191,22 @@ public:
      */
     void setUpdateInterval(int interval);
 
+    // =========================================================================
+    // [超低延迟优化] FEC 前向纠错 / Forward Error Correction
+    // =========================================================================
+
+    /**
+     * @brief 启用/禁用 FEC
+     * @param enabled 是否启用
+     * @param groupSize FEC 组大小 (默认 10，即 10:1 编码)
+     */
+    void setFecEnabled(bool enabled, int groupSize = 10);
+
+    /**
+     * @brief FEC 是否启用
+     */
+    bool isFecEnabled() const { return m_fecEnabled; }
+
     //=========================================================================
     // 高级配置
     //=========================================================================
@@ -247,7 +264,7 @@ private:
     // 获取当前毫秒时间戳
     uint32_t currentMs() const;
 
-    // 【按需调度优化】计算并设置下次更新时间
+    // 计算并设置下次更新时间
     void scheduleNextUpdate();
 
 private:
@@ -262,6 +279,11 @@ private:
 
     bool m_active = false;
     int m_updateInterval = 1;  // 每1ms调用一次update，保证低延迟
+
+    // [超低延迟优化] FEC 前向纠错
+    bool m_fecEnabled = false;
+    std::unique_ptr<fec::FecEncoder> m_fecEncoder;
+    std::unique_ptr<fec::FecDecoder> m_fecDecoder;
 };
 
 #endif // KCP_TRANSPORT_H

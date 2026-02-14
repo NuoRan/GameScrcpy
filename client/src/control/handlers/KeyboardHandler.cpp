@@ -93,15 +93,11 @@ void KeyboardHandler::sendKeyEvent(AndroidKeyeventAction action, AndroidKeycode 
 {
     if (!m_controller) return;
 
-    // 使用 FastMsg 快速按键协议
-    QByteArray data;
-    if (action == AKEY_EVENT_ACTION_DOWN) {
-        data = FastMsg::keyDown(static_cast<quint16>(keyCode));
-    } else {
-        data = FastMsg::keyUp(static_cast<quint16>(keyCode));
-    }
-
-    m_controller->postFastMsg(data);
+    // [零分配优化] 栈缓冲区序列化，避免 QByteArray 堆分配
+    char buf[4];
+    quint8 fastAction = (action == AKEY_EVENT_ACTION_DOWN) ? FKA_DOWN : FKA_UP;
+    int len = FastMsg::serializeKeyInto(buf, FastKeyEvent(fastAction, static_cast<quint16>(keyCode)));
+    m_controller->postFastMsg(buf, len);
 }
 
 AndroidKeycode KeyboardHandler::convertKeyCode(int key, Qt::KeyboardModifiers modifiers)

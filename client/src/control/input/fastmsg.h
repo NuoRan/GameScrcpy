@@ -91,6 +91,13 @@ public:
     static int serializeTouchInto(char* buf, const FastTouchEvent& event);
 
     /**
+     * P-KCP: 零堆分配版本 — 直接写入调用方提供的栈缓冲区
+     * @param buf 至少 4 字节的缓冲区
+     * @return 写入字节数 (固定 4)
+     */
+    static int serializeKeyInto(char* buf, const FastKeyEvent& event);
+
+    /**
      * 序列化快速按键事件
      * 格式：type(1) + action(1) + keycode(2) = 4 bytes
      */

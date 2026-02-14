@@ -148,7 +148,7 @@ void VideoForm::onSessionFrameAvailable() {
 
     if (!m_session || m_closing) return;
 
-    // 【跳帧优化】drain 队列，只保留最新帧，避免积压导致延迟累积
+    // drain 队列，只保留最新帧，避免积压导致延迟累积
     qsc::core::FrameData* frame = nullptr;
     qsc::core::FrameData* latest = nullptr;
     while ((frame = m_session->consumeFrame()) != nullptr) {
@@ -174,7 +174,7 @@ void VideoForm::onSessionFrameAvailable() {
         lastH = h;
     }
 
-    // 【零拷贝直推】使用 submitFrameDirect，直接传指针给渲染器
+    // 使用 submitFrameDirect，直接传指针给渲染器
     // 只经过一次 QueuedConnection（在 submitFrameDirect 内部），消除双重投递延迟
     // 渲染完成后通过回调归还帧，生命周期由 FramePool 引用计数管理
     m_session->retainFrame(frame);  // 增加引用计数，确保跨线程安全

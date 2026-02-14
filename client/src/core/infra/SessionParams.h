@@ -35,6 +35,7 @@ struct SessionParams {
     QString serverRemotePath = "/data/local/tmp/scrcpy-server.jar";
     QString serverVersion = "3.3.4";
     QString logLevel = "info";
+    QString videoCodec = "h264";  // "h264"
     QString codecOptions;
     QString codecName;
     uint32_t scid = 0;              // 连接标识 (随机数)

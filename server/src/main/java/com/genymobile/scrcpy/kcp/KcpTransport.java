@@ -93,6 +93,11 @@ public final class KcpTransport implements KcpCore.Output {
     private volatile long bytesSent = 0;
     private volatile long bytesRecv = 0;
 
+    // [超低延迟优化] FEC 前向纠错
+    private volatile boolean fecEnabled = false;
+    private FecCodec.FecEncoder fecEncoder;
+    private FecCodec.FecDecoder fecDecoder;
+
     /**
      * 创建传输层
      *
@@ -175,6 +180,30 @@ public final class KcpTransport implements KcpCore.Output {
         kcp.setDeadLink(deadlink);
     }
 
+    /**
+     * [超低延迟优化] 启用/禁用 FEC 前向纠错
+     * 在 UDP 层为 KCP 包添加冗余校验，允许在丢失 1 个包时通过 XOR 恢复
+     *
+     * @param enabled   是否启用
+     * @param groupSize 每组数据包数量 (默认 10)
+     */
+    public void setFecEnabled(boolean enabled, int groupSize) {
+        this.fecEnabled = enabled;
+        if (enabled) {
+            fecEncoder = new FecCodec.FecEncoder(groupSize);
+            fecDecoder = new FecCodec.FecDecoder();
+            Ln.i("KCP FEC enabled: groupSize=" + groupSize);
+        } else {
+            fecEncoder = null;
+            fecDecoder = null;
+            Ln.i("KCP FEC disabled");
+        }
+    }
+
+    public void setFecEnabled(boolean enabled) {
+        setFecEnabled(enabled, 10);
+    }
+
     // =========================================================================
     // 连接管理
     // =========================================================================
@@ -230,10 +259,13 @@ public final class KcpTransport implements KcpCore.Output {
 
         // 更新线程 (参考 test.cpp: 主循环中的 ikcp_update)
         updateThread = new Thread(this::updateLoop, "KCP-Update-" + conv);
+        // [低延迟优化 Step9] KCP 线程最高优先级，确保数据包及时发送和接收
+        updateThread.setPriority(Thread.MAX_PRIORITY);
         updateThread.start();
 
         // 接收线程 (参考 test.cpp: vnet->recv)
         recvThread = new Thread(this::receiveLoop, "KCP-Recv-" + conv);
+        recvThread.setPriority(Thread.MAX_PRIORITY);
         recvThread.start();
     }
 
@@ -341,6 +373,20 @@ public final class KcpTransport implements KcpCore.Output {
         }
 
         try {
+            // [超低延迟优化] FEC 编码：在 UDP 层下方为 KCP 包添加前向纠错
+            if (fecEnabled && fecEncoder != null) {
+                fecEncoder.encode(data, offset, len, (fecData, fecOffset, fecLen) -> {
+                    try {
+                        DatagramPacket pkt = new DatagramPacket(fecData, fecOffset, fecLen, remoteAddress);
+                        socket.send(pkt);
+                        bytesSent += fecLen;
+                    } catch (IOException e) {
+                        Ln.e("FEC UDP send error: " + e.getMessage());
+                    }
+                });
+                return len;
+            }
+
             // 复用 DatagramPacket 对象，避免每次发送都创建新对象
             sendPacket.setData(data, offset, len);
             sendPacket.setSocketAddress(remoteAddress);
@@ -417,7 +463,15 @@ public final class KcpTransport implements KcpCore.Output {
                 }
 
                 synchronized (this) {
-                    kcp.input(packet.getData(), packet.getOffset(), packet.getLength());
+                    // [超低延迟优化] FEC 解码：在 UDP 层恢复丢失的 KCP 包
+                    if (fecEnabled && fecDecoder != null) {
+                        fecDecoder.decode(packet.getData(), packet.getOffset(), packet.getLength(),
+                            (fecData, fecOffset, fecLen) -> {
+                                kcp.input(fecData, fecOffset, fecLen);
+                            });
+                    } else {
+                        kcp.input(packet.getData(), packet.getOffset(), packet.getLength());
+                    }
                     // P-KCP: 收到数据后立即 update/flush，确保 ACK 即时发出
                     // 避免等待 updateLoop 下次唤醒（最坏延迟 DEFAULT_UPDATE_INTERVAL ms）
                     kcp.update(System.currentTimeMillis());

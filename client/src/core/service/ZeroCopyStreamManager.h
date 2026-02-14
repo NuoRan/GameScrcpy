@@ -69,6 +69,12 @@ public:
     void setFrameSize(const QSize& size);
 
     /**
+     * @brief 设置视频编解码器
+     * @param codec "h264"
+     */
+    void setVideoCodec(const QString& codec);
+
+    /**
      * @brief 获取渲染器控件
      * @return 渲染器指针（用于嵌入到 UI）
      */
@@ -184,6 +190,7 @@ private:
     IVideoChannel* m_videoChannel = nullptr;  // 新架构接口
 
     QSize m_frameSize;
+    QString m_videoCodec = "h264";
     quint32 m_currentFps = 0;
     bool m_running = false;
     bool m_decoderOpened = false;

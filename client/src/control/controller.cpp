@@ -1,6 +1,5 @@
 #include <QApplication>
 #include <QClipboard>
-#include <QElapsedTimer>
 #include <QDebug>
 #include <QKeyEvent>
 #include <QMouseEvent>
@@ -12,7 +11,6 @@
 #include "kcpcontrolsocket.h"
 #include "fastmsg.h"
 #include "interfaces/IControlChannel.h"
-#include "PerformanceMonitor.h"
 
 // ---------------------------------------------------------
 // 构造函数
@@ -68,10 +66,6 @@ void Controller::stopSender()
 void Controller::postFastMsg(const QByteArray &data)
 {
     if (data.isEmpty()) return;
-
-    // 报告输入事件
-    qsc::PerformanceMonitor::instance().reportInputProcessed();
-
     if (m_controlSender) {
         m_controlSender->send(data);
     }
@@ -80,11 +74,8 @@ void Controller::postFastMsg(const QByteArray &data)
 void Controller::postFastMsg(const char *data, int len)
 {
     if (!data || len <= 0) return;
-
-    // P-KCP: 零分配快速路径 — 直接从栈缓冲区构造 QByteArray（浅引用）
-    qsc::PerformanceMonitor::instance().reportInputProcessed();
-
     if (m_controlSender) {
+        // 零分配快速路径 — 直接从栈缓冲区构造 QByteArray（浅引用）
         m_controlSender->send(QByteArray::fromRawData(data, len));
     }
 }
@@ -220,6 +211,8 @@ void Controller::setTcpControlSocket(QTcpSocket *socket)
     if (m_controlSender && socket) {
         // TCP_NODELAY: 禁用 Nagle 算法，控制消息立即发出，不等待合并
         socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
+        // 缩小控制通道发送缓冲区
+        socket->setSocketOption(QAbstractSocket::SendBufferSizeSocketOption, 16 * 1024);
         m_controlSender->setTcpSocket(socket);
         m_controlSender->setSendCallback(nullptr);
     }

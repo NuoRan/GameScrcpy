@@ -45,14 +45,17 @@ int FastMsg::serializeTouchInto(char* buf, const FastTouchEvent& event) {
 }
 
 QByteArray FastMsg::serializeKey(const FastKeyEvent& event) {
-    QByteArray buf;
-    buf.reserve(4);
+    char buf[4];
+    serializeKeyInto(buf, event);
+    return QByteArray(buf, 4);
+}
 
-    writeU8(buf, FMT_FAST_KEY);
-    writeU8(buf, event.action);
-    writeU16(buf, event.keycode);
-
-    return buf;
+int FastMsg::serializeKeyInto(char* buf, const FastKeyEvent& event) {
+    buf[0] = static_cast<char>(FMT_FAST_KEY);
+    buf[1] = static_cast<char>(event.action);
+    buf[2] = static_cast<char>((event.keycode >> 8) & 0xFF);
+    buf[3] = static_cast<char>(event.keycode & 0xFF);
+    return 4;
 }
 
 // ========== 批量序列化 ==========

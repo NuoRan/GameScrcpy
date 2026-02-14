@@ -106,6 +106,9 @@
 #define COMMON_SHOW_TOOLBAR_KEY "showToolbar"
 #define COMMON_SHOW_TOOLBAR_DEF true
 
+#define COMMON_VIDEO_CODEC_INDEX_KEY "VideoCodecIndex"
+#define COMMON_VIDEO_CODEC_INDEX_DEF 0
+
 // 设备专属配置（窗口位置、昵称、键位）
 #define SERIAL_WINDOW_RECT_KEY_X "WindowRectX"
 #define SERIAL_WINDOW_RECT_KEY_Y "WindowRectY"
@@ -196,6 +199,7 @@ void Config::setUserBootConfig(const UserBootConfig &config)
     m_userData->setValue(COMMON_SIMPLE_MODE_KEY, config.simpleMode);
     m_userData->setValue(COMMON_AUTO_UPDATE_DEVICE_KEY, config.autoUpdateDevice);
     m_userData->setValue(COMMON_SHOW_TOOLBAR_KEY, config.showToolbar);
+    m_userData->setValue(COMMON_VIDEO_CODEC_INDEX_KEY, config.videoCodecIndex);
     m_userData->endGroup();
     m_userData->sync();
 }
@@ -222,6 +226,7 @@ UserBootConfig Config::getUserBootConfig()
     config.simpleMode = m_userData->value(COMMON_SIMPLE_MODE_KEY, COMMON_SIMPLE_MODE_DEF).toBool();
     config.autoUpdateDevice = m_userData->value(COMMON_AUTO_UPDATE_DEVICE_KEY, COMMON_AUTO_UPDATE_DEVICE_DEF).toBool();
     config.showToolbar =m_userData->value(COMMON_SHOW_TOOLBAR_KEY,COMMON_SHOW_TOOLBAR_DEF).toBool();
+    config.videoCodecIndex = m_userData->value(COMMON_VIDEO_CODEC_INDEX_KEY, COMMON_VIDEO_CODEC_INDEX_DEF).toInt();
     m_userData->endGroup();
     return config;
 }
@@ -244,6 +249,26 @@ bool Config::getTrayMessageShown()
     shown = m_userData->value(COMMON_TRAY_MESSAGE_SHOWN_KEY, COMMON_TRAY_MESSAGE_SHOWN_DEF).toBool();
     m_userData->endGroup();
     return shown;
+}
+
+// ---------------------------------------------------------
+// 使用协议接受状态
+// ---------------------------------------------------------
+void Config::setAgreementAccepted(bool accepted)
+{
+    m_userData->beginGroup(GROUP_COMMON);
+    m_userData->setValue("agreementAccepted", accepted);
+    m_userData->endGroup();
+    m_userData->sync();
+}
+
+bool Config::getAgreementAccepted()
+{
+    bool accepted;
+    m_userData->beginGroup(GROUP_COMMON);
+    accepted = m_userData->value("agreementAccepted", false).toBool();
+    m_userData->endGroup();
+    return accepted;
 }
 
 // ---------------------------------------------------------

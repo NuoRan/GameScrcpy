@@ -6,12 +6,15 @@
 #include "SPSCQueue.h"
 #include <memory>
 #include <functional>
+#include <chrono>
+#include <cmath>
+#include <atomic>
 
 namespace qsc {
 namespace core {
 
 /**
- * @brief 零拷贝帧队列 / Zero-Copy Frame Queue
+ * @brief 零拷贝帧队列 + 自适应抖动管理 / Zero-Copy Frame Queue + Adaptive Jitter Management
  *
  * 整合 FramePool 和 SPSCQueue，提供完整的零拷贝帧传递方案：
  * Integrates FramePool and SPSCQueue for a complete zero-copy frame pipeline:
@@ -20,13 +23,31 @@ namespace core {
  * - 消费者：出队 → 使用帧数据 → 归还到 FramePool
  *   Consumer: dequeue → use frame data → release to FramePool
  *
+ * [超低延迟优化] 自适应抖动管理：
+ * - 实时追踪帧间到达时间的抖动 (RFC 3550 指数加权移动平均)
+ * - 突发模式检测：当多帧堆积时，跳过中间帧直达最新帧
+ * - 抖动统计暴露给性能监控系统
+ *
  * 特性 / Features:
  * - 预分配内存，无运行时 malloc / Pre-allocated memory, no runtime malloc
  * - 无锁队列，单生产者单消费者 / Lock-free SPSC queue
  * - 帧复用，减少 GC 压力 / Frame reuse, reduced allocation overhead
+ * - 自适应抖动检测与突发帧跳过 / Adaptive jitter detection and burst skip
  */
 class FrameQueue {
 public:
+    /**
+     * @brief 抖动统计 / Jitter statistics
+     */
+    struct JitterStats {
+        double currentJitterMs = 0.0;   // 当前瞬时抖动 (ms)
+        double avgJitterMs = 0.0;       // 平均抖动 (EWMA, ms)
+        double maxJitterMs = 0.0;       // 历史最大抖动 (ms)
+        uint64_t totalFrames = 0;       // 总帧数
+        uint64_t skippedFrames = 0;     // 突发跳过的帧数
+        uint64_t burstCount = 0;        // 突发事件次数
+    };
+
     /**
      * @brief 构造函数 / Constructor
      * @param poolSize 帧池大小 / Frame pool size
@@ -73,6 +94,10 @@ public:
      */
     bool pushFrame(FrameData* frame) {
         if (!frame) return false;
+
+        // [超低延迟优化] 更新抖动统计
+        updateJitterOnPush();
+
         if (!m_queue->tryPush(frame)) {
             // 队列满，归还帧
             m_pool->release(frame);
@@ -91,6 +116,59 @@ public:
         FrameData* frame = nullptr;
         m_queue->tryPop(frame);
         return frame;
+    }
+
+    /**
+     * @brief [超低延迟优化] 获取最新帧，跳过中间帧 / Pop latest frame, skip intermediates
+     *
+     * 当队列中有多个帧堆积时（突发到达），直接跳到最新帧。
+     * 跳过的中间帧自动归还到帧池。
+     * 适用于实时投屏/游戏场景，只需要最新画面。
+     *
+     * @return 最新帧指针，队列空返回 nullptr
+     */
+    FrameData* popLatestFrame() {
+        FrameData* latest = nullptr;
+        FrameData* frame = nullptr;
+        int skipped = 0;
+
+        while (m_queue->tryPop(frame)) {
+            if (latest) {
+                // 跳过旧帧，归还到池
+                m_pool->release(latest);
+                skipped++;
+            }
+            latest = frame;
+        }
+
+        if (skipped > 0) {
+            m_stats.skippedFrames += skipped;
+            m_stats.burstCount++;
+        }
+
+        return latest;
+    }
+
+    /**
+     * @brief [超低延迟优化] 自适应弹出 / Adaptive pop
+     *
+     * 根据实时抖动水平自动选择策略：
+     * - 低抖动 (< 阈值)：普通弹出，逐帧处理
+     * - 高抖动 (> 阈值) 或队列深度 > 2：跳到最新帧
+     *
+     * @param jitterThresholdMs 抖动阈值 (ms)，默认 8ms
+     * @return 帧指针
+     */
+    FrameData* popAdaptive(double jitterThresholdMs = 8.0) {
+        size_t depth = m_queue->size();
+
+        // 高抖动或队列积压 → 跳到最新帧
+        if (m_stats.avgJitterMs > jitterThresholdMs || depth > 2) {
+            return popLatestFrame();
+        }
+
+        // 正常情况 → 逐帧处理
+        return popFrame();
     }
 
     /**
@@ -151,6 +229,13 @@ public:
     }
 
     /**
+     * @brief 获取抖动统计 / Get jitter statistics
+     */
+    JitterStats jitterStats() const {
+        return m_stats;
+    }
+
+    /**
      * @brief 调整帧池尺寸（分辨率变化时调用）
      */
     void resize(int width, int height) {
@@ -170,8 +255,49 @@ public:
     }
 
 private:
+    /**
+     * @brief [超低延迟优化] 更新抖动统计 (RFC 3550 EWMA 算法)
+     *
+     * 使用指数加权移动平均追踪帧间到达时间的变化：
+     *   jitter = jitter + (|D(i)| - jitter) / 16
+     * 其中 D(i) = 当前帧间隔 - 上次帧间隔
+     */
+    void updateJitterOnPush() {
+        auto now = std::chrono::steady_clock::now();
+        m_stats.totalFrames++;
+
+        if (m_lastPushTime.time_since_epoch().count() == 0) {
+            m_lastPushTime = now;
+            m_lastInterval = 0.0;
+            return;
+        }
+
+        double intervalMs = std::chrono::duration<double, std::milli>(now - m_lastPushTime).count();
+        m_lastPushTime = now;
+
+        if (m_lastInterval > 0.0) {
+            double deviation = std::abs(intervalMs - m_lastInterval);
+            m_stats.currentJitterMs = deviation;
+
+            // RFC 3550 指数加权移动平均: jitter += (|D| - jitter) / 16
+            m_stats.avgJitterMs += (deviation - m_stats.avgJitterMs) / 16.0;
+
+            if (deviation > m_stats.maxJitterMs) {
+                m_stats.maxJitterMs = deviation;
+            }
+        }
+
+        m_lastInterval = intervalMs;
+    }
+
+private:
     std::unique_ptr<FramePool> m_pool;
     std::unique_ptr<DynamicSPSCQueue<FrameData*>> m_queue;
+
+    // [超低延迟优化] 抖动统计
+    JitterStats m_stats;
+    std::chrono::steady_clock::time_point m_lastPushTime{};
+    double m_lastInterval = 0.0;
 };
 
 } // namespace core

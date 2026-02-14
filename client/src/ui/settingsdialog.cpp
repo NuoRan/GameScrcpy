@@ -73,6 +73,13 @@ void SettingsDialog::setupUI()
     m_touchPointsSpinBox->setMinimumSize(85, 38);
     m_touchPointsSpinBox->setAlignment(Qt::AlignCenter);
 
+    m_codecLabel = new QLabel();
+    m_codecLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+    m_codecBox = new QComboBox();
+    m_codecBox->addItems({"H.264"});
+    m_codecBox->setMinimumSize(90, 38);
+
     videoRow->addWidget(m_bitrateLabel);
     videoRow->addWidget(m_bitRateEdit);
     videoRow->addWidget(m_bitRateUnit);
@@ -85,6 +92,9 @@ void SettingsDialog::setupUI()
     videoRow->addSpacing(16);
     videoRow->addWidget(m_touchLabel);
     videoRow->addWidget(m_touchPointsSpinBox);
+    videoRow->addSpacing(16);
+    videoRow->addWidget(m_codecLabel);
+    videoRow->addWidget(m_codecBox);
     videoRow->addStretch(1);
 
     // ==================== 显示选项区 ====================
@@ -210,6 +220,7 @@ void SettingsDialog::retranslateUi()
     m_fpsLabel->setText(tr("帧率"));
     m_sizeLabel->setText(tr("分辨率"));
     m_touchLabel->setText(tr("触摸点"));
+    m_codecLabel->setText(tr("编码"));
 
     m_fpsSpinBox->setSpecialValueText(tr("不限制"));
     m_fpsSpinBox->setToolTip(tr("0 = 不限制帧率, 1-999 = 限制最大帧率"));
@@ -420,6 +431,10 @@ quint16 SettingsDialog::getMaxSize() const { return m_maxSizeBox->currentText().
 int SettingsDialog::getMaxSizeIndex() const { return m_maxSizeBox->currentIndex(); }
 int SettingsDialog::getMaxFps() const { return m_fpsSpinBox->value(); }
 int SettingsDialog::getMaxTouchPoints() const { return m_touchPointsSpinBox->value(); }
+int SettingsDialog::getVideoCodecIndex() const { return m_codecBox->currentIndex(); }
+QString SettingsDialog::getVideoCodecName() const {
+    return "h264";
+}
 bool SettingsDialog::isReverseConnect() const { return m_reverseCheck->isChecked(); }
 bool SettingsDialog::showToolbar() const { return m_toolbarCheck->isChecked(); }
 bool SettingsDialog::isFrameless() const { return m_framelessCheck->isChecked(); }
@@ -451,6 +466,7 @@ void SettingsDialog::setReverseConnect(bool checked) { m_reverseCheck->setChecke
 void SettingsDialog::setShowToolbar(bool checked) { m_toolbarCheck->setChecked(checked); }
 void SettingsDialog::setFrameless(bool checked) { m_framelessCheck->setChecked(checked); }
 void SettingsDialog::setShowFPS(bool checked) { m_fpsCheck->setChecked(checked); }
+void SettingsDialog::setVideoCodecIndex(int index) { m_codecBox->setCurrentIndex(qBound(0, index, 2)); }
 void SettingsDialog::setDeviceIP(const QString &ip) { m_ipEdit->setCurrentText(ip); }
 void SettingsDialog::setDevicePort(const QString &port) { m_portEdit->setCurrentText(port); }
 

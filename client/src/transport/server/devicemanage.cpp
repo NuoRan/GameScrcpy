@@ -50,6 +50,7 @@ DeviceController::DeviceController(const DeviceParams& params, QObject* parent)
     sessionParams.logLevel = params.logLevel;
     sessionParams.codecOptions = params.codecOptions;
     sessionParams.codecName = params.codecName;
+    sessionParams.videoCodec = params.videoCodec;
     sessionParams.closeScreen = params.closeScreen;
     sessionParams.keyMapJson = params.gameScript;
     sessionParams.frameSize = QSize(params.maxSize, params.maxSize);
@@ -60,7 +61,7 @@ DeviceController::DeviceController(const DeviceParams& params, QObject* parent)
     // 创建零拷贝视频管线
     m_streamManager = std::make_unique<core::ZeroCopyStreamManager>(this);
 
-    // 【零拷贝优化】将 FrameQueue 传递给 DeviceSession，让渲染端直接消费
+    // 将 FrameQueue 传递给 DeviceSession
     m_session->setFrameQueue(m_streamManager->frameQueue());
 
     // 连接流管理器信号
@@ -70,7 +71,7 @@ DeviceController::DeviceController(const DeviceParams& params, QObject* parent)
         }
     });
 
-    // 【零拷贝优化】帧就绪信号 - 只通知，不消费帧
+    // 帧就绪信号 - 只通知，不消费帧
     // 渲染端收到信号后自己调用 session->consumeFrame() 和 releaseFrame()
     connect(m_streamManager.get(), &core::ZeroCopyStreamManager::frameReady, this, [this]() {
         if (m_session) {
@@ -118,6 +119,7 @@ bool DeviceController::start()
     serverParams.logLevel = m_params.logLevel;
     serverParams.codecOptions = m_params.codecOptions;
     serverParams.codecName = m_params.codecName;
+    serverParams.videoCodec = m_params.videoCodec;
     serverParams.localPort = m_params.localPort;
     serverParams.localPortCtrl = m_params.localPortCtrl;
     serverParams.useReverse = m_params.useReverse;
@@ -162,6 +164,9 @@ void DeviceController::onServerStart(bool success, const QString& deviceName, co
     } else {
         m_streamManager->setFrameSize(QSize(m_params.maxSize, m_params.maxSize));
     }
+
+    // 设置视频编解码器
+    m_streamManager->setVideoCodec(m_params.videoCodec);
 
     // 安装 socket
     if (m_server->isWiFiMode()) {

@@ -47,6 +47,7 @@ public:
         int stayAwake = false;
         QString serverVersion = "3.3.4";
         QString logLevel = "debug";
+        QString videoCodec = "h264";  // "h264"
         QString codecOptions = "";
         QString codecName = "";
         QString crop = "";

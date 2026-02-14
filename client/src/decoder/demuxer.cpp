@@ -1,12 +1,22 @@
 #include <QDebug>
 #include <QTime>
 #include <QDateTime>
+#include <QApplication>
 
 #include "compat.h"
 #include "demuxer.h"
 #include "kcpvideosocket.h"
 #include "videosocket.h"
 #include "interfaces/IVideoChannel.h"
+
+// 解码线程优先级提升所需的平台头文件
+#ifdef Q_OS_WIN
+#include <windows.h>
+#include <avrt.h>   // [超低延迟优化] MMCSS 实时调度
+#else
+#include <pthread.h>
+#include <sched.h>
+#endif
 
 #define HEADER_SIZE 12
 
@@ -101,6 +111,11 @@ void Demuxer::setFrameSize(const QSize &frameSize)
     m_frameSize = frameSize;
 }
 
+void Demuxer::setVideoCodec(const QString &codec)
+{
+    m_videoCodec = codec;
+}
+
 // ---------------------------------------------------------
 // 网络数据接收封装
 // 支持三种模式：
@@ -142,7 +157,9 @@ bool Demuxer::startDecode()
     }
     // 重置停止标志
     m_stopRequested.store(false);
-    start();
+    // 使用 NormalPriority 避免在 MMCSS 环境下 InheritPriority 导致 "参数错误"
+    // 实际优先级由 run() 内部通过 SetThreadPriority + MMCSS 设置
+    start(QThread::NormalPriority);
     return true;
 }
 
@@ -177,6 +194,39 @@ void Demuxer::stopDecode()
 // ---------------------------------------------------------
 void Demuxer::run()
 {
+    // 提升解码线程优先级
+#ifdef Q_OS_WIN
+    SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+    // [超低延迟优化] MMCSS 实时调度：注册为 "Pro Audio" 获得内核级优先级提升
+    void* mmcssHandle = nullptr;
+    {
+        // 动态加载 avrt.dll 以避免编译依赖
+        typedef HANDLE (WINAPI *PAvSetMmThreadCharacteristicsA)(LPCSTR, LPDWORD);
+        typedef BOOL (WINAPI *PAvSetMmThreadPriority)(HANDLE, AVRT_PRIORITY);
+        HMODULE hAvrt = LoadLibraryA("avrt.dll");
+        if (hAvrt) {
+            auto pfnSet = (PAvSetMmThreadCharacteristicsA)GetProcAddress(hAvrt, "AvSetMmThreadCharacteristicsA");
+            auto pfnPri = (PAvSetMmThreadPriority)GetProcAddress(hAvrt, "AvSetMmThreadPriority");
+            if (pfnSet) {
+                DWORD taskIndex = 0;
+                mmcssHandle = pfnSet("Pro Audio", &taskIndex);
+                if (mmcssHandle && pfnPri) {
+                    pfnPri(mmcssHandle, AVRT_PRIORITY_CRITICAL);
+                    qInfo("[Demuxer] MMCSS registered: Pro Audio, index=%u", taskIndex);
+                }
+            }
+        }
+    }
+#else
+    // Linux/macOS: 尝试设置实时调度，失败则 nice(-10)
+    struct sched_param param;
+    param.sched_priority = sched_get_priority_max(SCHED_FIFO);
+    if (pthread_setschedparam(pthread_self(), SCHED_FIFO, &param) != 0) {
+        // 回退到降低 nice 值
+        nice(-10);
+    }
+#endif
+
     m_codecCtx = Q_NULLPTR;
     m_parser = Q_NULLPTR;
     AVPacket *packet = Q_NULLPTR;
@@ -219,6 +269,9 @@ void Demuxer::run()
         goto runQuit;
     }
     m_codecCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
+    m_codecCtx->flags2 |= AV_CODEC_FLAG2_FAST;  // [超低延迟优化] 允许不规范的加速技巧
+    m_codecCtx->thread_count = 1;                // [超低延迟优化] 单线程避免帧重排序延迟
+    m_codecCtx->thread_type = 0;                  // [超低延迟优化] 禁用多线程缓冲
     m_codecCtx->width = m_frameSize.width();
     m_codecCtx->height = m_frameSize.height();
     m_codecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
@@ -271,9 +324,12 @@ runQuit:
     }
 
     if (m_kcpVideoSocket) {
-        m_kcpVideoSocket->close();
-        delete m_kcpVideoSocket;
+        // KcpVideoSocket 在主线程创建（含 QTimer），不能在 Demuxer 线程操作
+        // 将对象移回主线程，由 deleteLater() 在主线程事件循环中安全 close+销毁
+        KcpVideoSocket *socket = m_kcpVideoSocket.data();
         m_kcpVideoSocket = Q_NULLPTR;
+        socket->moveToThread(QApplication::instance()->thread());
+        QMetaObject::invokeMethod(socket, "deleteLater", Qt::QueuedConnection);
     }
 
     if (m_videoSocket) {

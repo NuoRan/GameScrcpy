@@ -899,6 +899,7 @@ public final class KcpCore {
         rxMinrto = 1;
         fastresend = 1;
         setWindowSize(128, 128);
+        deadLink = 100;  // WiFi 环境下提高死链阈值，避免短暂丢包误判断连
     }
 
     /**

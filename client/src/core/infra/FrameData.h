@@ -20,11 +20,13 @@ struct FrameData {
     uint8_t* dataY = nullptr;
     uint8_t* dataU = nullptr;
     uint8_t* dataV = nullptr;
+    uint8_t* dataUV = nullptr;  // [低延迟 Step4] NV12 UV 交织平面指针
 
     // 每个平面的行字节数 / Bytes per row for each plane
     int linesizeY = 0;
     int linesizeU = 0;
     int linesizeV = 0;
+    int linesizeUV = 0;  // [低延迟 Step4] NV12 UV stride
 
     // 帧尺寸 / Frame dimensions
     int width = 0;
@@ -35,6 +37,24 @@ struct FrameData {
 
     // 帧序号 (用于调试) / Frame index (for debugging)
     uint64_t frameIndex = 0;
+
+    // [低延迟 Step4] 是否为 NV12 格式（硬解直通，跳过 CPU 去交织）
+    bool isNV12 = false;
+
+    // ========================================================
+    // GPU 直通渲染 / GPU Direct Rendering
+    // ========================================================
+    // 当 isGPUDirect==true 时，dataY/U/V 无效，渲染器直接使用 GPU 纹理
+    bool isGPUDirect = false;
+
+    // D3D11VA: ID3D11Texture2D* 指针 (由 FFmpeg hw_frames_ctx 管理)
+    void* d3d11Texture = nullptr;
+    // D3D11VA: texture array 中的 subresource index
+    int d3d11TextureIndex = 0;
+
+    // 对应的 AVFrame* (需要 hold 住以保持 GPU 纹理有效，渲染完成后 av_frame_unref)
+    // 类型为 void* 以避免在头文件中包含 FFmpeg 头
+    void* hwAVFrame = nullptr;
 
     // 引用计数 (由 FramePool 管理) / Ref count (managed by FramePool)
     std::atomic<int> refCount{0};
@@ -57,6 +77,11 @@ struct FrameData {
     void reset() {
         pts = 0;
         frameIndex = 0;
+        isNV12 = false;
+        isGPUDirect = false;
+        d3d11Texture = nullptr;
+        d3d11TextureIndex = 0;
+        hwAVFrame = nullptr;
         // 不重置数据指针和尺寸，这些由 FramePool 管理
     }
 };

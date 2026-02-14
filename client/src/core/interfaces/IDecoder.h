@@ -47,7 +47,7 @@ public:
      * @param pts 时间戳 (微秒)
      * @return 成功返回 true
      */
-    virtual bool decode(const uint8_t* data, int size, int64_t pts) = 0;
+    virtual bool decode(const uint8_t* data, int size, int64_t pts, int flags = 0) = 0;
 
     /**
      * @brief 设置帧回调

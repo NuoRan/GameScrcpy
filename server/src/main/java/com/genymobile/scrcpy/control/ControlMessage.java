@@ -43,6 +43,11 @@ public final class ControlMessage {
     private ControlMessage() {
     }
 
+    // [极致低延迟优化] FastTouch 对象池 — 控制线程单线程使用，无需同步
+    // 避免高频触摸消息每次 new ControlMessage() 的 GC 压力
+    private static final ControlMessage REUSABLE_FAST_TOUCH = new ControlMessage();
+    private static final ControlMessage REUSABLE_FAST_KEY = new ControlMessage();
+
     public static ControlMessage createInjectKeycode(int action, int keycode, int repeat, int metaState) {
         ControlMessage msg = new ControlMessage();
         msg.type = TYPE_INJECT_KEYCODE;
@@ -76,7 +81,8 @@ public final class ControlMessage {
     // ========== 快速消息创建方法 ==========
 
     public static ControlMessage createFastTouch(int seqId, int action, int x, int y) {
-        ControlMessage msg = new ControlMessage();
+        // [极致低延迟优化] 复用预分配对象，control-recv 单线程安全
+        ControlMessage msg = REUSABLE_FAST_TOUCH;
         msg.type = TYPE_FAST_TOUCH;
         msg.seqId = seqId;
         msg.action = action;
@@ -86,7 +92,8 @@ public final class ControlMessage {
     }
 
     public static ControlMessage createFastKey(int action, int keycode) {
-        ControlMessage msg = new ControlMessage();
+        // [极致低延迟优化] 复用预分配对象，control-recv 单线程安全
+        ControlMessage msg = REUSABLE_FAST_KEY;
         msg.type = TYPE_FAST_KEY;
         msg.action = action;
         msg.keycode = keycode;

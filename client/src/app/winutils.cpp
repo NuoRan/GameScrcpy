@@ -1,7 +1,9 @@
 #include <QDebug>
 #include <Windows.h>
 #include <dwmapi.h>
+#include <avrt.h>
 #pragma comment(lib, "dwmapi")
+#pragma comment(lib, "avrt")
 
 #include "winutils.h"
 
@@ -29,4 +31,39 @@ bool WinUtils::setDarkBorderToWindow(const HWND &hwnd, const bool &d)
     if (!ok)
         qWarning("%s: Unable to set dark window border.", __FUNCTION__);
     return ok;
+}
+
+// ---------------------------------------------------------
+// [超低延迟优化] MMCSS 实时线程调度
+// Windows Multimedia Class Scheduler Service
+// ---------------------------------------------------------
+void* WinUtils::enableMMCSS(const char* taskName)
+{
+    DWORD taskIndex = 0;
+    // AvSetMmThreadCharacteristicsA 将当前线程注册到 MMCSS 任务类别
+    // 内核会自动提升线程调度优先级，保证 CPU 时间片
+    HANDLE hTask = AvSetMmThreadCharacteristicsA(taskName, &taskIndex);
+    if (hTask) {
+        // 进一步将 MMCSS 优先级设为 CRITICAL（最高级别）
+        if (!AvSetMmThreadPriority(hTask, AVRT_PRIORITY_CRITICAL)) {
+            qWarning("[MMCSS] Failed to set thread priority to CRITICAL for task '%s'", taskName);
+        }
+        qInfo("[MMCSS] Thread registered: task='%s', index=%u", taskName, taskIndex);
+    } else {
+        DWORD err = GetLastError();
+        qWarning("[MMCSS] AvSetMmThreadCharacteristics failed for '%s': error=%lu", taskName, err);
+    }
+    return static_cast<void*>(hTask);
+}
+
+void WinUtils::disableMMCSS(void* taskHandle)
+{
+    if (taskHandle) {
+        HANDLE hTask = static_cast<HANDLE>(taskHandle);
+        if (AvRevertMmThreadCharacteristics(hTask)) {
+            qInfo("[MMCSS] Thread unregistered successfully");
+        } else {
+            qWarning("[MMCSS] AvRevertMmThreadCharacteristics failed");
+        }
+    }
 }

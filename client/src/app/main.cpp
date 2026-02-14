@@ -26,6 +26,13 @@
 #include <QDateTime>
 #include <QTimer>
 #include <QThread>
+#include <QDialog>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QTextEdit>
+#include <QPushButton>
+#include <QLabel>
+#include <QCheckBox>
 
 #include "config.h"
 #include "dialog.h"
@@ -37,6 +44,84 @@ static Dialog *g_mainDlg = Q_NULLPTR;
 static QtMessageHandler g_oldMessageHandler = Q_NULLPTR;
 void myMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg);
 void installTranslator(const QString &langOverride = QString());
+
+/**
+ * @brief 首次运行使用协议弹窗
+ * @return true=用户接受, false=用户拒绝
+ */
+static bool showAgreementDialog()
+{
+    QDialog dlg;
+    dlg.setWindowTitle(QStringLiteral("使用协议 / User Agreement"));
+    dlg.setMinimumSize(560, 480);
+    dlg.setWindowFlags(dlg.windowFlags() & ~Qt::WindowContextHelpButtonHint);
+
+    // 样式自动继承 qApp->setStyleSheet() 设置的全局样式
+
+    auto *layout = new QVBoxLayout(&dlg);
+    layout->setContentsMargins(20, 16, 20, 16);
+    layout->setSpacing(12);
+
+    auto *titleLabel = new QLabel(QStringLiteral(
+        "<h2>GameScrcpy 使用协议</h2>"
+        "<p style='color:gray;'>User License Agreement</p>"));
+    titleLabel->setAlignment(Qt::AlignCenter);
+    layout->addWidget(titleLabel);
+
+    auto *textEdit = new QTextEdit(&dlg);
+    textEdit->setReadOnly(true);
+    // 设置文档默认颜色与主题一致（QSS 不影响 HTML 渲染的内部颜色）
+    textEdit->document()->setDefaultStyleSheet(
+        "body { color: #DCDCDC; }"
+        "h3 { color: #00BB9E; }"
+        "a { color: #00BB9E; }"
+    );
+    textEdit->setHtml(QStringLiteral(
+        "<p>GameScrcpy 是一个基于 Apache License 2.0 协议发布的开源项目。"
+        "在使用本软件前，请阅读以下内容：</p>"
+
+        "<h3>开源许可</h3>"
+        "<p>本软件基于 <b>Apache License, Version 2.0</b> 开源。"
+        "您可以自由地使用、复制、修改和分发本软件，包括用于商业目的，"
+        "但须保留原始版权声明和许可证文本。完整许可证请参阅项目根目录下的 LICENSE 文件。</p>"
+
+        "<h3>免责声明</h3>"
+        "<p>本软件按「现状」（AS IS）提供，不提供任何形式的明示或暗示担保，"
+        "包括但不限于对适销性、特定用途适用性和非侵权性的担保。</p>"
+        "<p>在任何情况下，作者或版权持有人均不对因本软件或使用本软件而产生的"
+        "任何索赔、损害或其他责任承担责任。</p>"
+
+        "<h3>使用规范</h3>"
+        "<p>您不得将本软件用于任何违反所在地区法律法规的用途。"
+        "因不当使用本软件而产生的一切法律后果由使用者自行承担。</p>"
+
+        "<hr>"
+        "<p style='color:gray; font-size:small;'>"
+        "Copyright 2019-2026 Rankun. Licensed under the Apache License, Version 2.0.</p>"
+    ));
+    layout->addWidget(textEdit);
+
+    auto *checkBox = new QCheckBox(QStringLiteral("我已阅读并同意上述使用协议 / I have read and agree to the above agreement"), &dlg);
+    layout->addWidget(checkBox);
+
+    auto *btnLayout = new QHBoxLayout();
+    btnLayout->addStretch();
+    auto *acceptBtn = new QPushButton(QStringLiteral("接受 / Accept"), &dlg);
+    auto *rejectBtn = new QPushButton(QStringLiteral("拒绝 / Reject"), &dlg);
+    acceptBtn->setEnabled(false);
+    acceptBtn->setMinimumWidth(120);
+    rejectBtn->setMinimumWidth(120);
+    btnLayout->addWidget(acceptBtn);
+    btnLayout->addWidget(rejectBtn);
+    btnLayout->addStretch();
+    layout->addLayout(btnLayout);
+
+    QObject::connect(checkBox, &QCheckBox::toggled, acceptBtn, &QPushButton::setEnabled);
+    QObject::connect(acceptBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+    QObject::connect(rejectBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
+
+    return dlg.exec() == QDialog::Accepted;
+}
 
 static QtMsgType g_msgType = QtInfoMsg;
 QtMsgType covertLogLevel(const QString &logLevel);
@@ -117,6 +202,17 @@ int main(int argc, char *argv[])
 
     // 初始化配置中心（使用默认路径）
     qsc::ConfigCenter::instance().initialize();
+
+    // ---------------------------------------------------------
+    // 首次运行：显示使用协议弹窗
+    // ---------------------------------------------------------
+    if (!Config::getInstance().getAgreementAccepted()) {
+        if (!showAgreementDialog()) {
+            // 用户拒绝协议，退出程序
+            return 0;
+        }
+        Config::getInstance().setAgreementAccepted(true);
+    }
 
     // 创建并显示主对话框
     g_mainDlg = new Dialog {};

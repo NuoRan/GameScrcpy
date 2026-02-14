@@ -15,8 +15,101 @@
 #include <QByteArray>
 #include <QHostAddress>
 #include <atomic>
+#include <vector>
 
 #include "KcpTransport.h"  // C-K05: 直接使用 KcpTransport 中定义的常量
+
+/**
+ * @brief 环形缓冲区 (避免 QByteArray::remove(0,n) 的 O(n) 内存搬移)
+ *
+ * 替代 QByteArray 的 append/remove 模式。
+ * QByteArray::remove(0, n) 需要将剩余数据向前搬移 O(n)，
+ * 在高码率视频流（10Mbps+）下每次搬移可达数百KB，耗时数毫秒。
+ * 环形缓冲区的读写都是 O(1)，且预分配零 malloc。
+ */
+class CircularBuffer {
+public:
+    explicit CircularBuffer(int capacity = 4 * 1024 * 1024)
+        : m_buffer(capacity), m_capacity(capacity) {}
+
+    void reserve(int newCapacity) {
+        if (newCapacity > m_capacity) {
+            std::vector<char> newBuf(newCapacity);
+            int avail = available();
+            if (avail > 0) {
+                peek(newBuf.data(), avail);
+            }
+            m_buffer = std::move(newBuf);
+            m_capacity = newCapacity;
+            m_readPos = 0;
+            m_writePos = avail;
+            m_size = avail;
+        }
+    }
+
+    int write(const char* data, int len) {
+        int space = freeSpace();
+        if (len > space) len = space;
+        if (len <= 0) return 0;
+
+        int firstChunk = qMin(len, m_capacity - m_writePos);
+        memcpy(m_buffer.data() + m_writePos, data, firstChunk);
+        if (len > firstChunk) {
+            memcpy(m_buffer.data(), data + firstChunk, len - firstChunk);
+        }
+        m_writePos = (m_writePos + len) % m_capacity;
+        m_size += len;
+        return len;
+    }
+
+    int read(char* data, int len) {
+        int avail = available();
+        if (len > avail) len = avail;
+        if (len <= 0) return 0;
+
+        int firstChunk = qMin(len, m_capacity - m_readPos);
+        memcpy(data, m_buffer.data() + m_readPos, firstChunk);
+        if (len > firstChunk) {
+            memcpy(data + firstChunk, m_buffer.data(), len - firstChunk);
+        }
+        m_readPos = (m_readPos + len) % m_capacity;
+        m_size -= len;
+        return len;
+    }
+
+    int peek(char* data, int len) const {
+        int avail = available();
+        if (len > avail) len = avail;
+        if (len <= 0) return 0;
+
+        int firstChunk = qMin(len, m_capacity - m_readPos);
+        memcpy(data, m_buffer.data() + m_readPos, firstChunk);
+        if (len > firstChunk) {
+            memcpy(data + firstChunk, m_buffer.data(), len - firstChunk);
+        }
+        return len;
+    }
+
+    void drop(int len) {
+        int avail = available();
+        if (len > avail) len = avail;
+        m_readPos = (m_readPos + len) % m_capacity;
+        m_size -= len;
+    }
+
+    int available() const { return m_size; }
+    int freeSpace() const { return m_capacity - m_size; }
+    int capacity() const { return m_capacity; }
+
+    void clear() { m_readPos = 0; m_writePos = 0; m_size = 0; }
+
+private:
+    std::vector<char> m_buffer;
+    int m_capacity = 0;
+    int m_readPos = 0;
+    int m_writePos = 0;
+    int m_size = 0;
+};
 
 /**
  * @brief KCP 视频接收器 / KCP Video Receiver
@@ -105,8 +198,8 @@ private:
 private:
     KcpTransport *m_transport = nullptr;
 
-    QByteArray m_buffer;
-    int m_readOffset = 0;
+    // 环形缓冲区
+    CircularBuffer m_ringBuffer;
     mutable QMutex m_mutex;
     QWaitCondition m_dataAvailable;
 

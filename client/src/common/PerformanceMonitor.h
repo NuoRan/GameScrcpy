@@ -4,9 +4,7 @@
 #include <QObject>
 #include <QElapsedTimer>
 #include <QTimer>
-#include <QMutex>
 #include <atomic>
-#include <deque>
 
 namespace qsc {
 
@@ -45,57 +43,67 @@ struct PerformanceMetrics {
 };
 
 /**
- * @brief 滑动窗口延迟统计器 / Sliding Window Latency Tracker
+ * @brief 无锁滑动窗口延迟统计器 / Lock-free Sliding Window Latency Tracker
+ *
+ * 替代原 QMutex + std::deque 的有锁版本。
+ * 使用固定大小数组 + 原子写索引，addSample 完全无锁。
+ * average/min/max 无锁读取（可能读到部分更新的值，但对统计信息可接受）。
  */
 class LatencyTracker {
 public:
     explicit LatencyTracker(int windowSize = 60)
-        : m_windowSize(windowSize) {}
+        : m_windowSize(qMin(windowSize, MAX_SAMPLES)) {}
 
     void addSample(double latencyMs) {
-        QMutexLocker locker(&m_mutex);
-        m_samples.push_back(latencyMs);
-        if (m_samples.size() > static_cast<size_t>(m_windowSize)) {
-            m_samples.pop_front();
+        // 无锁: 仅原子递增写索引
+        int idx = m_writeIndex.fetch_add(1, std::memory_order_relaxed) % m_windowSize;
+        m_samples[idx] = latencyMs;
+        int cur = m_count.load(std::memory_order_relaxed);
+        if (cur < m_windowSize) {
+            m_count.compare_exchange_weak(cur, cur + 1, std::memory_order_relaxed);
         }
     }
 
     double average() const {
-        QMutexLocker locker(&m_mutex);
-        if (m_samples.empty()) return 0;
+        int count = m_count.load(std::memory_order_relaxed);
+        if (count == 0) return 0;
         double sum = 0;
-        for (double s : m_samples) sum += s;
-        return sum / m_samples.size();
+        for (int i = 0; i < count; ++i) sum += m_samples[i];
+        return sum / count;
     }
 
     double max() const {
-        QMutexLocker locker(&m_mutex);
-        if (m_samples.empty()) return 0;
+        int count = m_count.load(std::memory_order_relaxed);
+        if (count == 0) return 0;
         double maxVal = 0;
-        for (double s : m_samples) {
-            if (s > maxVal) maxVal = s;
+        for (int i = 0; i < count; ++i) {
+            double v = m_samples[i];
+            if (v > maxVal) maxVal = v;
         }
         return maxVal;
     }
 
     double min() const {
-        QMutexLocker locker(&m_mutex);
-        if (m_samples.empty()) return 0;
-        double minVal = m_samples.front();
-        for (double s : m_samples) {
-            if (s < minVal) minVal = s;
+        int count = m_count.load(std::memory_order_relaxed);
+        if (count == 0) return 0;
+        double minVal = m_samples[0];
+        for (int i = 1; i < count; ++i) {
+            double v = m_samples[i];
+            if (v < minVal) minVal = v;
         }
         return minVal;
     }
 
     void reset() {
-        QMutexLocker locker(&m_mutex);
-        m_samples.clear();
+        m_writeIndex.store(0, std::memory_order_relaxed);
+        m_count.store(0, std::memory_order_relaxed);
     }
 
 private:
-    mutable QMutex m_mutex;
-    std::deque<double> m_samples;
+    static constexpr int MAX_SAMPLES = 128;  // 固定上限，2 的幂
+    double m_samples[MAX_SAMPLES] = {};       // 固定大小数组，无堆分配
+    std::atomic<int> m_writeIndex{0};         // 原子写索引
+    std::atomic<int> m_count{0};              // 当前样本数（≤ windowSize）
     int m_windowSize;
 };
 

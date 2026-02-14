@@ -17,6 +17,7 @@ KcpVideoSocket::KcpVideoSocket(QObject *parent)
 
 KcpVideoSocket::~KcpVideoSocket()
 {
+    close();
 }
 
 void KcpVideoSocket::setBitrate(quint32 bitrateBps)

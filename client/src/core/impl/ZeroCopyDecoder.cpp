@@ -6,6 +6,19 @@
 #include <QElapsedTimer>
 #include <cstring>
 
+// SIMD 加速头文件
+#ifdef _MSC_VER
+#include <intrin.h>
+#else
+#include <cpuid.h>
+#endif
+#ifdef __SSE2__
+#include <emmintrin.h>
+#endif
+#ifdef __AVX2__
+#include <immintrin.h>
+#endif
+
 extern "C" {
 #include "libavcodec/avcodec.h"
 #include "libavutil/hwcontext.h"
@@ -13,10 +26,169 @@ extern "C" {
 #include "libavutil/imgutils.h"
 }
 
+// D3D11VA GPU 直通所需头文件
+// d3d11.h 必须先以 C++ 链接包含（含 operator== 重载），
+// 之后 hwcontext_d3d11va.h 在 extern "C" 中再 #include <d3d11.h> 时
+// 会被 include guard 跳过，避免 C2733 错误。
+#ifdef _WIN32
+#include <d3d11.h>
+extern "C" {
+#include "libavutil/hwcontext_d3d11va.h"
+}
+#endif
+
 #define LOG_TAG "ZeroCopyDecoder"
+
+// SIMD 加速的内存拷贝
+// 对于 32 字节对齐的大块数据（如 YUV 帧），使用 SIMD 流式存储避免缓存污染
+static void simdMemcpy(void* dst, const void* src, size_t size)
+{
+#ifdef __AVX2__
+    // AVX2: 256-bit (32字节) 流式拷贝
+    // 源和目标都是 32 字节对齐的（FramePool 保证）
+    const size_t avxBlocks = size / 32;
+    const size_t remainder = size % 32;
+    const __m256i* srcPtr = reinterpret_cast<const __m256i*>(src);
+    __m256i* dstPtr = reinterpret_cast<__m256i*>(dst);
+
+    for (size_t i = 0; i < avxBlocks; ++i) {
+        __m256i data = _mm256_load_si256(srcPtr + i);
+        _mm256_stream_si256(dstPtr + i, data);
+    }
+    _mm_sfence();  // 确保流式存储完成
+
+    if (remainder > 0) {
+        memcpy(reinterpret_cast<uint8_t*>(dst) + avxBlocks * 32,
+               reinterpret_cast<const uint8_t*>(src) + avxBlocks * 32, remainder);
+    }
+#elif defined(__SSE2__)
+    // SSE2: 128-bit (16字节) 流式拷贝
+    const size_t sseBlocks = size / 16;
+    const size_t remainder = size % 16;
+    const __m128i* srcPtr = reinterpret_cast<const __m128i*>(src);
+    __m128i* dstPtr = reinterpret_cast<__m128i*>(dst);
+
+    for (size_t i = 0; i < sseBlocks; ++i) {
+        __m128i data = _mm_load_si128(srcPtr + i);
+        _mm_stream_si128(dstPtr + i, data);
+    }
+    _mm_sfence();
+
+    if (remainder > 0) {
+        memcpy(reinterpret_cast<uint8_t*>(dst) + sseBlocks * 16,
+               reinterpret_cast<const uint8_t*>(src) + sseBlocks * 16, remainder);
+    }
+#else
+    memcpy(dst, src, size);
+#endif
+}
+
+// NV12 UV 去交织的 SIMD 加速
+// 将 UVUVUV... 交织数据分离为独立的 UUU... 和 VVV... 平面
+// SSE2: 使用 _mm_shuffle_epi8 / maskmove 实现 ~4x 加速
+// AVX2: 使用 _mm256_shuffle_epi8 实现 ~8x 加速
+static void simdDeinterleaveUV(const uint8_t* src, uint8_t* dstU, uint8_t* dstV,
+                                int width, int height, int srcStride, int dstUStride, int dstVStride)
+{
+#ifdef __AVX2__
+    // AVX2: 每次处理 32 个 UV 对 (64 字节输入 → 32U + 32V)
+    const __m256i shuffleU = _mm256_setr_epi8(
+        0, 2, 4, 6, 8, 10, 12, 14,  // 低 128 位偶数位置 (U)
+        -1, -1, -1, -1, -1, -1, -1, -1,
+        0, 2, 4, 6, 8, 10, 12, 14,
+        -1, -1, -1, -1, -1, -1, -1, -1
+    );
+    const __m256i shuffleV = _mm256_setr_epi8(
+        1, 3, 5, 7, 9, 11, 13, 15,  // 低 128 位奇数位置 (V)
+        -1, -1, -1, -1, -1, -1, -1, -1,
+        1, 3, 5, 7, 9, 11, 13, 15,
+        -1, -1, -1, -1, -1, -1, -1, -1
+    );
+
+    for (int y = 0; y < height; ++y) {
+        const uint8_t* row = src + y * srcStride;
+        uint8_t* uRow = dstU + y * dstUStride;
+        uint8_t* vRow = dstV + y * dstVStride;
+        int x = 0;
+
+        // AVX2 主循环: 每次处理 16 个 UV 对 (32 字节)
+        for (; x + 16 <= width; x += 16) {
+            __m256i uv = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(row + x * 2));
+            __m256i u = _mm256_shuffle_epi8(uv, shuffleU);
+            __m256i v = _mm256_shuffle_epi8(uv, shuffleV);
+
+            // 结果在每个 128 位 lane 的低 8 字节中
+            // 提取并合并: lane0[0:7] + lane1[0:7] → 16 字节连续 U
+            __m128i u_lo = _mm256_castsi256_si128(u);
+            __m128i u_hi = _mm256_extracti128_si256(u, 1);
+            __m128i u_packed = _mm_unpacklo_epi64(u_lo, u_hi);
+
+            __m128i v_lo = _mm256_castsi256_si128(v);
+            __m128i v_hi = _mm256_extracti128_si256(v, 1);
+            __m128i v_packed = _mm_unpacklo_epi64(v_lo, v_hi);
+
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(uRow + x), u_packed);
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(vRow + x), v_packed);
+        }
+
+        // 标量尾部
+        for (; x < width; ++x) {
+            uRow[x] = row[x * 2];
+            vRow[x] = row[x * 2 + 1];
+        }
+    }
+#elif defined(__SSE2__)
+    // SSE2: 使用 _mm_and / _mm_srli 偶奇分离
+    const __m128i maskLow = _mm_set1_epi16(0x00FF);
+
+    for (int y = 0; y < height; ++y) {
+        const uint8_t* row = src + y * srcStride;
+        uint8_t* uRow = dstU + y * dstUStride;
+        uint8_t* vRow = dstV + y * dstVStride;
+        int x = 0;
+
+        // SSE2 主循环: 每次处理 8 个 UV 对 (16 字节)
+        for (; x + 8 <= width; x += 8) {
+            __m128i uv = _mm_loadu_si128(reinterpret_cast<const __m128i*>(row + x * 2));
+
+            // U = 偶数字节 (位置 0,2,4,6,8,10,12,14)
+            __m128i u16 = _mm_and_si128(uv, maskLow);
+            // V = 奇数字节 (位置 1,3,5,7,9,11,13,15)
+            __m128i v16 = _mm_srli_epi16(uv, 8);
+
+            // 16位 → 8位 pack: u16 和 v16 各有 8 个 16 位值
+            __m128i u8 = _mm_packus_epi16(u16, u16);  // 低 8 字节有效
+            __m128i v8 = _mm_packus_epi16(v16, v16);  // 低 8 字节有效
+
+            // 存储 8 个 U 和 V
+            _mm_storel_epi64(reinterpret_cast<__m128i*>(uRow + x), u8);
+            _mm_storel_epi64(reinterpret_cast<__m128i*>(vRow + x), v8);
+        }
+
+        // 标量尾部
+        for (; x < width; ++x) {
+            uRow[x] = row[x * 2];
+            vRow[x] = row[x * 2 + 1];
+        }
+    }
+#else
+    // 标量回退
+    for (int y = 0; y < height; ++y) {
+        const uint8_t* row = src + y * srcStride;
+        uint8_t* uRow = dstU + y * dstUStride;
+        uint8_t* vRow = dstV + y * dstVStride;
+        for (int x = 0; x < width; ++x) {
+            uRow[x] = row[x * 2];
+            vRow[x] = row[x * 2 + 1];
+        }
+    }
+#endif
+}
 
 // 静态硬件像素格式（用于回调）
 static int s_hwPixFmtGlobal = AV_PIX_FMT_NONE;
+// 标记硬件格式协商是否在运行时失败（getHwFormat 回调中设置）
+static bool s_hwFormatFailed = false;
 
 namespace qsc {
 namespace core {
@@ -88,7 +260,6 @@ struct HwDecoderCache {
 };
 
 static HwDecoderCache s_h264Cache;
-static HwDecoderCache s_h265Cache;
 
 // ---------------------------------------------------------
 // 构造与析构
@@ -111,12 +282,29 @@ ZeroCopyDecoder::~ZeroCopyDecoder()
 static AVPixelFormat getHwFormat(AVCodecContext* ctx, const AVPixelFormat* pix_fmts)
 {
     Q_UNUSED(ctx);
+    // 优先返回硬件格式
     for (const AVPixelFormat* p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
         if (*p == s_hwPixFmtGlobal) {
             return *p;
         }
     }
-    qWarning("[ZeroCopyDecoder] Failed to get HW format, falling back to software");
+    // 硬件格式不在候选列表中，标记失败并回退到软件格式
+    s_hwFormatFailed = true;
+    qWarning("[ZeroCopyDecoder] HW format %d not in offered list, falling back to software", s_hwPixFmtGlobal);
+
+    // 从候选列表中选择第一个软件像素格式
+    for (const AVPixelFormat* p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
+        if (*p == AV_PIX_FMT_YUV420P || *p == AV_PIX_FMT_NV12 ||
+            *p == AV_PIX_FMT_YUV420P10LE || *p == AV_PIX_FMT_YUV444P) {
+            qInfo("[ZeroCopyDecoder] Selected software format: %d", *p);
+            return *p;
+        }
+    }
+    // 最后手段：返回列表中第一个格式
+    if (pix_fmts[0] != AV_PIX_FMT_NONE) {
+        qInfo("[ZeroCopyDecoder] Using first available format: %d", pix_fmts[0]);
+        return pix_fmts[0];
+    }
     return AV_PIX_FMT_NONE;
 }
 
@@ -128,8 +316,6 @@ bool ZeroCopyDecoder::initHardwareDecoder(const AVCodec* codec)
     HwDecoderCache* cache = nullptr;
     if (codec->id == AV_CODEC_ID_H264) {
         cache = &s_h264Cache;
-    } else if (codec->id == AV_CODEC_ID_HEVC) {
-        cache = &s_h265Cache;
     }
 
     if (cache && cache->initialized && cache->cachedType != AV_HWDEVICE_TYPE_NONE) {
@@ -212,13 +398,15 @@ bool ZeroCopyDecoder::open(int codecId)
     }
 
     AVCodecID avCodecId = static_cast<AVCodecID>(codecId);
-    const char* codecName = (avCodecId == AV_CODEC_ID_HEVC) ? "H.265" : "H.264";
+    const char* codecName;
+    switch (avCodecId) {
+        case AV_CODEC_ID_H264: codecName = "H.264"; break;
+        default: codecName = "Unknown"; break;
+    }
 
     // 预检测硬件解码器
     if (avCodecId == AV_CODEC_ID_H264) {
         s_h264Cache.detectOnce(avCodecId);
-    } else if (avCodecId == AV_CODEC_ID_HEVC) {
-        s_h265Cache.detectOnce(avCodecId);
     }
 
     // 查找解码器
@@ -235,8 +423,14 @@ bool ZeroCopyDecoder::open(int codecId)
         return false;
     }
 
-    // 尝试硬件解码
-    bool hwEnabled = initHardwareDecoder(codec);
+    // 尝试硬件解码（除非强制软解）
+    bool hwEnabled = false;
+    if (!m_forceSwDecode) {
+        hwEnabled = initHardwareDecoder(codec);
+    } else {
+        qInfo("[ZeroCopyDecoder] Hardware decode disabled (forced software mode)");
+    }
+    s_hwFormatFailed = false;  // 重置格式协商标记
     if (hwEnabled) {
         m_codecCtx->hw_device_ctx = av_buffer_ref(m_hwDeviceCtx);
         m_codecCtx->get_format = getHwFormat;
@@ -254,8 +448,15 @@ bool ZeroCopyDecoder::open(int codecId)
     m_codecCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
     m_codecCtx->flags2 |= AV_CODEC_FLAG2_FAST;
 
-    if (avCodecId == AV_CODEC_ID_HEVC) {
-        m_codecCtx->thread_count = 4;
+    // [超低延迟优化] 禁用帧级多线程以消除解码缓冲
+    // 帧级多线程 (FF_THREAD_FRAME) 需要缓冲多帧才能并行，增加 1-2 帧延迟
+    // 硬件解码时线程数设为 1，软解时保留少量线程
+    if (hwEnabled) {
+        m_codecCtx->thread_count = 1;        // HW 解码只需 1 个解码线程
+        m_codecCtx->thread_type = 0;          // 禁用所有多线程模式
+    } else {
+        // 软解：使用 slice 级多线程（不增加延迟）而非帧级多线程
+        m_codecCtx->thread_type = FF_THREAD_SLICE;
     }
 
     // 打开解码器
@@ -332,6 +533,8 @@ void ZeroCopyDecoder::close()
 
     m_hwPixFmt = AV_PIX_FMT_NONE;
     s_hwPixFmtGlobal = AV_PIX_FMT_NONE;
+    s_hwFormatFailed = false;
+    m_consecutiveErrors = 0;
 
     // 重置分辨率检测
     m_decodedWidth = 0;
@@ -341,7 +544,7 @@ void ZeroCopyDecoder::close()
 // ---------------------------------------------------------
 // 解码
 // ---------------------------------------------------------
-bool ZeroCopyDecoder::decode(const uint8_t* data, int size, int64_t pts)
+bool ZeroCopyDecoder::decode(const uint8_t* data, int size, int64_t pts, int flags)
 {
     if (!m_isOpen || !m_codecCtx || !data || size <= 0) {
         return false;
@@ -364,33 +567,54 @@ bool ZeroCopyDecoder::decode(const uint8_t* data, int size, int64_t pts)
         qWarning("[ZeroCopyDecoder] Send packet error: %s", errorbuf);
         m_packet->data = nullptr;
         m_packet->size = 0;
+
+        // 连续失败计数，超过阈值则关闭硬件解码重新用软解打开
+        m_consecutiveErrors++;
+        if (m_consecutiveErrors >= 3 && m_hwDeviceCtx) {
+            qWarning("[ZeroCopyDecoder] %d consecutive errors with HW decoder, reopening in software mode",
+                     m_consecutiveErrors);
+            int savedCodecId = m_codecId;
+            close();
+            // 重新打开时禁止硬件加速
+            m_forceSwDecode = true;
+            open(savedCodecId);
+        }
         return false;
     }
+    m_consecutiveErrors = 0;  // 发送成功，重置计数
 
     // 接收解码帧
-    AVFrame* receiveFrame = m_hwDeviceCtx ? m_hwFrame : m_decodeFrame;
+    AVFrame* receiveFrame = (m_hwDeviceCtx && !s_hwFormatFailed) ? m_hwFrame : m_decodeFrame;
 
     ret = avcodec_receive_frame(m_codecCtx, receiveFrame);
     if (ret == 0) {
-        // 成功解码
-        if (m_hwDeviceCtx) {
-            // 硬解：GPU → CPU
-            if (transferHwFrame(m_hwFrame, m_swFrame)) {
-                // 报告真正的解码延迟（包含 GPU→CPU 传输）
+        // 成功解码 — 根据实际帧格式决定路径
+        bool isHwFrame = (receiveFrame->format == m_hwPixFmt) && m_hwDeviceCtx && !s_hwFormatFailed;
+
+        if (isHwFrame) {
+            // GPU 直通路径: 跳过 av_hwframe_transfer_data
+            if (m_gpuDirectEnabled && m_hwPixFmt == AV_PIX_FMT_D3D11) {
                 double decodeLatencyMs = decodeTimer.nsecsElapsed() / 1000000.0;
                 qsc::PerformanceMonitor::instance().reportDecodeLatency(decodeLatencyMs);
-
-                processDecodedFrame(m_swFrame);
+                processGPUDirectFrame(m_hwFrame);
+                // 注意: GPU 直通路径中 m_hwFrame 的 unref 延迟到渲染完成后
+            } else {
+                // 旧路径: 硬解 GPU → CPU
+                if (transferHwFrame(m_hwFrame, m_swFrame)) {
+                    double decodeLatencyMs = decodeTimer.nsecsElapsed() / 1000000.0;
+                    qsc::PerformanceMonitor::instance().reportDecodeLatency(decodeLatencyMs);
+                    processDecodedFrame(m_swFrame);
+                }
+                av_frame_unref(m_hwFrame);
             }
-            av_frame_unref(m_hwFrame);
         } else {
-            // 软解：报告解码延迟
+            // 软解（含 HW 回退到 SW 的情况）：报告解码延迟
             double decodeLatencyMs = decodeTimer.nsecsElapsed() / 1000000.0;
             qsc::PerformanceMonitor::instance().reportDecodeLatency(decodeLatencyMs);
 
-            processDecodedFrame(m_decodeFrame);
+            processDecodedFrame(receiveFrame);
         }
-        av_frame_unref(m_decodeFrame);
+        av_frame_unref(receiveFrame);
     } else if (ret != AVERROR(EAGAIN)) {
         char errorbuf[256];
         av_strerror(ret, errorbuf, sizeof(errorbuf));
@@ -450,7 +674,7 @@ void ZeroCopyDecoder::processDecodedFrame(AVFrame* frame)
         lastH = h;
     }
 
-    // 【零拷贝路径】优先使用 FrameQueue（推荐）
+    // 优先使用 FrameQueue
     if (m_frameQueue) {
         // 报告帧队列深度和帧池使用情况
         qsc::PerformanceMonitor::instance().reportFrameQueueDepth(static_cast<int>(m_frameQueue->queueSize()));
@@ -482,12 +706,13 @@ void ZeroCopyDecoder::processDecodedFrame(AVFrame* frame)
 
             if (poolFrame && poolFrame->dataY) {
                 if (isNV12) {
-                    // NV12 格式：Y 平面 + UV 交织平面
-                    // 需要分离 UV 到独立的 U 和 V 平面
+                    // NV12 转 YUV420P: 在解码端做 UV 去交织
+                    // 直接 NV12 传 GPU 存在 GL_LUMINANCE_ALPHA 兑容性问题（ANGLE/不同驱动）
+                    // SIMD 加速去交织
 
                     // 复制 Y 平面
                     if (frame->linesize[0] == poolFrame->linesizeY) {
-                        memcpy(poolFrame->dataY, frame->data[0], poolFrame->linesizeY * h);
+                        simdMemcpy(poolFrame->dataY, frame->data[0], poolFrame->linesizeY * h);
                     } else {
                         for (int y = 0; y < h; ++y) {
                             memcpy(poolFrame->dataY + y * poolFrame->linesizeY,
@@ -495,37 +720,32 @@ void ZeroCopyDecoder::processDecodedFrame(AVFrame* frame)
                         }
                     }
 
-                    // 分离 NV12 的 UV 交织平面到 U 和 V
-                    const uint8_t* uvSrc = frame->data[1];
-                    int uvLinesize = frame->linesize[1];
+                    // NV12 UV 去交织 SIMD 加速
+                    // 替代逐像素循环，使用 SSE2/AVX2 批量分离 UV 交织数据
+                    simdDeinterleaveUV(frame->data[1],
+                                       poolFrame->dataU, poolFrame->dataV,
+                                       uvW, uvH,
+                                       frame->linesize[1],
+                                       poolFrame->linesizeU, poolFrame->linesizeV);
 
-                    for (int y = 0; y < uvH; ++y) {
-                        const uint8_t* uvRow = uvSrc + y * uvLinesize;
-                        uint8_t* uRow = poolFrame->dataU + y * poolFrame->linesizeU;
-                        uint8_t* vRow = poolFrame->dataV + y * poolFrame->linesizeV;
-
-                        for (int x = 0; x < uvW; ++x) {
-                            uRow[x] = uvRow[x * 2];      // U
-                            vRow[x] = uvRow[x * 2 + 1];  // V
-                        }
-                    }
+                    poolFrame->isNV12 = false;  // 已转为 YUV420P
                 } else {
                     // YUV420P 格式：3 个独立平面
-                    // 零拷贝优化：检查 linesize 是否完全匹配
+                    // 检查 linesize 是否完全匹配
                     const bool yLineSizeMatch = (frame->linesize[0] == poolFrame->linesizeY);
                     const bool uLineSizeMatch = (frame->linesize[1] == poolFrame->linesizeU);
                     const bool vLineSizeMatch = (frame->linesize[2] == poolFrame->linesizeV);
                     const bool allMatch = yLineSizeMatch && uLineSizeMatch && vLineSizeMatch;
 
                     if (allMatch) {
-                        // 最优路径：linesize 完全匹配，整块拷贝（3次 memcpy）
-                        memcpy(poolFrame->dataY, frame->data[0], poolFrame->linesizeY * h);
-                        memcpy(poolFrame->dataU, frame->data[1], poolFrame->linesizeU * uvH);
-                        memcpy(poolFrame->dataV, frame->data[2], poolFrame->linesizeV * uvH);
+                        // SIMD 加速整块拷贝
+                        simdMemcpy(poolFrame->dataY, frame->data[0], poolFrame->linesizeY * h);
+                        simdMemcpy(poolFrame->dataU, frame->data[1], poolFrame->linesizeU * uvH);
+                        simdMemcpy(poolFrame->dataV, frame->data[2], poolFrame->linesizeV * uvH);
                     } else {
                         // 次优路径：linesize 不匹配，逐行拷贝
                         if (yLineSizeMatch) {
-                            memcpy(poolFrame->dataY, frame->data[0], poolFrame->linesizeY * h);
+                            simdMemcpy(poolFrame->dataY, frame->data[0], poolFrame->linesizeY * h);
                         } else {
                             for (int y = 0; y < h; ++y) {
                                 memcpy(poolFrame->dataY + y * poolFrame->linesizeY,
@@ -534,7 +754,7 @@ void ZeroCopyDecoder::processDecodedFrame(AVFrame* frame)
                         }
 
                         if (uLineSizeMatch) {
-                            memcpy(poolFrame->dataU, frame->data[1], poolFrame->linesizeU * uvH);
+                            simdMemcpy(poolFrame->dataU, frame->data[1], poolFrame->linesizeU * uvH);
                         } else {
                             for (int y = 0; y < uvH; ++y) {
                                 memcpy(poolFrame->dataU + y * poolFrame->linesizeU,
@@ -543,7 +763,7 @@ void ZeroCopyDecoder::processDecodedFrame(AVFrame* frame)
                         }
 
                         if (vLineSizeMatch) {
-                            memcpy(poolFrame->dataV, frame->data[2], poolFrame->linesizeV * uvH);
+                            simdMemcpy(poolFrame->dataV, frame->data[2], poolFrame->linesizeV * uvH);
                         } else {
                             for (int y = 0; y < uvH; ++y) {
                                 memcpy(poolFrame->dataV + y * poolFrame->linesizeV,
@@ -584,7 +804,7 @@ void ZeroCopyDecoder::processDecodedFrame(AVFrame* frame)
         return;  // 零拷贝路径完成，不再使用回调
     }
 
-    // 【回调路径】兼容旧接口（无 FrameQueue 时使用）
+    // 回调路径：兼容旧接口（无 FrameQueue 时使用）
     // 注意：回调路径不支持 NV12 格式，需要硬件解码时使用 FrameQueue 路径
     if (m_frameCallback && isYUV420P) {
         // 保存 AVFrame 引用用于截图（与零拷贝路径相同的懒拷贝策略）
@@ -760,6 +980,101 @@ void ZeroCopyDecoder::peekFrame(std::function<void(int, int, uint8_t*)> callback
     }
 
     callback(w, h, rgb32.data());
+}
+
+// ---------------------------------------------------------
+// GPU 直通帧处理
+// 将 D3D11VA 解码的 GPU 帧直接通过 FrameQueue 传递给渲染器
+// 不调用 av_hwframe_transfer_data，消除 GPU→CPU 回读
+// ---------------------------------------------------------
+void ZeroCopyDecoder::processGPUDirectFrame(AVFrame* hwFrame)
+{
+#ifdef _WIN32
+    if (!hwFrame || hwFrame->width <= 0 || hwFrame->height <= 0) {
+        av_frame_unref(hwFrame);
+        return;
+    }
+
+    // 从 AVFrame 提取 D3D11 纹理信息
+    // D3D11VA 解码输出: hwFrame->data[0] = ID3D11Texture2D*
+    //                   hwFrame->data[1] = (intptr_t) subresource index
+    auto* d3d11Texture = reinterpret_cast<void*>(hwFrame->data[0]);
+    int textureIndex = static_cast<int>(reinterpret_cast<intptr_t>(hwFrame->data[1]));
+
+    if (!d3d11Texture) {
+        qWarning("[ZeroCopyDecoder] GPU direct: null D3D11 texture");
+        av_frame_unref(hwFrame);
+        return;
+    }
+
+    int w = hwFrame->width;
+    int h = hwFrame->height;
+
+    // 检测分辨率变化
+    if (m_decodedWidth != 0 && m_decodedHeight != 0) {
+        if (w != m_decodedWidth || h != m_decodedHeight) {
+            qInfo("[ZeroCopyDecoder] GPU direct: resolution changed %dx%d -> %dx%d",
+                  m_decodedWidth, m_decodedHeight, w, h);
+        }
+    }
+    m_decodedWidth = w;
+    m_decodedHeight = h;
+
+    qsc::PerformanceMonitor::instance().reportFrameDecoded();
+    updateFps();
+
+    if (m_frameQueue) {
+        FrameData* poolFrame = m_frameQueue->acquireFrame();
+        if (poolFrame) {
+            // 设置 GPU 直通标记
+            poolFrame->isGPUDirect = true;
+            poolFrame->d3d11Texture = d3d11Texture;
+            poolFrame->d3d11TextureIndex = textureIndex;
+            poolFrame->width = w;
+            poolFrame->height = h;
+            poolFrame->isNV12 = true;  // D3D11VA 输出始终是 NV12
+            poolFrame->pts = hwFrame->pts;
+
+            // 克隆 AVFrame 引用，延长 GPU 纹理生命周期到渲染完成
+            AVFrame* clonedFrame = av_frame_clone(hwFrame);
+            poolFrame->hwAVFrame = clonedFrame;
+
+            m_frameQueue->pushFrame(poolFrame);
+            emit frameReady();
+        } else {
+            qsc::PerformanceMonitor::instance().reportFrameDropped();
+        }
+    }
+
+    // unref 原始 hwFrame (clonedFrame 已持有独立的纹理引用)
+    av_frame_unref(hwFrame);
+#else
+    // 非 Windows 平台不支持 D3D11VA，回退到旧路径
+    if (transferHwFrame(hwFrame, m_swFrame)) {
+        processDecodedFrame(m_swFrame);
+    }
+    av_frame_unref(hwFrame);
+#endif
+}
+
+// ---------------------------------------------------------
+// 获取 D3D11 设备指针
+// 用于渲染器初始化 WGL_NV_DX_interop
+// ---------------------------------------------------------
+void* ZeroCopyDecoder::getD3D11Device() const
+{
+#ifdef _WIN32
+    if (!m_hwDeviceCtx) return nullptr;
+
+    AVHWDeviceContext* deviceCtx = reinterpret_cast<AVHWDeviceContext*>(
+        reinterpret_cast<AVBufferRef*>(m_hwDeviceCtx)->data);
+    if (!deviceCtx) return nullptr;
+
+    auto* d3d11DeviceCtx = static_cast<AVD3D11VADeviceContext*>(deviceCtx->hwctx);
+    return d3d11DeviceCtx ? d3d11DeviceCtx->device : nullptr;
+#else
+    return nullptr;
+#endif
 }
 
 } // namespace core

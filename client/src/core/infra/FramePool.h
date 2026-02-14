@@ -4,6 +4,7 @@
 #include "FrameData.h"
 #include <vector>
 #include <mutex>
+#include <atomic>
 #include <memory>
 
 namespace qsc {
@@ -66,11 +67,13 @@ private:
     void deallocateFrame(FrameData& frame);
 
 private:
+    // 使用 atomic flags 实现无锁 acquire/release
+    static constexpr int MAX_POOL_SIZE = 16;
     std::vector<FrameData> m_frames;
-    std::vector<bool> m_inUse;
-    mutable std::mutex m_mutex;
-    int m_width = 0;
-    int m_height = 0;
+    std::atomic<bool> m_inUse[MAX_POOL_SIZE];  // 无锁标志位
+    std::mutex m_resizeMutex;                   // 仅用于 resize 和帧重新分配
+    std::atomic<int> m_width{0};
+    std::atomic<int> m_height{0};
 };
 
 } // namespace core

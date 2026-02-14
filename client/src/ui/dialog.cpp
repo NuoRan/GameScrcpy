@@ -381,6 +381,7 @@ void Dialog::syncSettingsToDialog()
     m_settingsDialog->setShowToolbar(config.showToolbar);
     m_settingsDialog->setFrameless(config.framelessWindow);
     m_settingsDialog->setShowFPS(config.showFPS);
+    m_settingsDialog->setVideoCodecIndex(config.videoCodecIndex);
 
     // 加载历史记录
     m_settingsDialog->setIpHistory(Config::getInstance().getIpHistory());
@@ -496,6 +497,7 @@ void Dialog::onStartServer()
     params.logLevel = Config::getInstance().getLogLevel();
     params.codecOptions = Config::getInstance().getCodecOptions();
     params.codecName = Config::getInstance().getCodecName();
+    params.videoCodec = m_settingsDialog->getVideoCodecName();
     params.scid = QRandomGenerator::global()->bounded(1, 10000) & 0x7FFFFFFF;
 
     // 设置最大触摸点数
@@ -617,6 +619,7 @@ void Dialog::updateBootConfig(bool toView)
             config.showFPS = m_settingsDialog->showFPS();
             config.framelessWindow = m_settingsDialog->isFrameless();
             config.showToolbar = m_settingsDialog->showToolbar();
+            config.videoCodecIndex = m_settingsDialog->getVideoCodecIndex();
 
             // 保存IP和端口历史
             QString ip = m_settingsDialog->getDeviceIP();

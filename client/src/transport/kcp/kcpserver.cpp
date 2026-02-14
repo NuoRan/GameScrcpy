@@ -98,6 +98,9 @@ bool KcpServer::execute()
     if (!m_params.codecName.isEmpty()) {
         args << QString("encoder_name=%1").arg(m_params.codecName);
     }
+    if (m_params.videoCodec != "h264") {
+        args << QString("video_codec=%1").arg(m_params.videoCodec);
+    }
     args << "audio=false";
     if (-1 != m_params.scid) {
         args << QString("scid=%1").arg(m_params.scid, 8, 16, QChar('0'));

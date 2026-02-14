@@ -8,7 +8,7 @@
 #include <QDebug>
 #include <QRandomGenerator>
 
-// 静态辅助函数：应用随机偏移（与原版一致）
+// 静态辅助函数：应用随机偏移
 static QPointF applyRandomOffset(const QPointF& pos, const QSize& targetSize) {
     int offsetLevel = qsc::ConfigCenter::instance().randomOffset();
     if (offsetLevel <= 0 || targetSize.isEmpty()) {
@@ -55,7 +55,7 @@ SteerWheelHandler::SteerWheelHandler(QObject* parent)
 
     m_state.firstPressTimer = new QTimer(this);
     m_state.firstPressTimer->setSingleShot(true);
-    m_state.firstPressTimer->setInterval(20);
+    m_state.firstPressTimer->setInterval(5);
     connect(m_state.firstPressTimer, &QTimer::timeout, this, &SteerWheelHandler::onFirstPressTimer);
 
     m_state.humanizeTimer = new QTimer(this);
@@ -229,7 +229,7 @@ void SteerWheelHandler::onFirstPressTimer()
 
 void SteerWheelHandler::onHumanizeTimer()
 {
-    // 只有轮盘活动时才触发波动（与原版一致）
+    // 只有轮盘活动时才触发波动
     if (m_state.fastTouchSeqId == 0 || m_state.delayData.pressedNum <= 0) {
         return;
     }
@@ -382,7 +382,7 @@ void SteerWheelHandler::executeMove(const KeyMap::KeyMapNode& node)
     m_state.delayData.queueTimer.clear();
     m_state.delayData.queuePos.clear();
 
-    // 如果还没开始触摸，先按下（与原版一致：应用随机偏移）
+    // 如果还没开始触摸，先按下（应用随机偏移）
     if (m_state.fastTouchSeqId == 0) {
         QSize targetSize = getTargetSize(m_frameSize, m_showSize);
         QPointF randomCenterPos = applyRandomOffset(node.data.steerWheel.centerPos, targetSize);
@@ -418,16 +418,11 @@ void SteerWheelHandler::sendFastTouch(quint8 action, const QPointF& pos)
     quint16 nx = static_cast<quint16>(qBound(0.0, pos.x(), 1.0) * 65535);
     quint16 ny = static_cast<quint16>(qBound(0.0, pos.y(), 1.0) * 65535);
 
-    QByteArray data;
-    if (action == FTA_DOWN) {
-        data = FastMsg::touchDownRaw(m_state.fastTouchSeqId, nx, ny);
-    } else if (action == FTA_UP) {
-        data = FastMsg::touchUpRaw(m_state.fastTouchSeqId, nx, ny);
-    } else {
-        data = FastMsg::touchMoveRaw(m_state.fastTouchSeqId, nx, ny);
-    }
-
-    m_controller->postFastMsg(data);
+    // [零分配优化] 栈缓冲区序列化，避免 QByteArray 堆分配
+    char buf[10];
+    FastTouchEvent evt(m_state.fastTouchSeqId, action, nx, ny);
+    int len = FastMsg::serializeTouchInto(buf, evt);
+    m_controller->postFastMsg(buf, len);
 }
 
 void SteerWheelHandler::getDelayQueue(const QPointF& start, const QPointF& end,
@@ -437,7 +432,7 @@ void SteerWheelHandler::getDelayQueue(const QPointF& start, const QPointF& end,
 {
     Q_UNUSED(posStep)
 
-    // 获取平滑度和曲线设置（与原版完全一致）
+    // 获取平滑度和曲线设置
     int smoothLevel = qsc::ConfigCenter::instance().steerWheelSmooth();
     int curveLevel = qsc::ConfigCenter::instance().steerWheelCurve();
 

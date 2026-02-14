@@ -24,9 +24,11 @@ struct DeviceParams {
     bool stayAwake = false;           // 保持唤醒 / Keep screen awake
     QString serverVersion = "3.3.4";  // server 版本 / Server version
     QString logLevel = "debug";     // 日志级别 / Log level
+    // 视频编解码器 / Video codec: "h264"
+    QString videoCodec = "h264";
     // 编码选项 / Codec options ("" = default)
     QString codecOptions = "";
-    // 指定编码器名称 / Codec name (must be H.264, "" = default)
+    // 指定编码器名称 / Codec name ("" = default)
     QString codecName = "";
     quint32 scid = -1; // 随机数，作为 localsocket 名字后缀 / Random suffix for localsocket name
 

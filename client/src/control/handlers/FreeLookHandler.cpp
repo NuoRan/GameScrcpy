@@ -192,14 +192,9 @@ void FreeLookHandler::sendFastTouch(quint8 action, const QPointF& pos)
     quint16 nx = static_cast<quint16>(qBound(0.0, pos.x(), 1.0) * 65535);
     quint16 ny = static_cast<quint16>(qBound(0.0, pos.y(), 1.0) * 65535);
 
-    QByteArray data;
-    if (action == FTA_DOWN) {
-        data = FastMsg::touchDownRaw(m_state.fastTouchSeqId, nx, ny);
-    } else if (action == FTA_UP) {
-        data = FastMsg::touchUpRaw(m_state.fastTouchSeqId, nx, ny);
-    } else {
-        data = FastMsg::touchMoveRaw(m_state.fastTouchSeqId, nx, ny);
-    }
-
-    m_controller->postFastMsg(data);
+    // [零分配优化] 栈缓冲区序列化，避免 QByteArray 堆分配
+    char buf[10];
+    FastTouchEvent evt(m_state.fastTouchSeqId, action, nx, ny);
+    int len = FastMsg::serializeTouchInto(buf, evt);
+    m_controller->postFastMsg(buf, len);
 }

@@ -61,6 +61,12 @@ void ZeroCopyStreamManager::setFrameSize(const QSize& size)
     m_frameSize = size;
 }
 
+void ZeroCopyStreamManager::setVideoCodec(const QString& codec)
+{
+    m_videoCodec = codec;
+    qInfo("[ZeroCopyStreamManager] Video codec set to: %s", qPrintable(codec));
+}
+
 bool ZeroCopyStreamManager::start()
 {
     if (m_running) {
@@ -80,8 +86,9 @@ bool ZeroCopyStreamManager::start()
         return false;
     }
 
-    // 设置帧尺寸
+    // 设置帧尺寸和编解码器
     m_demuxer->setFrameSize(m_frameSize);
+    m_demuxer->setVideoCodec(m_videoCodec);
 
     // 连接信号
     // 【重要】必须使用 DirectConnection，因为 Demuxer 在子线程运行
@@ -188,16 +195,22 @@ bool ZeroCopyStreamManager::openDecoder()
     connect(m_decoder.get(), &ZeroCopyDecoder::fpsUpdated,
             this, &ZeroCopyStreamManager::onDecoderFpsUpdated);
 
-    // 打开解码器（使用 H.264 编码）
-    if (!m_decoder->open(AV_CODEC_ID_H264)) {
+    // 根据配置确定解码器 codec ID
+    AVCodecID codecId = AV_CODEC_ID_H264;
+    const char* codecLabel = "H.264";
+    // 仅支持 H.264
+
+    // 打开解码器
+    if (!m_decoder->open(codecId)) {
         qWarning("[ZeroCopyStreamManager] Failed to open decoder");
         return false;
     }
 
     m_decoderOpened = true;
 
-    qInfo("[ZeroCopyStreamManager] Decoder opened: %s (H.264)%s",
+    qInfo("[ZeroCopyStreamManager] Decoder opened: %s (%s)%s",
           m_decoder->isHardwareAccelerated() ? qPrintable(m_decoder->hwDecoderName()) : "software",
+          codecLabel,
           m_decoderInjected ? " [injected]" : "");
 
     emit decoderInfo(m_decoder->isHardwareAccelerated(), m_decoder->hwDecoderName());
@@ -223,7 +236,7 @@ void ZeroCopyStreamManager::onDemuxerGetFrame(AVPacket* packet)
         return;
     }
 
-    m_decoder->decode(packet->data, packet->size, packet->pts);
+    m_decoder->decode(packet->data, packet->size, packet->pts, packet->flags);
 }
 
 void ZeroCopyStreamManager::onDecoderFpsUpdated(quint32 fps)

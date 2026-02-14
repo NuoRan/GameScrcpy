@@ -26,6 +26,10 @@ bool TcpControlChannel::connect(const char* host, uint16_t port)
 
     // 等待连接（阻塞式，最多 5 秒）
     if (m_socket->waitForConnected(5000)) {
+        // 禁用 Nagle 算法，减少小包延迟
+        m_socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
+        // 缩小发送缓冲区到 16KB，减少内核排队延迟
+        m_socket->setSocketOption(QAbstractSocket::SendBufferSizeSocketOption, 16 * 1024);
         m_connected = true;
         return true;
     }

@@ -26,8 +26,9 @@ import java.util.concurrent.TimeUnit;
  */
 public final class KcpControlChannel implements IControlChannel, KcpTransport.Listener {
 
-    // 移除硬超时，改为长轮询
-    private static final int POLL_INTERVAL_MS = 500;
+    // [极致低延迟优化] 缩短轮询超时，加速通道关闭检测
+    // 不影响数据延迟（BlockingQueue.poll 有数据时立即返回）
+    private static final int POLL_INTERVAL_MS = 50;
 
     private final KcpTransport transport;
     private final ControlMessageReader reader;

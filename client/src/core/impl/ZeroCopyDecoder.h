@@ -29,7 +29,7 @@ namespace core {
  * 特性 / Features:
  * - 零拷贝：解码数据直接写入预分配帧 / Zero-copy: decode into pre-allocated frames
  * - 硬件加速：支持 D3D11VA/VideoToolbox/VAAPI / HW accel support
- * - H.264/H.265 双编码支持 / Dual codec support
+ * - H.264 编码支持 / H.264 codec support
  * - 线程安全 / Thread-safe
  */
 class ZeroCopyDecoder : public QObject, public IDecoder {
@@ -42,7 +42,7 @@ public:
     // IDecoder 接口实现
     bool open(int codecId) override;
     void close() override;
-    bool decode(const uint8_t* data, int size, int64_t pts) override;
+    bool decode(const uint8_t* data, int size, int64_t pts, int flags = 0) override;
     void setFrameCallback(FrameCallback callback) override;
     bool isHardwareAccelerated() const override;
     const char* name() const override { return "ZeroCopyFFmpeg"; }
@@ -63,6 +63,24 @@ public:
      */
     void peekFrame(std::function<void(int width, int height, uint8_t* dataRGB32)> callback);
 
+    /**
+     * @brief 启用 GPU 直通渲染
+     *
+     * 启用后，D3D11VA 解码的帧将以 GPU 纹理形式直接传递给渲染器，
+     * 不再经过 av_hwframe_transfer_data (GPU→CPU 回读)。
+     * 渲染器需要支持 D3D11-GL interop 才能使用此功能。
+     *
+     * @param enabled true 启用 GPU 直通
+     */
+    void setGPUDirectEnabled(bool enabled) { m_gpuDirectEnabled = enabled; }
+    bool isGPUDirectEnabled() const { return m_gpuDirectEnabled; }
+
+    /**
+     * @brief 获取 D3D11 设备指针 (用于渲染器初始化 interop)
+     * @return ID3D11Device* 或 nullptr
+     */
+    void* getD3D11Device() const;
+
 signals:
     /**
      * @brief FPS 更新信号
@@ -78,6 +96,7 @@ private:
     bool initHardwareDecoder(const AVCodec* codec);
     bool transferHwFrame(AVFrame* hwFrame, AVFrame* swFrame);
     void processDecodedFrame(AVFrame* frame);
+    void processGPUDirectFrame(AVFrame* hwFrame);  // [Step12] GPU 直通路径
     void updateFps();
 
 private:
@@ -97,6 +116,9 @@ private:
     FrameQueue* m_frameQueue = nullptr;
     FrameCallback m_frameCallback;
 
+    // GPU 直通渲染
+    bool m_gpuDirectEnabled = false;
+
     // FPS 统计
     std::atomic<quint32> m_frameCount{0};
     std::atomic<quint32> m_currentFps{0};
@@ -115,6 +137,10 @@ private:
     // 分辨率变化检测（仅用于日志）
     int m_decodedWidth = 0;
     int m_decodedHeight = 0;
+
+    // 硬件解码故障恢复
+    int m_consecutiveErrors = 0;    // 连续解码错误计数
+    bool m_forceSwDecode = false;   // 强制软件解码（HW 失败后自动设置）
 };
 
 } // namespace core

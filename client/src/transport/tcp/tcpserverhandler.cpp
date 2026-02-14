@@ -28,6 +28,8 @@ TcpServerHandler::TcpServerHandler(QObject *parent) : QObject(parent)
         QTcpSocket *tmp = m_serverSocket.nextPendingConnection();
         VideoSocket *vs = dynamic_cast<VideoSocket *>(tmp);
         if (vs) {
+            // reverse 模式设置 TCP_NODELAY
+            vs->setSocketOption(QAbstractSocket::LowDelayOption, 1);
             m_videoSocket = vs;
             if (!m_videoSocket->isValid() || !readInfo(m_videoSocket, m_deviceName, m_deviceSize)) {
                 stop();
@@ -43,6 +45,8 @@ TcpServerHandler::TcpServerHandler(QObject *parent) : QObject(parent)
     connect(&m_serverSocketCtrl, &QTcpServer::newConnection, this, [this]() {
         QTcpSocket *tmp = m_serverSocketCtrl.nextPendingConnection();
         if (tmp && tmp->isValid()) {
+            // reverse 模式设置 TCP_NODELAY
+            tmp->setSocketOption(QAbstractSocket::LowDelayOption, 1);
             m_controlSocket = tmp;
             m_serverSocketCtrl.close();
             checkBothConnected();
@@ -224,6 +228,9 @@ bool TcpServerHandler::execute()
     }
     if (!m_params.codecName.isEmpty()) {
         args << QString("encoder_name=%1").arg(m_params.codecName);
+    }
+    if (m_params.videoCodec != "h264") {
+        args << QString("video_codec=%1").arg(m_params.videoCodec);
     }
     args << "audio=false";
     if (-1 != m_params.scid) {

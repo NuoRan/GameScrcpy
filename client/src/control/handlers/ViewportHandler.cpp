@@ -8,8 +8,9 @@
 #include "ConfigCenter.h"
 #include <QDebug>
 #include <QRandomGenerator>
+#include <algorithm>
 
-// 静态辅助函数：应用随机偏移（与原版一致）
+// 静态辅助函数：应用随机偏移
 static QPointF applyRandomOffset(const QPointF& pos, const QSize& targetSize) {
     int offsetLevel = qsc::ConfigCenter::instance().randomOffset();
     if (offsetLevel <= 0 || targetSize.isEmpty()) {
@@ -45,10 +46,10 @@ static QSize getTargetSize(const QSize& frameSize, const QSize& showSize) {
 ViewportHandler::ViewportHandler(QObject* parent)
     : IInputHandler(parent)
 {
-    // 初始化边缘回中定时器（与原版完全一致：15ms）
+    // 初始化边缘回中定时器
     m_state.centerRepressTimer = new QTimer(this);
     m_state.centerRepressTimer->setSingleShot(true);
-    m_state.centerRepressTimer->setInterval(15);  // 15ms 延迟
+    m_state.centerRepressTimer->setInterval(5);
     connect(m_state.centerRepressTimer, &QTimer::timeout, this, &ViewportHandler::onCenterRepressTimer);
 
     // 初始化空闲回中定时器（1000ms 空闲后回中）
@@ -105,6 +106,9 @@ void ViewportHandler::reset()
     stopTouch();
     m_pendingMoveDelta = {0, 0};
     m_moveSendScheduled = false;
+    // 重置平滑状态
+    m_smoothedDelta = {0, 0};
+    m_subPixelAccum = {0, 0};
 }
 
 void ViewportHandler::startTouch(const QSize& frameSize, const QSize& showSize)
@@ -133,9 +137,8 @@ void ViewportHandler::scheduleMoveSend()
 {
     if (!m_moveSendScheduled) {
         m_moveSendScheduled = true;
-        // 直接在当前事件处理尾声发送（下一个 posted event 前）
-        // 比 QTimer::singleShot(0) 省去一次完整的事件循环往返
-        QMetaObject::invokeMethod(this, &ViewportHandler::onMouseMoveTimer, Qt::QueuedConnection);
+        // 同步直接调用，避免事件循环迭代延迟
+        onMouseMoveTimer();
     }
 }
 
@@ -204,8 +207,48 @@ void ViewportHandler::processMove(const QPointF& delta)
 {
     if (!m_keyMap) return;
 
-    // 计算新位置
-    QPointF newPos = m_state.lastConverPos + delta;
+    // 视角控制管线
+    // 视角控制管线：
+    //  1. 亚像素精度累积
+    //  2. 抖动过滤
+    //  3. 速度倍增器（快速甩枪时加速）
+    //  4. EMA 平滑
+
+    // --- Step 1: 亚像素精度累积 ---
+    QPointF rawDelta = delta + m_subPixelAccum;
+
+    // --- Step 2: 抖动过滤 ---
+    double magnitude = std::sqrt(rawDelta.x() * rawDelta.x() + rawDelta.y() * rawDelta.y());
+    if (magnitude < JITTER_THRESHOLD) {
+        m_subPixelAccum = rawDelta;
+        return;
+    }
+    m_subPixelAccum = {0, 0};
+
+    // --- Step 3: 速度倍增器 ---
+    // 低于 ACCEL_LOW_THRESHOLD: multiplier = 1.0
+    // 高于 ACCEL_HIGH_THRESHOLD: multiplier = ACCEL_MAX_MULTIPLIER
+    // 之间: 二次方平滑过渡
+    double multiplier = 1.0;
+    if (magnitude > ACCEL_LOW_THRESHOLD) {
+        if (magnitude >= ACCEL_HIGH_THRESHOLD) {
+            multiplier = ACCEL_MAX_MULTIPLIER;
+        } else {
+            double t = (magnitude - ACCEL_LOW_THRESHOLD) / (ACCEL_HIGH_THRESHOLD - ACCEL_LOW_THRESHOLD);
+            multiplier = 1.0 + (ACCEL_MAX_MULTIPLIER - 1.0) * std::pow(t, ACCEL_CURVE);
+        }
+    }
+    QPointF acceleratedDelta = rawDelta * multiplier;
+
+    // --- Step 4: 轻微 EMA 平滑 ---
+    // SMOOTH_FACTOR=0.85 意味着 85% 当前 + 15% 历史，几乎即时响应
+    m_smoothedDelta.setX(SMOOTH_FACTOR * acceleratedDelta.x() + (1.0 - SMOOTH_FACTOR) * m_smoothedDelta.x());
+    m_smoothedDelta.setY(SMOOTH_FACTOR * acceleratedDelta.y() + (1.0 - SMOOTH_FACTOR) * m_smoothedDelta.y());
+
+    QPointF finalDelta = m_smoothedDelta;
+
+    // --- Step 5: 坐标更新与边界处理 ---
+    QPointF newPos = m_state.lastConverPos + finalDelta;
 
     QPointF centerPos = m_keyMap->getMouseMoveMap().data.mouseMove.startPos;
     const double MARGIN = 0.05;

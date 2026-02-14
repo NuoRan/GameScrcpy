@@ -270,6 +270,8 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
 
     /**
      * 快速按键注入 - 极简版本，无 repeat/metaState
+     * [极致低延迟优化] 全部使用 ASYNC 模式，避免阻塞 control-recv 线程
+     * ASYNC 模式下 Android InputDispatcher 仍保证事件顺序
      */
     private boolean injectFastKey(int action, int keycode) {
         int actionDisplayId = getActionDisplayId();

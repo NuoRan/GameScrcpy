@@ -16,8 +16,8 @@ namespace core {
  *
  * 将现有的 Decoder 类适配为 IDecoder 接口。
  * Adapts the existing Decoder class to the IDecoder interface.
- * 支持 H.264 和 H.265/HEVC，优先使用硬件加速。
- * Supports H.264 and H.265/HEVC with hardware acceleration preferred.
+ * 支持 H.264，优先使用硬件加速。
+ * Supports H.264 with hardware acceleration preferred.
  */
 class FFmpegDecoderImpl : public IDecoder {
 public:
@@ -27,7 +27,7 @@ public:
     // IDecoder 实现
     bool open(int codecId) override;
     void close() override;
-    bool decode(const uint8_t* data, int size, int64_t pts) override;
+    bool decode(const uint8_t* data, int size, int64_t pts, int flags = 0) override;
     void setFrameCallback(FrameCallback callback) override;
     bool isHardwareAccelerated() const override;
     const char* name() const override { return "FFmpeg"; }

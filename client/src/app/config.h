@@ -44,6 +44,7 @@ struct UserBootConfig
     bool simpleMode       = false;
     bool autoUpdateDevice = true;
     bool showToolbar      = true;
+    int videoCodecIndex   = 0;     // 0=H.264
 };
 
 class QSettings;
@@ -79,6 +80,10 @@ public:
     UserBootConfig getUserBootConfig();
     void setTrayMessageShown(bool shown);
     bool getTrayMessageShown();
+
+    // 使用协议接受状态 / License agreement accepted state
+    void setAgreementAccepted(bool accepted);
+    bool getAgreementAccepted();
 
     // 读写用户配置 - 设备专属 / Read/write user config - per-device
     void setNickName(const QString &serial, const QString &name);

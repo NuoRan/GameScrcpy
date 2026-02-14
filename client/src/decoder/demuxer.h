@@ -49,6 +49,7 @@ public:
     void installVideoChannel(qsc::core::IVideoChannel* channel);
 
     void setFrameSize(const QSize &frameSize);
+    void setVideoCodec(const QString &codec);
     bool startDecode();
     void stopDecode();
 
@@ -73,10 +74,11 @@ private:
     qsc::core::IVideoChannel* m_videoChannel = nullptr;  // 新架构接口
 
     QSize m_frameSize;
+    QString m_videoCodec = "h264";
     QElapsedTimer m_debugTimer;
 
-    AVCodecContext *m_codecCtx = Q_NULLPTR;
-    AVCodecParserContext *m_parser = Q_NULLPTR;
+    AVCodecContext* m_codecCtx = Q_NULLPTR;
+    AVCodecParserContext* m_parser = Q_NULLPTR;
     AVPacket* m_pending = Q_NULLPTR; // 暂存包，用于处理 Config 包拼接
 
     // 停止标志 - 用于线程安全地通知停止

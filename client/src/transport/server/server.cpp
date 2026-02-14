@@ -48,6 +48,7 @@ bool Server::start(Server::ServerParams params)
         kcpParams.logLevel = m_params.logLevel;
         kcpParams.codecOptions = m_params.codecOptions;
         kcpParams.codecName = m_params.codecName;
+        kcpParams.videoCodec = m_params.videoCodec;
         kcpParams.crop = m_params.crop;
         kcpParams.control = m_params.control;
         kcpParams.kcpPort = m_params.kcpPort;
@@ -80,6 +81,7 @@ bool Server::start(Server::ServerParams params)
         tcpParams.logLevel = m_params.logLevel;
         tcpParams.codecOptions = m_params.codecOptions;
         tcpParams.codecName = m_params.codecName;
+        tcpParams.videoCodec = m_params.videoCodec;
         tcpParams.crop = m_params.crop;
         tcpParams.control = m_params.control;
         tcpParams.scid = m_params.scid;

@@ -79,7 +79,6 @@ int KcpTransport::send(const char *data, int len)
     // 立即flush，减少延迟
     if (ret >= 0) {
         m_kcp->update(currentMs());
-        // 报告发送字节数
         qsc::PerformanceMonitor::instance().reportBytesSent(len);
     }
     return ret;
@@ -168,6 +167,20 @@ void KcpTransport::setStreamMode(int stream)
     if (m_kcp) m_kcp->setStream(stream);
 }
 
+void KcpTransport::setFecEnabled(bool enabled, int groupSize)
+{
+    m_fecEnabled = enabled;
+    if (enabled) {
+        m_fecEncoder = std::make_unique<fec::FecEncoder>(groupSize);
+        m_fecDecoder = std::make_unique<fec::FecDecoder>();
+        qInfo("[KcpTransport] FEC enabled: groupSize=%d", groupSize);
+    } else {
+        m_fecEncoder.reset();
+        m_fecDecoder.reset();
+        qInfo("[KcpTransport] FEC disabled");
+    }
+}
+
 void KcpTransport::onSocketReadyRead()
 {
     // P-KCP: 使用 readDatagram + 预分配栈缓冲区，避免每个 UDP 包创建 QNetworkDatagram 堆对象
@@ -188,11 +201,18 @@ void KcpTransport::onSocketReadyRead()
             emit peerConnected();
         }
 
-        m_kcp->input(buf, static_cast<int>(size));
+        // [超低延迟优化] FEC 解码：在 UDP 层恢复丢失的 KCP 包
+        if (m_fecEnabled && m_fecDecoder) {
+            m_fecDecoder->decode(reinterpret_cast<const uint8_t*>(buf), static_cast<int>(size),
+                [this](const uint8_t* data, int dataLen) {
+                    m_kcp->input(reinterpret_cast<const char*>(data), dataLen);
+                });
+        } else {
+            m_kcp->input(buf, static_cast<int>(size));
+        }
     }
 
-    // 【关键优化】收到数据后立即update，让ACK最快发出
-    // 这避免了对端因为收不到ACK而触发重传
+    // 收到数据后立即 update，让 ACK 最快发出
     m_kcp->update(currentMs());
 
     if (m_kcp->peekSize() > 0) {
@@ -213,7 +233,7 @@ void KcpTransport::onUpdateTimer()
         qsc::PerformanceMonitor::instance().reportNetworkLatency(rtt);
     }
 
-    // 【按需调度优化】使用 ikcp_check 计算下次需要更新的时间
+    // 使用 ikcp_check 计算下次需要更新的时间
     scheduleNextUpdate();
 }
 
@@ -238,6 +258,18 @@ void KcpTransport::scheduleNextUpdate()
 int KcpTransport::udpOutput(const char *buf, int len)
 {
     if (!m_socket || !m_active || m_remotePort == 0) return -1;
+
+    // [超低延迟优化] FEC 编码：在 UDP 层下方为 KCP 包添加前向纠错
+    // 每 groupSize 个 KCP 包生成 1 个 XOR 校验包，可恢复 1 个丢包无需等待重传
+    if (m_fecEnabled && m_fecEncoder) {
+        m_fecEncoder->encode(reinterpret_cast<const uint8_t*>(buf), len,
+            [this](const uint8_t* data, int dataLen) {
+                m_socket->writeDatagram(reinterpret_cast<const char*>(data), dataLen,
+                                        m_remoteAddress, m_remotePort);
+            });
+        return len;
+    }
+
     qint64 sent = m_socket->writeDatagram(buf, len, m_remoteAddress, m_remotePort);
     return sent < 0 ? -1 : static_cast<int>(sent);
 }
