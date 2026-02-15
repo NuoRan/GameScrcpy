@@ -23,6 +23,24 @@
 
 ---
 
+<p align="center">
+  <img src="docs/images/screenshot_main.png" alt="Main Interface" width="80%">
+</p>
+
+<p align="center">
+  <img src="docs/images/screenshot_keymap.png" alt="Key Mapping" width="80%">
+</p>
+
+<p align="center">
+  <img src="docs/images/screenshot_script.png" alt="Script Editor" width="80%">
+</p>
+
+<p align="center">
+  <img src="docs/images/screenshot_selection.png" alt="Selection Editor" width="80%">
+</p>
+
+---
+
 ## ⭐ Key Features
 
 ### 🖥️ HD Screen Mirroring

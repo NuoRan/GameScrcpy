@@ -26,6 +26,24 @@
 
 ---
 
+<p align="center">
+  <img src="docs/images/screenshot_main.png" alt="主界面" width="80%">
+</p>
+
+<p align="center">
+  <img src="docs/images/screenshot_keymap.png" alt="键位映射" width="80%">
+</p>
+
+<p align="center">
+  <img src="docs/images/screenshot_script.png" alt="脚本编辑器" width="80%">
+</p>
+
+<p align="center">
+  <img src="docs/images/screenshot_selection.png" alt="选区编辑器" width="80%">
+</p>
+
+---
+
 ## ⭐ 核心特性
 
 ### 🖥️ 高清投屏
