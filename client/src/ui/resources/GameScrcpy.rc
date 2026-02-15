@@ -3,8 +3,8 @@
 IDI_ICON1       ICON      "GameScrcpy.ico"
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 2,2,1,0
- PRODUCTVERSION 2,2,1,0
+ FILEVERSION 1,2,0,0
+ PRODUCTVERSION 1,2,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -21,10 +21,10 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "RanKun"
             VALUE "FileDescription", "Android real-time display control software"
-            VALUE "FileVersion", "2.2.1"
+            VALUE "FileVersion", "1.2.0"
             VALUE "LegalCopyright", "Copyright (C) RanKun 2018-2038. All rights reserved."
             VALUE "ProductName", "GameScrcpy"
-            VALUE "ProductVersion", "2.2.1"
+            VALUE "ProductVersion", "1.2.0"
         END
     END
     BLOCK "VarFileInfo"

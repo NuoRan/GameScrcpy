@@ -91,7 +91,7 @@ bool ZeroCopyStreamManager::start()
     m_demuxer->setVideoCodec(m_videoCodec);
 
     // 连接信号
-    // 【重要】必须使用 DirectConnection，因为 Demuxer 在子线程运行
+    // 必须使用 DirectConnection，因为 Demuxer 在子线程运行
     // 如果用 QueuedConnection，slot 执行时 packet 已经被 unref 了
     connect(m_demuxer.get(), &Demuxer::onStreamStop,
             this, &ZeroCopyStreamManager::onDemuxerStopped,

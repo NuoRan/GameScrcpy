@@ -11,11 +11,10 @@
 // 渲染线程优先级提升
 #ifdef Q_OS_WIN
 #include <windows.h>
-#include <avrt.h>   // [超低延迟优化] MMCSS 实时调度
+#include <avrt.h>   // MMCSS 实时调度
 #endif
 
 #include "qyuvopenglwidget.h"
-#include "PerformanceMonitor.h"
 
 // 调试日志
 #define RENDER_LOG(msg) qDebug() << "[Render]" << QDateTime::currentDateTime().toString("hh:mm:ss.zzz") \
@@ -165,7 +164,9 @@ QYUVOpenGLWidget::QYUVOpenGLWidget(QWidget *parent) : QOpenGLWidget(parent)
             return;
         }
         // 窗口不可见时仍然处理待渲染的帧，避免卡顿
-        if (m_hasPendingFrame.load(std::memory_order_acquire) && !m_isDestroying.load()) {
+        if ((m_hasPendingFrame.load(std::memory_order_acquire) ||
+             m_pendingDirectFrame.load(std::memory_order_acquire) != nullptr) &&
+            !m_isDestroying.load()) {
             // 直接调用 repaint 而不是 update，确保即使窗口不可见也能更新
             repaint();
         }
@@ -394,6 +395,7 @@ void QYUVOpenGLWidget::submitFrameDirect(uint8_t* dataY, uint8_t* dataU, uint8_t
     DirectFrameSlot* old = m_pendingDirectFrame.exchange(newSlot, std::memory_order_acq_rel);
     if (old) {
         // 旧帧被跳过（渲染来不及），立即释放
+        m_droppedFrames.fetch_add(1, std::memory_order_relaxed);
         if (old->releaseCallback) old->releaseCallback();
         delete old;
     }
@@ -407,15 +409,16 @@ void QYUVOpenGLWidget::submitFrameDirect(uint8_t* dataY, uint8_t* dataU, uint8_t
 
     m_hasPendingFrame.store(true, std::memory_order_release);
 
-    // [超低延迟优化] 帧提交触发渲染
-    // 使用 repaint() 代替 update()：
-    // update() 会被 Qt 合并（多帧到达同一事件循环 tick → 只触发一次 paintGL → 丢帧）
-    // repaint() 立即触发 paintGL，确保每帧都被渲染
-    // 注：如果当前在 GUI 线程则直接 repaint()，否则通过 QueuedConnection 投递
+    // 使用 HighEventPriority 自定义事件代替 update()，避免被鼠标事件延迟
     if (QThread::currentThread() == this->thread()) {
-        repaint();
+        repaint();  // 同线程：直接同步渲染
     } else {
-        QMetaObject::invokeMethod(this, "repaint", Qt::QueuedConnection);
+        // 跨线程：只投递一个高优先级事件，自动合并
+        if (!m_renderEventPending.exchange(true, std::memory_order_acq_rel)) {
+            QCoreApplication::postEvent(this,
+                new QEvent(static_cast<QEvent::Type>(RenderEventType)),
+                Qt::HighEventPriority);
+        }
     }
 
     m_totalUploadTime += m_uploadTimer.nsecsElapsed() / 1000000.0;
@@ -852,7 +855,7 @@ void QYUVOpenGLWidget::deInitPBO()
     qInfo() << "PBO deinitialized";
 }
 
-// 不带 makeCurrent/doneCurrent 的 PBO 纹理更新（用于批量更新）
+// PBO 纹理更新：孤立旧缓冲 + 流式上传实现零帧延迟
 void QYUVOpenGLWidget::updateTextureWithPBONoContext(GLuint texture, quint32 textureType, quint8 *pixels, quint32 stride)
 {
     if (!pixels || !m_pboInited) return;
@@ -860,31 +863,16 @@ void QYUVOpenGLWidget::updateTextureWithPBONoContext(GLuint texture, quint32 tex
     QSize size = (textureType == 0) ? m_frameSize : m_frameSize / 2;
     int dataSize = size.width() * size.height();
 
-    // 选择对应的 PBO 数组
-    GLuint* pboArray = nullptr;
+    // 选择对应的 PBO（固定使用索引0，不再交替）
+    GLuint pbo = 0;
     switch (textureType) {
-        case 0: pboArray = m_pboY.data(); break;
-        case 1: pboArray = m_pboU.data(); break;
-        case 2: pboArray = m_pboV.data(); break;
+        case 0: pbo = m_pboY[0]; break;
+        case 1: pbo = m_pboU[0]; break;
+        case 2: pbo = m_pboV[0]; break;
         default: return;
     }
 
-    int writeIndex = m_pboIndex;
-    int readIndex = (m_pboIndex + 1) % PBO_COUNT;
-
-    // 步骤1: 从上一帧的 PBO 上传到纹理 (异步，DMA传输)
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboArray[readIndex]);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, size.width());
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, size.width(), size.height(),
-                    GL_LUMINANCE, GL_UNSIGNED_BYTE, nullptr);
-
-    // 步骤2: 将新数据写入当前 PBO
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboArray[writeIndex]);
-
-    // glMapBufferRange 异步 DMA 传输
-    // GL_MAP_INVALIDATE_BUFFER_BIT: 告诉驱动不需保留旧数据，可以直接分配新内存
-    // GL_MAP_UNSYNCHRONIZED_BIT: CPU 写入与 GPU 读取完全异步，不等待
+    // 解析 glMapBufferRange / glUnmapBuffer 函数指针
     typedef void* (*PFNGLMAPBUFFERRANGEPROC)(GLenum, GLintptr, GLsizeiptr, GLbitfield);
     typedef GLboolean (*PFNGLUNMAPBUFFERPROC)(GLenum);
     static PFNGLMAPBUFFERRANGEPROC s_glMapBufferRange = nullptr;
@@ -906,7 +894,6 @@ void QYUVOpenGLWidget::updateTextureWithPBONoContext(GLuint texture, quint32 tex
     bool needStrideCopy = (stride != static_cast<quint32>(size.width()));
 
     if (needStrideCopy) {
-        // stride 不匹配时先拷贝到临时缓冲区
         if (m_pboTempBuffer.size() < static_cast<size_t>(dataSize)) {
             m_pboTempBuffer.resize(dataSize);
         }
@@ -916,25 +903,35 @@ void QYUVOpenGLWidget::updateTextureWithPBONoContext(GLuint texture, quint32 tex
         srcData = m_pboTempBuffer.data();
     }
 
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+
+    // 步骤1: 孤立旧缓冲区，驱动分配新内存（无 CPU-GPU 同步等待）
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, dataSize, nullptr, GL_STREAM_DRAW);
+
+    // 步骤2: 写入当前帧数据到 PBO
     if (s_glMapBufferRange && s_glUnmapBuffer) {
-        // 优选路径: glMapBufferRange 真正异步 DMA
         void* ptr = s_glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, dataSize,
-            GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+            GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
         if (ptr) {
             memcpy(ptr, srcData, dataSize);
             s_glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
         } else {
-            // 回退到 glBufferSubData
             glBufferSubData(GL_PIXEL_UNPACK_BUFFER, 0, dataSize, srcData);
         }
     } else {
-        // 回退: glBufferSubData
         glBufferSubData(GL_PIXEL_UNPACK_BUFFER, 0, dataSize, srcData);
     }
+
+    // 步骤3: 从同一 PBO 上传到纹理（当前帧数据，零延迟）
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, size.width());
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, size.width(), size.height(),
+                    GL_LUMINANCE, GL_UNSIGNED_BYTE, nullptr);
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }
 
+// PBO 纹理更新（带 makeCurrent/doneCurrent，与 NoContext 版本逻辑一致）
 void QYUVOpenGLWidget::updateTextureWithPBO(GLuint texture, quint32 textureType, quint8 *pixels, quint32 stride)
 {
     if (!pixels || !m_pboInited) return;
@@ -942,31 +939,14 @@ void QYUVOpenGLWidget::updateTextureWithPBO(GLuint texture, quint32 textureType,
     QSize size = (textureType == 0) ? m_frameSize : m_frameSize / 2;
     int dataSize = size.width() * size.height();
 
-    // 选择对应的 PBO 数组
-    GLuint* pboArray = nullptr;
+    GLuint pbo = 0;
     switch (textureType) {
-        case 0: pboArray = m_pboY.data(); break;
-        case 1: pboArray = m_pboU.data(); break;
-        case 2: pboArray = m_pboV.data(); break;
+        case 0: pbo = m_pboY[0]; break;
+        case 1: pbo = m_pboU[0]; break;
+        case 2: pbo = m_pboV[0]; break;
         default: return;
     }
 
-    int writeIndex = m_pboIndex;
-    int readIndex = (m_pboIndex + 1) % PBO_COUNT;
-
-    makeCurrent();
-
-    // 步骤1: 从上一帧的 PBO 上传到纹理 (异步，DMA传输)
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboArray[readIndex]);
-    glBindTexture(GL_TEXTURE_2D, texture);
-    glPixelStorei(GL_UNPACK_ROW_LENGTH, size.width());  // PBO 中数据已经是紧凑的
-    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, size.width(), size.height(),
-                    GL_LUMINANCE, GL_UNSIGNED_BYTE, nullptr);  // nullptr 表示从 PBO 读取
-
-    // 步骤2: 将新数据写入当前 PBO (CPU 端)
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pboArray[writeIndex]);
-
-    // glMapBufferRange 异步 DMA
     typedef void* (*PFNGLMAPBUFFERRANGEPROC)(GLenum, GLintptr, GLsizeiptr, GLbitfield);
     typedef GLboolean (*PFNGLUNMAPBUFFERPROC)(GLenum);
     static PFNGLMAPBUFFERRANGEPROC s_glMapBufferRange2 = nullptr;
@@ -997,9 +977,14 @@ void QYUVOpenGLWidget::updateTextureWithPBO(GLuint texture, quint32 textureType,
         srcData = m_pboTempBuffer.data();
     }
 
+    makeCurrent();
+
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+    glBufferData(GL_PIXEL_UNPACK_BUFFER, dataSize, nullptr, GL_STREAM_DRAW);
+
     if (s_glMapBufferRange2 && s_glUnmapBuffer2) {
         void* ptr = s_glMapBufferRange2(GL_PIXEL_UNPACK_BUFFER, 0, dataSize,
-            GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT | GL_MAP_UNSYNCHRONIZED_BIT);
+            GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT);
         if (ptr) {
             memcpy(ptr, srcData, dataSize);
             s_glUnmapBuffer2(GL_PIXEL_UNPACK_BUFFER);
@@ -1009,6 +994,11 @@ void QYUVOpenGLWidget::updateTextureWithPBO(GLuint texture, quint32 textureType,
     } else {
         glBufferSubData(GL_PIXEL_UNPACK_BUFFER, 0, dataSize, srcData);
     }
+
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, size.width());
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, size.width(), size.height(),
+                    GL_LUMINANCE, GL_UNSIGNED_BYTE, nullptr);
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
     doneCurrent();
@@ -1049,7 +1039,7 @@ void QYUVOpenGLWidget::initializeGL()
     // 提升渲染线程优先级
 #ifdef Q_OS_WIN
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
-    // [超低延迟优化] MMCSS 实时调度：注册为 "Playback" 获得内核级优先级提升
+    // MMCSS: 注册为 "Playback" 获得内核级优先级提升
     {
         DWORD taskIndex = 0;
         HANDLE hTask = AvSetMmThreadCharacteristicsA("Playback", &taskIndex);
@@ -1089,10 +1079,15 @@ void QYUVOpenGLWidget::paintGL()
     }
 
     if (m_textureInited) {
-        if (m_hasPendingFrame.load(std::memory_order_acquire)) {
-            // 无锁路径：从原子邮箱取帧
-            DirectFrameSlot* directFrame = m_pendingDirectFrame.exchange(nullptr, std::memory_order_acq_rel);
+        // 先从原子邮箱取帧再检查标志位，避免标志位竞争导致帧丢失
+        DirectFrameSlot* directFrame = m_pendingDirectFrame.exchange(nullptr, std::memory_order_acq_rel);
 
+        if (!directFrame && !m_hasPendingFrame.load(std::memory_order_acquire)) {
+            m_shaderProgram.release();
+            return;
+        }
+
+        {
             if (directFrame) {
                 // 释放上一帧渲染的帧
                 if (m_renderedFrame) {
@@ -1120,7 +1115,6 @@ void QYUVOpenGLWidget::paintGL()
                     updateTextureWithPBONoContext(m_texture[0], 0, directFrame->dataY, directFrame->linesizeY);
                     updateTextureWithPBONoContext(m_texture[1], 1, directFrame->dataU, directFrame->linesizeU);
                     updateTextureWithPBONoContext(m_texture[2], 2, directFrame->dataV, directFrame->linesizeV);
-                    m_pboIndex = (m_pboIndex + 1) % PBO_COUNT;
                 } else {
                     updateTextureNoContext(m_texture[0], 0, directFrame->dataY, directFrame->linesizeY);
                     updateTextureNoContext(m_texture[1], 1, directFrame->dataU, directFrame->linesizeU);
@@ -1154,7 +1148,6 @@ void QYUVOpenGLWidget::paintGL()
                     updateTextureWithPBONoContext(m_texture[0], 0, const_cast<quint8*>(dataY), m_zcLinesizeY);
                     updateTextureWithPBONoContext(m_texture[1], 1, const_cast<quint8*>(dataU), m_zcLinesizeU);
                     updateTextureWithPBONoContext(m_texture[2], 2, const_cast<quint8*>(dataV), m_zcLinesizeV);
-                    m_pboIndex = (m_pboIndex + 1) % PBO_COUNT;
                 } else {
                     updateTextureNoContext(m_texture[0], 0, const_cast<quint8*>(dataY), m_zcLinesizeY);
                     updateTextureNoContext(m_texture[1], 1, const_cast<quint8*>(dataU), m_zcLinesizeU);
@@ -1175,7 +1168,6 @@ void QYUVOpenGLWidget::paintGL()
                     updateTextureWithPBONoContext(m_texture[0], 0, m_yuvDataY.data(), m_linesizeY);
                     updateTextureWithPBONoContext(m_texture[1], 1, m_yuvDataU.data(), m_linesizeU);
                     updateTextureWithPBONoContext(m_texture[2], 2, m_yuvDataV.data(), m_linesizeV);
-                    m_pboIndex = (m_pboIndex + 1) % PBO_COUNT;
                 } else {
                     updateTextureNoContext(m_texture[0], 0, m_yuvDataY.data(), m_linesizeY);
                     updateTextureNoContext(m_texture[1], 1, m_yuvDataU.data(), m_linesizeU);
@@ -1184,7 +1176,7 @@ void QYUVOpenGLWidget::paintGL()
                 m_hasPendingFrame.store(false, std::memory_order_release);
                 }
             } // end else (non-direct fallback path)
-        }
+        } // end hasPendingFrame block
 
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, m_texture[0]);
@@ -1197,24 +1189,49 @@ void QYUVOpenGLWidget::paintGL()
 
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
-        // [超低延迟优化] 立即提交 GPU 命令，不等待 buffer swap
-        // 确保 Draw Call 尽快送入 GPU 驱动队列
+        // 立即提交 GPU 命令，不等待 buffer swap
         glFlush();
+
+        // 渲染后检查是否有新帧到达，修复标志位被覆盖导致的漏帧
+        if (m_pendingDirectFrame.load(std::memory_order_acquire) != nullptr) {
+            m_hasPendingFrame.store(true, std::memory_order_release);
+            if (!m_renderEventPending.exchange(true, std::memory_order_acq_rel)) {
+                QCoreApplication::postEvent(this,
+                    new QEvent(static_cast<QEvent::Type>(RenderEventType)),
+                    Qt::HighEventPriority);
+            }
+        }
     }
 
     m_shaderProgram.release();
 
     double renderTimeMs = m_renderTimer.nsecsElapsed() / 1000000.0;
     m_totalRenderTime += renderTimeMs;
-
-    // 报告渲染延迟
-    qsc::PerformanceMonitor::instance().reportRenderLatency(renderTimeMs);
 }
 
 void QYUVOpenGLWidget::resizeGL(int width, int height)
 {
     glViewport(0, 0, width, height);
     repaint();
+}
+
+// ---------------------------------------------------------
+// 高优先级渲染事件处理
+// ---------------------------------------------------------
+bool QYUVOpenGLWidget::event(QEvent *e)
+{
+    if (e->type() == static_cast<QEvent::Type>(RenderEventType)) {
+        // 清除投递标志，允许下一帧再投递
+        m_renderEventPending.store(false, std::memory_order_release);
+        // 同时检查标志位和邮箱，防止竞争导致漏帧
+        if ((m_hasPendingFrame.load(std::memory_order_acquire) ||
+             m_pendingDirectFrame.load(std::memory_order_acquire) != nullptr) &&
+            !m_isDestroying.load(std::memory_order_acquire)) {
+            repaint();  // 立即同步渲染
+        }
+        return true;
+    }
+    return QOpenGLWidget::event(e);
 }
 
 void QYUVOpenGLWidget::showEvent(QShowEvent *event)

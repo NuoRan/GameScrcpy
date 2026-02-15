@@ -7,6 +7,7 @@
 #include <QResizeEvent>
 #include <QUndoStack>
 #include <QUndoCommand>
+#include <QPointer>
 #include <memory>
 #include <vector>
 #include "KeyMapBase.h"
@@ -115,15 +116,17 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
 
-private:
+public:
     void clearEditingState();
+
+private:
     void updateSize(const QSize& size);
     void recordMoveStart(QGraphicsItem* item);
     void recordMoveEnd(QGraphicsItem* item);
 
 private:
     QGraphicsScene* m_scene;
-    QGraphicsObject* m_editingItem = nullptr;
+    QPointer<QGraphicsObject> m_editingItem;  // QPointer: 对象被 delete 后自动置空，防止悬空指针
     QWidget* m_targetWidget = nullptr;
 
     // 撤销/重做

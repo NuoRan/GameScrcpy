@@ -1,8 +1,8 @@
 # GameScrcpy Script API Reference
 
-中文 | **English**
+[中文](SCRIPT_API.md) | **English**
 
-> **Version**: 2.2.1
+> **Version**: 1.2.0
 > **Runtime**: QJSEngine (ES6)
 > **Built-in Object**: `mapi`
 
@@ -32,6 +32,9 @@ All APIs are called via the global `mapi` object. Scripts run in independent thr
   - [getmousepos](#getmousepos) — Get mouse position
   - [getkeypos](#getkeypos) — Get key position
   - [getKeyState](#getkeystate) — Get key state
+  - [getbuttonpos](#getbuttonpos) — Get virtual button position
+- [Predefined Swipes](#predefined-swipes)
+  - [swipeById](#swipebyid) — Execute swipe by ID
 - [Image Recognition](#image-recognition)
   - [findImage](#findimage) — Find image in region
   - [findImageByRegion](#findimagebyregion) — Find image by selection region
@@ -392,6 +395,63 @@ if (mapi.getKeyState("W")) {
 
 ---
 
+### getbuttonpos
+
+Get the position of a predefined virtual button. Virtual buttons are created via the Selection Editor's "New Button" feature and saved in `keymap/buttons.json`.
+
+```js
+mapi.getbuttonpos(buttonId)
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `buttonId` | `int` | Button ID (auto-assigned when created in the Selection Editor) |
+
+**Returns**: `{x: double, y: double, valid: bool, name: string}`
+
+- `x`, `y`: Normalized coordinates of the button
+- `valid`: Whether a button with this ID was found
+- `name`: Button name
+
+```js
+// Get position of virtual button #1
+var btn = mapi.getbuttonpos(1);
+if (btn.valid) {
+    mapi.click(btn.x, btn.y);
+    mapi.toast("Clicked: " + btn.name);
+}
+```
+
+---
+
+## Predefined Swipes
+
+### swipeById
+
+Execute a predefined swipe path by ID. Swipe paths are created via the Selection Editor's "New Swipe" feature (two clicks to set start→end), saved in `keymap/swipes.json`.
+
+```js
+mapi.swipeById(swipeId, durationMs, steps)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `swipeId` | `int` | — | Swipe path ID |
+| `durationMs` | `int` | `200` | Swipe duration (ms) |
+| `steps` | `int` | `10` | Number of swipe steps |
+
+Internally looks up the swipe path by ID and delegates to `slide()` with human-like curve paths.
+
+```js
+// Execute predefined swipe #1
+mapi.swipeById(1, 200, 10);
+
+// Use default parameters
+mapi.swipeById(2);
+```
+
+---
+
 ## Image Recognition
 
 > Requires `ENABLE_IMAGE_MATCHING` to be enabled at compile time, depends on OpenCV.
@@ -682,5 +742,21 @@ keymap/
 ├── images/         # Template images (.png/.jpg/.bmp)
 ├── scripts/        # JS module files
 ├── regions.json    # Custom selection region config
+├── buttons.json    # Virtual button config (for getbuttonpos)
+├── swipes.json     # Swipe path config (for swipeById)
 └── *.json          # Key mapping configs
 ```
+
+## Selection Editor
+
+The "Tools" button in the script editor opens the Selection Editor, providing these features:
+
+| Feature | Description |
+|---------|-------------|
+| **Get Position** | Click video frame to get normalized coordinates, can copy or generate `mapi.click()`/`mapi.holdpress()` code |
+| **New Button** | Click to place a virtual button marker, saved to `buttons.json`, use with `mapi.getbuttonpos()` |
+| **New Swipe** | Two clicks to set start→end, saved to `swipes.json`, use with `mapi.swipeById()` |
+| **New Image** | Select region to capture template image, saved to `keymap/images/`, use with `mapi.findImage()` |
+| **New Region** | Select rectangular search region, saved to `regions.json`, use with `mapi.findImageByRegion()` |
+
+All elements support drag editing, right-click menu for rename/delete, and right-click code snippet generation into the script editor.

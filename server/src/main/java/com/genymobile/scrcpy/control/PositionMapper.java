@@ -42,10 +42,7 @@ public final class PositionMapper {
     public Point map(Position position) {
         Size clientVideoSize = position.getScreenSize();
 
-        // [核心修改] 分离逻辑：
-        // 1. 如果客户端发送的尺寸等于设备真实尺寸 -> 直接控制模式 (Absolute/Direct Control)
-        // 这对应你在客户端改成了 "m_mobileSize" (真实分辨率) 的情况。
-        // 此时不需要经过视频流的矩阵转换，直接使用坐标。
+        // 直接控制模式：客户端发送设备真实尺寸时直接使用坐标
         if (deviceSize.equals(clientVideoSize)) {
             return position.getPoint();
         }

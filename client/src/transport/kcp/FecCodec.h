@@ -2,7 +2,7 @@
  * @file FecCodec.h
  * @brief FEC 前向纠错编解码器 / Forward Error Correction Codec
  *
- * [超低延迟优化] 基于 XOR 的简单 FEC，用于 KCP 传输层。
+ * 基于 XOR 的简单 FEC，用于 KCP 传输层。
  * Simple XOR-based FEC for KCP transport layer.
  *
  * 原理：每 N 个数据包生成 1 个 FEC 校验包。

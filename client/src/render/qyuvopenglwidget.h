@@ -17,6 +17,7 @@
 #include <atomic>
 #include <functional>
 #include <memory>
+#include <QCoreApplication>
 
 /**
  * @brief 渲染统计信息 / Render Statistics
@@ -184,6 +185,7 @@ protected:
     void showEvent(QShowEvent *event) override;
     void hideEvent(QHideEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
+    bool event(QEvent *e) override;
 
 private:
     void initShader();
@@ -281,6 +283,11 @@ private:
 
     // === 帧上传节流 ===
     std::atomic<bool> m_hasPendingFrame{false};
+
+    // === 高优先级渲染事件 ===
+    // 避免 update() 的 LowEventPriority 导致渲染被鼠标事件延迟
+    static constexpr int RenderEventType = QEvent::User + 42;
+    std::atomic<bool> m_renderEventPending{false};  // 防止重复投递
 
     // === 后台刷新定时器 ===
     // 当窗口最小化/不可见时，确保帧仍然被处理，避免恢复时画面卡顿

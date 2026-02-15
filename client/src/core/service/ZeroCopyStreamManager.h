@@ -40,7 +40,7 @@ public:
     ~ZeroCopyStreamManager() override;
 
     /**
-     * @brief 【依赖注入】设置自定义解码器
+     * @brief 依赖注入：设置自定义解码器
      * @param decoder 解码器实例（转移所有权）
      *
      * 必须在 start() 之前调用。如果不调用，将使用默认的 ZeroCopyDecoder。
@@ -58,7 +58,7 @@ public:
     void installKcpVideoSocket(KcpVideoSocket* socket);
 
     /**
-     * @brief 【新架构】安装视频通道（通过接口）
+     * @brief 安装视频通道（通过接口）
      * @param channel 视频通道（不持有所有权）
      */
     void installVideoChannel(IVideoChannel* channel);

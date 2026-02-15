@@ -125,14 +125,10 @@ signals:
     void grabCursor(bool grab);
 
 private:
-    bool sendControl(const QByteArray &buffer);
-
-private:
     KcpSendCallback m_sendCallback;
     QPointer<ControlSender> m_controlSender;
     QPointer<Receiver> m_receiver;
 
-    // 【重构】使用 SessionContext 替代 InputConvertGame
     SessionContext* m_sessionContext = nullptr;
 
     QSize m_mobileSize;

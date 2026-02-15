@@ -418,7 +418,7 @@ void SteerWheelHandler::sendFastTouch(quint8 action, const QPointF& pos)
     quint16 nx = static_cast<quint16>(qBound(0.0, pos.x(), 1.0) * 65535);
     quint16 ny = static_cast<quint16>(qBound(0.0, pos.y(), 1.0) * 65535);
 
-    // [零分配优化] 栈缓冲区序列化，避免 QByteArray 堆分配
+    // 栈缓冲区序列化，避免堆分配
     char buf[10];
     FastTouchEvent evt(m_state.fastTouchSeqId, action, nx, ny);
     int len = FastMsg::serializeTouchInto(buf, evt);

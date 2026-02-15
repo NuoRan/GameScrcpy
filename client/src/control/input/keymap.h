@@ -58,7 +58,7 @@ public:
 
         KMT_CAMERA_MOVE,
 
-        KMT_FREE_LOOK // 【新增】小眼睛自由视角
+        KMT_FREE_LOOK
 
     };
 
@@ -82,8 +82,6 @@ public:
 
 
 
-    // 【新增】解析按键的结果结构
-
     struct ParsedKey {
 
         ActionType type = AT_INVALID;
@@ -104,7 +102,7 @@ public:
 
         int key = Qt::Key_unknown;
 
-        Qt::KeyboardModifiers modifiers = Qt::NoModifier;  // 【新增】支持组合键
+        Qt::KeyboardModifiers modifiers = Qt::NoModifier;
 
         QPointF pos = QPointF(0, 0);
 
@@ -311,9 +309,9 @@ private:
 
     bool checkForScript(const QJsonObject &node);
 
-    bool checkForCamera(const QJsonObject &node); // 【新增】
+    bool checkForCamera(const QJsonObject &node);
 
-    bool checkForFreeLook(const QJsonObject &node); // 【新增】小眼睛
+    bool checkForFreeLook(const QJsonObject &node); // 小眼睛
 
 
 

@@ -8,6 +8,7 @@
 #include <QObject>
 #include <QMutex>
 #include <QElapsedTimer>
+#include <QSet>
 #include <atomic>
 
 // FFmpeg 前向声明（必须在 namespace 外部）
@@ -108,6 +109,7 @@ private:
     AVPacket* m_packet = nullptr;       // 复用的 AVPacket
 
     int m_hwPixFmt = -1;  // AVPixelFormat 值
+    int m_hwDeviceType = 0; // AVHWDeviceType，当前使用的硬件类型
     bool m_isOpen = false;
     QString m_hwDecoderName;
     int m_codecId = 0;
@@ -138,9 +140,12 @@ private:
     int m_decodedWidth = 0;
     int m_decodedHeight = 0;
 
-    // 硬件解码故障恢复
-    int m_consecutiveErrors = 0;    // 连续解码错误计数
+    // 解码故障恢复
+    int m_consecutiveErrors = 0;    // 连续 send 错误计数
+    int m_receiveErrors = 0;        // 连续 receive 错误计数
     bool m_forceSwDecode = false;   // 强制软件解码（HW 失败后自动设置）
+    bool m_waitingForKeyframe = false;  // 重新打开后等待关键帧
+    QByteArray m_cachedConfigPacket; // 首个 SPS/PPS+关键帧数据，用于重开后恢复参数集
 };
 
 } // namespace core

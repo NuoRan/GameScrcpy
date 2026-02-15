@@ -12,7 +12,7 @@
 // 解码线程优先级提升所需的平台头文件
 #ifdef Q_OS_WIN
 #include <windows.h>
-#include <avrt.h>   // [超低延迟优化] MMCSS 实时调度
+#include <avrt.h>   // MMCSS 实时调度
 #else
 #include <pthread.h>
 #include <sched.h>
@@ -36,28 +36,36 @@ Demuxer::Demuxer(QObject *parent)
 Demuxer::~Demuxer() {}
 
 // FFmpeg 日志重定向
+// 仅输出 WARNING 及以上级别；INFO/DEBUG/VERBOSE 静默丢弃
+// 避免每帧 nal_unit_type 等调试日志刷屏
 static void avLogCallback(void *avcl, int level, const char *fmt, va_list vl)
 {
     Q_UNUSED(avcl)
-    Q_UNUSED(vl)
 
-    QString localFmt = QString::fromUtf8(fmt);
-    localFmt.prepend("[FFmpeg] ");
+    // 过滤低优先级日志
+    if (level > AV_LOG_WARNING) return;
+
+    // 格式化 FFmpeg 日志消息
+    char buf[1024];
+    vsnprintf(buf, sizeof(buf), fmt, vl);
+
+    // 去掉尾部换行
+    int len = static_cast<int>(strlen(buf));
+    while (len > 0 && (buf[len - 1] == '\n' || buf[len - 1] == '\r')) {
+        buf[--len] = '\0';
+    }
+    if (len == 0) return;
+
     switch (level) {
     case AV_LOG_PANIC:
     case AV_LOG_FATAL:
-        qFatal("%s", localFmt.toUtf8().data());
+        qFatal("[FFmpeg] %s", buf);
         break;
     case AV_LOG_ERROR:
-        qCritical() << localFmt.toUtf8();
+        qCritical("[FFmpeg] %s", buf);
         break;
     case AV_LOG_WARNING:
-        qWarning() << localFmt.toUtf8();
-        break;
-    case AV_LOG_INFO:
-        qInfo() << localFmt.toUtf8();
-        break;
-    case AV_LOG_DEBUG:
+        qWarning("[FFmpeg] %s", buf);
         break;
     }
     return;
@@ -129,7 +137,7 @@ qint32 Demuxer::recvData(quint8 *buf, qint32 bufSize)
         return 0;
     }
 
-    // 【新架构】优先使用 IVideoChannel 接口
+    // 优先使用 IVideoChannel 接口
     if (m_videoChannel) {
         return m_videoChannel->recv(buf, bufSize);
     }
@@ -197,7 +205,7 @@ void Demuxer::run()
     // 提升解码线程优先级
 #ifdef Q_OS_WIN
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
-    // [超低延迟优化] MMCSS 实时调度：注册为 "Pro Audio" 获得内核级优先级提升
+    // MMCSS: 注册为 "Pro Audio" 获得内核级优先级提升
     void* mmcssHandle = nullptr;
     {
         // 动态加载 avrt.dll 以避免编译依赖
@@ -269,9 +277,9 @@ void Demuxer::run()
         goto runQuit;
     }
     m_codecCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
-    m_codecCtx->flags2 |= AV_CODEC_FLAG2_FAST;  // [超低延迟优化] 允许不规范的加速技巧
-    m_codecCtx->thread_count = 1;                // [超低延迟优化] 单线程避免帧重排序延迟
-    m_codecCtx->thread_type = 0;                  // [超低延迟优化] 禁用多线程缓冲
+    m_codecCtx->flags2 |= AV_CODEC_FLAG2_FAST;  // 允许不规范的加速技巧
+    m_codecCtx->thread_count = 1;                // 单线程避免帧重排序延迟
+    m_codecCtx->thread_type = 0;                 // 禁用多线程缓冲
     m_codecCtx->width = m_frameSize.width();
     m_codecCtx->height = m_frameSize.height();
     m_codecCtx->pix_fmt = AV_PIX_FMT_YUV420P;

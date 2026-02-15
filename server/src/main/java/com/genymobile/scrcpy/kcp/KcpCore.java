@@ -386,7 +386,7 @@ public final class KcpCore {
             count = (len + mss - 1) / mss;
         }
 
-        if (count >= IKCP_WND_RCV) {
+        if (count >= rcvWnd) {
             return -2;
         }
 

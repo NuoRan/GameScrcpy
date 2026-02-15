@@ -1,18 +1,18 @@
 /**
  * @file kcpvideosocket.cpp
- * @brief KCP视频Socket实现
+ * @brief UDP视频Socket实现
  */
 
 #include "kcpvideosocket.h"
-#include "KcpClient.h"
+#include "UdpVideoClient.h"
 
 KcpVideoSocket::KcpVideoSocket(QObject *parent)
     : QObject(parent)
 {
-    m_client = new KcpVideoClient(this);
-    connect(m_client, &KcpVideoClient::connected, this, &KcpVideoSocket::connected);
-    connect(m_client, &KcpVideoClient::disconnected, this, &KcpVideoSocket::disconnected);
-    connect(m_client, &KcpVideoClient::errorOccurred, this, &KcpVideoSocket::errorOccurred);
+    m_client = new UdpVideoClient(this);
+    connect(m_client, &UdpVideoClient::connected, this, &KcpVideoSocket::connected);
+    connect(m_client, &UdpVideoClient::disconnected, this, &KcpVideoSocket::disconnected);
+    connect(m_client, &UdpVideoClient::errorOccurred, this, &KcpVideoSocket::errorOccurred);
 }
 
 KcpVideoSocket::~KcpVideoSocket()
@@ -20,10 +20,10 @@ KcpVideoSocket::~KcpVideoSocket()
     close();
 }
 
-void KcpVideoSocket::setBitrate(quint32 bitrateBps)
+void KcpVideoSocket::setBitrate(quint32 bitrateBps, quint32 maxFps)
 {
     if (m_client) {
-        m_client->configureBitrate(bitrateBps);
+        m_client->configure(bitrateBps, maxFps);
     }
 }
 

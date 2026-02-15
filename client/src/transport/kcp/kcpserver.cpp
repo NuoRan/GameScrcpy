@@ -254,7 +254,7 @@ void KcpServer::setupKcpSockets()
 
     // 创建 KCP video socket
     m_kcpVideoSocket = new KcpVideoSocket(nullptr);
-    m_kcpVideoSocket->setBitrate(m_params.bitRate);
+    m_kcpVideoSocket->setBitrate(m_params.bitRate, m_params.maxFps);
     if (!m_kcpVideoSocket->bind(m_params.kcpPort)) {
         qCritical() << "Failed to bind KCP video socket to port" << m_params.kcpPort;
         delete m_kcpVideoSocket;

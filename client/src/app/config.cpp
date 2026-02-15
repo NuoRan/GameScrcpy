@@ -346,14 +346,7 @@ int Config::getDesktopOpenGL()
 
 int Config::getSkin()
 {
-    return 0; // 强制禁用皮肤（根据代码逻辑）
-    /*
-    int skin = 1;
-    m_settings->beginGroup(GROUP_COMMON);
-    skin = m_settings->value(COMMON_SKIN_KEY, COMMON_SKIN_DEF).toInt();
-    m_settings->endGroup();
-    return skin;
-    */
+    return 0; // 强制禁用皮肤
 }
 
 int Config::getRenderExpiredFrames()

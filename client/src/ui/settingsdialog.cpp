@@ -60,7 +60,7 @@ void SettingsDialog::setupUI()
     m_sizeLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
     m_maxSizeBox = new QComboBox();
-    m_maxSizeBox->addItems({"320", "640", "720", "1080", "1280", "1920"});
+    m_maxSizeBox->addItems({"320", "480", "640", "720", "1080"});
     // "原始" will be added in retranslateUi()
     m_maxSizeBox->setMinimumSize(90, 38);
 

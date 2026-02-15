@@ -124,6 +124,31 @@ public:
     int peekSize() const;
 
     /**
+     * @brief 批量输入 + update (单次加锁，减少高吹量场景的同步开销)
+     *
+     * 将 N 个 input() + 1 个 update() + 1 个 peekSize() 从 N+2 次加锁减少为 1 次。
+     * 典型场景: onSocketReadyRead 处理批量 UDP 包。
+     *
+     * @param data 包数据指针数组
+     * @param sizes 包大小数组
+     * @param count 包数量
+     * @param current 当前时间戳（毫秒）
+     * @return peekSize 结果（是否有完整消息）
+     */
+    int processInputBatch(const char* const* data, const int* sizes, int count, uint32_t current);
+
+    /**
+     * @brief 批量接收所有可用数据 (单次加锁)
+     *
+     * 将 N 次 peekSize() + N 次 recv() 从 2N 次加锁减少为 1 次。
+     *
+     * @param buffer 输出缓冲区
+     * @param maxLen 缓冲区大小
+     * @return 实际接收的字节数
+     */
+    int recvAll(char *buffer, int maxLen);
+
+    /**
      * @brief 获取待发送数据包数量 (参考 README: ikcp_waitsnd)
      */
     int waitSnd() const;

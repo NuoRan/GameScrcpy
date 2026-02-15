@@ -286,8 +286,6 @@ void KeyMap::loadKeyMap(const QString &json)
 
 
 
-                // 【新增】处理 KMT_CAMERA_MOVE
-
             case KeyMap::KMT_CAMERA_MOVE: {
 
                 if (!checkForCamera(node)) {
@@ -339,8 +337,6 @@ void KeyMap::loadKeyMap(const QString &json)
             } break;
 
 
-
-            // 【新增】小眼睛自由视角
 
             case KeyMap::KMT_FREE_LOOK: {
 
@@ -509,6 +505,8 @@ static QPair<int, Qt::KeyboardModifiers> displayNameToKeyWithModifiers(const QSt
     if (keyPart == "LMB" || keyPart.compare("LeftButton", Qt::CaseInsensitive) == 0) return {Qt::LeftButton, modifiers};
     if (keyPart == "RMB" || keyPart.compare("RightButton", Qt::CaseInsensitive) == 0) return {Qt::RightButton, modifiers};
     if (keyPart == "MMB" || keyPart.compare("MiddleButton", Qt::CaseInsensitive) == 0) return {Qt::MiddleButton, modifiers};
+    if (keyPart == "MB4" || keyPart.compare("SideButton1", Qt::CaseInsensitive) == 0 || keyPart.compare("XButton1", Qt::CaseInsensitive) == 0) return {Qt::XButton1, modifiers};
+    if (keyPart == "MB5" || keyPart.compare("SideButton2", Qt::CaseInsensitive) == 0 || keyPart.compare("XButton2", Qt::CaseInsensitive) == 0) return {Qt::XButton2, modifiers};
 
     // 滚轮
     if (keyPart.compare("WheelUp", Qt::CaseInsensitive) == 0 || keyPart == "滚上") return {WHEEL_UP, modifiers};
@@ -570,6 +568,7 @@ const KeyMap::KeyMapNode &KeyMap::getKeyMapNodeByDisplayName(const QString& disp
 
     // 判断是键盘键还是鼠标按钮/滚轮
     if (key == Qt::LeftButton || key == Qt::RightButton || key == Qt::MiddleButton ||
+        key == Qt::XButton1 || key == Qt::XButton2 ||
         key == WHEEL_UP || key == WHEEL_DOWN) {
         return getKeyMapNodeMouse(key);
     } else {
@@ -891,7 +890,17 @@ KeyMap::ParsedKey KeyMap::getItemKey(const QJsonObject &node, const QString &nam
 
 
 
-    // 先检查是否是鼠标按钮
+    // 先检查是否是鼠标按钮（含简化名称）
+    if (value.compare("SideButton1", Qt::CaseInsensitive) == 0 || value == "MB4" || value.compare("XButton1", Qt::CaseInsensitive) == 0) {
+        result.type = AT_MOUSE;
+        result.key = Qt::XButton1;
+        return result;
+    }
+    if (value.compare("SideButton2", Qt::CaseInsensitive) == 0 || value == "MB5" || value.compare("XButton2", Qt::CaseInsensitive) == 0) {
+        result.type = AT_MOUSE;
+        result.key = Qt::XButton2;
+        return result;
+    }
 
     int btn = m_metaEnumMouseButtons.keyToValue(value.toStdString().c_str());
 
@@ -1135,8 +1144,6 @@ bool KeyMap::checkForScript(const QJsonObject &node)
 
 
 
-// 【新增】视角控制检查
-
 bool KeyMap::checkForCamera(const QJsonObject &node)
 
 {
@@ -1146,8 +1153,6 @@ bool KeyMap::checkForCamera(const QJsonObject &node)
     && checkItemDouble(node, "speedRatioX") && checkItemDouble(node, "speedRatioY");
 
 }
-
-// 【新增】小眼睛自由视角检查
 
 bool KeyMap::checkForFreeLook(const QJsonObject &node)
 

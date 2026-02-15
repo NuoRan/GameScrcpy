@@ -14,6 +14,7 @@
 #include <QWaitCondition>
 #include <QByteArray>
 #include <QHostAddress>
+#include <QThread>
 #include <atomic>
 #include <vector>
 
@@ -195,8 +196,21 @@ private slots:
 private:
     int calculateWindowSize(int bitrateBps) const;
 
+    /**
+     * @brief 确保 IO 线程已启动，transport 已移到 IO 线程
+     *
+     * 在 bind()/connectTo() 时调用，延迟启动以确保
+     * 构造阶段的配置（setVideoStreamMode/setMtu/setWindowSize）
+     * 可在主线程安全完成。
+     */
+    void ensureIoThread();
+
 private:
     KcpTransport *m_transport = nullptr;
+
+    // 独立 IO 线程：视频 UDP 收发和 KCP 更新在此线程运行
+    // 避免高码率视频流阻塞主线程事件循环，影响控制通道响应
+    QThread *m_ioThread = nullptr;
 
     // 环形缓冲区
     CircularBuffer m_ringBuffer;

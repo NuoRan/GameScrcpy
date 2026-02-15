@@ -1,5 +1,4 @@
 #include "ZeroCopyDecoder.h"
-#include "PerformanceMonitor.h"
 #include <QDebug>
 #include <QDateTime>
 #include <QMutex>
@@ -194,6 +193,8 @@ namespace qsc {
 namespace core {
 
 // 硬件加速类型优先级
+// D3D11VA 兼容性最广（AMD/Intel/NVIDIA 通用），优先使用
+// 运行时失败的类型会被自动拉黑并尝试下一个
 static const AVHWDeviceType hwDeviceTypes[] = {
 #ifdef _WIN32
     AV_HWDEVICE_TYPE_D3D11VA,
@@ -213,9 +214,40 @@ static const AVHWDeviceType hwDeviceTypes[] = {
 struct HwDecoderCache {
     QMutex mutex;
     bool initialized = false;
+    QSet<int> runtimeBlockedTypes;  // 运行时失败的 AVHWDeviceType 集合
     AVHWDeviceType cachedType = AV_HWDEVICE_TYPE_NONE;
     AVPixelFormat cachedPixFmt = AV_PIX_FMT_NONE;
     QString cachedName;
+
+    // 标记某个硬件类型运行时失败
+    void markTypeRuntimeFailed(int hwType) {
+        QMutexLocker locker(&mutex);
+        runtimeBlockedTypes.insert(hwType);
+        const char* name = av_hwdevice_get_type_name(static_cast<AVHWDeviceType>(hwType));
+        qWarning("[ZeroCopyDecoder] HW type '%s' marked as runtime-failed, will try next type",
+                 name ? name : "unknown");
+    }
+
+    // 某个硬件类型是否已被拉黑
+    bool isTypeBlocked(AVHWDeviceType type) const {
+        return runtimeBlockedTypes.contains(static_cast<int>(type));
+    }
+
+    // 缓存的类型是否可用（未被拉黑）
+    bool isCacheAvailable() const {
+        return initialized && cachedType != AV_HWDEVICE_TYPE_NONE
+               && !runtimeBlockedTypes.contains(static_cast<int>(cachedType));
+    }
+
+    // 是否所有 HW 类型都已失败
+    bool allHwBlocked() const {
+        for (int i = 0; hwDeviceTypes[i] != AV_HWDEVICE_TYPE_NONE; i++) {
+            if (!runtimeBlockedTypes.contains(static_cast<int>(hwDeviceTypes[i]))) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     void detectOnce(AVCodecID codecId) {
         QMutexLocker locker(&mutex);
@@ -281,16 +313,44 @@ ZeroCopyDecoder::~ZeroCopyDecoder()
 // ---------------------------------------------------------
 static AVPixelFormat getHwFormat(AVCodecContext* ctx, const AVPixelFormat* pix_fmts)
 {
-    Q_UNUSED(ctx);
-    // 优先返回硬件格式
+    // D3D11VA/DXVA2 不支持纯 Baseline，需覆盖为 Constrained Baseline
+    // Android MediaCodec 流实际兼容 Constrained Baseline
+    if (ctx->profile == AV_PROFILE_H264_BASELINE) {
+        qInfo("[ZeroCopyDecoder] Overriding Baseline(%d) -> Constrained Baseline(%d) for HW accel",
+              AV_PROFILE_H264_BASELINE, AV_PROFILE_H264_CONSTRAINED_BASELINE);
+        ctx->profile = AV_PROFILE_H264_CONSTRAINED_BASELINE;
+    }
+
+    // 优先返回目标硬件格式
     for (const AVPixelFormat* p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
         if (*p == s_hwPixFmtGlobal) {
             return *p;
         }
     }
-    // 硬件格式不在候选列表中，标记失败并回退到软件格式
+
+    // 目标格式不可用（可能 hwaccel 初始化失败后 FFmpeg 重试时移除了它）
+    // 尝试列表中其他已知硬件格式，而不是直接放弃硬件解码
+    // 例如 AV_PIX_FMT_D3D11 (d3d11va2) 失败后可以尝试 AV_PIX_FMT_D3D11VA_VLD (旧路径)
+    for (const AVPixelFormat* p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
+        switch (*p) {
+        case AV_PIX_FMT_D3D11:
+        case AV_PIX_FMT_D3D11VA_VLD:
+        case AV_PIX_FMT_DXVA2_VLD:
+        case AV_PIX_FMT_CUDA:
+        case AV_PIX_FMT_VAAPI:
+        case AV_PIX_FMT_VIDEOTOOLBOX:
+            qInfo("[ZeroCopyDecoder] Primary HW format %d unavailable, trying alt HW format: %d",
+                  s_hwPixFmtGlobal, *p);
+            s_hwPixFmtGlobal = *p;  // 更新为实际使用的格式
+            return *p;
+        default:
+            break;
+        }
+    }
+
+    // 所有硬件格式均不可用，回退到软件格式
     s_hwFormatFailed = true;
-    qWarning("[ZeroCopyDecoder] HW format %d not in offered list, falling back to software", s_hwPixFmtGlobal);
+    qWarning("[ZeroCopyDecoder] No HW format available, falling back to software");
 
     // 从候选列表中选择第一个软件像素格式
     for (const AVPixelFormat* p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
@@ -318,19 +378,27 @@ bool ZeroCopyDecoder::initHardwareDecoder(const AVCodec* codec)
         cache = &s_h264Cache;
     }
 
-    if (cache && cache->initialized && cache->cachedType != AV_HWDEVICE_TYPE_NONE) {
+    if (cache && cache->isCacheAvailable()) {
         int ret = av_hwdevice_ctx_create(&m_hwDeviceCtx, cache->cachedType, nullptr, nullptr, 0);
         if (ret >= 0) {
             m_hwPixFmt = cache->cachedPixFmt;
             s_hwPixFmtGlobal = m_hwPixFmt;
             m_hwDecoderName = cache->cachedName;
+            m_hwDeviceType = static_cast<int>(cache->cachedType);
             return true;
         }
     }
 
-    // 回退到完整检测
+    // 回退到完整检测（跳过已拉黑的类型）
     for (int i = 0; hwDeviceTypes[i] != AV_HWDEVICE_TYPE_NONE; i++) {
         AVHWDeviceType type = hwDeviceTypes[i];
+
+        // 跳过运行时失败的类型
+        if (cache && cache->isTypeBlocked(type)) {
+            qInfo("[ZeroCopyDecoder] Skipping runtime-failed HW type: %s",
+                  av_hwdevice_get_type_name(type));
+            continue;
+        }
 
         for (int j = 0;; j++) {
             const AVCodecHWConfig* config = avcodec_get_hw_config(codec, j);
@@ -344,6 +412,7 @@ bool ZeroCopyDecoder::initHardwareDecoder(const AVCodec* codec)
                     m_hwPixFmt = config->pix_fmt;
                     s_hwPixFmtGlobal = m_hwPixFmt;
                     m_hwDecoderName = QString::fromUtf8(av_hwdevice_get_type_name(type));
+                    m_hwDeviceType = static_cast<int>(type);
                     return true;
                 }
             }
@@ -435,6 +504,10 @@ bool ZeroCopyDecoder::open(int codecId)
         m_codecCtx->hw_device_ctx = av_buffer_ref(m_hwDeviceCtx);
         m_codecCtx->get_format = getHwFormat;
 
+        // D3D11VA/DXVA2 需要额外的 surface 缓冲区
+        // 没有这个设置会导致 hwaccel 初始化失败
+        m_codecCtx->extra_hw_frames = 8;
+
         m_hwFrame = av_frame_alloc();
         m_swFrame = av_frame_alloc();
         if (!m_hwFrame || !m_swFrame) {
@@ -448,9 +521,11 @@ bool ZeroCopyDecoder::open(int codecId)
     m_codecCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
     m_codecCtx->flags2 |= AV_CODEC_FLAG2_FAST;
 
-    // [超低延迟优化] 禁用帧级多线程以消除解码缓冲
-    // 帧级多线程 (FF_THREAD_FRAME) 需要缓冲多帧才能并行，增加 1-2 帧延迟
-    // 硬件解码时线程数设为 1，软解时保留少量线程
+    // 容错设置：禁用严格错误检测，启用运动矢量猜测和去块滤波修补损坏宏块
+    m_codecCtx->err_recognition = 0;
+    m_codecCtx->error_concealment = FF_EC_GUESS_MVS | FF_EC_DEBLOCK;
+
+    // 禁用帧级多线程以消除解码缓冲延迟，硬解用单线程，软解用 slice 级多线程
     if (hwEnabled) {
         m_codecCtx->thread_count = 1;        // HW 解码只需 1 个解码线程
         m_codecCtx->thread_type = 0;          // 禁用所有多线程模式
@@ -532,12 +607,12 @@ void ZeroCopyDecoder::close()
     }
 
     m_hwPixFmt = AV_PIX_FMT_NONE;
+    m_hwDeviceType = 0;
     s_hwPixFmtGlobal = AV_PIX_FMT_NONE;
     s_hwFormatFailed = false;
     m_consecutiveErrors = 0;
-
+    m_receiveErrors = 0;
     // 重置分辨率检测
-    m_decodedWidth = 0;
     m_decodedHeight = 0;
 }
 
@@ -550,14 +625,23 @@ bool ZeroCopyDecoder::decode(const uint8_t* data, int size, int64_t pts, int fla
         return false;
     }
 
-    // 开始计时（真正的解码延迟）
-    QElapsedTimer decodeTimer;
-    decodeTimer.start();
-
     // 设置 packet 数据（不复制）
     m_packet->data = const_cast<uint8_t*>(data);
     m_packet->size = size;
     m_packet->pts = pts;
+    m_packet->flags = flags;
+
+    // 重新打开后等待关键帧（含 SPS/PPS）
+    // 非关键帧缺少参数集，解码必定失败
+    if (m_waitingForKeyframe) {
+        if (!(flags & AV_PKT_FLAG_KEY)) {
+            m_packet->data = nullptr;
+            m_packet->size = 0;
+            return true;  // 静默丢弃，不报错
+        }
+        qInfo("[ZeroCopyDecoder] Got keyframe after reopen, resuming decode");
+        m_waitingForKeyframe = false;
+    }
 
     // 发送到解码器
     int ret = avcodec_send_packet(m_codecCtx, m_packet);
@@ -578,40 +662,85 @@ bool ZeroCopyDecoder::decode(const uint8_t* data, int size, int64_t pts, int fla
             // 重新打开时禁止硬件加速
             m_forceSwDecode = true;
             open(savedCodecId);
+            // 重新发送缓存的 SPS/PPS + 关键帧以恢复参数集
+            if (!m_cachedConfigPacket.isEmpty()) {
+                qInfo("[ZeroCopyDecoder] Re-feeding config packet for parameter set recovery");
+                decode(reinterpret_cast<const uint8_t*>(m_cachedConfigPacket.constData()),
+                       m_cachedConfigPacket.size(), 0, AV_PKT_FLAG_KEY);
+            }
+            m_waitingForKeyframe = true;  // 等待流中新的关键帧
         }
         return false;
     }
     m_consecutiveErrors = 0;  // 发送成功，重置计数
+    m_receiveErrors = 0;  // 重置 receive 错误计数
+
+    // 缓存首个成功发送的数据包（含 Demuxer 拼接的 SPS/PPS + 关键帧）
+    // 用于重新打开解码器时恢复 H.264 参数集
+    if (m_cachedConfigPacket.isEmpty()) {
+        m_cachedConfigPacket = QByteArray(reinterpret_cast<const char*>(data), size);
+    }
+
+    // 硬件格式协商失败时，立即重新以软解模式打开
+    // getHwFormat 回调中如果硬件格式不在候选列表中会设置此标志
+    // 此时 codec context 处于硬件+软件混合状态，容易崩溃
+    if (s_hwFormatFailed && m_hwDeviceCtx) {
+        qWarning("[ZeroCopyDecoder] HW format negotiation failed for type %d, trying next HW type",
+                 m_hwDeviceType);
+        // 只拉黑失败的具体 HW 类型，不是全部
+        HwDecoderCache* cache = nullptr;
+        if (m_codecId == AV_CODEC_ID_H264) {
+            cache = &s_h264Cache;
+        }
+        if (cache) {
+            cache->markTypeRuntimeFailed(m_hwDeviceType);
+        }
+        int savedCodecId = m_codecId;
+        m_packet->data = nullptr;
+        m_packet->size = 0;
+        close();
+        // 如果还有未失败的 HW 类型，尝试下一个；否则回退软解
+        if (cache && cache->allHwBlocked()) {
+            qWarning("[ZeroCopyDecoder] All HW types failed, falling back to software");
+            m_forceSwDecode = true;
+        }
+        open(savedCodecId);
+        // 将缓存的 SPS/PPS + 关键帧数据重新发送给软解解码器
+        // 这是首个数据包，包含完整的参数集 + IDR 帧
+        if (!m_cachedConfigPacket.isEmpty()) {
+            qInfo("[ZeroCopyDecoder] Re-feeding config+keyframe packet to new decoder");
+            return decode(reinterpret_cast<const uint8_t*>(m_cachedConfigPacket.constData()),
+                          m_cachedConfigPacket.size(), pts, flags);
+        }
+        // 回退：缓存为空则等待流中下一个关键帧
+        m_waitingForKeyframe = true;
+        return false;
+    }
 
     // 接收解码帧
     AVFrame* receiveFrame = (m_hwDeviceCtx && !s_hwFormatFailed) ? m_hwFrame : m_decodeFrame;
 
+    // 同步硬件格式（getHwFormat 回调可能在 send_packet 过程中切换了格式）
+    m_hwPixFmt = s_hwPixFmtGlobal;
+
     ret = avcodec_receive_frame(m_codecCtx, receiveFrame);
     if (ret == 0) {
-        // 成功解码 — 根据实际帧格式决定路径
-        bool isHwFrame = (receiveFrame->format == m_hwPixFmt) && m_hwDeviceCtx && !s_hwFormatFailed;
+        // 成功解码 — 通过 hw_frames_ctx 判断是否硬件帧
+        bool isHwFrame = (receiveFrame->hw_frames_ctx != nullptr);
 
         if (isHwFrame) {
             // GPU 直通路径: 跳过 av_hwframe_transfer_data
             if (m_gpuDirectEnabled && m_hwPixFmt == AV_PIX_FMT_D3D11) {
-                double decodeLatencyMs = decodeTimer.nsecsElapsed() / 1000000.0;
-                qsc::PerformanceMonitor::instance().reportDecodeLatency(decodeLatencyMs);
                 processGPUDirectFrame(m_hwFrame);
                 // 注意: GPU 直通路径中 m_hwFrame 的 unref 延迟到渲染完成后
             } else {
                 // 旧路径: 硬解 GPU → CPU
                 if (transferHwFrame(m_hwFrame, m_swFrame)) {
-                    double decodeLatencyMs = decodeTimer.nsecsElapsed() / 1000000.0;
-                    qsc::PerformanceMonitor::instance().reportDecodeLatency(decodeLatencyMs);
                     processDecodedFrame(m_swFrame);
                 }
                 av_frame_unref(m_hwFrame);
             }
         } else {
-            // 软解（含 HW 回退到 SW 的情况）：报告解码延迟
-            double decodeLatencyMs = decodeTimer.nsecsElapsed() / 1000000.0;
-            qsc::PerformanceMonitor::instance().reportDecodeLatency(decodeLatencyMs);
-
             processDecodedFrame(receiveFrame);
         }
         av_frame_unref(receiveFrame);
@@ -619,6 +748,15 @@ bool ZeroCopyDecoder::decode(const uint8_t* data, int size, int64_t pts, int fla
         char errorbuf[256];
         av_strerror(ret, errorbuf, sizeof(errorbuf));
         qWarning("[ZeroCopyDecoder] Receive frame error: %s", errorbuf);
+
+        // WiFi 高码率下丢包导致大量 receive 错误时，刷新解码器
+        // 等待下一个 I 帧重新建立正确的参考帧
+        m_receiveErrors++;
+        if (m_receiveErrors >= 10) {
+            qWarning("[ZeroCopyDecoder] Too many receive errors (%d), flushing decoder", m_receiveErrors);
+            avcodec_flush_buffers(m_codecCtx);
+            m_receiveErrors = 0;
+        }
     }
 
     m_packet->data = nullptr;
@@ -654,9 +792,6 @@ void ZeroCopyDecoder::processDecodedFrame(AVFrame* frame)
         return;
     }
 
-    // 报告帧已解码
-    qsc::PerformanceMonitor::instance().reportFrameDecoded();
-
     // 更新 FPS
     updateFps();
 
@@ -676,11 +811,6 @@ void ZeroCopyDecoder::processDecodedFrame(AVFrame* frame)
 
     // 优先使用 FrameQueue
     if (m_frameQueue) {
-        // 报告帧队列深度和帧池使用情况
-        qsc::PerformanceMonitor::instance().reportFrameQueueDepth(static_cast<int>(m_frameQueue->queueSize()));
-        qsc::PerformanceMonitor::instance().reportFramePoolUsage(
-            m_frameQueue->usedFrames(), m_frameQueue->poolSize());
-
         FrameData* poolFrame = m_frameQueue->acquireFrame();
         if (poolFrame) {
             // 检查帧池尺寸是否匹配
@@ -787,8 +917,8 @@ void ZeroCopyDecoder::processDecodedFrame(AVFrame* frame)
         }
 
         // 保存 AVFrame 引用用于截图（仅增加引用计数，无数据拷贝）
-        {
-            QMutexLocker locker(&m_screenshotMutex);
+        // 使用 tryLock 避免阻塞解码热路径：如果截图线程正在读取，跳过本帧缓存更新
+        if (m_screenshotMutex.tryLock()) {
             if (m_lastAVFrame) {
                 av_frame_unref(m_lastAVFrame);
             } else {
@@ -800,6 +930,7 @@ void ZeroCopyDecoder::processDecodedFrame(AVFrame* frame)
             m_lastWidth = w;
             m_lastHeight = h;
             m_screenshotCacheStale = true;
+            m_screenshotMutex.unlock();
         }
         return;  // 零拷贝路径完成，不再使用回调
     }
@@ -808,8 +939,7 @@ void ZeroCopyDecoder::processDecodedFrame(AVFrame* frame)
     // 注意：回调路径不支持 NV12 格式，需要硬件解码时使用 FrameQueue 路径
     if (m_frameCallback && isYUV420P) {
         // 保存 AVFrame 引用用于截图（与零拷贝路径相同的懒拷贝策略）
-        {
-            QMutexLocker locker(&m_screenshotMutex);
+        if (m_screenshotMutex.tryLock()) {
             if (m_lastAVFrame) {
                 av_frame_unref(m_lastAVFrame);
             } else {
@@ -821,6 +951,7 @@ void ZeroCopyDecoder::processDecodedFrame(AVFrame* frame)
             m_lastWidth = w;
             m_lastHeight = h;
             m_screenshotCacheStale = true;
+            m_screenshotMutex.unlock();
         }
 
         // 发送回调
@@ -854,9 +985,6 @@ void ZeroCopyDecoder::updateFps()
     qint64 elapsed = m_fpsTimer.elapsed();
     if (elapsed >= 1000) {
         m_currentFps = static_cast<quint32>(m_frameCount * 1000 / elapsed);
-
-        // 报告 FPS 到性能监控器
-        qsc::PerformanceMonitor::instance().reportFps(m_currentFps);
 
         emit fpsUpdated(m_currentFps);
         m_frameCount = 0;
@@ -1020,7 +1148,6 @@ void ZeroCopyDecoder::processGPUDirectFrame(AVFrame* hwFrame)
     m_decodedWidth = w;
     m_decodedHeight = h;
 
-    qsc::PerformanceMonitor::instance().reportFrameDecoded();
     updateFps();
 
     if (m_frameQueue) {
@@ -1042,7 +1169,6 @@ void ZeroCopyDecoder::processGPUDirectFrame(AVFrame* hwFrame)
             m_frameQueue->pushFrame(poolFrame);
             emit frameReady();
         } else {
-            qsc::PerformanceMonitor::instance().reportFrameDropped();
         }
     }
 

@@ -52,7 +52,7 @@ void InputManager::initialize(KcpSendCallback sendCallback, const QString& gameS
 void InputManager::setControlChannel(IControlChannel* channel)
 {
     m_controlChannel = channel;
-    // 【新架构】将 IControlChannel 传递给 Controller
+    // 将 IControlChannel 传递给 Controller
     if (m_controller) {
         m_controller->setControlChannel(channel);
     }

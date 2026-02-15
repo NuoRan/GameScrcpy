@@ -182,6 +182,7 @@ public:
     Q_INVOKABLE void resetwheel();
     Q_INVOKABLE QVariantMap getmousepos();
     Q_INVOKABLE QVariantMap getkeypos(const QString& keyName);
+    Q_INVOKABLE QVariantMap getbuttonpos(int buttonId);
     Q_INVOKABLE int getKeyState(const QString& keyName);
     Q_INVOKABLE void setKeyUIPos(const QString& keyName, double x, double y, double xoffset = 0, double yoffset = 0);
     Q_INVOKABLE QVariantMap findImage(const QString& imageName,
@@ -193,6 +194,9 @@ public:
     Q_INVOKABLE QVariantMap findImageByRegion(const QString& imageName,
                                               int regionId,
                                               double threshold = 0.8);
+
+    // 按滑动编号执行滑动
+    Q_INVOKABLE void swipeById(int swipeId, int durationMs = 200, int steps = 10);
 
 signals:
     void touchRequested(quint32 seqId, quint8 action, quint16 x, quint16 y);

@@ -222,12 +222,8 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
                 break;
             case ControlMessage.TYPE_INJECT_TOUCH_EVENT:
                 if (supportsInputEvents) {
-                    Position pos = msg.getPosition();
-                    int targetDisplayId = getActionDisplayId();
                     injectTouch(msg.getAction(), msg.getPointerId(), msg.getPosition(),
                             msg.getPressure(), msg.getActionButton(), msg.getButtons());
-                } else {
-                    Ln.w("Input events not supported!");
                 }
                 break;
             case ControlMessage.TYPE_BACK_OR_SCREEN_ON:
@@ -235,26 +231,35 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
                     pressBackOrTurnScreenOn(msg.getAction());
                 }
                 break;
-            // ========== 快速消息处理 ==========
-            case ControlMessage.TYPE_FAST_TOUCH:
+            // ========== 极简协议 v2 ==========
+            case ControlMessage.TYPE_TOUCH_DOWN:
+            case ControlMessage.TYPE_TOUCH_UP:
+            case ControlMessage.TYPE_TOUCH_MOVE:
                 if (supportsInputEvents) {
-                    int touchDisplayId = getActionDisplayId();
-                    fastTouch.inject(msg.getSeqId(), msg.getAction(), msg.getTouchX(), msg.getTouchY(),
-                            touchDisplayId);
+                    fastTouch.inject(msg.getSeqId(), msg.getAction(),
+                            msg.getTouchX(), msg.getTouchY(), getActionDisplayId());
                 }
                 break;
-            case ControlMessage.TYPE_FAST_KEY:
+            case ControlMessage.TYPE_TOUCH_RESET:
                 if (supportsInputEvents) {
-                    injectFastKey(msg.getAction(), msg.getKeycode());
+                    fastTouch.reset();
                 }
                 break;
-            case ControlMessage.TYPE_FAST_BATCH:
+            case ControlMessage.TYPE_KEY_DOWN:
+            case ControlMessage.TYPE_KEY_UP:
                 if (supportsInputEvents) {
-                    fastTouch.injectBatch(msg.getData(), msg.getBatchCount());
+                    int keyAction = (msg.getType() == ControlMessage.TYPE_KEY_DOWN)
+                            ? android.view.KeyEvent.ACTION_DOWN
+                            : android.view.KeyEvent.ACTION_UP;
+                    injectFastKey(keyAction, msg.getKeycode());
+                }
+                break;
+            case ControlMessage.TYPE_BATCH:
+                if (supportsInputEvents) {
+                    fastTouch.injectBatchV2(msg.getData(), msg.getBatchCount());
                 }
                 break;
             case ControlMessage.TYPE_DISCONNECT:
-                // Client requested disconnect, exit gracefully
                 Ln.i("Received disconnect message from client, stopping server");
                 return false;
             default:
@@ -270,8 +275,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
 
     /**
      * 快速按键注入 - 极简版本，无 repeat/metaState
-     * [极致低延迟优化] 全部使用 ASYNC 模式，避免阻塞 control-recv 线程
-     * ASYNC 模式下 Android InputDispatcher 仍保证事件顺序
+     * 使用 ASYNC 模式避免阻塞 control-recv 线程
      */
     private boolean injectFastKey(int action, int keycode) {
         int actionDisplayId = getActionDisplayId();

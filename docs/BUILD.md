@@ -80,14 +80,14 @@ client/env/ffmpeg/bin/
 
 | 项目 | 说明 |
 |------|------|
-| **版本** | 4.10.0 |
+| **版本** | 4.12.0 |
 | **下载** | https://opencv.org/releases/ |
-| **文件** | `opencv-4.10.0-windows.exe` |
+| **文件** | `opencv-4.12.0-windows.exe` |
 
 运行自解压程序，将 DLL 复制到对应目录：
 ```
 client/env/opencv/build/x64/vc16/bin/
-└── opencv_world4100.dll
+└── opencv_world4120.dll
 ```
 
 > ⚠️ 如果不需要图像识别功能，可以跳过 OpenCV，编译时会自动禁用。
@@ -108,7 +108,6 @@ client/env/opencv/build/x64/vc16/bin/
    - Qt 6.5.x (或更高版本)
      - ✅ MSVC 2022 64-bit
      - ✅ Qt Multimedia
-     - ✅ Qt 5 Compatibility Module
    - Developer and Designer Tools
      - ✅ CMake
      - ✅ Ninja
@@ -229,6 +228,7 @@ cd ci\win
 | `--server` | 同时构建服务端 |
 | `--no-pack` | 不打包发布 |
 | `--qt PATH` | 指定 Qt 安装路径 |
+| `--help` | 显示帮助信息 |
 
 脚本会自动：
 1. 检测 Qt 和 Visual Studio 安装路径
@@ -261,9 +261,7 @@ echo $env:ANDROID_HOME
 
 ```powershell
 cd server
-
-# Windows
-.\gradlew.bat assembleRelease
+..\gradlew.bat assembleRelease
 
 # 或使用全局 Gradle
 gradle assembleRelease
@@ -367,12 +365,12 @@ GameScrcpy-Windows-x64/
 ├── Qt6Gui.dll             # Qt GUI 库
 ├── Qt6Widgets.dll         # Qt 控件库
 ├── Qt6Multimedia.dll      # Qt 多媒体库
-├── avcodec-60.dll         # FFmpeg 编解码
-├── avformat-60.dll        # FFmpeg 格式
-├── avutil-58.dll          # FFmpeg 工具
-├── swresample-4.dll       # FFmpeg 重采样
-├── swscale-7.dll          # FFmpeg 缩放
-├── opencv_world490.dll    # OpenCV (可选)
+├── avcodec-62.dll         # FFmpeg 编解码
+├── avformat-62.dll        # FFmpeg 格式
+├── avutil-60.dll          # FFmpeg 工具
+├── swresample-6.dll       # FFmpeg 重采样
+├── swscale-9.dll          # FFmpeg 缩放
+├── opencv_world4120.dll   # OpenCV (可选)
 ├── adb.exe                # ADB 工具
 ├── AdbWinApi.dll          # ADB 依赖
 ├── AdbWinUsbApi.dll       # ADB USB 依赖
@@ -455,7 +453,7 @@ $env:PATH += ";C:\Qt\6.5.0\msvc2022_64\bin"
 
 **症状**：
 ```
-无法找到 avcodec-60.dll
+无法找到 avcodec-62.dll
 ```
 
 **解决方案**：
@@ -486,10 +484,12 @@ Copy-Item "client\env\ffmpeg\bin\*.dll" "client\build\Release\"
 
 **解决方案**：
 
-如果不需要图像匹配功能，可以禁用 OpenCV：
+如果不需要图像匹配功能，可以将 `client/env/opencv/` 目录移走或删除，编译时会自动禁用 OpenCV：
 
 ```powershell
-cmake .. -DENABLE_OPENCV=OFF
+# 删除 OpenCV 目录后重新构建，会自动禁用图像识别
+Remove-Item -Recurse client\env\opencv
+cmake ..
 ```
 
 ---

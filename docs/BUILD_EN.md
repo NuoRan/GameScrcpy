@@ -1,6 +1,6 @@
 # Build Guide
 
-中文 | **English**
+[中文](BUILD.md) | **English**
 
 This document provides detailed instructions for building GameScrcpy from source.
 
@@ -80,14 +80,14 @@ client/env/ffmpeg/bin/
 
 | Item | Details |
 |------|---------|
-| **Version** | 4.10.0 |
+| **Version** | 4.12.0 |
 | **Download** | https://opencv.org/releases/ |
-| **File** | `opencv-4.10.0-windows.exe` |
+| **File** | `opencv-4.12.0-windows.exe` |
 
 Run the self-extracting program and copy the DLL to the appropriate directory:
 ```
 client/env/opencv/build/x64/vc16/bin/
-└── opencv_world4100.dll
+└── opencv_world4120.dll
 ```
 
 > ⚠️ If you don't need image recognition, you can skip OpenCV. It will be automatically disabled during compilation.
@@ -108,7 +108,6 @@ The simplest build method, suitable for daily development.
    - Qt 6.5.x (or higher)
      - ✅ MSVC 2022 64-bit
      - ✅ Qt Multimedia
-     - ✅ Qt 5 Compatibility Module
    - Developer and Designer Tools
      - ✅ CMake
      - ✅ Ninja
@@ -229,6 +228,7 @@ cd ci\win
 | `--server` | Also build the server |
 | `--no-pack` | Don't create release package |
 | `--qt PATH` | Specify Qt installation path |
+| `--help` | Show help information |
 
 The script automatically:
 1. Detects Qt and Visual Studio installation paths
@@ -261,9 +261,7 @@ echo $env:ANDROID_HOME
 
 ```powershell
 cd server
-
-# Windows
-.\gradlew.bat assembleRelease
+..\gradlew.bat assembleRelease
 
 # Or use global Gradle
 gradle assembleRelease
@@ -367,12 +365,12 @@ GameScrcpy-Windows-x64/
 ├── Qt6Gui.dll             # Qt GUI library
 ├── Qt6Widgets.dll         # Qt widgets library
 ├── Qt6Multimedia.dll      # Qt multimedia library
-├── avcodec-60.dll         # FFmpeg codec
-├── avformat-60.dll        # FFmpeg format
-├── avutil-58.dll          # FFmpeg utility
-├── swresample-4.dll       # FFmpeg resampler
-├── swscale-7.dll          # FFmpeg scaler
-├── opencv_world490.dll    # OpenCV (optional)
+├── avcodec-62.dll         # FFmpeg codec
+├── avformat-62.dll        # FFmpeg format
+├── avutil-60.dll          # FFmpeg utility
+├── swresample-6.dll       # FFmpeg resampler
+├── swscale-9.dll          # FFmpeg scaler
+├── opencv_world4120.dll   # OpenCV (optional)
 ├── adb.exe                # ADB tool
 ├── AdbWinApi.dll          # ADB dependency
 ├── AdbWinUsbApi.dll       # ADB USB dependency
@@ -455,7 +453,7 @@ $env:PATH += ";C:\Qt\6.5.0\msvc2022_64\bin"
 
 **Symptom**:
 ```
-avcodec-60.dll was not found
+avcodec-62.dll was not found
 ```
 
 **Solution**:
@@ -486,10 +484,12 @@ Copy-Item "client\env\ffmpeg\bin\*.dll" "client\build\Release\"
 
 **Solution**:
 
-If you don't need image matching, you can disable OpenCV:
+If you don't need image matching, you can remove or move the `client/env/opencv/` directory. OpenCV will be automatically disabled during compilation:
 
 ```powershell
-cmake .. -DENABLE_OPENCV=OFF
+# Remove OpenCV directory and rebuild, image recognition will be auto-disabled
+Remove-Item -Recurse client\env\opencv
+cmake ..
 ```
 
 ---

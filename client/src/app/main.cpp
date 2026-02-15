@@ -38,7 +38,6 @@
 #include "dialog.h"
 #include "mousetap.h"
 #include "ConfigCenter.h"
-#include "PerformanceMonitor.h"
 
 static Dialog *g_mainDlg = Q_NULLPTR;
 static QtMessageHandler g_oldMessageHandler = Q_NULLPTR;
@@ -131,7 +130,23 @@ QtMsgType covertLogLevel(const QString &logLevel);
 #include <windows.h>
 LONG WINAPI MyUnhandledExceptionFilter(EXCEPTION_POINTERS *ExceptionInfo)
 {
-    qCritical() << "[CRASH] Unhandled exception! Code:" << Qt::hex << ExceptionInfo->ExceptionRecord->ExceptionCode;
+    qCritical() << "[CRASH] Unhandled exception! Code:" << Qt::hex << ExceptionInfo->ExceptionRecord->ExceptionCode
+                << "Address:" << ExceptionInfo->ExceptionRecord->ExceptionAddress
+                << "Flags:" << ExceptionInfo->ExceptionRecord->ExceptionFlags;
+    // 打印访问地址（对于访问违规，第一个参数是读/写，第二个是目标地址）
+    if (ExceptionInfo->ExceptionRecord->ExceptionCode == 0xc0000005 &&
+        ExceptionInfo->ExceptionRecord->NumberParameters >= 2) {
+        qCritical() << "[CRASH] Access violation:"
+                    << (ExceptionInfo->ExceptionRecord->ExceptionInformation[0] == 0 ? "READ" : "WRITE")
+                    << "at address:" << Qt::hex << ExceptionInfo->ExceptionRecord->ExceptionInformation[1];
+    }
+    // 打印寄存器状态
+    CONTEXT* ctx = ExceptionInfo->ContextRecord;
+    if (ctx) {
+        qCritical() << "[CRASH] RIP:" << Qt::hex << ctx->Rip
+                    << "RSP:" << ctx->Rsp
+                    << "RBP:" << ctx->Rbp;
+    }
     return EXCEPTION_EXECUTE_HANDLER;
 }
 #endif
@@ -166,10 +181,6 @@ int main(int argc, char *argv[])
     // 安装自定义消息处理器（日志系统）
     g_oldMessageHandler = qInstallMessageHandler(myMessageOutput);
     QApplication a(argc, argv);
-
-    // 【重要】预初始化性能监控器，确保在 GUI 线程中创建
-    // 必须在 QApplication 之后、其他组件之前调用
-    qsc::PerformanceMonitor::instance();
 
     // 规范化版本号格式
     QStringList versionList = QCoreApplication::applicationVersion().split(".");

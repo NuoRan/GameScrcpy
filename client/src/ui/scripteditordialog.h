@@ -77,7 +77,7 @@ public:
         m_rules.append({QRegularExpression("\\b(click|holdpress|release|releaseAll|slide|pinch|key|sleep|toast|log|"
                                             "isPress|isInterrupted|stop|setGlobal|getGlobal|loadModule|"
                                             "shotmode|setRadialParam|resetview|resetwheel|getmousepos|getkeypos|"
-                                            "getKeyState|setKeyUIPos|findImage|findImageByRegion)\\b"), methodFormat});
+                                            "getKeyState|setKeyUIPos|findImage|findImageByRegion|getbuttonpos|swipeById)\\b"), methodFormat});
 
         // 数字
         QTextCharFormat numberFormat;
@@ -419,7 +419,7 @@ private:
             "key", "sleep", "toast", "log", "isPress", "isInterrupted", "stop",
             "setGlobal", "getGlobal", "loadModule", "shotmode", "setRadialParam",
             "resetview", "resetwheel", "getmousepos", "getkeypos", "getKeyState", "setKeyUIPos",
-            "findImage", "findImageByRegion",
+            "findImage", "findImageByRegion", "getbuttonpos", "swipeById",
             // 关键字
             "var", "let", "const", "function", "return", "if", "else", "for", "while",
             "true", "false", "null", "undefined", "new", "this",
@@ -811,6 +811,14 @@ private:
         addSnippetButton(queryLayout, tr("获取按键状态"),
             "var state = mapi.getKeyState(\"W\");\nif (state) { /* 按下中 */ }",
             tr("检查指定按键是否按下\n返回 0=未按下, 1=按下中"));
+
+        addSnippetButton(queryLayout, tr("获取按钮位置"),
+            "var pos = mapi.getbuttonpos(1);\nif (pos.valid) mapi.click(pos.x, pos.y);",
+            tr("获取预定义按钮的位置\n参数: 按钮编号\n返回 {x, y, valid, name} 对象\n需先在「获取工具」中创建按钮"));
+
+        addSnippetButton(queryLayout, tr("按编号滑动"),
+            "mapi.swipeById(1, 200, 10);  // 滑动编号1, 200ms, 10步",
+            tr("执行预定义的滑动路径\n参数: 滑动编号, 时长ms, 步数\n需先在「获取工具」中创建滑动"));
 
         layout->addWidget(queryGroup);
 

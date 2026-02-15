@@ -41,7 +41,6 @@ void FpsCounter::timerEvent(QTimerEvent *event)
         m_curSkipped = m_skipped;
         resetCounter();
         emit updateFPS(m_curRendered);
-        //qInfo("FPS:%d Discard:%d", m_curRendered, m_skipped);
     }
 }
 

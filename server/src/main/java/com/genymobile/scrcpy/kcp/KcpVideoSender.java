@@ -92,10 +92,10 @@ public final class KcpVideoSender implements IStreamer, BitrateControl {
     private int calculateWindowSize(int bitrateBps) {
         // 基于码率计算窗口大小 (300ms 缓冲，为 VBR 运动峰值预留余量)
         int window = (bitrateBps / 8 * 300 / 1000) / 1376;
-        if (window < 128)
-            window = 128;
-        else if (window > 2048)
-            window = 2048;
+        if (window < 256)
+            window = 256;
+        else if (window > 4096)
+            window = 4096;
 
         // P-01: 保存基础窗口大小用于动态调整
         baseWindowSize = window;

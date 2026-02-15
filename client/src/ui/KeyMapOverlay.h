@@ -62,4 +62,4 @@ private:
     static QSet<QString> s_hiddenKeys;
 };
 
-#endif // KEYMAPOVERLAY_H#endif // KEYMAPOVERLAY_H
+#endif // KEYMAPOVERLAY_H

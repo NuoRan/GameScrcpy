@@ -141,11 +141,6 @@ typedef struct AVFilterFormatsConfig {
     AVFilterFormats *color_spaces;  ///< AVColorSpace
     AVFilterFormats *color_ranges;  ///< AVColorRange
 
-    /**
-     * List of supported alpha modes, only for video with an alpha channel.
-     */
-    AVFilterFormats *alpha_modes;  ///< AVAlphaMode
-
 } AVFilterFormatsConfig;
 
 /**
@@ -432,8 +427,6 @@ struct AVFilterLink {
 
     AVFrameSideData **side_data;
     int nb_side_data;
-
-    enum AVAlphaMode alpha_mode; ///< alpha mode (for videos with an alpha channel)
 
     /*****************************************************************
      * All fields below this line are not part of the public API. They

@@ -192,7 +192,7 @@ public:
     void setUpdateInterval(int interval);
 
     // =========================================================================
-    // [超低延迟优化] FEC 前向纠错 / Forward Error Correction
+    // FEC 前向纠错 / Forward Error Correction
     // =========================================================================
 
     /**
@@ -280,7 +280,7 @@ private:
     bool m_active = false;
     int m_updateInterval = 1;  // 每1ms调用一次update，保证低延迟
 
-    // [超低延迟优化] FEC 前向纠错
+    // FEC 前向纠错
     bool m_fecEnabled = false;
     std::unique_ptr<fec::FecEncoder> m_fecEncoder;
     std::unique_ptr<fec::FecDecoder> m_fecDecoder;

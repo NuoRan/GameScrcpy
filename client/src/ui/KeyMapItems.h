@@ -29,6 +29,7 @@
 #include <QTextStream>
 #include <QInputDialog>
 #include <QCheckBox>
+#include <QPointer>
 
 // ---------------------------------------------------------
 // 辅助工具类：类型与字符串的转换 / Helper: Type-String Conversion
@@ -79,6 +80,8 @@ public:
         if (t == "LeftButton" || t == "Left") return "LMB";
         if (t == "RightButton" || t == "Right") return "RMB";
         if (t == "MiddleButton" || t == "Middle") return "MMB";
+        if (t == "SideButton1" || t == "XButton1") return "MB4";
+        if (t == "SideButton2" || t == "XButton2") return "MB5";
         // 滚轮
         if (t == "WheelUp") return "滚上";
         if (t == "WheelDown") return "滚下";
@@ -189,6 +192,18 @@ protected:
     QRectF boundingRect() const override { return m_rect; }
     void paint(QPainter *p, const QStyleOptionGraphicsItem *, QWidget *) override;
     QPainterPath shape() const override;
+    void mousePressEvent(QGraphicsSceneMouseEvent *event) override {
+        if (event->button() == Qt::LeftButton) {
+            QRectF closeRect(-4, -18, 12, 12);
+            if (closeRect.contains(event->pos()) && scene()) {
+                scene()->removeItem(this);
+                deleteLater();
+                event->accept();
+                return;
+            }
+        }
+        KeyMapItemBase::mousePressEvent(event);
+    }
 private:
     QRectF m_rect; SteerWheelSubItem* m_subUp; SteerWheelSubItem* m_subDown;
     SteerWheelSubItem* m_subLeft; SteerWheelSubItem* m_subRight;
@@ -323,13 +338,13 @@ protected:
         painter->drawText(boundingRect().adjusted(2, 2, -2, -2), Qt::AlignCenter | Qt::TextWordWrap, t.isEmpty()?"?":t);
 
         if (!m_isEditing) drawGear(painter);
+        drawCloseButton(painter, boundingRect());
     }
-
-    // 鼠标点击事件：左键点击打开脚本编辑器
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override {
         if (m_isEditing) { event->accept(); return; }
 
         if (event->button() == Qt::LeftButton) {
+            if (handleCloseButtonClick(event->pos())) { event->accept(); return; }
             QPointF p = event->pos();
             if (p.x() > 5 && p.y() > 5) {
                 openScriptEditor();
@@ -356,6 +371,8 @@ private:
 
     // 打开脚本编辑对话框
     void openScriptEditor() {
+        // 保护 this：dlg.exec() 会进入嵌套事件循环，期间用户可能删除本项
+        QPointer<KeyMapItemScript> guard(this);
         ScriptEditorDialog dlg(m_script);
 
         // 尝试获取 VideoForm 以设置帧获取回调
@@ -378,7 +395,10 @@ private:
         }
 
         if (dlg.exec() == QDialog::Accepted) {
-            m_script = dlg.getScript();
+            // 对话框关闭后检查 this 是否仍然存在
+            if (guard) {
+                m_script = dlg.getScript();
+            }
         }
     }
 
@@ -569,13 +589,16 @@ protected:
         painter->setFont(font);
         QString t = (m_isEditing && m_editMode == Edit_Key) ? (KeyMapHelper::keyToDisplay(m_displayKey) + (m_showCursor?"|":"")) : KeyMapHelper::keyToDisplay(m_key);
         painter->drawText(QRectF(-20, -25, 40, 50), Qt::AlignCenter, t.isEmpty()?"?":t);
-        // 已移除底部图标
+        drawCloseButton(painter, boundingRect());
     }
 
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override {
         if (m_isEditing) {
             event->ignore();
             return;
+        }
+        if (event->button() == Qt::LeftButton && handleCloseButtonClick(event->pos())) {
+            event->accept(); return;
         }
         KeyMapItemBase::mousePressEvent(event);
     }
@@ -771,8 +794,8 @@ protected:
         painter->setFont(font);
         QString t = (m_isEditing && m_editMode == Edit_Key) ? (KeyMapHelper::keyToDisplay(m_displayKey) + (m_showCursor?"|":"")) : KeyMapHelper::keyToDisplay(m_key);
         painter->drawText(QRectF(-15, -18, 30, 36), Qt::AlignCenter, t.isEmpty()?"?":t);
-        // 绘制设置齿轮图标（中间顶部）
         drawGear(painter);
+        drawCloseButton(painter, boundingRect());
     }
 
     // 绘制设置齿轮图标（中间顶部）
@@ -790,6 +813,8 @@ protected:
 
     // 打开设置对话框
     void openSettingsDialog() {
+        // 保护 this：dlg.exec() 会进入嵌套事件循环，期间用户可能删除本项
+        QPointer<KeyMapItemFreeLook> guard(this);
         QDialog dlg;
         dlg.setWindowTitle("小眼睛设置");
         dlg.setFixedSize(280, 120);
@@ -817,7 +842,10 @@ protected:
         QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
 
         if (dlg.exec() == QDialog::Accepted) {
-            m_resetViewOnRelease = checkBox->isChecked();
+            // 对话框关闭后检查 this 是否仍然存在
+            if (guard) {
+                m_resetViewOnRelease = checkBox->isChecked();
+            }
         }
     }
 
@@ -826,12 +854,20 @@ protected:
             event->ignore();
             return;
         }
+        // 关闭按钮
+        if (event->button() == Qt::LeftButton && handleCloseButtonClick(event->pos())) {
+            event->accept(); return;
+        }
+        // 单击齿轮区域打开设置对话框
+        if (event->button() == Qt::LeftButton) {
+            QPointF p = event->pos();
+            if (p.x() > -8 && p.x() < 8 && p.y() < -7) {
+                openSettingsDialog();
+                event->accept();
+                return;
+            }
+        }
         KeyMapItemBase::mousePressEvent(event);
-    }
-
-    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override {
-        Q_UNUSED(event);
-        openSettingsDialog();
     }
 
 private:
@@ -944,6 +980,17 @@ inline void KeyMapItemSteerWheel::paint(QPainter *p, const QStyleOptionGraphicsI
     p->drawLine(QPointF(0,0), m_subUp->pos()); p->drawLine(QPointF(0,0), m_subDown->pos());
     p->drawLine(QPointF(0,0), m_subLeft->pos()); p->drawLine(QPointF(0,0), m_subRight->pos());
     p->setBrush(isSelected()?QColor(255,100,0,150):QColor(0,255,100,80)); p->setPen(Qt::NoPen); p->drawEllipse(QPointF(0,0), 10, 10);
+    // 关闭按钮（中心点右上方）
+    QRectF closeRect(-4, -18, 12, 12);
+    p->save();
+    p->setPen(Qt::NoPen);
+    p->setBrush(QColor(220, 38, 38, 200));
+    p->drawEllipse(closeRect);
+    p->setPen(QPen(Qt::white, 1.5));
+    double cx = closeRect.center().x(), cy = closeRect.center().y(), r = 3;
+    p->drawLine(QPointF(cx - r, cy - r), QPointF(cx + r, cy + r));
+    p->drawLine(QPointF(cx + r, cy - r), QPointF(cx - r, cy + r));
+    p->restore();
 }
 inline QJsonObject KeyMapItemSteerWheel::toJson() const {
     QJsonObject json; json["type"]="KMT_STEER_WHEEL"; json["comment"]=m_comment;

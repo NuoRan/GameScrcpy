@@ -46,29 +46,14 @@ void ScriptBridge::setupConnections()
     connect(m_scriptEngine, &ScriptEngine::touchRequested, this,
         [safeController](quint32 seqId, quint8 action, quint16 x, quint16 y) {
             if (safeController.isNull()) return;
-            QByteArray data;
-            if (action == FTA_DOWN) {
-                data = FastMsg::touchDownRaw(seqId, x, y);
-            } else if (action == FTA_UP) {
-                data = FastMsg::touchUpRaw(seqId, x, y);
-            } else if (action == FTA_MOVE) {
-                data = FastMsg::touchMoveRaw(seqId, x, y);
-            } else {
-                return;
-            }
-            safeController->postFastMsg(data);
+            if (action != FTA_DOWN && action != FTA_UP && action != FTA_MOVE) return;
+            safeController->postFastMsg(FastMsg::serializeTouch(FastTouchEvent(seqId, action, x, y)));
         });
 
     connect(m_scriptEngine, &ScriptEngine::keyRequested, this,
         [safeController](quint8 action, quint16 keycode) {
             if (safeController.isNull()) return;
-            QByteArray data;
-            if (action == FKA_DOWN) {
-                data = FastMsg::keyDown(keycode);
-            } else {
-                data = FastMsg::keyUp(keycode);
-            }
-            safeController->postFastMsg(data);
+            safeController->postFastMsg(FastMsg::serializeKey(FastKeyEvent(action, keycode)));
         });
 
     connect(m_scriptEngine, &ScriptEngine::shotmodeRequested, this,
@@ -181,6 +166,24 @@ void ScriptBridge::reset()
 {
     if (m_scriptEngine) {
         m_scriptEngine->reset();
+    }
+}
+
+void ScriptBridge::releaseAllScriptTouches()
+{
+    if (!m_vars) return;
+
+    // 取出所有活跃的脚本触摸序列并发送 FTA_UP 释放
+    QHash<int, QList<quint32>> allSeqs = m_vars->takeAllTouchSeqs();
+    if (allSeqs.isEmpty()) return;
+
+    if (m_controller.isNull()) return;
+
+    for (auto it = allSeqs.constBegin(); it != allSeqs.constEnd(); ++it) {
+        for (quint32 seqId : it.value()) {
+            m_controller->postFastMsg(FastMsg::serializeTouch(
+                FastTouchEvent(seqId, FTA_UP, 0, 0)));
+        }
     }
 }
 

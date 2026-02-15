@@ -6,11 +6,10 @@
 #include "keymap.h"
 #include "fastmsg.h"
 #include "ConfigCenter.h"
-#include <QDebug>
 #include <QRandomGenerator>
 #include <algorithm>
 
-// 静态辅助函数：应用随机偏移
+// 应用随机偏移（防检测）
 static QPointF applyRandomOffset(const QPointF& pos, const QSize& targetSize) {
     int offsetLevel = qsc::ConfigCenter::instance().randomOffset();
     if (offsetLevel <= 0 || targetSize.isEmpty()) {
@@ -35,7 +34,6 @@ static QPointF applyRandomOffset(const QPointF& pos, const QSize& targetSize) {
     return result;
 }
 
-// 静态辅助函数：获取目标尺寸
 static QSize getTargetSize(const QSize& frameSize, const QSize& showSize) {
     if (frameSize.isValid() && !frameSize.isEmpty()) {
         return frameSize;
@@ -46,17 +44,14 @@ static QSize getTargetSize(const QSize& frameSize, const QSize& showSize) {
 ViewportHandler::ViewportHandler(QObject* parent)
     : IInputHandler(parent)
 {
-    // 初始化边缘回中定时器
     m_state.centerRepressTimer = new QTimer(this);
     m_state.centerRepressTimer->setSingleShot(true);
     m_state.centerRepressTimer->setInterval(5);
     connect(m_state.centerRepressTimer, &QTimer::timeout, this, &ViewportHandler::onCenterRepressTimer);
 
-    // 初始化空闲回中定时器（1000ms 空闲后回中）
-    // 优化：回正后不会立即重启计时器，只有鼠标再次移动时才重启
     m_state.idleCenterTimer = new QTimer(this);
     m_state.idleCenterTimer->setSingleShot(true);
-    m_state.idleCenterTimer->setInterval(1000);  // 1000ms 空闲后回中
+    m_state.idleCenterTimer->setInterval(1000);
     connect(m_state.idleCenterTimer, &QTimer::timeout, this, &ViewportHandler::onIdleCenterTimer);
 }
 
@@ -72,28 +67,20 @@ void ViewportHandler::init(Controller* controller, SessionContext* context)
 
 bool ViewportHandler::handleKeyEvent(const QKeyEvent* event, const QSize& frameSize, const QSize& showSize)
 {
-    Q_UNUSED(event)
-    Q_UNUSED(frameSize)
-    Q_UNUSED(showSize)
-    return false;  // 视角控制不通过责任链处理键盘事件
+    Q_UNUSED(event) Q_UNUSED(frameSize) Q_UNUSED(showSize)
+    return false;
 }
 
 bool ViewportHandler::handleMouseEvent(const QMouseEvent* event, const QSize& frameSize, const QSize& showSize)
 {
-    Q_UNUSED(event)
-    Q_UNUSED(frameSize)
-    Q_UNUSED(showSize)
-    // 视角控制不通过责任链处理鼠标事件
-    // 由 SessionContext::processMouseMove 直接调用本类的方法
+    Q_UNUSED(event) Q_UNUSED(frameSize) Q_UNUSED(showSize)
     return false;
 }
 
 bool ViewportHandler::handleWheelEvent(const QWheelEvent* event, const QSize& frameSize, const QSize& showSize)
 {
-    Q_UNUSED(event)
-    Q_UNUSED(frameSize)
-    Q_UNUSED(showSize)
-    return false;  // 视角控制不处理滚轮事件
+    Q_UNUSED(event) Q_UNUSED(frameSize) Q_UNUSED(showSize)
+    return false;
 }
 
 void ViewportHandler::onFocusLost()
@@ -106,7 +93,6 @@ void ViewportHandler::reset()
     stopTouch();
     m_pendingMoveDelta = {0, 0};
     m_moveSendScheduled = false;
-    // 重置平滑状态
     m_smoothedDelta = {0, 0};
     m_subPixelAccum = {0, 0};
 }
@@ -125,6 +111,8 @@ void ViewportHandler::startTouch(const QSize& frameSize, const QSize& showSize)
         sendFastTouch(FTA_DOWN, randomStartPos);
         m_state.lastConverPos = randomStartPos;
         m_state.touching = true;
+        m_smoothedDelta = {0, 0};
+        m_subPixelAccum = {0, 0};
     }
 }
 
@@ -137,7 +125,6 @@ void ViewportHandler::scheduleMoveSend()
 {
     if (!m_moveSendScheduled) {
         m_moveSendScheduled = true;
-        // 同步直接调用，避免事件循环迭代延迟
         onMouseMoveTimer();
     }
 }
@@ -149,17 +136,13 @@ void ViewportHandler::accumulatePendingOvershoot(const QPointF& delta)
 
 void ViewportHandler::stopTouch()
 {
-    // 停止边缘回中延迟定时器
-    if (m_state.centerRepressTimer) {
+    if (m_state.centerRepressTimer)
         m_state.centerRepressTimer->stop();
-    }
     m_state.waitingForCenterRepress = false;
     m_state.pendingOvershoot = {0, 0};
 
-    // 停止空闲回中定时器并重置状态
-    if (m_state.idleCenterTimer) {
+    if (m_state.idleCenterTimer)
         m_state.idleCenterTimer->stop();
-    }
     m_state.idleCenterCompleted = false;
 
     if (m_state.touching) {
@@ -171,33 +154,47 @@ void ViewportHandler::stopTouch()
 
 void ViewportHandler::resetView()
 {
-    // 重置视角到中心
-    stopTouch();
+    if (!m_keyMap) return;
+    if (m_state.waitingForCenterRepress || !m_state.touching) return;
+
+    // 已在中心附近则跳过，防止多个异步 resetView 产生无意义微触摸导致跳屏
+    QPointF centerPos = m_keyMap->getMouseMoveMap().data.mouseMove.startPos;
+    double dx = m_state.lastConverPos.x() - centerPos.x();
+    double dy = m_state.lastConverPos.y() - centerPos.y();
+    if (std::sqrt(dx * dx + dy * dy) < 0.02) return;
+
+    if (m_state.idleCenterTimer)
+        m_state.idleCenterTimer->stop();
+
+    sendFastTouch(FTA_UP, m_state.lastConverPos);
+    m_state.touching = false;
+
+    // 5ms 快速回中（与边缘回中同机制）
+    m_state.waitingForCenterRepress = true;
+    m_state.pendingCenterPos = centerPos;
+    m_state.pendingOvershoot = {0, 0};
+    m_state.centerRepressTimer->start();
+
+    m_smoothedDelta = {0, 0};
+    m_subPixelAccum = {0, 0};
 }
+
 
 void ViewportHandler::onMouseMoveTimer()
 {
-    // 重置调度标记
     m_moveSendScheduled = false;
 
-    // 如果正在等待边缘回中重按，暂时不处理移动（积累到 pendingOvershoot）
     if (m_state.waitingForCenterRepress) {
         m_state.pendingOvershoot += m_pendingMoveDelta;
         m_pendingMoveDelta = {0, 0};
         return;
     }
 
-    // 如果没有移动量，直接返回
-    if (m_pendingMoveDelta.isNull()) {
-        return;
-    }
+    if (m_pendingMoveDelta.isNull()) return;
 
-    // 有新的移动：清除空闲回正完成标志，重新启动空闲计时器
-    // 这样只有鼠标真正移动后才会重新开始计时
     m_state.idleCenterCompleted = false;
-    if (m_state.idleCenterTimer) {
+    if (m_state.idleCenterTimer)
         m_state.idleCenterTimer->start();
-    }
 
     processMove(m_pendingMoveDelta);
     m_pendingMoveDelta = {0, 0};
@@ -207,17 +204,8 @@ void ViewportHandler::processMove(const QPointF& delta)
 {
     if (!m_keyMap) return;
 
-    // 视角控制管线
-    // 视角控制管线：
-    //  1. 亚像素精度累积
-    //  2. 抖动过滤
-    //  3. 速度倍增器（快速甩枪时加速）
-    //  4. EMA 平滑
-
-    // --- Step 1: 亚像素精度累积 ---
+    // 管线: 亚像素累积 → 抖动过滤 → EMA 平滑 → 边界处理
     QPointF rawDelta = delta + m_subPixelAccum;
-
-    // --- Step 2: 抖动过滤 ---
     double magnitude = std::sqrt(rawDelta.x() * rawDelta.x() + rawDelta.y() * rawDelta.y());
     if (magnitude < JITTER_THRESHOLD) {
         m_subPixelAccum = rawDelta;
@@ -225,68 +213,33 @@ void ViewportHandler::processMove(const QPointF& delta)
     }
     m_subPixelAccum = {0, 0};
 
-    // --- Step 3: 速度倍增器 ---
-    // 低于 ACCEL_LOW_THRESHOLD: multiplier = 1.0
-    // 高于 ACCEL_HIGH_THRESHOLD: multiplier = ACCEL_MAX_MULTIPLIER
-    // 之间: 二次方平滑过渡
-    double multiplier = 1.0;
-    if (magnitude > ACCEL_LOW_THRESHOLD) {
-        if (magnitude >= ACCEL_HIGH_THRESHOLD) {
-            multiplier = ACCEL_MAX_MULTIPLIER;
-        } else {
-            double t = (magnitude - ACCEL_LOW_THRESHOLD) / (ACCEL_HIGH_THRESHOLD - ACCEL_LOW_THRESHOLD);
-            multiplier = 1.0 + (ACCEL_MAX_MULTIPLIER - 1.0) * std::pow(t, ACCEL_CURVE);
-        }
-    }
-    QPointF acceleratedDelta = rawDelta * multiplier;
+    m_smoothedDelta.setX(SMOOTH_FACTOR * rawDelta.x() + (1.0 - SMOOTH_FACTOR) * m_smoothedDelta.x());
+    m_smoothedDelta.setY(SMOOTH_FACTOR * rawDelta.y() + (1.0 - SMOOTH_FACTOR) * m_smoothedDelta.y());
 
-    // --- Step 4: 轻微 EMA 平滑 ---
-    // SMOOTH_FACTOR=0.85 意味着 85% 当前 + 15% 历史，几乎即时响应
-    m_smoothedDelta.setX(SMOOTH_FACTOR * acceleratedDelta.x() + (1.0 - SMOOTH_FACTOR) * m_smoothedDelta.x());
-    m_smoothedDelta.setY(SMOOTH_FACTOR * acceleratedDelta.y() + (1.0 - SMOOTH_FACTOR) * m_smoothedDelta.y());
-
-    QPointF finalDelta = m_smoothedDelta;
-
-    // --- Step 5: 坐标更新与边界处理 ---
-    QPointF newPos = m_state.lastConverPos + finalDelta;
+    QPointF newPos = m_state.lastConverPos + m_smoothedDelta;
 
     QPointF centerPos = m_keyMap->getMouseMoveMap().data.mouseMove.startPos;
-    const double MARGIN = 0.05;
-    const double EDGE_MIN = MARGIN;
-    const double EDGE_MAX = 1.0 - MARGIN;
+    constexpr double EDGE_MIN = 0.05, EDGE_MAX = 0.95;
 
-    // 边界检测函数
-    auto isOutOfBounds = [&](const QPointF& pos) {
-        return pos.x() < EDGE_MIN || pos.x() > EDGE_MAX ||
-               pos.y() < EDGE_MIN || pos.y() > EDGE_MAX;
+    auto isOutOfBounds = [](const QPointF& p) {
+        return p.x() < EDGE_MIN || p.x() > EDGE_MAX || p.y() < EDGE_MIN || p.y() > EDGE_MAX;
     };
 
-    // 边界处理：如果超出边界，使用边缘回中延迟定时器
     if (isOutOfBounds(newPos) && m_state.touching) {
-        // 停止空闲定时器（边缘回中优先）
-        if (m_state.idleCenterTimer) {
+        if (m_state.idleCenterTimer)
             m_state.idleCenterTimer->stop();
-        }
 
-        // Step 1: 移动到边缘
-        QPointF edgePos;
-        edgePos.setX(qBound(EDGE_MIN, newPos.x(), EDGE_MAX));
-        edgePos.setY(qBound(EDGE_MIN, newPos.y(), EDGE_MAX));
+        QPointF edgePos(qBound(EDGE_MIN, newPos.x(), EDGE_MAX), qBound(EDGE_MIN, newPos.y(), EDGE_MAX));
         sendFastTouch(FTA_MOVE, edgePos);
-
-        // Step 2: 在边缘抬起手指
         sendFastTouch(FTA_UP, edgePos);
         m_state.touching = false;
 
-        // Step 3: 保存状态，启动延迟定时器
         m_state.waitingForCenterRepress = true;
         m_state.pendingCenterPos = centerPos;
-        m_state.pendingOvershoot = newPos - edgePos;  // 超出边界的剩余增量
+        m_state.pendingOvershoot = newPos - edgePos;
         m_state.centerRepressTimer->start();
         return;
     }
-
-    // 正常情况：更新位置并发送
     m_state.lastConverPos = newPos;
     if (m_state.touching) {
         sendFastTouch(FTA_MOVE, m_state.lastConverPos);
@@ -299,75 +252,52 @@ void ViewportHandler::onCenterRepressTimer()
         return;
     }
 
-    const double MARGIN = 0.05;
-    const double EDGE_MIN = MARGIN;
-    const double EDGE_MAX = 1.0 - MARGIN;
+    constexpr double EDGE_MIN = 0.05, EDGE_MAX = 0.95;
 
-    // 边界检测函数
-    auto isOutOfBounds = [&](const QPointF& pos) {
-        return pos.x() < EDGE_MIN || pos.x() > EDGE_MAX ||
-               pos.y() < EDGE_MIN || pos.y() > EDGE_MAX;
-    };
-
-    // 应用随机偏移到中心点
     QSize targetSize = getTargetSize(m_frameSize, m_showSize);
     QPointF randomCenterPos = applyRandomOffset(m_state.pendingCenterPos, targetSize);
 
-    // Step 3: 在中心重新按下（生成新的 seqId）
     m_state.fastTouchSeqId = FastTouchSeq::next();
+
+    // 限制 overshoot 幅度，防止回中后第一帧跳屏
+    constexpr double MAX_OVERSHOOT = 0.005;
+    double overshootMag = std::sqrt(m_state.pendingOvershoot.x() * m_state.pendingOvershoot.x() +
+                                    m_state.pendingOvershoot.y() * m_state.pendingOvershoot.y());
+    if (overshootMag > MAX_OVERSHOOT)
+        m_state.pendingOvershoot *= MAX_OVERSHOOT / overshootMag;
+
     sendFastTouch(FTA_DOWN, randomCenterPos);
     m_state.touching = true;
 
-    // 计算新的中心位置（加上等待期间积累的增量）
     QPointF newCenterPos = randomCenterPos + m_state.pendingOvershoot;
+    newCenterPos.setX(qBound(EDGE_MIN, newCenterPos.x(), EDGE_MAX));
+    newCenterPos.setY(qBound(EDGE_MIN, newCenterPos.y(), EDGE_MAX));
 
-    // 如果新位置仍然越界，clamp 到边界
-    if (isOutOfBounds(newCenterPos)) {
-        newCenterPos.setX(qBound(EDGE_MIN, newCenterPos.x(), EDGE_MAX));
-        newCenterPos.setY(qBound(EDGE_MIN, newCenterPos.y(), EDGE_MAX));
-    }
-
-    // Step 4: 移动到新位置
     sendFastTouch(FTA_MOVE, newCenterPos);
     m_state.lastConverPos = newCenterPos;
 
-    // 清除等待状态
     m_state.waitingForCenterRepress = false;
     m_state.pendingOvershoot = {0, 0};
+    m_smoothedDelta = {0, 0};
+    m_subPixelAccum = {0, 0};
 
-    // 重新启动空闲定时器（仅当不是空闲回正完成的情况）
-    // 如果是空闲回正完成的，等待鼠标移动后才重新启动
-    if (m_state.idleCenterTimer && !m_state.idleCenterCompleted) {
+    if (m_state.idleCenterTimer && !m_state.idleCenterCompleted)
         m_state.idleCenterTimer->start();
-    }
 }
 
 void ViewportHandler::onIdleCenterTimer()
 {
-    // 如果正在等待边缘回中，不执行空闲回中
-    if (m_state.waitingForCenterRepress || !m_keyMap) {
-        return;
-    }
+    if (m_state.waitingForCenterRepress || !m_keyMap || !m_state.touching) return;
 
-    if (!m_state.touching) {
-        return;
-    }
-
-    // 鼠标停止移动：使用边缘回中延迟定时器的方式回到中心
     QPointF centerPos = m_keyMap->getMouseMoveMap().data.mouseMove.startPos;
 
-    // Step 1: 在当前位置抬起手指
     sendFastTouch(FTA_UP, m_state.lastConverPos);
     m_state.touching = false;
-
-    // Step 2: 标记空闲回正已完成，等待鼠标再次移动
-    // 这样回正后不会立即重启计时器，只有鼠标移动后才重启
     m_state.idleCenterCompleted = true;
 
-    // Step 3: 保存状态，启动延迟定时器（和边缘回中一样）
     m_state.waitingForCenterRepress = true;
     m_state.pendingCenterPos = centerPos;
-    m_state.pendingOvershoot = {0, 0};  // 空闲回中没有超出增量
+    m_state.pendingOvershoot = {0, 0};
     m_state.centerRepressTimer->start();
 }
 
@@ -378,7 +308,6 @@ void ViewportHandler::sendFastTouch(quint8 action, const QPointF& pos)
     quint16 nx = static_cast<quint16>(qBound(0.0, pos.x(), 1.0) * 65535);
     quint16 ny = static_cast<quint16>(qBound(0.0, pos.y(), 1.0) * 65535);
 
-    // P-KCP: 栈上序列化，零堆分配
     char buf[10];
     FastTouchEvent evt(m_state.fastTouchSeqId, action, nx, ny);
     int len = FastMsg::serializeTouchInto(buf, evt);

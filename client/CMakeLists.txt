@@ -15,7 +15,7 @@ cmake_minimum_required(VERSION 3.19 FATAL_ERROR)
 # 项目配置
 #
 set(QC_PROJECT_NAME "GameScrcpy")
-set(QC_PROJECT_VERSION "2.2.1")
+set(QC_PROJECT_VERSION "1.2.0")
 
 project(${QC_PROJECT_NAME} VERSION ${QC_PROJECT_VERSION} LANGUAGES C CXX)
 message(STATUS "[${PROJECT_NAME}] Project ${PROJECT_NAME} ${PROJECT_VERSION}")
@@ -218,10 +218,10 @@ set(SRC_UI
     src/ui/scripteditordialog.h
     src/ui/selectionregionmanager.h
     src/ui/selectioneditordialog.h
+    src/ui/scriptbuttonmanager.h
+    src/ui/scriptswipemanager.h
     src/ui/KeyMapBase.h
     src/ui/KeyMapItems.h
-    src/ui/PerformanceDialog.h
-    src/ui/PerformanceDialog.cpp
     # widgets
     src/ui/widgets/keepratiowidget.cpp
     src/ui/widgets/keepratiowidget.h
@@ -237,8 +237,6 @@ set(SRC_CONTROL
     src/control/controller.h
     src/control/controlsender.cpp
     src/control/controlsender.h
-    src/control/bufferutil.cpp
-    src/control/bufferutil.h
     # session
     src/control/session/SessionContext.cpp
     src/control/session/SessionContext.h
@@ -311,6 +309,8 @@ set(SRC_TRANSPORT
     src/transport/kcp/kcpserver.h
     src/transport/kcp/kcpvideosocket.cpp
     src/transport/kcp/kcpvideosocket.h
+    src/transport/kcp/UdpVideoClient.cpp
+    src/transport/kcp/UdpVideoClient.h
     # adb
     src/transport/adb/adbprocess.cpp
     src/transport/adb/adbprocess.h
@@ -360,8 +360,6 @@ set(SRC_COMMON
     src/common/ErrorCode.h
     src/common/SPSCQueue.h
     src/common/Logger.h
-    src/common/PerformanceMonitor.h
-    src/common/PerformanceMonitor.cpp
 )
 
 # core - 核心层 (新架构)
@@ -525,8 +523,8 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     target_link_directories(${PROJECT_NAME} PUBLIC ${FFMPEG_LIB_PATH})
     target_link_libraries(${PROJECT_NAME} PRIVATE avformat avcodec avutil swscale)
 
-    # [低延迟优化 Step12] D3D11-GL interop 需要 d3d11 + opengl32 (WGL 函数)
-    target_link_libraries(${PROJECT_NAME} PRIVATE d3d11 opengl32)
+    # d3d11/opengl32: D3D11-GL interop, winmm: 高精度定时器, avrt: MMCSS 实时调度
+    target_link_libraries(${PROJECT_NAME} PRIVATE d3d11 opengl32 winmm avrt)
 
     # 复制 DLL 和工具
     set(FFMPEG_BIN_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/ffmpeg/bin")

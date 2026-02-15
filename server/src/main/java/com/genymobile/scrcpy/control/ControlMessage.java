@@ -8,18 +8,20 @@ import com.genymobile.scrcpy.device.Position;
  */
 public final class ControlMessage {
 
-    // 核心消息类型（保持原值以兼容客户端）
+    // 核心消息类型（保持原值以兼容原版 scrcpy 客户端）
     public static final int TYPE_INJECT_KEYCODE = 0;
     public static final int TYPE_INJECT_TOUCH_EVENT = 2;
     public static final int TYPE_BACK_OR_SCREEN_ON = 4;
 
-    // 快速消息类型（游戏优化）
-    public static final int TYPE_FAST_TOUCH = 100;
-    public static final int TYPE_FAST_KEY = 101;
-    public static final int TYPE_FAST_BATCH = 102;
-
-    // 断开连接消息（客户端主动关闭时发送）
-    public static final int TYPE_DISCONNECT = 200;
+    // 极简协议 v2: action 编码在 type 中，seqId 压缩到 1 字节
+    public static final int TYPE_TOUCH_DOWN  = 10;  // 6B: seqId(1)+x(2)+y(2)
+    public static final int TYPE_TOUCH_UP    = 11;  // 6B
+    public static final int TYPE_TOUCH_MOVE  = 12;  // 6B
+    public static final int TYPE_TOUCH_RESET = 13;  // 1B: 无载荷
+    public static final int TYPE_KEY_DOWN    = 14;  // 3B: keycode(2)
+    public static final int TYPE_KEY_UP      = 15;  // 3B
+    public static final int TYPE_BATCH       = 16;  // 2+6N: count(1)+[seqId(1)+action(1)+x(2)+y(2)]*N
+    public static final int TYPE_DISCONNECT  = 0xFF; // 1B
 
     // 核心字段
     private int type;
@@ -43,8 +45,7 @@ public final class ControlMessage {
     private ControlMessage() {
     }
 
-    // [极致低延迟优化] FastTouch 对象池 — 控制线程单线程使用，无需同步
-    // 避免高频触摸消息每次 new ControlMessage() 的 GC 压力
+    // FastTouch 对象池 (单线程，避免高频触摸 GC)
     private static final ControlMessage REUSABLE_FAST_TOUCH = new ControlMessage();
     private static final ControlMessage REUSABLE_FAST_KEY = new ControlMessage();
 
@@ -80,10 +81,9 @@ public final class ControlMessage {
 
     // ========== 快速消息创建方法 ==========
 
-    public static ControlMessage createFastTouch(int seqId, int action, int x, int y) {
-        // [极致低延迟优化] 复用预分配对象，control-recv 单线程安全
+    public static ControlMessage createFastTouch(int type, int seqId, int action, int x, int y) {
         ControlMessage msg = REUSABLE_FAST_TOUCH;
-        msg.type = TYPE_FAST_TOUCH;
+        msg.type = type;
         msg.seqId = seqId;
         msg.action = action;
         msg.touchX = x;
@@ -91,18 +91,16 @@ public final class ControlMessage {
         return msg;
     }
 
-    public static ControlMessage createFastKey(int action, int keycode) {
-        // [极致低延迟优化] 复用预分配对象，control-recv 单线程安全
+    public static ControlMessage createFastKey(int type, int keycode) {
         ControlMessage msg = REUSABLE_FAST_KEY;
-        msg.type = TYPE_FAST_KEY;
-        msg.action = action;
+        msg.type = type;
         msg.keycode = keycode;
         return msg;
     }
 
     public static ControlMessage createFastBatch(int count, byte[] data) {
         ControlMessage msg = new ControlMessage();
-        msg.type = TYPE_FAST_BATCH;
+        msg.type = TYPE_BATCH;
         msg.batchCount = count;
         msg.data = data;
         return msg;

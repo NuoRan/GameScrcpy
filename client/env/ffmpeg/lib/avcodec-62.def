@@ -28,18 +28,6 @@ EXPORTS
     av_dv_codec_profile
     av_dv_codec_profile2
     av_dv_frame_profile
-    av_exif_clone_ifd
-    av_exif_free
-    av_exif_get_entry
-    av_exif_get_tag_id
-    av_exif_get_tag_name
-    av_exif_ifd_to_dict
-    av_exif_matrix_to_orientation
-    av_exif_orientation_to_matrix
-    av_exif_parse_buffer
-    av_exif_remove_entry
-    av_exif_set_entry
-    av_exif_write
     av_fast_padded_malloc
     av_fast_padded_mallocz
     av_get_audio_frame_duration
@@ -76,12 +64,10 @@ EXPORTS
     av_packet_shrink_side_data
     av_packet_side_data_add
     av_packet_side_data_free
-    av_packet_side_data_from_frame
     av_packet_side_data_get
     av_packet_side_data_name
     av_packet_side_data_new
     av_packet_side_data_remove
-    av_packet_side_data_to_frame
     av_packet_unpack_dictionary
     av_packet_unref
     av_parser_close
@@ -150,7 +136,6 @@ EXPORTS
     avcodec_pix_fmt_to_codec_tag
     avcodec_profile_name
     avcodec_receive_frame
-    avcodec_receive_frame_flags
     avcodec_receive_packet
     avcodec_send_frame
     avcodec_send_packet

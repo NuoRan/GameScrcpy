@@ -329,10 +329,7 @@ public class FastTouch {
         // 使用对象池获取 MotionEvent
         MotionEvent event = obtainMotionEvent(downTime, eventTime, motionAction, activeCount, displayId);
 
-        // [极致低延迟优化] 全部使用 ASYNC 模式
-        // WAIT_FOR_RESULT 会阻塞 control-recv 线程 1-5ms，阻塞期间无法处理后续控制消息
-        // ASYNC 模式立即返回，Android InputDispatcher 内部有序列号保证事件顺序
-        // 对游戏场景零风险，可节省 DOWN/UP 事件 3-5ms 延迟
+        // ASYNC 模式：立即返回，避免阻塞 control-recv 线程
         int injectMode = Device.INJECT_MODE_ASYNC;
 
         boolean result = Device.injectEvent(event, displayId, injectMode);
@@ -348,40 +345,14 @@ public class FastTouch {
     }
 
     /**
-     * Batch inject (standard format): 9 bytes per event
+     * v2 batch: 6 bytes per event — seqId(1)+action(1)+x(2)+y(2)
      */
-    public int injectBatch(byte[] events, int count) {
+    public int injectBatchV2(byte[] events, int count) {
         int success = 0;
         int offset = 0;
         int displayId = this.targetDisplayId;
 
-        for (int i = 0; i < count && offset + 9 <= events.length; i++) {
-            int seqId = ((events[offset] & 0xFF) << 24) |
-                    ((events[offset + 1] & 0xFF) << 16) |
-                    ((events[offset + 2] & 0xFF) << 8) |
-                    (events[offset + 3] & 0xFF);
-            int action = events[offset + 4] & 0xFF;
-            int x = ((events[offset + 5] & 0xFF) << 8) | (events[offset + 6] & 0xFF);
-            int y = ((events[offset + 7] & 0xFF) << 8) | (events[offset + 8] & 0xFF);
-
-            if (inject(seqId, action, x, y, displayId)) {
-                success++;
-            }
-            offset += 9;
-        }
-
-        return success;
-    }
-
-    /**
-     * Batch inject (compact format): 7 bytes per event
-     */
-    public int injectBatchCompact(byte[] events, int count) {
-        int success = 0;
-        int offset = 0;
-        int displayId = this.targetDisplayId;
-
-        for (int i = 0; i < count && offset + 7 <= events.length; i++) {
+        for (int i = 0; i < count && offset + 6 <= events.length; i++) {
             int seqId = events[offset] & 0xFF;
             int action = events[offset + 1] & 0xFF;
             int x = ((events[offset + 2] & 0xFF) << 8) | (events[offset + 3] & 0xFF);
@@ -390,9 +361,8 @@ public class FastTouch {
             if (inject(seqId, action, x, y, displayId)) {
                 success++;
             }
-            offset += 7;
+            offset += 6;
         }
-
         return success;
     }
 
@@ -404,9 +374,5 @@ public class FastTouch {
         activeCount = 0;
         usedPointerIdBitmap = 0;
         globalDownTime = 0;
-    }
-
-    public String getStats() {
-        return String.format("activePointers=%d", activeCount);
     }
 }

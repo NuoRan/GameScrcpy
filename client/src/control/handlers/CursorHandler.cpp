@@ -80,9 +80,7 @@ void CursorHandler::processMouseEvent(const QMouseEvent* event, const QSize& sho
     // 始终更新光标位置（用于 getmousepos API）
     m_state.lastPos = normalizedPos;
 
-    // 【光标显示模式】使用 FastMsg 协议发送触摸事件，避免与轮盘/宏等冲突
-    // 只响应左键的实际触摸（因为 Android 只识别一个主触摸点）
-    // 中键和右键的事件被"吃掉"，不触发任何操作
+    // 光标显示模式：使用 FastMsg 协议发送触摸，只响应左键的实际触摸
 
     // 过滤：只处理左键事件
     if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease) {

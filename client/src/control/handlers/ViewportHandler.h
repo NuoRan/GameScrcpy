@@ -102,18 +102,10 @@ private:
     QPointF m_pendingMoveDelta;
     bool m_moveSendScheduled = false;
 
-    // ========== 游戏级视角平滑控制 ==========
-    // 设计原则：原始灵敏度完全不变，只在此基础上叠加平滑和加速
-    // 参考 Valorant/PUBG 的 FPS 视角控制机制：
-    //  - 速度倍增器：正常移动 1:1，快速甚者加速
+    // ========== 视角平滑控制 ==========
+    // 设计原则：原始灵敏度完全不变，只叠加平滑
     //  - EMA 平滑：消除微抖动，保持丝滑
     //  - 亚像素累积：微小位移不丢失
-
-    // 加速参数（基于速度倍增器，不改变基础灵敏度）
-    static constexpr double ACCEL_LOW_THRESHOLD = 0.008;   // 低于此速度 = 1:1 线性（精确瞄准区）
-    static constexpr double ACCEL_HIGH_THRESHOLD = 0.04;   // 高于此速度 = 最大倍率
-    static constexpr double ACCEL_MAX_MULTIPLIER = 1.6;    // 快速甞者时的最大加速倍率
-    static constexpr double ACCEL_CURVE = 2.0;             // 加速过渡曲线 (二次方平滑过渡)
 
     // 平滑参数
     static constexpr double SMOOTH_FACTOR = 0.85;          // EMA 平滑系数 (0.85=轻微平滑, 1.0=无平滑)

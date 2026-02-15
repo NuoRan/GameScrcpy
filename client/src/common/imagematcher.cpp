@@ -15,7 +15,7 @@
 // opencv_matching headers
 #include "matcher.h"
 
-// 【修复】全局互斥锁保护 OpenCV 操作，防止多线程内存问题
+// 全局互斥锁保护 OpenCV 操作，防止多线程内存问题
 static QMutex s_opencvMutex;
 
 // ---------------------------------------------------------
@@ -139,7 +139,7 @@ ImageMatchResult ImageMatcher::findTemplate(
     const QRectF& searchRegion,
     double maxAngle)
 {
-    // 【修复】使用全局互斥锁保护 OpenCV 操作
+    // 使用全局互斥锁保护 OpenCV 操作
     // OpenCV 在多线程环境下可能存在内存管理问题
     QMutexLocker locker(&s_opencvMutex);
 

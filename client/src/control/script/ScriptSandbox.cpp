@@ -8,6 +8,9 @@
 #include "ConfigCenter.h"
 #include "ScriptTipWidget.h"
 #include "selectionregionmanager.h"
+#include "scriptbuttonmanager.h"
+#include "scriptswipemanager.h"
+#include <QFileInfo>
 
 #ifdef ENABLE_IMAGE_MATCHING
 #include "imagematcher.h"
@@ -257,6 +260,17 @@ void ScriptSandbox::runScript()
         result = engine.evaluate(m_script);
     } else {
         QString fullPath = resolveModulePath(m_scriptPath);
+        if (!QFileInfo::exists(fullPath)) {
+            QString errorMsg = QString("Sandbox %1 script file not found: %2")
+                .arg(m_sandboxId)
+                .arg(fullPath);
+            qWarning() << errorMsg;
+            emit scriptError(errorMsg);
+            m_jsEngine.store(nullptr);
+            api->disconnect();
+            delete api;
+            return;
+        }
         result = engine.importModule(fullPath);
     }
 
@@ -682,6 +696,11 @@ QJSValue SandboxScriptApi::loadModule(const QString& modulePath)
         return m_moduleCache[fullPath];
     }
 
+    if (!QFileInfo::exists(fullPath)) {
+        qWarning() << "[Sandbox loadModule] File not found:" << fullPath;
+        return QJSValue();
+    }
+
     QJSValue module = m_jsEngine->importModule(fullPath);
 
     if (module.isError()) {
@@ -922,4 +941,42 @@ QVariantMap SandboxScriptApi::findImageByRegion(const QString& imageName,
         return result;
     }
     return findImage(imageName, region.x0, region.y0, region.x1, region.y1, threshold);
+}
+
+QVariantMap SandboxScriptApi::getbuttonpos(int buttonId)
+{
+    QVariantMap map;
+    map["x"] = 0.0;
+    map["y"] = 0.0;
+    map["valid"] = false;
+    map["name"] = QString();
+
+    if (isInterrupted()) return map;
+
+    ScriptButton btn;
+    if (ScriptButtonManager::instance().findById(buttonId, btn)) {
+        map["x"] = btn.x;
+        map["y"] = btn.y;
+        map["valid"] = true;
+        map["name"] = btn.name;
+    } else {
+        qWarning() << "[Sandbox getbuttonpos] Button not found, id:" << buttonId;
+    }
+
+    return map;
+}
+
+void SandboxScriptApi::swipeById(int swipeId, int durationMs, int steps)
+{
+    if (!m_isPress) return;
+    if (isInterrupted()) return;
+
+    ScriptSwipe swp;
+    if (!ScriptSwipeManager::instance().findById(swipeId, swp)) {
+        qWarning() << "[Sandbox swipeById] Swipe not found, id:" << swipeId;
+        return;
+    }
+
+    // 委托给现有的 slide 方法
+    slide(swp.x0, swp.y0, swp.x1, swp.y1, durationMs, steps);
 }

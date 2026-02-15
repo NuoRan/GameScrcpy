@@ -134,7 +134,7 @@ void KcpCore::setFastMode()
     std::unique_lock<std::shared_mutex> lock(m_mutex);
 
     // ============================================
-    // 【极致低延迟配置】
+    // 极致低延迟配置
     // ============================================
 
     // nodelay=2: 最激进模式，立即发送不等待
@@ -163,8 +163,7 @@ void KcpCore::setVideoStreamMode()
     std::unique_lock<std::shared_mutex> lock(m_mutex);
 
     // ============================================
-    // 【视频流专用配置】
-    // 针对高码率视频流优化
+    // 视频流专用配置 - 针对高码率视频流优化
     // ============================================
 
     // 最激进的nodelay配置
@@ -271,4 +270,34 @@ int KcpCore::getRtt() const
     if (!m_kcp) return 0;
     std::shared_lock<std::shared_mutex> lock(m_mutex);
     return m_kcp->rx_srtt;
+}
+
+int KcpCore::processInputBatch(const char* const* data, const int* sizes, int count, uint32_t current)
+{
+    if (!m_kcp || !data || !sizes || count <= 0) return -1;
+
+    std::unique_lock<std::shared_mutex> lock(m_mutex);
+    for (int i = 0; i < count; ++i) {
+        if (data[i] && sizes[i] > 0) {
+            ikcp_input(m_kcp, data[i], sizes[i]);
+        }
+    }
+    ikcp_update(m_kcp, current);
+    return ikcp_peeksize(m_kcp);
+}
+
+int KcpCore::recvAll(char *buffer, int maxLen)
+{
+    if (!m_kcp || !buffer || maxLen <= 0) return 0;
+
+    std::unique_lock<std::shared_mutex> lock(m_mutex);
+    int totalRecv = 0;
+    int peekSz;
+    while ((peekSz = ikcp_peeksize(m_kcp)) > 0) {
+        if (totalRecv + peekSz > maxLen) break;  // 缓冲区不足，停止
+        int n = ikcp_recv(m_kcp, buffer + totalRecv, maxLen - totalRecv);
+        if (n < 0) break;
+        totalRecv += n;
+    }
+    return totalRecv;
 }

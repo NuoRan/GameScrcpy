@@ -33,10 +33,7 @@ bool WinUtils::setDarkBorderToWindow(const HWND &hwnd, const bool &d)
     return ok;
 }
 
-// ---------------------------------------------------------
-// [超低延迟优化] MMCSS 实时线程调度
-// Windows Multimedia Class Scheduler Service
-// ---------------------------------------------------------
+// MMCSS 实时线程调度
 void* WinUtils::enableMMCSS(const char* taskName)
 {
     DWORD taskIndex = 0;

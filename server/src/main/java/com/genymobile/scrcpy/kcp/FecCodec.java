@@ -1,16 +1,8 @@
 package com.genymobile.scrcpy.kcp;
 
 /**
- * FEC 前向纠错编解码器 (Java 服务端)
- * Forward Error Correction Codec (Java server side)
- *
- * [超低延迟优化] 基于 XOR 的简单 FEC，用于 KCP 传输层。
- * 每 groupSize 个数据包生成 1 个 XOR 校验包。
- * 当丢失 1 个数据包时，可通过其余包 + FEC 包恢复，无需等待重传。
- *
- * 编码格式:
- *   [1B type] [1B groupId] [1B index] [1B groupSize] [2B originalLen] [payload...]
- *   type: 0x01 = 数据包, 0x02 = FEC 校验包
+ * FEC 前向纠错编解码器：基于 XOR，每 groupSize 个包生成 1 个校验包
+ * 格式: [1B type][1B groupId][1B index][1B groupSize][2B len][payload]
  */
 public final class FecCodec {
 

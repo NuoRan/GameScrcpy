@@ -20,13 +20,13 @@ struct FrameData {
     uint8_t* dataY = nullptr;
     uint8_t* dataU = nullptr;
     uint8_t* dataV = nullptr;
-    uint8_t* dataUV = nullptr;  // [低延迟 Step4] NV12 UV 交织平面指针
+    uint8_t* dataUV = nullptr;  // NV12 UV 交织平面指针
 
     // 每个平面的行字节数 / Bytes per row for each plane
     int linesizeY = 0;
     int linesizeU = 0;
     int linesizeV = 0;
-    int linesizeUV = 0;  // [低延迟 Step4] NV12 UV stride
+    int linesizeUV = 0;  // NV12 UV stride
 
     // 帧尺寸 / Frame dimensions
     int width = 0;
@@ -38,7 +38,7 @@ struct FrameData {
     // 帧序号 (用于调试) / Frame index (for debugging)
     uint64_t frameIndex = 0;
 
-    // [低延迟 Step4] 是否为 NV12 格式（硬解直通，跳过 CPU 去交织）
+    // 是否为 NV12 格式（硬解直通，跳过 CPU 去交织）
     bool isNV12 = false;
 
     // ========================================================

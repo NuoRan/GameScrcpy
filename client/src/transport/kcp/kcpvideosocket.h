@@ -1,11 +1,11 @@
 /**
  * @file KcpVideoSocket.h
- * @brief KCP 视频接收 Socket / KCP Video Receive Socket
+ * @brief UDP 视频接收 Socket / UDP Video Receive Socket
  *
- * 适配器，将 KcpVideoClient 适配为类似 QTcpSocket 的接口，
- * 使上层代码可以透明地切换 KCP/TCP 模式。
- * Adapter: wraps KcpVideoClient with a QTcpSocket-like interface,
- * allowing upper-layer code to transparently switch between KCP/TCP modes.
+ * 适配器，将 UdpVideoClient 适配为类似 QTcpSocket 的接口，
+ * 使上层代码可以透明地切换 UDP/TCP 模式。
+ * Adapter: wraps UdpVideoClient with a QTcpSocket-like interface,
+ * allowing upper-layer code to transparently switch between UDP/TCP modes.
  */
 
 #ifndef KCPVIDEOSOCKET_H
@@ -17,13 +17,13 @@
 #include <atomic>
 
 // 前向声明
-class KcpVideoClient;
+class UdpVideoClient;
 
 /**
- * @brief KCP 视频 Socket - 兼容旧接口的封装 / KCP Video Socket - Legacy-Compatible Wrapper
+ * @brief UDP 视频 Socket - 兼容旧接口的封装 / UDP Video Socket - Legacy-Compatible Wrapper
  *
- * 内部使用重构的 KcpVideoClient。
- * Internally uses the refactored KcpVideoClient.
+ * 内部使用 UdpVideoClient（裸 UDP，无 KCP 开销）。
+ * Internally uses UdpVideoClient (raw UDP, no KCP overhead).
  */
 class KcpVideoSocket : public QObject
 {
@@ -37,9 +37,9 @@ public:
     virtual ~KcpVideoSocket();
 
     /**
-     * @brief 根据码率配置参数
+     * @brief 根据码率和帧率配置缓冲区
      */
-    void setBitrate(quint32 bitrateBps);
+    void setBitrate(quint32 bitrateBps, quint32 maxFps = 60);
 
     /**
      * @brief 绑定本地端口
@@ -93,7 +93,7 @@ signals:
     void errorOccurred(const QString &error);
 
 private:
-    KcpVideoClient *m_client = nullptr;
+    UdpVideoClient *m_client = nullptr;
 };
 
 #endif // KCPVIDEOSOCKET_H

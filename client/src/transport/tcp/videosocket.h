@@ -2,8 +2,6 @@
 #define VIDEOSOCKET_H
 
 #include <QTcpSocket>
-#include <QMutex>
-#include <QWaitCondition>
 #include <atomic>
 
 /**
@@ -12,10 +10,9 @@
  * 用于 USB 模式下通过 adb forward 接收视频数据。
  * Receives video data via adb forward in USB mode.
  *
- * [超低延迟优化] 使用 QWaitCondition 事件驱动替代 10ms 轮询，
- * 当数据到达时立即唤醒等待线程，消除平均 5ms 的轮询延迟。
- * Uses QWaitCondition event-driven approach instead of 10ms polling,
- * wakes the waiting thread immediately when data arrives.
+ * 使用 waitForReadyRead() 进行 OS 级 socket 阻塞等待，
+ * 不依赖 Qt 事件循环（Demuxer 线程无事件循环），
+ * 数据到达时立即返回（微秒级延迟）。
  */
 class VideoSocket : public QTcpSocket
 {
@@ -39,19 +36,8 @@ public:
      */
     void requestStop();
 
-private slots:
-    /**
-     * @brief 数据到达通知 / Data arrival notification
-     * 由 readyRead 信号触发，唤醒等待中的子线程。
-     */
-    void onReadyRead();
-
 private:
     std::atomic<bool> m_stopRequested{false};
-
-    // [超低延迟] 事件驱动同步原语
-    QMutex m_waitMutex;
-    QWaitCondition m_dataAvailable;
 };
 
 #endif // VIDEOSOCKET_H

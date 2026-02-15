@@ -84,6 +84,12 @@ public:
     bool hasTouchSeqs(int keyId) const;
 
     /**
+     * @brief 获取并移除所有触摸序列（原子操作）
+     * @return keyId → seqId列表 的映射
+     */
+    QHash<int, QList<quint32>> takeAllTouchSeqs();
+
+    /**
      * @brief 清空所有触摸序列
      */
     void clearTouchSeqs();

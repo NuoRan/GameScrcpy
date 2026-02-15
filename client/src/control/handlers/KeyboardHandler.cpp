@@ -93,7 +93,7 @@ void KeyboardHandler::sendKeyEvent(AndroidKeyeventAction action, AndroidKeycode 
 {
     if (!m_controller) return;
 
-    // [零分配优化] 栈缓冲区序列化，避免 QByteArray 堆分配
+    // 栈缓冲区序列化，避免堆分配
     char buf[4];
     quint8 fastAction = (action == AKEY_EVENT_ACTION_DOWN) ? FKA_DOWN : FKA_UP;
     int len = FastMsg::serializeKeyInto(buf, FastKeyEvent(fastAction, static_cast<quint16>(keyCode)));

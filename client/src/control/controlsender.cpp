@@ -16,8 +16,7 @@
 ControlSender::ControlSender(QObject *parent)
     : QObject(parent)
 {
-    // [超低延迟优化] 零延迟合并定时器
-    // 使用 0ms 单次定时器，在下一次事件循环迭代时 flush
+    // 零延迟合并定时器，使用 0ms 单次定时器在下一次事件循环迭代时 flush
     m_coalesceTimer = new QTimer(this);
     m_coalesceTimer->setSingleShot(true);
     m_coalesceTimer->setInterval(0);
@@ -86,27 +85,8 @@ void ControlSender::stop()
     qInfo() << "[ControlSender] Stopped";
 }
 
-// KCP 写入接口
-qint64 ControlSender::doWriteKcp(const QByteArray &data)
-{
-    // 优先使用 IControlChannel 接口
-    if (m_controlChannel && m_controlChannel->isConnected()) {
-        bool ok = m_controlChannel->send(
-            reinterpret_cast<const uint8_t*>(data.constData()),
-            data.size());
-        return ok ? data.size() : -1;
-    }
-    if (m_sendCallback) {
-        return m_sendCallback(data);
-    }
-    if (m_socket && m_socket->isValid()) {
-        return m_socket->write(data);
-    }
-    return -1;
-}
-
-// TCP 写入接口
-qint64 ControlSender::doWriteTcp(const QByteArray &data)
+// 统一写入接口
+qint64 ControlSender::doWrite(const QByteArray &data)
 {
     // 优先使用 IControlChannel 接口
     if (m_controlChannel && m_controlChannel->isConnected()) {
@@ -119,11 +99,10 @@ qint64 ControlSender::doWriteTcp(const QByteArray &data)
         return m_sendCallback(data);
     }
     if (m_tcpSocket && m_tcpSocket->state() == QAbstractSocket::ConnectedState) {
-        qint64 written = m_tcpSocket->write(data);
-        // [优化] 不再每次 write 后同步 flush()
-        // Qt 内部写缓冲区会在事件循环返回时自动 flush
-        // 高频输入时避免每次发送都阻塞等待内核缓冲区
-        return written;
+        return m_tcpSocket->write(data);
+    }
+    if (m_socket && m_socket->isValid()) {
+        return m_socket->write(data);
     }
     return -1;
 }
@@ -134,10 +113,7 @@ bool ControlSender::send(const QByteArray &data)
         return false;
     }
 
-    // [超低延迟优化] 事件循环合并模式
-    // 将同一事件循环迭代内的多条消息合并为一次 write()
-    // 零额外延迟：如果当前已有 pending 的消息，追加到缓冲区；
-    // 否则启动 0ms 定时器，在下次事件循环迭代时一次性发送
+    // 事件循环合并：同一迭代内的消息追加到缓冲区，下次迭代一次性发送
     if (m_coalesceEnabled) {
         m_coalesceBuf.append(data);
         if (!m_coalesceTimer->isActive()) {
@@ -146,9 +122,7 @@ bool ControlSender::send(const QByteArray &data)
         return true;
     }
 
-    // P-KCP: 直接发送，不重试不sleep
-    // KCP 自身已有可靠重传机制，此层重试完全冗余且引入阻塞延迟
-    qint64 written = m_tcpSocket ? doWriteTcp(data) : doWriteKcp(data);
+    qint64 written = doWrite(data);
 
     if (written == data.size()) {
         m_sentCount++;
@@ -163,7 +137,7 @@ void ControlSender::flushCoalesced()
 {
     if (m_coalesceBuf.isEmpty()) return;
 
-    qint64 written = m_tcpSocket ? doWriteTcp(m_coalesceBuf) : doWriteKcp(m_coalesceBuf);
+    qint64 written = doWrite(m_coalesceBuf);
 
     if (written == m_coalesceBuf.size()) {
         m_sentCount++;

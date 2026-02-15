@@ -161,7 +161,7 @@ namespace script {
 // 版本信息
 // =============================================================================
 namespace version {
-    constexpr const char* SCRCPY_SERVER_VERSION = "3.1";
+    constexpr const char* SCRCPY_SERVER_VERSION = "3.3.4";
     constexpr int PROTOCOL_VERSION = 1;
 }
 

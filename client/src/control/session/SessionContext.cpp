@@ -29,7 +29,7 @@ SessionContext::~SessionContext()
 {
     qDebug() << "[SessionContext] Destroying for device:" << m_deviceId;
 
-    // 【关键】首先停止脚本引擎并同步等待
+    // 首先停止脚本引擎并同步等待
     // 必须在任何其他清理之前完成，防止脚本线程访问已销毁的对象
     if (m_scriptBridge) {
         // 先断开 ScriptEngine 对 SessionContext 的引用
@@ -501,12 +501,6 @@ void SessionContext::sendKeyEvent(int action, int keyCode)
 {
     if (m_controller.isNull()) return;
 
-    QByteArray data;
-    if (action == 0) {  // DOWN
-        data = FastMsg::keyDown(static_cast<quint16>(keyCode));
-    } else {  // UP
-        data = FastMsg::keyUp(static_cast<quint16>(keyCode));
-    }
-
-    m_controller->postFastMsg(data);
+    m_controller->postFastMsg(FastMsg::serializeKey(
+        FastKeyEvent(action == 0 ? FKA_DOWN : FKA_UP, static_cast<quint16>(keyCode))));
 }

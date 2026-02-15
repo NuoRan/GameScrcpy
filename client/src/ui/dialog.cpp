@@ -38,9 +38,6 @@ const QString &getKeyMapPath()
     return s_keyMapPath;
 }
 
-// ---------------------------------------------------------
-// 构造函数
-// ---------------------------------------------------------
 Dialog::Dialog(QWidget *parent) : QWidget(parent), ui(new Ui::Widget)
 {
     ui->setupUi(this);
@@ -786,7 +783,7 @@ void Dialog::onDeviceConnected(bool success, const QString &serial, const QStrin
     auto videoForm = new VideoForm(frameless, Config::getInstance().getSkin(), showToolbar);
 
     // UI 完全解耦：直接获取 DeviceSession，使用纯信号槽交互
-    // 【重要】必须先 bindSession 后 setSerial，否则 loadKeyMap 时 m_session 为空
+    // 必须先 bindSession 后 setSerial，否则 loadKeyMap 时 m_session 为空
     auto* session = qsc::IDeviceManage::getInstance().getSession(serial);
     if (session) {
         videoForm->bindSession(session);

@@ -45,7 +45,7 @@ public:
     // TCP 模式 (USB，通过 adb forward)
     void installVideoSocket(VideoSocket* videoSocket);
 
-    // 【新架构】通过 IVideoChannel 接口安装视频通道
+    // 通过 IVideoChannel 接口安装视频通道
     void installVideoChannel(qsc::core::IVideoChannel* channel);
 
     void setFrameSize(const QSize &frameSize);

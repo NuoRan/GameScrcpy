@@ -12,9 +12,7 @@
 // 单例实例
 ScriptTipWidget* ScriptTipWidget::s_instance = nullptr;
 
-// ---------------------------------------------------------
 // 单例获取
-// ---------------------------------------------------------
 ScriptTipWidget* ScriptTipWidget::instance(QWidget* parent)
 {
     if (!s_instance) {
@@ -31,9 +29,6 @@ void ScriptTipWidget::destroyInstance()
     }
 }
 
-// ---------------------------------------------------------
-// 构造函数
-// ---------------------------------------------------------
 ScriptTipWidget::ScriptTipWidget(QWidget* parent)
     : QWidget(parent)
 {
@@ -66,9 +61,7 @@ ScriptTipWidget::~ScriptTipWidget()
     clearAll();
 }
 
-// ---------------------------------------------------------
 // 添加消息
-// ---------------------------------------------------------
 void ScriptTipWidget::addMessage(const QString& message, int durationMs, int keyId)
 {
     if (message.isEmpty()) return;

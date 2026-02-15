@@ -12,22 +12,18 @@
 #include "magneticwidget.h"
 #include "KeyMapBase.h"
 
-namespace qsc {
-class PerformanceDialog;
-}
-
 namespace Ui { class ToolForm; }
 
 // 可拖拽标签类 / Draggable Label Class
 class DraggableLabel : public QLabel {
     Q_OBJECT
 public:
-    DraggableLabel(KeyMapType type, const QString& text, QWidget* parent = nullptr);
+    DraggableLabel(KeyMapType type, const QString& text, QWidget* parent = nullptr, const QString& preset = QString());
 protected:
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
 private:
-    KeyMapType m_type; QPoint m_dragStartPosition;
+    KeyMapType m_type; QString m_preset; QPoint m_dragStartPosition;
 };
 
 // 浮动工具栏类 / Floating Toolbar Class
@@ -77,8 +73,6 @@ private:
     void refreshKeyMapList();
     void retranslateUi();
 
-    void showPerformanceDialog();
-
     Ui::ToolForm *ui;
     QPoint m_dragPosition; QString m_serial; bool m_showTouch = false; bool m_isHost = false; bool m_isKeyMapMode = false;
     QComboBox* m_configComboBox = nullptr;
@@ -88,9 +82,7 @@ private:
     QPushButton* m_folderBtn = nullptr;
     QPushButton* m_antiDetectBtn = nullptr;
     QPushButton* m_overlayBtn = nullptr;
-    QPushButton* m_perfBtn = nullptr;
     bool m_overlayVisible = false;
-    QPointer<qsc::PerformanceDialog> m_perfDialog;
 
     // 可翻译的拖拽标签 / Translatable draggable labels
     DraggableLabel* m_scriptLabel = nullptr;

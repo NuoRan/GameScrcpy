@@ -1,6 +1,6 @@
 # Contributing Guide
 
-中文 | **English**
+[中文](CONTRIBUTING.md) | **English**
 
 Thank you for your interest in the GameScrcpy project!
 

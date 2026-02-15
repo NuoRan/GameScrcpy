@@ -68,6 +68,7 @@ public:
 
     void stopAll();
     void reset();
+    void releaseAllScriptTouches();
     void runAutoStartScripts(KeyMap* keyMap);
 
     // ========== 脚本执行 ==========
@@ -119,7 +120,7 @@ private:
     // 帧获取回调
     std::function<QImage()> m_frameGrabCallback;
 
-    // 【修复】信号回调（避免 lambda 捕获问题）
+    // 信号回调（避免 lambda 捕获问题）
     std::function<void(const QString&, int, int)> m_tipCallback;
     std::function<void()> m_overlayUpdateCallback;
 };

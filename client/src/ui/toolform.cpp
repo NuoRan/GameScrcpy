@@ -3,7 +3,6 @@
 #include "videoform.h"
 #include "iconhelper.h"
 #include "service/DeviceSession.h"
-#include "PerformanceDialog.h"
 #include <QDrag>
 #include <QMimeData>
 #include <QApplication>
@@ -25,7 +24,7 @@
 // 可拖拽的标签 (DraggableLabel)
 // 实现从工具栏拖拽键位元素到视频窗口的逻辑
 // ---------------------------------------------------------
-DraggableLabel::DraggableLabel(KeyMapType type, const QString& text, QWidget* parent) : QLabel(text, parent), m_type(type) {
+DraggableLabel::DraggableLabel(KeyMapType type, const QString& text, QWidget* parent, const QString& preset) : QLabel(text, parent), m_type(type), m_preset(preset) {
     setAlignment(Qt::AlignCenter);
     setMinimumSize(70, 34);
     setCursor(Qt::OpenHandCursor);
@@ -58,6 +57,8 @@ void DraggableLabel::mouseMoveEvent(QMouseEvent *event) {
     QDrag *drag = new QDrag(this);
     QMimeData *mime = new QMimeData;
     mime->setData("application/x-keymap-type", QByteArray::number((int)m_type));
+    if (!m_preset.isEmpty())
+        mime->setData("application/x-keymap-preset", m_preset.toUtf8());
     drag->setMimeData(mime);
     QPixmap pix(size()); pix.fill(Qt::transparent); render(&pix);
     drag->setPixmap(pix); drag->setHotSpot(event->pos());
@@ -79,22 +80,6 @@ ToolForm::ToolForm(QWidget *parent, AdsorbPositions pos) : MagneticWidget(parent
     initStyle();
     initKeyMapPalette();
     ui->stackedWidget->setCurrentIndex(0);
-
-    // 在正常侧边栏添加性能监控按钮
-    QVBoxLayout* normalLayout = qobject_cast<QVBoxLayout*>(ui->page_normal->layout());
-    if (normalLayout) {
-        m_perfBtn = new QPushButton(this);
-        m_perfBtn->setMinimumSize(44, 44);
-        m_perfBtn->setMaximumSize(44, 44);
-        m_perfBtn->setToolTip(tr("性能监控"));
-        m_perfBtn->setStyleSheet(
-            "QPushButton{background:#27272a;border:1px solid #3f3f46;border-radius:10px;color:#fafafa;font-size:16px;}"
-            "QPushButton:hover{background:#3f3f46;border-color:#22c55e;}"
-        );
-        m_perfBtn->setText("📊");
-        connect(m_perfBtn, &QPushButton::clicked, this, &ToolForm::showPerformanceDialog);
-        normalLayout->addWidget(m_perfBtn, 0, Qt::AlignHCenter);
-    }
 
     // 初始自适应大小
     adjustSize();
@@ -223,12 +208,16 @@ void ToolForm::initKeyMapPalette() {
     separator->setStyleSheet("background:#3f3f46;margin:4px 0;");
     layout->addWidget(separator);
 
-    // 可拖拽键位元素 - 居中对齐（脚本在轮盘上面）
+    // 可拖拽键位元素 - 居中对齐（点击/长按在脚本上面）
+    auto* clickLabel = new DraggableLabel(KMT_SCRIPT, tr("点击"), ui->page_keymap, "click");
+    auto* holdLabel = new DraggableLabel(KMT_SCRIPT, tr("长按"), ui->page_keymap, "hold");
     m_scriptLabel = new DraggableLabel(KMT_SCRIPT, tr("脚本"), ui->page_keymap);
     m_steerLabel = new DraggableLabel(KMT_STEER_WHEEL, tr("轮盘"), ui->page_keymap);
     m_cameraLabel = new DraggableLabel(KMT_CAMERA_MOVE, tr("视角"), ui->page_keymap);
     m_freeLookLabel = new DraggableLabel(KMT_FREE_LOOK, tr("小眼睛"), ui->page_keymap);
 
+    layout->addWidget(clickLabel, 0, Qt::AlignHCenter);
+    layout->addWidget(holdLabel, 0, Qt::AlignHCenter);
     layout->addWidget(m_scriptLabel, 0, Qt::AlignHCenter);
     layout->addWidget(m_steerLabel, 0, Qt::AlignHCenter);
     layout->addWidget(m_cameraLabel, 0, Qt::AlignHCenter);
@@ -581,7 +570,7 @@ void ToolForm::on_keyMapBtn_clicked() {
     // 自适应高度
     adjustSize();
 
-    // 【重要】先发送 UI 状态更新信号（show/hide 编辑视图）
+    // 先发送 UI 状态更新信号（show/hide 编辑视图）
     // 这样 loadKeyMap 检查 isVisible 时才能得到正确的结果
     emit keyMapEditModeToggled(m_isKeyMapMode);
 
@@ -639,7 +628,6 @@ void ToolForm::changeEvent(QEvent *event)
 void ToolForm::retranslateUi()
 {
     // 工具按钮提示
-    if (m_perfBtn) m_perfBtn->setToolTip(tr("性能监控"));
     if (m_saveBtn) {
         m_saveBtn->setText(tr("保存"));
         m_saveBtn->setToolTip(tr("保存当前配置"));
@@ -661,14 +649,4 @@ void ToolForm::retranslateUi()
     if (m_steerLabel) m_steerLabel->setText(tr("轮盘"));
     if (m_cameraLabel) m_cameraLabel->setText(tr("视角"));
     if (m_freeLookLabel) m_freeLookLabel->setText(tr("小眼睛"));
-}
-
-void ToolForm::showPerformanceDialog()
-{
-    if (!m_perfDialog) {
-        m_perfDialog = new qsc::PerformanceDialog(this);
-    }
-    m_perfDialog->show();
-    m_perfDialog->raise();
-    m_perfDialog->activateWindow();
 }

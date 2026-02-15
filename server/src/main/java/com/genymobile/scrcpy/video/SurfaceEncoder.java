@@ -215,10 +215,7 @@ public class SurfaceEncoder implements AsyncProcessor {
         // 网络拥塞反馈（可选）
         BitrateControl bitrateControl = (streamer instanceof BitrateControl) ? (BitrateControl) streamer : null;
 
-        // [超低延迟优化] 编码输出超时 — 使用 10ms 超时替代无限等待
-        // 允许在等待编码输出的同时检测其他状态变化
-        // 实测表明 10ms 在 30-120fps 范围内不会增加显著 CPU 开销
-        // 且比 -1（无限等待）更快响应 EOS/reset 信号
+        // 10ms 超时，允许检测状态变化，更快响应 EOS/reset 信号
         final long DEQUEUE_TIMEOUT_US = 10_000; // 10ms
 
         boolean eos;
@@ -348,8 +345,7 @@ public class SurfaceEncoder implements AsyncProcessor {
         }
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, DEFAULT_I_FRAME_INTERVAL);
 
-        // [低延迟优化 Step3] MediaCodec 低延迟编码配置
-        // 设置实时优先级，让编码器以最高优先级运行
+        // 低延迟编码配置：实时优先级
         if (Build.VERSION.SDK_INT >= AndroidVersions.API_23_ANDROID_6_0) {
             format.setInteger(MediaFormat.KEY_PRIORITY, 0); // 0 = realtime priority
         }
@@ -369,14 +365,12 @@ public class SurfaceEncoder implements AsyncProcessor {
             format.setInteger("vendor.rtc-ext-enc-low-latency.enable", 1);
         } catch (Exception ignored) {}
 
-        // [超低延迟优化] 禁止 B 帧，消除编码端帧重排序延迟 (~2-3ms)
-        // B 帧需要参考后续帧才能解码，会引入额外缓冲延迟
+        // 禁止 B 帧，消除帧重排序延迟
         try {
             format.setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0);
         } catch (Exception ignored) {}
 
-        // [超低延迟优化] 使用 Baseline Profile (H.264) 确保无 B 帧
-        // Baseline Profile 天然不支持 B 帧，是最低延迟的 Profile
+        // H.264 Baseline Profile：无 B 帧，最低延迟
         if (videoMimeType.equals(MediaFormat.MIMETYPE_VIDEO_AVC)) {
             try {
                 format.setInteger(MediaFormat.KEY_PROFILE,
@@ -389,25 +383,13 @@ public class SurfaceEncoder implements AsyncProcessor {
             }
         }
 
-        // [超低延迟优化] 高通 Snapdragon 专用低延迟编码器配置
-        try {
-            format.setInteger("vendor.qti-ext-enc-low-latency.enable", 1);
-        } catch (Exception ignored) {}
-        // Samsung Exynos 专用低延迟编码
-        try {
-            format.setInteger("vendor.samsung.enc.low-latency.enable", 1);
-        } catch (Exception ignored) {}
-        // MediaTek 专用
-        try {
-            format.setInteger("vendor.mtk.enc.low-latency.enable", 1);
-        } catch (Exception ignored) {}
-        // 通用 Android 12+ 低延迟提示
-        try {
-            format.setInteger("low-latency", 1);
-        } catch (Exception ignored) {}
+        // 厂商私有低延迟标志 (Qualcomm/Samsung/MTK)
+        try { format.setInteger("vendor.qti-ext-enc-low-latency.enable", 1); } catch (Exception ignored) {}
+        try { format.setInteger("vendor.samsung.enc.low-latency.enable", 1); } catch (Exception ignored) {}
+        try { format.setInteger("vendor.mtk.enc.low-latency.enable", 1); } catch (Exception ignored) {}
+        try { format.setInteger("low-latency", 1); } catch (Exception ignored) {}
 
-        // [超低延迟优化] CBR 模式可提供更稳定的码率输出，减少网络突发
-        // 但在部分设备上可能导致兼容性问题，通过 try-catch 保护
+        // CBR 模式：更稳定的码率输出
         try {
             format.setInteger(MediaFormat.KEY_BITRATE_MODE,
                     MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR);

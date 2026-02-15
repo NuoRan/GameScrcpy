@@ -93,7 +93,7 @@ public final class KcpTransport implements KcpCore.Output {
     private volatile long bytesSent = 0;
     private volatile long bytesRecv = 0;
 
-    // [超低延迟优化] FEC 前向纠错
+    // FEC 前向纠错
     private volatile boolean fecEnabled = false;
     private FecCodec.FecEncoder fecEncoder;
     private FecCodec.FecDecoder fecDecoder;
@@ -181,11 +181,7 @@ public final class KcpTransport implements KcpCore.Output {
     }
 
     /**
-     * [超低延迟优化] 启用/禁用 FEC 前向纠错
-     * 在 UDP 层为 KCP 包添加冗余校验，允许在丢失 1 个包时通过 XOR 恢复
-     *
-     * @param enabled   是否启用
-     * @param groupSize 每组数据包数量 (默认 10)
+     * 启用/禁用 FEC 前向纠错 (XOR 冗余，允许丢 1 包恢复)
      */
     public void setFecEnabled(boolean enabled, int groupSize) {
         this.fecEnabled = enabled;
@@ -259,8 +255,7 @@ public final class KcpTransport implements KcpCore.Output {
 
         // 更新线程 (参考 test.cpp: 主循环中的 ikcp_update)
         updateThread = new Thread(this::updateLoop, "KCP-Update-" + conv);
-        // [低延迟优化 Step9] KCP 线程最高优先级，确保数据包及时发送和接收
-        updateThread.setPriority(Thread.MAX_PRIORITY);
+        updateThread.setPriority(Thread.MAX_PRIORITY);  // KCP 线程最高优先级
         updateThread.start();
 
         // 接收线程 (参考 test.cpp: vnet->recv)
@@ -373,7 +368,7 @@ public final class KcpTransport implements KcpCore.Output {
         }
 
         try {
-            // [超低延迟优化] FEC 编码：在 UDP 层下方为 KCP 包添加前向纠错
+            // FEC 编码
             if (fecEnabled && fecEncoder != null) {
                 fecEncoder.encode(data, offset, len, (fecData, fecOffset, fecLen) -> {
                     try {
@@ -463,7 +458,7 @@ public final class KcpTransport implements KcpCore.Output {
                 }
 
                 synchronized (this) {
-                    // [超低延迟优化] FEC 解码：在 UDP 层恢复丢失的 KCP 包
+                    // FEC 解码
                     if (fecEnabled && fecDecoder != null) {
                         fecDecoder.decode(packet.getData(), packet.getOffset(), packet.getLength(),
                             (fecData, fecOffset, fecLen) -> {

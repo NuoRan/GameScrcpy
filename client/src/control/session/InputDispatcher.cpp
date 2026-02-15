@@ -74,6 +74,11 @@ void InputDispatcher::setCursorCaptured(bool captured)
             QGuiApplication::setOverrideCursor(QCursor(Qt::CrossCursor));
 #endif
             emit grabCursor(true);
+
+            // 切回游戏模式时重置视角到中心，避免光标模式下鼠标偏移导致视角跳动
+            if (m_viewportHandler) {
+                m_viewportHandler->resetView();
+            }
         }
         m_ctrlMouseMove.ignoreCount = 1;
     } else {
@@ -82,6 +87,17 @@ void InputDispatcher::setCursorCaptured(bool captured)
 
         stopMouseMoveTimer();
         mouseMoveStopTouch();
+
+        // 退出游戏模式时释放鼠标脚本触摸，防止模式切换导致触摸残留
+        if (!m_pressedScriptMouseButtons.isEmpty() && m_keyMap) {
+            for (Qt::MouseButton btn : m_pressedScriptMouseButtons) {
+                const KeyMap::KeyMapNode &node = m_keyMap->getKeyMapNodeMouse(btn);
+                if (node.type == KeyMap::KMT_SCRIPT) {
+                    processScript(node, false);
+                }
+            }
+            m_pressedScriptMouseButtons.clear();
+        }
     }
 }
 
@@ -102,7 +118,19 @@ void InputDispatcher::mouseEvent(const QMouseEvent* from, const QSize& frameSize
         }
         return;
     }
-
+    // 跨模式释放：光标模式下释放游戏模式按下的鼠标脚本键
+    if (from->type() == QEvent::MouseButtonRelease &&
+        !m_cursorCaptured &&
+        m_pressedScriptMouseButtons.contains(from->button()))
+    {
+        m_pressedScriptMouseButtons.remove(from->button());
+        if (m_keyMap) {
+            const KeyMap::KeyMapNode &node = m_keyMap->getKeyMapNodeMouse(from->button());
+            if (node.type == KeyMap::KMT_SCRIPT) {
+                processScript(node, false);
+            }
+        }
+    }
     // 状态分支
     if (!m_cursorCaptured) {
         // [状态 A：光标显示]
@@ -283,6 +311,12 @@ void InputDispatcher::onWindowFocusLost()
         m_cursorHandler->reset();
     }
 
+    // 焦点丢失时释放所有脚本触摸点，避免按键释放事件丢失导致触摸残留
+    if (m_scriptBridge) {
+        m_scriptBridge->releaseAllScriptTouches();
+    }
+    m_pressedScriptMouseButtons.clear();
+
     // 清除按键状态
     m_keyStates.clear();
     m_modifierComboDetected = false;
@@ -352,8 +386,12 @@ bool InputDispatcher::processMouseClick(const QMouseEvent* from)
     }
 
     if (node.type == KeyMap::KMT_SCRIPT) {
-        if (from->type() == QEvent::MouseButtonPress || from->type() == QEvent::MouseButtonRelease) {
-            processScript(node, from->type() == QEvent::MouseButtonPress);
+        if (from->type() == QEvent::MouseButtonPress) {
+            m_pressedScriptMouseButtons.insert(from->button());
+            processScript(node, true);
+        } else if (from->type() == QEvent::MouseButtonRelease) {
+            m_pressedScriptMouseButtons.remove(from->button());
+            processScript(node, false);
         }
         return true;
     }
@@ -497,14 +535,9 @@ void InputDispatcher::sendKeyEvent(AndroidKeyeventAction action, AndroidKeycode 
 {
     if (m_controller.isNull()) return;
 
-    QByteArray data;
-    if (action == AKEY_EVENT_ACTION_DOWN) {
-        data = FastMsg::keyDown(static_cast<quint16>(keyCode));
-    } else {
-        data = FastMsg::keyUp(static_cast<quint16>(keyCode));
-    }
-
-    m_controller->postFastMsg(data);
+    m_controller->postFastMsg(FastMsg::serializeKey(
+        FastKeyEvent(action == AKEY_EVENT_ACTION_DOWN ? FKA_DOWN : FKA_UP,
+                     static_cast<quint16>(keyCode))));
 }
 
 AndroidKeycode InputDispatcher::convertKeyCode(int key, Qt::KeyboardModifiers modifiers)

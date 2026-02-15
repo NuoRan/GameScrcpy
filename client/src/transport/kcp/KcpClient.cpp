@@ -12,7 +12,13 @@
 KcpVideoClient::KcpVideoClient(QObject *parent)
     : QObject(parent)
 {
-    m_transport = new KcpTransport(CONV_VIDEO, this);
+    // IO 线程用于隔离视频流的 UDP 收发和 KCP 更新
+    // 避免高码率/高包量场景下阻塞主线程事件循环，导致控制通道延迟
+    m_ioThread = new QThread(this);
+    m_ioThread->setObjectName("VideoKCP-IO");
+
+    // 不设 parent：允许后续 moveToThread 到 IO 线程
+    m_transport = new KcpTransport(CONV_VIDEO);
 
     // 视频流模式
     m_transport->setVideoStreamMode();
@@ -22,7 +28,11 @@ KcpVideoClient::KcpVideoClient(QObject *parent)
 
     // 环形缓冲区预分配
     m_ringBuffer.reserve(DEFAULT_BUFFER_SIZE);
-    connect(m_transport, &KcpTransport::dataReady, this, &KcpVideoClient::onDataReady);
+
+    // DirectConnection: onDataReady 在 IO 线程执行，直接从 transport 读数据到环形缓冲区
+    // 环形缓冲区通过 mutex 保护，decode 线程通过 recvBlocking 安全读取
+    connect(m_transport, &KcpTransport::dataReady, this, &KcpVideoClient::onDataReady, Qt::DirectConnection);
+    // 低频信号使用默认 AutoConnection（跨线程自动变 QueuedConnection）
     connect(m_transport, &KcpTransport::peerConnected, this, &KcpVideoClient::connected);
     connect(m_transport, &KcpTransport::disconnected, this, &KcpVideoClient::disconnected);
     connect(m_transport, &KcpTransport::errorOccurred, this, &KcpVideoClient::errorOccurred);
@@ -31,12 +41,18 @@ KcpVideoClient::KcpVideoClient(QObject *parent)
 KcpVideoClient::~KcpVideoClient()
 {
     close();
+    if (m_ioThread) {
+        m_ioThread->quit();
+        m_ioThread->wait();
+    }
+    // IO 线程已停止，安全删除无 parent 的 transport
+    delete m_transport;
+    m_transport = nullptr;
 }
 
 void KcpVideoClient::configureBitrate(int bitrateBps)
 {
-    // 【窗口大小计算】
-    // 公式: 窗口 = (码率/8) * (RTT/1000) / MSS
+    // 窗口大小计算公式: 窗口 = (码率/8) * (RTT/1000) / MSS
     // 假设RTT=50ms（WiFi典型值），MSS=1376（MTU-24头）
     // 8Mbps: (8000000/8) * 0.05 / 1376 ≈ 36
     // 为了应对抖动，乘以4倍余量
@@ -54,7 +70,12 @@ void KcpVideoClient::configureBitrate(int bitrateBps)
 
 bool KcpVideoClient::bind(quint16 port)
 {
-    return m_transport->bind(port);
+    ensureIoThread();
+    bool result = false;
+    QMetaObject::invokeMethod(m_transport, [this, port, &result]() {
+        result = m_transport->bind(port);
+    }, Qt::BlockingQueuedConnection);
+    return result;
 }
 
 quint16 KcpVideoClient::localPort() const
@@ -64,7 +85,10 @@ quint16 KcpVideoClient::localPort() const
 
 void KcpVideoClient::connectTo(const QHostAddress &host, quint16 port)
 {
-    m_transport->connectTo(host, port);
+    ensureIoThread();
+    QMetaObject::invokeMethod(m_transport, [this, host, port]() {
+        m_transport->connectTo(host, port);
+    }, Qt::BlockingQueuedConnection);
 }
 
 bool KcpVideoClient::isActive() const
@@ -92,6 +116,15 @@ int KcpVideoClient::recvBlocking(char *buf, int bufSize, int timeoutMs)
 
 QByteArray KcpVideoClient::recv()
 {
+    if (!m_transport) return QByteArray();
+    // transport 在 IO 线程，需通过 invokeMethod 安全调用
+    if (m_ioThread && m_ioThread->isRunning()) {
+        QByteArray result;
+        QMetaObject::invokeMethod(m_transport, [this, &result]() {
+            result = m_transport->recv();
+        }, Qt::BlockingQueuedConnection);
+        return result;
+    }
     return m_transport->recv();
 }
 
@@ -104,7 +137,13 @@ int KcpVideoClient::available() const
 void KcpVideoClient::close()
 {
     m_closed = true;
-    if (m_transport) m_transport->close();
+    if (m_transport && m_ioThread && m_ioThread->isRunning()) {
+        QMetaObject::invokeMethod(m_transport, [this]() {
+            m_transport->close();
+        }, Qt::BlockingQueuedConnection);
+    } else if (m_transport) {
+        m_transport->close();
+    }
     m_dataAvailable.wakeAll();
 }
 
@@ -115,31 +154,37 @@ QString KcpVideoClient::stats() const
         .arg(m_transport ? m_transport->pending() : 0);
 }
 
+void KcpVideoClient::ensureIoThread()
+{
+    if (m_ioThread && !m_ioThread->isRunning()) {
+        m_transport->moveToThread(m_ioThread);
+        m_ioThread->start();
+    }
+}
+
 void KcpVideoClient::onDataReady()
 {
     if (!m_transport || m_closed) return;
 
-    // P-KCP: 先在锁外收集所有数据，然后一次加锁、一次写入、一次唤醒
-    QByteArray batch;
-    while (m_transport->peekSize() > 0) {
-        QByteArray data = m_transport->recv();
-        if (data.isEmpty()) break;
-        m_totalRecv += data.size();
-        batch.append(data);
-    }
+    // 使用 recvAll 一次性读取，避免多次加锁和堆分配
+    static constexpr int RECV_BUFFER_SIZE = 64 * 1024;
+    char recvBuffer[RECV_BUFFER_SIZE];
 
-    if (batch.isEmpty()) return;
+    int totalRecv = m_transport->core()->recvAll(recvBuffer, RECV_BUFFER_SIZE);
+    if (totalRecv <= 0) return;
+
+    m_totalRecv += totalRecv;
 
     QMutexLocker locker(&m_mutex);
 
     // 环形缓冲区 O(1) 写入
-    // 如果空间不足，丢弃最旧的数据
-    if (m_ringBuffer.freeSpace() < batch.size()) {
-        int dropSize = batch.size() - m_ringBuffer.freeSpace();
+    // 如果空间不足，丢弃最旧的数据（有线网络正常不会触发）
+    if (m_ringBuffer.freeSpace() < totalRecv) {
+        int dropSize = totalRecv - m_ringBuffer.freeSpace();
         m_ringBuffer.drop(dropSize);
     }
 
-    m_ringBuffer.write(batch.constData(), batch.size());
+    m_ringBuffer.write(recvBuffer, totalRecv);
     m_dataAvailable.wakeAll();
 }
 

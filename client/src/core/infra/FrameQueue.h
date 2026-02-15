@@ -23,10 +23,7 @@ namespace core {
  * - 消费者：出队 → 使用帧数据 → 归还到 FramePool
  *   Consumer: dequeue → use frame data → release to FramePool
  *
- * [超低延迟优化] 自适应抖动管理：
- * - 实时追踪帧间到达时间的抖动 (RFC 3550 指数加权移动平均)
- * - 突发模式检测：当多帧堆积时，跳过中间帧直达最新帧
- * - 抖动统计暴露给性能监控系统
+ * 自适应抖动管理：基于 RFC 3550 EWMA 追踪抖动，支持突发帧跳过
  *
  * 特性 / Features:
  * - 预分配内存，无运行时 malloc / Pre-allocated memory, no runtime malloc
@@ -95,7 +92,7 @@ public:
     bool pushFrame(FrameData* frame) {
         if (!frame) return false;
 
-        // [超低延迟优化] 更新抖动统计
+        // 更新抖动统计
         updateJitterOnPush();
 
         if (!m_queue->tryPush(frame)) {
@@ -119,12 +116,7 @@ public:
     }
 
     /**
-     * @brief [超低延迟优化] 获取最新帧，跳过中间帧 / Pop latest frame, skip intermediates
-     *
-     * 当队列中有多个帧堆积时（突发到达），直接跳到最新帧。
-     * 跳过的中间帧自动归还到帧池。
-     * 适用于实时投屏/游戏场景，只需要最新画面。
-     *
+     * @brief 获取最新帧，跳过中间堆积帧并归还到帧池
      * @return 最新帧指针，队列空返回 nullptr
      */
     FrameData* popLatestFrame() {
@@ -150,12 +142,7 @@ public:
     }
 
     /**
-     * @brief [超低延迟优化] 自适应弹出 / Adaptive pop
-     *
-     * 根据实时抖动水平自动选择策略：
-     * - 低抖动 (< 阈值)：普通弹出，逐帧处理
-     * - 高抖动 (> 阈值) 或队列深度 > 2：跳到最新帧
-     *
+     * @brief 自适应弹出：高抖动或积压时跳到最新帧，否则逐帧处理
      * @param jitterThresholdMs 抖动阈值 (ms)，默认 8ms
      * @return 帧指针
      */
@@ -256,11 +243,7 @@ public:
 
 private:
     /**
-     * @brief [超低延迟优化] 更新抖动统计 (RFC 3550 EWMA 算法)
-     *
-     * 使用指数加权移动平均追踪帧间到达时间的变化：
-     *   jitter = jitter + (|D(i)| - jitter) / 16
-     * 其中 D(i) = 当前帧间隔 - 上次帧间隔
+     * @brief 更新抖动统计（RFC 3550 EWMA 算法）
      */
     void updateJitterOnPush() {
         auto now = std::chrono::steady_clock::now();
@@ -294,7 +277,7 @@ private:
     std::unique_ptr<FramePool> m_pool;
     std::unique_ptr<DynamicSPSCQueue<FrameData*>> m_queue;
 
-    // [超低延迟优化] 抖动统计
+    // 抖动统计
     JitterStats m_stats;
     std::chrono::steady_clock::time_point m_lastPushTime{};
     double m_lastInterval = 0.0;

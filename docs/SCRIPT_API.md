@@ -2,7 +2,7 @@
 
 **[English](SCRIPT_API_EN.md)** | 中文
 
-> **版本**: 2.2.1
+> **版本**: 1.2.0
 > **运行环境**: QJSEngine (ES6)
 > **内置对象**: `mapi`
 
@@ -32,6 +32,9 @@
   - [getmousepos](#getmousepos) — 获取鼠标位置
   - [getkeypos](#getkeypos) — 获取按键位置
   - [getKeyState](#getkeystate) — 获取按键状态
+  - [getbuttonpos](#getbuttonpos) — 获取虚拟按钮位置
+- [预定义滑动](#预定义滑动)
+  - [swipeById](#swipebyid) — 按编号执行滑动
 - [图像识别](#图像识别)
   - [findImage](#findimage) — 区域找图
   - [findImageByRegion](#findimagebyregion) — 按选区找图
@@ -392,6 +395,63 @@ if (mapi.getKeyState("W")) {
 
 ---
 
+### getbuttonpos
+
+获取预定义虚拟按钮的位置。虚拟按钮通过选区编辑器的「新建按钮」功能创建，保存在 `keymap/buttons.json` 中。
+
+```js
+mapi.getbuttonpos(buttonId)
+```
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `buttonId` | `int` | 按钮编号（在选区编辑器中创建时自动分配） |
+
+**返回值**: `{x: double, y: double, valid: bool, name: string}`
+
+- `x`, `y`: 按钮的归一化坐标
+- `valid`: 是否找到该编号的按钮
+- `name`: 按钮名称
+
+```js
+// 获取编号为 1 的虚拟按钮位置
+var btn = mapi.getbuttonpos(1);
+if (btn.valid) {
+    mapi.click(btn.x, btn.y);
+    mapi.toast("点击了: " + btn.name);
+}
+```
+
+---
+
+## 预定义滑动
+
+### swipeById
+
+按预定义编号执行滑动路径。滑动路径通过选区编辑器的「新建滑动」功能创建（两次点击设置起点→终点），保存在 `keymap/swipes.json` 中。
+
+```js
+mapi.swipeById(swipeId, durationMs, steps)
+```
+
+| 参数 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `swipeId` | `int` | — | 滑动路径编号 |
+| `durationMs` | `int` | `200` | 滑动持续时间 (ms) |
+| `steps` | `int` | `10` | 滑动步数 |
+
+内部查找对应编号的滑动路径，然后委托给 `slide()` 执行，带有拟人化曲线路径。
+
+```js
+// 执行编号为 1 的预定义滑动
+mapi.swipeById(1, 200, 10);
+
+// 使用默认参数
+mapi.swipeById(2);
+```
+
+---
+
 ## 图像识别
 
 > 需要编译时启用 `ENABLE_IMAGE_MATCHING`，依赖 OpenCV。
@@ -682,5 +742,21 @@ keymap/
 ├── images/         # 模板图片 (.png/.jpg/.bmp)
 ├── scripts/        # JS 模块文件
 ├── regions.json    # 自定义选区配置
+├── buttons.json    # 虚拟按钮配置 (getbuttonpos 用)
+├── swipes.json     # 滑动路径配置 (swipeById 用)
 └── *.json          # 按键映射配置
 ```
+
+## 选区编辑器
+
+脚本编辑器中的「获取工具」按钮可打开选区编辑器，提供以下功能：
+
+| 功能 | 说明 |
+|------|------|
+| **获取位置** | 点击视频帧获取归一化坐标，可复制或生成 `mapi.click()`/`mapi.holdpress()` 代码 |
+| **新建按钮** | 点击放置虚拟按钮标记，保存到 `buttons.json`，配合 `mapi.getbuttonpos()` 使用 |
+| **新建滑动** | 两次点击设置起点→终点，保存到 `swipes.json`，配合 `mapi.swipeById()` 使用 |
+| **新建图片** | 框选区域截取模板图片，保存到 `keymap/images/`，配合 `mapi.findImage()` 使用 |
+| **新建选区** | 框选矩形搜索区域，保存到 `regions.json`，配合 `mapi.findImageByRegion()` 使用 |
+
+所有元素支持拖拽编辑、右键菜单重命名/删除、右键生成代码片段插入到脚本编辑器。

@@ -1,12 +1,12 @@
 # GameScrcpy
 
-中文 | **English**
+[中文](README.md) | **English**
 
 <h3 align="center">🎮 Powerful Android Screen Mirroring & Control Tool</h3>
 
 <p align="center">
   <a href="../../releases"><img src="https://img.shields.io/github/v/release/nicenick14/GameScrcpy?style=flat-square&color=blue" alt="Release"></a>
-  <img src="https://img.shields.io/badge/Version-2.2.1-blue?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.2.0-blue?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11-blue?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/Qt-6.x-41CD52?style=flat-square&logo=qt" alt="Qt Version">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License"></a>
@@ -27,9 +27,12 @@
 
 ### 🖥️ HD Screen Mirroring
 
-- **HD & Low Latency** — H.264/H.265 hardware decoding, latency < 100ms
+- **HD & Low Latency** — H.264 hardware decoding, latency < 50ms
 - **USB / WiFi** — Both wired and wireless connections supported
-- **KCP Protocol** — WiFi connections automatically use KCP for lower latency on unstable networks
+- **Dual Transport Mode** — KCP reliable transport + raw UDP ultra-low latency transport, auto-selected for WiFi
+- **FEC Forward Error Correction** — XOR 10:1 redundancy encoding, recovers 1 lost packet per group for better stability on weak networks
+- **Adaptive Bitrate** — Encoder-level ABR + network-layer feedback dual control, auto-adjusts video bitrate
+- **Server-side GPU Filter** — OpenGL affine transform (rotate/crop/scale), video processing done on server
 - **Adjustable FPS** — 0-999 FPS freely configurable, 0 = unlimited
 - **Performance Monitor** — Real-time FPS, decode latency, network latency, CPU/memory metrics
 
@@ -38,7 +41,7 @@
 ### 🎮 Game Key Mapping
 
 - **Visual Editor** — Drag-and-drop key mapping editor, WYSIWYG
-- **Multiple Mapping Types** — Click, steer wheel, viewport control, free look, skill wheel
+- **Multiple Mapping Types** — Click, steer wheel, viewport control, free look
 - **Key Overlay** — Real-time semi-transparent display of current key mapping state, supports script-driven movement/hiding
 - **Combo Keys** — `Shift+G`, `Ctrl+A`, `Alt+Tab`, etc.
 - **Hot Reload** — No restart needed after modifying JSON config
@@ -56,8 +59,9 @@
 ### 🤖 Scripting System
 
 - **JavaScript Engine** — Sandboxed scripting system based on QJSEngine
-- **25+ APIs** — Touch, key press, swipe, pinch, delay, image recognition, global state, etc.
-- **Script Editor** — Built-in editor + quick command panel + code snippet insertion
+- **28 APIs** — Touch, key press, swipe, pinch, delay, image recognition, virtual buttons, predefined swipes, global state, etc.
+- **Script Editor** — Built-in editor + quick command panel + code snippet insertion + auto-complete
+- **Tools** — Selection Editor supports get position, new button, new swipe, capture image, create region, with right-click code generation
 - **Parallel Scripts** — Independent sandbox, independent thread, no interference
 - **Auto Start** — Scripts can run automatically when mirroring starts (`// @autoStart`)
 - **Floating Toast** — `toast()` displays real-time status on screen, supports drag to move
@@ -89,6 +93,24 @@ if (result.found) {
 
 // Find image by selection region ID (created in editor)
 var result = mapi.findImageByRegion("button", 3, 0.8);
+```
+
+---
+
+### 🎮 Virtual Buttons & Swipe Paths
+
+- **Virtual Buttons** — Visually create screen position markers in the Selection Editor, saved to `buttons.json`
+- **Swipe Paths** — Two clicks to set start→end points, saved to `swipes.json`
+- **Script Integration** — `mapi.getbuttonpos(id)` to get position, `mapi.swipeById(id)` to execute swipe
+- **Right-click Code Gen** — Directly insert `mapi.click()`/`mapi.slide()` code into the script editor
+
+```javascript
+// Get virtual button position and click
+var btn = mapi.getbuttonpos(1);
+if (btn.valid) mapi.click(btn.x, btn.y);
+
+// Execute predefined swipe
+mapi.swipeById(1, 200, 10);
 ```
 
 ---
@@ -171,6 +193,10 @@ mapi.setRadialParam(up, down, left, right)  // Set movement speed
 mapi.findImage("name", x1, y1, x2, y2, threshold)
 mapi.findImageByRegion("name", regionId, threshold)
 
+// Virtual buttons & swipes
+mapi.getbuttonpos(buttonId)        // Get virtual button position
+mapi.swipeById(swipeId, ms, steps) // Execute swipe by ID
+
 // Modules
 mapi.loadModule("utils.js")   // Load ES6 module
 ```
@@ -183,16 +209,24 @@ mapi.loadModule("utils.js")   // Load ES6 module
 GameScrcpy/
 ├── client/                 # Client (Qt/C++)
 │   ├── src/
-│   │   ├── app/           # Application entry, configuration
-│   │   ├── ui/            # User interface, key overlay, script editor, selection editor
-│   │   ├── control/       # Control, key mapping, script engine (sandboxed)
-│   │   ├── transport/     # Transport (TCP / KCP / ADB)
-│   │   ├── decoder/       # FFmpeg video decoding (zero-copy)
-│   │   ├── render/        # OpenGL rendering
-│   │   └── common/        # Config center, performance monitor, image matching
+│   │   ├── app/           # Application entry, configuration, first-run agreement
+│   │   ├── ui/            # User interface, key overlay, script editor, selection editor, perf monitor
+│   │   ├── control/       # Control, key mapping, script engine (sandboxed), chain-of-responsibility input
+│   │   ├── transport/     # Transport (TCP / KCP / raw UDP / ADB), FEC forward error correction
+│   │   ├── decoder/       # FFmpeg video decoding (zero-copy SIMD + D3D11VA GPU passthrough)
+│   │   ├── render/        # OpenGL rendering (PBO async DMA + D3D11-GL interop)
+│   │   ├── core/          # Core architecture (interfaces/infra/impl/service)
+│   │   └── common/        # Config center, lock-free perf monitor, image matching
 │   └── env/               # Prebuilt dependencies (FFmpeg, ADB, OpenCV)
 │
 ├── server/                 # Server (Android/Java)
+│   └── src/main/
+│       ├── control/       # FastTouch O(1) multi-touch, v2 minimal protocol
+│       ├── video/         # Encoding (ABR adaptive bitrate), OpenGL filter pipeline
+│       ├── kcp/           # KCP pure Java impl, raw UDP sender, FEC encoder
+│       ├── session/       # Session architecture (TCP/KCP template method pattern)
+│       └── opengl/        # AffineOpenGLFilter GPU affine transform
+│
 ├── keymap/                 # Key mapping config files
 │   ├── images/            # Template images
 │   ├── scripts/           # Script modules
@@ -206,7 +240,7 @@ GameScrcpy/
 |:----------|:------------|
 | Qt 6.x (MSVC 2022) | GUI framework, multimedia |
 | FFmpeg 7.1 | Video decoding |
-| OpenCV 4.10 | Image recognition (optional) |
+| OpenCV 4.12 | Image recognition (optional) |
 | KCP | Low-latency UDP transport |
 
 ---
@@ -234,7 +268,7 @@ cd ci\win
 
 ```powershell
 cd server
-.\gradlew.bat assembleRelease
+..\gradlew.bat assembleRelease
 ```
 
 ---

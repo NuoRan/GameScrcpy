@@ -6,6 +6,7 @@
 #include <QSize>
 #include <QPointF>
 #include <QHash>
+#include <QSet>
 #include <atomic>
 
 #include "keymap.h"
@@ -163,6 +164,9 @@ private:
     QHash<int, bool> m_keyStates;
     bool m_modifierComboDetected = false;
     int m_lastModifierKey = 0;
+
+    // 鼠标脚本按钮跟踪（用于跨模式释放）
+    QSet<Qt::MouseButton> m_pressedScriptMouseButtons;
 };
 
 #endif // INPUT_DISPATCHER_H

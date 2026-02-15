@@ -358,6 +358,9 @@ void VideoForm::loadKeyMap(const QString& filename, bool runAutoStart) {
     KeyMapOverlay::clearAllOverrides();
 
     if (m_keyMapEditView && m_keyMapEditView->scene()) {
+        m_keyMapEditView->clearEditingState();
+        // 必须先清空撤销栈，再清空场景。否则撤销栈中的命令会持有已销毁对象的悬空指针
+        m_keyMapEditView->undoStack()->clear();
         m_keyMapEditView->scene()->clear();
     }
 
@@ -374,9 +377,10 @@ void VideoForm::loadKeyMap(const QString& filename, bool runAutoStart) {
     bool isInEditMode = m_keyMapEditView && m_keyMapEditView->isVisible();
 
     // 3. 将脚本更新到底层设备实例
-    // 只有不在编辑模式且 runAutoStart=true 时才执行自动启动脚本
-    if (m_session) {
-        m_session->updateScript(data, runAutoStart && !isInEditMode);
+    // 编辑模式下跳过 updateScript，避免 SessionContext 反复销毁重建导致崩溃
+    // 键位配置会在退出编辑模式时统一应用
+    if (m_session && !isInEditMode) {
+        m_session->updateScript(data, runAutoStart);
     }
 
     // 3. 记录配置，下次启动自动加载
@@ -715,11 +719,18 @@ void VideoForm::keyReleaseEvent(QKeyEvent *e) {
 // 切换键位编辑模式
 void VideoForm::onKeyMapEditModeToggled(bool active) {
     if (m_keyMapEditView) {
+        if (!active) {
+            m_keyMapEditView->clearEditingState();
+        }
         active ? m_keyMapEditView->show() : m_keyMapEditView->hide();
     }
 
-    // 退出编辑时强制获取焦点
+    // 退出编辑时，应用键位配置到底层并获取焦点
     if (!active) {
+        // 编辑模式下保存时跳过了 updateScript，退出时统一应用
+        if (!m_currentKeyMapFile.isEmpty()) {
+            loadKeyMap(m_currentKeyMapFile, true);
+        }
         this->setFocus();
         this->activateWindow();
     }
@@ -778,7 +789,6 @@ void VideoForm::setSerial(const QString &s) {
         // 加载键位但不执行自动启动脚本，等视频流准备好后再执行
         loadKeyMap(savedKeyMap, false);
     }
-    // 注：帧获取回调、脚本tip信号、键位覆盖层更新信号的连接已移至 bindDevice()
 }
 
 // 显示/隐藏工具栏
@@ -844,6 +854,14 @@ void VideoForm::updateShowSize(const QSize &s) {
             if (m_skin) {
                 ss.setWidth(ss.width() + getMargins(v).left() + getMargins(v).right());
                 ss.setHeight(ss.height() + getMargins(v).top() + getMargins(v).bottom());
+            }
+            // 确保窗口不超出屏幕可用区域（平板等宽屏设备）
+            QRect screenRect = getScreenRect();
+            int maxW = screenRect.width() * 9 / 10;   // 最大占屏幕 90%
+            int maxH = screenRect.height() * 9 / 10;
+            if (ss.width() > maxW || ss.height() > maxH) {
+                float scale = qMin((float)maxW / ss.width(), (float)maxH / ss.height());
+                ss = QSize((int)(ss.width() * scale), (int)(ss.height() * scale));
             }
             if (ss != size()) resize(ss);
         }
@@ -966,7 +984,7 @@ void VideoForm::closeEvent(QCloseEvent *e) {
     }
     m_closing = true;
 
-    // 【重要】先释放渲染器持有的帧，此时 m_session 还有效
+    // 先释放渲染器持有的帧，此时 m_session 还有效
     // 避免析构时回调访问已空的 m_session
     if (m_videoWidget) {
         m_videoWidget->discardPendingFrame();

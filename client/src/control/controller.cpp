@@ -11,11 +11,9 @@
 #include "kcpcontrolsocket.h"
 #include "fastmsg.h"
 #include "interfaces/IControlChannel.h"
+#include <QThread>
 
-// ---------------------------------------------------------
-// 构造函数
 // 初始化 SessionContext 和异步发送器
-// ---------------------------------------------------------
 Controller::Controller(KcpSendCallback sendCallback, QString gameScript, QObject *parent)
     : QObject(parent)
     , m_sendCallback(sendCallback)
@@ -60,9 +58,6 @@ void Controller::stopSender()
     }
 }
 
-// ---------------------------------------------------------
-// FastMsg 协议快速发送
-// ---------------------------------------------------------
 void Controller::postFastMsg(const QByteArray &data)
 {
     if (data.isEmpty()) return;
@@ -166,21 +161,6 @@ void Controller::wheelEvent(const QWheelEvent *from, const QSize &frameSize, con
 void Controller::keyEvent(const QKeyEvent *from, const QSize &frameSize, const QSize &showSize)
 {
     if (m_sessionContext) m_sessionContext->keyEvent(from, frameSize, showSize);
-}
-
-// ---------------------------------------------------------
-// 发送控制数据（非阻塞）
-// ---------------------------------------------------------
-bool Controller::sendControl(const QByteArray &buffer)
-{
-    if (buffer.isEmpty()) return false;
-
-    if (!m_controlSender) {
-        qWarning() << "[Controller] No sender available";
-        return false;
-    }
-
-    return m_controlSender->send(buffer);
 }
 
 // 发送完整的按键点击动作 (按下 + 抬起)

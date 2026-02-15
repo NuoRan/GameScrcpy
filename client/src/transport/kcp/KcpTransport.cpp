@@ -4,8 +4,20 @@
  */
 
 #include "KcpTransport.h"
-#include "PerformanceMonitor.h"
 #include <QHostAddress>
+
+// Windows 高精度定时器
+#ifdef Q_OS_WIN
+#include <qt_windows.h>  // Windows 基础类型（UINT, DWORD 等），timeapi.h 依赖
+#include <timeapi.h>
+#pragma comment(lib, "winmm.lib")
+#endif
+
+#include <QVariant>
+
+// UDP socket 缓冲区大小
+static constexpr int UDP_RECV_BUFFER_SIZE = 2 * 1024 * 1024;  // 2MB - 防止 OS 层丢包
+static constexpr int UDP_SEND_BUFFER_SIZE = 1 * 1024 * 1024;  // 1MB
 
 KcpTransport::KcpTransport(uint32_t conv, QObject *parent)
     : QObject(parent)
@@ -24,11 +36,19 @@ KcpTransport::KcpTransport(uint32_t conv, QObject *parent)
     connect(m_updateTimer, &QTimer::timeout, this, &KcpTransport::onUpdateTimer);
 
     m_clock.start();
+
+    // Windows 默认定时器精度 15.6ms，timeBeginPeriod(1) 提升至 1ms 以保证 KCP 重传和流控的及时性
+#ifdef Q_OS_WIN
+    timeBeginPeriod(1);
+#endif
 }
 
 KcpTransport::~KcpTransport()
 {
     close();
+#ifdef Q_OS_WIN
+    timeEndPeriod(1);
+#endif
 }
 
 bool KcpTransport::bind(quint16 port)
@@ -37,6 +57,10 @@ bool KcpTransport::bind(quint16 port)
         emit errorOccurred(m_socket->errorString());
         return false;
     }
+
+    // 扩大 UDP 缓冲区，防止高码率时 OS 丢包导致 KCP 重传
+    m_socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, QVariant(UDP_RECV_BUFFER_SIZE));
+    m_socket->setSocketOption(QAbstractSocket::SendBufferSizeSocketOption, QVariant(UDP_SEND_BUFFER_SIZE));
 
     m_updateTimer->start(m_updateInterval);
     m_active = true;
@@ -51,6 +75,9 @@ void KcpTransport::connectTo(const QHostAddress &address, quint16 port)
     if (m_socket->state() != QAbstractSocket::BoundState) {
         m_socket->bind();
     }
+
+    m_socket->setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, QVariant(UDP_RECV_BUFFER_SIZE));
+    m_socket->setSocketOption(QAbstractSocket::SendBufferSizeSocketOption, QVariant(UDP_SEND_BUFFER_SIZE));
 
     if (!m_updateTimer->isActive()) {
         m_updateTimer->start(m_updateInterval);
@@ -79,7 +106,6 @@ int KcpTransport::send(const char *data, int len)
     // 立即flush，减少延迟
     if (ret >= 0) {
         m_kcp->update(currentMs());
-        qsc::PerformanceMonitor::instance().reportBytesSent(len);
     }
     return ret;
 }
@@ -183,17 +209,24 @@ void KcpTransport::setFecEnabled(bool enabled, int groupSize)
 
 void KcpTransport::onSocketReadyRead()
 {
-    // P-KCP: 使用 readDatagram + 预分配栈缓冲区，避免每个 UDP 包创建 QNetworkDatagram 堆对象
-    char buf[2048];  // MTU 通常 < 1500
+    // 批量收集 UDP 包后一次性输入 KCP，减少加锁开销
+    struct UdpPacket {
+        char data[1500];  // MTU 上限
+        int size;
+    };
+    static constexpr int MAX_BATCH = 64;
+    UdpPacket packets[MAX_BATCH];
+    const char* ptrs[MAX_BATCH];
+    int sizes[MAX_BATCH];
+    int count = 0;
+
     QHostAddress sender;
     quint16 senderPort;
 
-    while (m_socket->hasPendingDatagrams()) {
-        qint64 size = m_socket->readDatagram(buf, sizeof(buf), &sender, &senderPort);
+    while (m_socket->hasPendingDatagrams() && count < MAX_BATCH) {
+        qint64 size = m_socket->readDatagram(packets[count].data, sizeof(packets[count].data),
+                                              &sender, &senderPort);
         if (size <= 0) continue;
-
-        // 报告接收字节数
-        qsc::PerformanceMonitor::instance().reportBytesReceived(static_cast<int>(size));
 
         if (m_remotePort == 0) {
             m_remoteAddress = sender;
@@ -201,21 +234,33 @@ void KcpTransport::onSocketReadyRead()
             emit peerConnected();
         }
 
-        // [超低延迟优化] FEC 解码：在 UDP 层恢复丢失的 KCP 包
-        if (m_fecEnabled && m_fecDecoder) {
-            m_fecDecoder->decode(reinterpret_cast<const uint8_t*>(buf), static_cast<int>(size),
+        packets[count].size = static_cast<int>(size);
+        ptrs[count] = packets[count].data;
+        sizes[count] = packets[count].size;
+        count++;
+    }
+
+    if (count == 0) return;
+
+    // FEC 解码或批量输入
+    bool hasData = false;
+    if (m_fecEnabled && m_fecDecoder) {
+        // FEC 模式：解码后逐个输入（FEC 可能产生额外恢复包）
+        for (int i = 0; i < count; ++i) {
+            m_fecDecoder->decode(reinterpret_cast<const uint8_t*>(ptrs[i]), sizes[i],
                 [this](const uint8_t* data, int dataLen) {
                     m_kcp->input(reinterpret_cast<const char*>(data), dataLen);
                 });
-        } else {
-            m_kcp->input(buf, static_cast<int>(size));
         }
+        m_kcp->update(currentMs());
+        hasData = m_kcp->peekSize() > 0;
+    } else {
+        // 非 FEC 模式：批量输入 + update（单次加锁）
+        // processInputBatch 内部已做 peekSize，直接利用返回值，省去额外一次加锁
+        hasData = m_kcp->processInputBatch(ptrs, sizes, count, currentMs()) > 0;
     }
 
-    // 收到数据后立即 update，让 ACK 最快发出
-    m_kcp->update(currentMs());
-
-    if (m_kcp->peekSize() > 0) {
+    if (hasData) {
         emit dataReady();
     }
 }
@@ -226,12 +271,6 @@ void KcpTransport::onUpdateTimer()
 
     uint32_t current = currentMs();
     m_kcp->update(current);
-
-    // 报告网络延迟（RTT）
-    int rtt = m_kcp->getRtt();
-    if (rtt > 0) {
-        qsc::PerformanceMonitor::instance().reportNetworkLatency(rtt);
-    }
 
     // 使用 ikcp_check 计算下次需要更新的时间
     scheduleNextUpdate();
@@ -259,8 +298,7 @@ int KcpTransport::udpOutput(const char *buf, int len)
 {
     if (!m_socket || !m_active || m_remotePort == 0) return -1;
 
-    // [超低延迟优化] FEC 编码：在 UDP 层下方为 KCP 包添加前向纠错
-    // 每 groupSize 个 KCP 包生成 1 个 XOR 校验包，可恢复 1 个丢包无需等待重传
+    // FEC 编码：每 groupSize 个包生成 1 个 XOR 校验包，可恢复单个丢包
     if (m_fecEnabled && m_fecEncoder) {
         m_fecEncoder->encode(reinterpret_cast<const uint8_t*>(buf), len,
             [this](const uint8_t* data, int dataLen) {

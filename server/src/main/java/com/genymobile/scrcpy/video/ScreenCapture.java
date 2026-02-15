@@ -129,8 +129,7 @@ public class ScreenCapture extends SurfaceCapture {
                     .createVirtualDisplay("scrcpy", inputSize.getWidth(), inputSize.getHeight(), displayId, surface);
             Ln.d("Display: using DisplayManager API");
 
-            // [超低延迟优化] 设置 VirtualDisplay 为立即渲染模式
-            // Android 11+ (API 30+): 设置帧率以匹配设备最大刷新率
+            // VirtualDisplay 立即渲染模式 (Android 11+)
             if (Build.VERSION.SDK_INT >= AndroidVersions.API_30_ANDROID_11 && virtualDisplay != null) {
                 try {
                     // 通过反射设置 AUTO_REFRESH flag（不等待 vsync 同步）

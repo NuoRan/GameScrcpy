@@ -11,11 +11,6 @@ VideoSocket::VideoSocket(QObject *parent) : QTcpSocket(parent)
 
     // 设置较大的接收缓冲区（视频数据量大）
     setSocketOption(QAbstractSocket::ReceiveBufferSizeSocketOption, 256 * 1024);
-
-    // [超低延迟优化] 连接 readyRead 信号到事件驱动唤醒
-    // 当 socket 有数据可读时，立即唤醒等待中的子线程，
-    // 消除旧版 10ms 轮询带来的平均 5ms 延迟
-    connect(this, &QTcpSocket::readyRead, this, &VideoSocket::onReadyRead);
 }
 
 VideoSocket::~VideoSocket()
@@ -25,14 +20,6 @@ VideoSocket::~VideoSocket()
 void VideoSocket::requestStop()
 {
     m_stopRequested.store(true);
-    // 唤醒可能在等待的子线程
-    m_dataAvailable.wakeAll();
-}
-
-void VideoSocket::onReadyRead()
-{
-    // [超低延迟] 数据到达时立即唤醒等待中的子线程
-    m_dataAvailable.wakeAll();
 }
 
 qint32 VideoSocket::subThreadRecvData(quint8 *buf, qint32 bufSize)
@@ -43,32 +30,25 @@ qint32 VideoSocket::subThreadRecvData(quint8 *buf, qint32 bufSize)
     // 此函数只能在子线程调用
     Q_ASSERT(QCoreApplication::instance()->thread() != QThread::currentThread());
 
-    // [超低延迟优化] 事件驱动替代轮询
-    // 旧方案: waitForReadyRead(10ms) 轮询 → 最坏延迟 10ms，平均 5ms
-    // 新方案: QWaitCondition + readyRead 信号 → 数据到达立即唤醒 (~0ms)
-    // 保留 50ms 超时作为安全守卫，防止信号丢失导致永久阻塞
-    static constexpr int SAFETY_TIMEOUT_MS = 50;
+    // 使用 waitForReadyRead() 进行 OS 级 socket 阻塞等待
+    // waitForReadyRead() 不依赖 Qt 事件循环，直接调用系统 select/poll，
+    // 数据到达时立即返回（微秒级），无轮询延迟。
+    //
+    // 为什么不用 QWaitCondition + readyRead 信号：
+    // Demuxer 线程的 run() 是紧密循环，没有事件循环（不调用 exec()），
+    // 导致 readyRead 信号永远无法分发，QWaitCondition 总是等满超时。
+    // 120fps 下超时 50ms → 每 50ms 堆积 6 帧 → 只显示最后 1 帧 → 体感 20fps。
+    static constexpr int WAIT_TIMEOUT_MS = 50;
 
     while (bytesAvailable() < bufSize) {
-        // 检查停止请求
         if (m_stopRequested.load(std::memory_order_acquire)) {
             return 0;
         }
         if (state() != QAbstractSocket::ConnectedState) {
             return 0;
         }
-
-        // 数据不足时，先尝试 waitForReadyRead(0) 非阻塞检查
-        // 如果仍没有数据，则使用 QWaitCondition 等待信号唤醒
-        if (!waitForReadyRead(0)) {
-            QMutexLocker locker(&m_waitMutex);
-            // 双重检查：加锁后再看一次是否已有足够数据
-            if (bytesAvailable() >= bufSize) {
-                break;
-            }
-            // 等待 readyRead 信号唤醒，超时作为安全守卫
-            m_dataAvailable.wait(&m_waitMutex, SAFETY_TIMEOUT_MS);
-        }
+        // OS 级阻塞：数据到达立即返回，最多等 50ms 作为安全守卫
+        waitForReadyRead(WAIT_TIMEOUT_MS);
     }
 
     return read((char *)buf, bufSize);

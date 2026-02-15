@@ -11,24 +11,25 @@ import com.genymobile.scrcpy.Options;
 import com.genymobile.scrcpy.control.IControlChannel;
 import com.genymobile.scrcpy.device.IStreamer;
 import com.genymobile.scrcpy.kcp.KcpControlChannel;
-import com.genymobile.scrcpy.kcp.KcpVideoSender;
+import com.genymobile.scrcpy.kcp.UdpVideoSender;
 import com.genymobile.scrcpy.util.Ln;
 
 import java.io.IOException;
 
 /**
- * WiFi 模式会话 (KCP/UDP)
+ * WiFi 模式会话 (UDP 视频 + KCP 控制)
  * <p>
  * 特点:
  * <ul>
- *   <li>使用 KCP 协议实现可靠 UDP 传输</li>
- *   <li>低延迟，适合 WiFi 环境</li>
+ *   <li>视频通道：裸 UDP 传输，无 ACK/重传开销，极致低延迟</li>
+ *   <li>控制通道：KCP 可靠传输，确保触控/按键不丢失</li>
  *   <li>需要 client_ip 参数指定客户端地址</li>
  * </ul>
  */
 public class KcpSession extends ScrcpySession {
 
     private KcpControlChannel kcpControlChannel;
+    private UdpVideoSender udpVideoSender;
 
     public KcpSession(Options options) {
         super(options);
@@ -44,9 +45,9 @@ public class KcpSession extends ScrcpySession {
         String clientIp = options.getClientIp();
         int port = options.getKcpPort();
 
-        Ln.i("Starting KCP video streaming to " + clientIp + ":" + port);
+        Ln.i("Starting UDP video streaming to " + clientIp + ":" + port + " (pure UDP, no KCP)");
 
-        return new KcpVideoSender(
+        udpVideoSender = new UdpVideoSender(
                 clientIp,
                 port,
                 options.getVideoCodec(),
@@ -54,6 +55,7 @@ public class KcpSession extends ScrcpySession {
                 options.getSendFrameMeta(),
                 options.getVideoBitRate()
         );
+        return udpVideoSender;
     }
 
     @Override
@@ -69,7 +71,7 @@ public class KcpSession extends ScrcpySession {
 
     @Override
     protected String getSessionName() {
-        return String.format("WiFi mode (KCP): video_port=%d, control_port=%d, client=%s",
+        return String.format("WiFi mode (UDP video + KCP control): video_port=%d, control_port=%d, client=%s",
                 options.getKcpPort(),
                 options.getKcpControlPort(),
                 options.getClientIp());
@@ -77,6 +79,10 @@ public class KcpSession extends ScrcpySession {
 
     @Override
     protected void onCleanup() {
+        if (udpVideoSender != null) {
+            udpVideoSender.close();
+            udpVideoSender = null;
+        }
         if (kcpControlChannel != null) {
             try {
                 kcpControlChannel.close();

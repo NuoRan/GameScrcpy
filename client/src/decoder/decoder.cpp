@@ -27,9 +27,6 @@ static const AVHWDeviceType hwDeviceTypes[] = {
 // 静态成员：存储当前解码器的硬件像素格式
 static AVPixelFormat s_hwPixFmt = AV_PIX_FMT_NONE;
 
-// ---------------------------------------------------------
-// 构造与析构
-// ---------------------------------------------------------
 Decoder::Decoder(std::function<void(int, int, uint8_t*, uint8_t*, uint8_t*, int, int, int)> onFrame, QObject *parent)
     : QObject(parent)
     , m_vb(new VideoBuffer())
@@ -46,9 +43,7 @@ Decoder::~Decoder() {
     delete m_vb;
 }
 
-// ---------------------------------------------------------
 // 硬件格式回调
-// ---------------------------------------------------------
 enum AVPixelFormat Decoder::getHwFormat(AVCodecContext *ctx, const enum AVPixelFormat *pix_fmts)
 {
     Q_UNUSED(ctx);
@@ -61,9 +56,7 @@ enum AVPixelFormat Decoder::getHwFormat(AVCodecContext *ctx, const enum AVPixelF
     return AV_PIX_FMT_NONE;
 }
 
-// ---------------------------------------------------------
 // 初始化硬件解码器
-// ---------------------------------------------------------
 bool Decoder::initHardwareDecoder(const AVCodec* codec)
 {
     for (int i = 0; hwDeviceTypes[i] != AV_HWDEVICE_TYPE_NONE; i++) {

@@ -123,7 +123,7 @@ protected:
     void resizeEvent(QResizeEvent *event) override;
     void moveEvent(QMoveEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
-    void changeEvent(QEvent *event) override;  // 【新增】处理窗口激活状态变化
+    void changeEvent(QEvent *event) override;  // 处理窗口激活状态变化
 
 public:
     void saveWindowGeometry();

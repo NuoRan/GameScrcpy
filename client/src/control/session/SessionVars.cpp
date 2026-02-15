@@ -10,8 +10,6 @@ SessionVars::~SessionVars()
 {
 }
 
-// ========== 通用会话变量 ==========
-
 QVariant SessionVars::getVar(const QString& key, const QVariant& defaultValue) const
 {
     QMutexLocker locker(&m_varsMutex);
@@ -42,8 +40,6 @@ void SessionVars::clearVars()
     m_vars.clear();
 }
 
-// ========== 触摸序列 ID 管理 ==========
-
 void SessionVars::addTouchSeq(int keyId, quint32 seqId)
 {
     QMutexLocker locker(&m_touchSeqMutex);
@@ -68,13 +64,19 @@ bool SessionVars::hasTouchSeqs(int keyId) const
     return m_touchSeqIds.contains(keyId);
 }
 
+QHash<int, QList<quint32>> SessionVars::takeAllTouchSeqs()
+{
+    QMutexLocker locker(&m_touchSeqMutex);
+    QHash<int, QList<quint32>> result;
+    result.swap(m_touchSeqIds);
+    return result;
+}
+
 void SessionVars::clearTouchSeqs()
 {
     QMutexLocker locker(&m_touchSeqMutex);
     m_touchSeqIds.clear();
 }
-
-// ========== 轮盘参数标识 ==========
 
 void SessionVars::setRadialParamKeyId(const QString& keyId)
 {
