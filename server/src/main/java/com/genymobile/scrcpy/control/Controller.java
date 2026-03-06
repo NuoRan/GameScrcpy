@@ -45,6 +45,15 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class Controller implements AsyncProcessor, VirtualDisplayListener {
 
+    /**
+     * 运行时码率调整回调接口
+     */
+    public interface BitrateCallback {
+        void onBitrateChanged(int bitrate);
+    }
+
+
+
     /*
      * For event injection, there are two display ids:
      * - the displayId passed to the constructor (which comes from --display-id
@@ -80,6 +89,7 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
     private final boolean powerOn;
 
     private final AtomicReference<DisplayData> displayData = new AtomicReference<>();
+    private volatile BitrateCallback bitrateCallback;
 
     private long lastTouchDown;
     private final PointersState pointersState = new PointersState();
@@ -102,6 +112,12 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
             Ln.w("Input events are not supported for secondary displays before Android 10");
         }
     }
+
+    public void setBitrateCallback(BitrateCallback callback) {
+        this.bitrateCallback = callback;
+    }
+
+
 
     @Override
     public void onNewVirtualDisplay(int virtualDisplayId, PositionMapper positionMapper) {
@@ -262,6 +278,19 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
             case ControlMessage.TYPE_DISCONNECT:
                 Ln.i("Received disconnect message from client, stopping server");
                 return false;
+            case ControlMessage.TYPE_SET_VIDEO_BITRATE:
+                int newBitRate = msg.getVideoBitRate();
+                Ln.i("Setting video bitrate to " + newBitRate);
+                if (bitrateCallback != null) {
+                    bitrateCallback.onBitrateChanged(newBitRate);
+                }
+                break;
+            case ControlMessage.TYPE_SET_DISPLAY_POWER:
+                boolean powerOn = msg.isDisplayPowerOn();
+                Ln.i("Setting display power: " + (powerOn ? "ON" : "OFF"));
+                Device.setDisplayPower(displayId, powerOn);
+                break;
+
             default:
                 // do nothing
         }

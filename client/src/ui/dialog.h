@@ -24,6 +24,10 @@
 #include <QTimer>
 #include <QMap>
 #include <QEvent>
+#include <QStringList>
+#include <QLabel>
+#include <QProgressBar>
+#include <QFrame>
 
 #include "adbprocess.h"
 #include "GameScrcpyCore.h"
@@ -90,7 +94,23 @@ private slots:
     void onStopCommand();
 
 private:
+    enum class WifiConnectMode {
+        None,
+        Manual,
+        AutoReconnect,
+    };
+
     bool checkAdbRun();
+    bool isWifiSerial(const QString &serial) const;
+    QString extractSerialFromItemText(const QString &text) const;
+    void showStatusDialog(const QString &title, const QString &message, QMessageBox::Icon icon = QMessageBox::Information);
+    void requestDeviceRefresh(bool force = false);
+    void tryStartServerForSerial(const QString &serial);
+    QString findWifiSerialByAddr(const QString &addr, const QStringList &devices) const;
+    void startAutoReconnectFromHistory();
+    void tryNextAutoReconnect();
+    void updateStatusBar(const QString &text, bool showProgress = true);
+    void hideStatusBar();
     void initUI();
     void applyModernStyle();
     void retranslateUi();
@@ -125,8 +145,31 @@ private:
     QAction *m_showWindow;
     QAction *m_quit;
     QTimer m_autoUpdatetimer;
+    QTimer m_deviceWatchTimer;
     QString m_currentSerial;  // 当前选中的设备序列号
     QMap<QString, VideoForm*> m_videoForms;  // serial -> VideoForm 映射
+    QStringList m_lastDeviceSerials;
+
+    bool m_pendingUsbConnect = false;
+    bool m_hasInitialDeviceScan = false;
+
+    WifiConnectMode m_wifiConnectMode = WifiConnectMode::None;
+    QString m_currentWifiAddr;
+    bool m_pendingManualWifiStart = false;
+    int m_pendingManualWifiRefreshRetry = 0;
+    QStringList m_autoReconnectQueue;
+    int m_autoReconnectIndex = 0;
+    bool m_hasTriedAutoReconnect = false;
+
+    // 底部状态条
+    QFrame *m_statusBarFrame = nullptr;
+    QLabel *m_statusLabel = nullptr;
+    QProgressBar *m_statusProgress = nullptr;
+    QTimer m_statusHideTimer;
+
+    // 设备管理监听器 ID
+    int m_deviceConnectedListenerId = 0;
+    int m_deviceDisconnectedListenerId = 0;
 };
 
 #endif // DIALOG_H

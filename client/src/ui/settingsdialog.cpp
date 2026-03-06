@@ -64,15 +64,6 @@ void SettingsDialog::setupUI()
     // "原始" will be added in retranslateUi()
     m_maxSizeBox->setMinimumSize(90, 38);
 
-    m_touchLabel = new QLabel();
-    m_touchLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-    m_touchPointsSpinBox = new QSpinBox();
-    m_touchPointsSpinBox->setRange(1, 50);
-    m_touchPointsSpinBox->setValue(10);
-    m_touchPointsSpinBox->setMinimumSize(85, 38);
-    m_touchPointsSpinBox->setAlignment(Qt::AlignCenter);
-
     m_codecLabel = new QLabel();
     m_codecLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
@@ -89,9 +80,6 @@ void SettingsDialog::setupUI()
     videoRow->addSpacing(16);
     videoRow->addWidget(m_sizeLabel);
     videoRow->addWidget(m_maxSizeBox);
-    videoRow->addSpacing(16);
-    videoRow->addWidget(m_touchLabel);
-    videoRow->addWidget(m_touchPointsSpinBox);
     videoRow->addSpacing(16);
     videoRow->addWidget(m_codecLabel);
     videoRow->addWidget(m_codecBox);
@@ -219,13 +207,10 @@ void SettingsDialog::retranslateUi()
     m_bitrateLabel->setText(tr("码率"));
     m_fpsLabel->setText(tr("帧率"));
     m_sizeLabel->setText(tr("分辨率"));
-    m_touchLabel->setText(tr("触摸点"));
     m_codecLabel->setText(tr("编码"));
 
     m_fpsSpinBox->setSpecialValueText(tr("不限制"));
     m_fpsSpinBox->setToolTip(tr("0 = 不限制帧率, 1-999 = 限制最大帧率"));
-    m_touchPointsSpinBox->setToolTip(tr("脚本宏可同时按下的最大触摸点数（1-10）"));
-
     // 更新 "原始" 项
     int lastIdx = m_maxSizeBox->count() - 1;
     if (lastIdx >= 0 && m_maxSizeBox->itemText(lastIdx).toUShort() == 0) {
@@ -430,7 +415,6 @@ quint32 SettingsDialog::getBitRate() const {
 quint16 SettingsDialog::getMaxSize() const { return m_maxSizeBox->currentText().toUShort(); }
 int SettingsDialog::getMaxSizeIndex() const { return m_maxSizeBox->currentIndex(); }
 int SettingsDialog::getMaxFps() const { return m_fpsSpinBox->value(); }
-int SettingsDialog::getMaxTouchPoints() const { return m_touchPointsSpinBox->value(); }
 int SettingsDialog::getVideoCodecIndex() const { return m_codecBox->currentIndex(); }
 QString SettingsDialog::getVideoCodecName() const {
     return "h264";
@@ -461,7 +445,6 @@ void SettingsDialog::setBitRate(quint32 bitRate) {
 
 void SettingsDialog::setMaxSizeIndex(int index) { m_maxSizeBox->setCurrentIndex(index); }
 void SettingsDialog::setMaxFps(int fps) { m_fpsSpinBox->setValue(fps); }
-void SettingsDialog::setMaxTouchPoints(int points) { m_touchPointsSpinBox->setValue(points); }
 void SettingsDialog::setReverseConnect(bool checked) { m_reverseCheck->setChecked(checked); }
 void SettingsDialog::setShowToolbar(bool checked) { m_toolbarCheck->setChecked(checked); }
 void SettingsDialog::setFrameless(bool checked) { m_framelessCheck->setChecked(checked); }

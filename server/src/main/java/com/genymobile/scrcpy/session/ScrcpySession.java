@@ -4,11 +4,20 @@ import com.genymobile.scrcpy.AsyncProcessor;
 import com.genymobile.scrcpy.CleanUp;
 import com.genymobile.scrcpy.Options;
 import com.genymobile.scrcpy.Workarounds;
+import com.genymobile.scrcpy.audio.AudioCapture;
+import com.genymobile.scrcpy.audio.AudioCodec;
+import com.genymobile.scrcpy.audio.AudioDirectCapture;
+import com.genymobile.scrcpy.audio.AudioEncoder;
+import com.genymobile.scrcpy.audio.AudioPlaybackCapture;
+import com.genymobile.scrcpy.audio.AudioRawRecorder;
+import com.genymobile.scrcpy.audio.AudioSource;
+import com.genymobile.scrcpy.auxiliary.IAuxChannel;
 import com.genymobile.scrcpy.control.Controller;
 import com.genymobile.scrcpy.control.IControlChannel;
 import com.genymobile.scrcpy.device.ConfigurationException;
 import com.genymobile.scrcpy.device.Device;
 import com.genymobile.scrcpy.device.IStreamer;
+import com.genymobile.scrcpy.device.Streamer;
 import com.genymobile.scrcpy.opengl.OpenGLRunner;
 import com.genymobile.scrcpy.util.Ln;
 import com.genymobile.scrcpy.video.ScreenCapture;
@@ -40,6 +49,7 @@ public abstract class ScrcpySession implements Closeable {
     protected CleanUp cleanUp;
     protected Controller controller;
     protected IControlChannel controlChannel;
+    protected IAuxChannel auxChannel;
     protected IStreamer videoStreamer;
 
     public ScrcpySession(Options options) {
@@ -76,6 +86,30 @@ public abstract class ScrcpySession implements Closeable {
                 }
             }
 
+            // 4.5. 初始化音频流 (如果启用)
+            if (options.getAudio()) {
+                Streamer audioStreamer = createAudioStreamer();
+                if (audioStreamer != null) {
+                    AudioCodec audioCodec = options.getAudioCodec();
+                    AudioSource audioSource = options.getAudioSource();
+                    AudioCapture audioCapture;
+                    if (audioSource.isDirect()) {
+                        audioCapture = new AudioDirectCapture(audioSource);
+                    } else {
+                        audioCapture = new AudioPlaybackCapture(options.getAudioDup());
+                    }
+
+                    AsyncProcessor audioRecorder;
+                    if (audioCodec == AudioCodec.RAW) {
+                        audioRecorder = new AudioRawRecorder(audioCapture, audioStreamer);
+                    } else {
+                        audioRecorder = new AudioEncoder(audioCapture, audioStreamer, options);
+                    }
+                    asyncProcessors.add(audioRecorder);
+                    Ln.i("Audio streaming started (codec=" + audioCodec.getName() + ")");
+                }
+            }
+
             // 5. 初始化视频流 (如果启用)
             if (options.getVideo()) {
                 videoStreamer = createVideoStreamer();
@@ -83,14 +117,38 @@ public abstract class ScrcpySession implements Closeable {
                     SurfaceCapture surfaceCapture = new ScreenCapture(controller, options);
                     SurfaceEncoder surfaceEncoder = new SurfaceEncoder(surfaceCapture, videoStreamer, options);
                     asyncProcessors.add(surfaceEncoder);
+
+                    // 将编码器的运行时码率调整回调绑定到 Controller (仅码率，不影响控制通道)
+                    if (controller != null) {
+                        controller.setBitrateCallback(surfaceEncoder::setRuntimeBitRate);
+                    }
+
+                    // 6. 初始化辅助通道（独立于控制通道）
+                    auxChannel = createAuxChannel();
+                    if (auxChannel != null) {
+                        auxChannel.setCallback(new IAuxChannel.Callback() {
+                            @Override
+                            public void onVideoParamsChanged(int bitrate, int maxFps, int maxSize) {
+                                surfaceEncoder.setRuntimeVideoParams(bitrate, maxFps, maxSize);
+                            }
+
+                            @Override
+                            public void onStreamingChanged(boolean streaming) {
+                                surfaceEncoder.setStreamingPaused(!streaming);
+                            }
+                        });
+                        auxChannel.start();
+                        Ln.i("Auxiliary channel started");
+                    }
+
                     Ln.i("Video streaming started");
                 }
             }
 
-            // 6. 执行会话特定初始化
+            // 7. 执行会话特定初始化
             onSessionInitialized();
 
-            // 7. 启动所有处理器
+            // 8. 启动所有处理器
             Completion completion = new Completion(asyncProcessors.size());
             for (AsyncProcessor asyncProcessor : asyncProcessors) {
                 asyncProcessor.start((fatalError) -> {
@@ -98,7 +156,7 @@ public abstract class ScrcpySession implements Closeable {
                 });
             }
 
-            // 8. 进入主循环
+            // 9. 进入主循环
             Looper.loop();
 
         } finally {
@@ -113,9 +171,21 @@ public abstract class ScrcpySession implements Closeable {
     protected abstract IStreamer createVideoStreamer() throws IOException;
 
     /**
+     * 创建音频流发送器 - 子类实现
+     * 返回 null 表示不支持音频
+     */
+    protected abstract Streamer createAudioStreamer() throws IOException;
+
+    /**
      * 创建控制通道 - 子类实现
      */
     protected abstract IControlChannel createControlChannel() throws IOException;
+
+    /**
+     * 创建辅助通道 - 子类实现
+     * 独立于控制通道，用于视频参数/音频/剪贴板等非输入类命令
+     */
+    protected abstract IAuxChannel createAuxChannel() throws IOException;
 
     /**
      * 获取会话名称 - 子类实现
@@ -153,18 +223,23 @@ public abstract class ScrcpySession implements Closeable {
             cleanUp.interrupt();
         }
 
-        // 2. 停止所有处理器
+        // 2. 停止辅助通道
+        if (auxChannel != null) {
+            auxChannel.stop();
+        }
+
+        // 3. 停止所有处理器
         for (AsyncProcessor asyncProcessor : asyncProcessors) {
             asyncProcessor.stop();
         }
 
-        // 3. 停止 OpenGL
+        // 4. 停止 OpenGL
         OpenGLRunner.quit();
 
-        // 4. 子类特定清理
+        // 5. 子类特定清理
         onCleanup();
 
-        // 5. 等待线程结束
+        // 6. 等待线程结束
         try {
             if (cleanUp != null) {
                 cleanUp.join();

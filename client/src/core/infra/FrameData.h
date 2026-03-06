@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <atomic>
+#include <functional>
 
 namespace qsc {
 namespace core {
@@ -56,6 +57,9 @@ struct FrameData {
     // 类型为 void* 以避免在头文件中包含 FFmpeg 头
     void* hwAVFrame = nullptr;
 
+    // GPU 帧清理回调（由 ZeroCopyDecoder 设置，调用 av_frame_free）
+    std::function<void(void*&)> hwFrameCleanup;
+
     // 引用计数 (由 FramePool 管理) / Ref count (managed by FramePool)
     std::atomic<int> refCount{0};
 
@@ -81,8 +85,13 @@ struct FrameData {
         isGPUDirect = false;
         d3d11Texture = nullptr;
         d3d11TextureIndex = 0;
+        // 释放 GPU 直通帧的 AVFrame 引用（防止泄漏）
+        if (hwAVFrame && hwFrameCleanup) {
+            hwFrameCleanup(hwAVFrame);
+        }
         hwAVFrame = nullptr;
         // 不重置数据指针和尺寸，这些由 FramePool 管理
+        // 不重置 hwFrameCleanup，因为同一个池帧可能被复用于 GPU 直通
     }
 };
 

@@ -1,22 +1,17 @@
 #ifndef INPUT_DISPATCHER_H
 #define INPUT_DISPATCHER_H
 
-#include <QObject>
-#include <QPointer>
-#include <QSize>
-#include <QPointF>
-#include <QHash>
-#include <QSet>
+#include "GameTypes.h"
+#include <unordered_map>
+#include <unordered_set>
 #include <atomic>
 
+#include "GameSignal.h"
+#include "NativeTimer.h"
+#include "InputEvent.h"
 #include "keymap.h"
 #include "input.h"
 #include "keycodes.h"
-
-class QKeyEvent;
-class QMouseEvent;
-class QWheelEvent;
-class QTimerEvent;
 
 class Controller;
 class HandlerChain;
@@ -39,21 +34,23 @@ class ScriptBridge;
  * 从 SessionContext 拆分出来，专注于输入处理。
  * Split from SessionContext, focused on input processing.
  */
-class InputDispatcher : public QObject
+class InputDispatcher
 {
-    Q_OBJECT
 public:
-    explicit InputDispatcher(QPointer<Controller> controller, KeyMap* keyMap, QObject* parent = nullptr);
+    explicit InputDispatcher(Controller* controller, KeyMap* keyMap);
     ~InputDispatcher();
 
     // ========== 尺寸设置 ==========
 
-    void setFrameSize(const QSize& size) { m_frameSize = size; }
-    void setShowSize(const QSize& size) { m_showSize = size; }
-    void setMobileSize(const QSize& size) { m_mobileSize = size; }
-    QSize frameSize() const { return m_frameSize; }
-    QSize showSize() const { return m_showSize; }
-    QSize mobileSize() const { return m_mobileSize; }
+    void setFrameSize(const Size& size) { m_frameSize = size; }
+    void setShowSize(const Size& size) { m_showSize = size; }
+    void setMobileSize(const Size& size) { m_mobileSize = size; }
+    Size frameSize() const { return m_frameSize; }
+    Size showSize() const { return m_showSize; }
+    Size mobileSize() const { return m_mobileSize; }
+
+    void setDevicePixelRatio(double dpr) { m_devicePixelRatio = dpr; }
+    double devicePixelRatio() const { return m_devicePixelRatio; }
 
     // ========== Handler 设置 ==========
 
@@ -76,9 +73,9 @@ public:
 
     // ========== 事件处理 ==========
 
-    void mouseEvent(const QMouseEvent* from, const QSize& frameSize, const QSize& showSize);
-    void wheelEvent(const QWheelEvent* from, const QSize& frameSize, const QSize& showSize);
-    void keyEvent(const QKeyEvent* from, const QSize& frameSize, const QSize& showSize);
+    void mouseEvent(const InputEvent& from, const Size& frameSize, const Size& showSize);
+    void wheelEvent(const InputEvent& from, const Size& frameSize, const Size& showSize);
+    void keyEvent(const InputEvent& from, const Size& frameSize, const Size& showSize);
 
     // ========== 窗口焦点 ==========
 
@@ -86,40 +83,36 @@ public:
 
     // ========== 按键状态访问 ==========
 
-    const QHash<int, bool>& keyStates() const { return m_keyStates; }
+    const std::unordered_map<int, bool>& keyStates() const { return m_keyStates; }
 
     // ========== 坐标转换 ==========
 
-    QPointF calcFrameAbsolutePos(QPointF relativePos) const;
-    QPointF calcScreenAbsolutePos(QPointF relativePos) const;
+    PointF calcFrameAbsolutePos(PointF relativePos) const;
+    PointF calcScreenAbsolutePos(PointF relativePos) const;
 
-signals:
-    void grabCursor(bool grab);
-
-protected:
-    void timerEvent(QTimerEvent* event) override;
+    Signal<bool> grabCursor;
 
 private:
-    void updateSize(const QSize& frameSize, const QSize& showSize);
+    void updateSize(const Size& frameSize, const Size& showSize);
 
     // 鼠标处理
-    bool processMouseClick(const QMouseEvent* from);
-    bool processMouseMove(const QMouseEvent* from);
-    void processCursorMouse(const QMouseEvent* from);
-    void moveCursorTo(const QMouseEvent* from, const QPoint& localPosPixel);
-    void mouseMoveStartTouch(const QMouseEvent* from);
+    bool processMouseClick(const InputEvent& from);
+    bool processMouseMove(const InputEvent& from);
+    void processCursorMouse(const InputEvent& from);
+    void moveCursorTo(const InputEvent& from, int localX, int localY);
+    void mouseMoveStartTouch(const InputEvent& from);
     void mouseMoveStopTouch();
     void startMouseMoveTimer();
     void stopMouseMoveTimer();
 
     // 按键处理
     void processScript(const KeyMap::KeyMapNode& node, bool isPress);
-    void processFreeLook(const KeyMap::KeyMapNode& node, const QKeyEvent* from);
-    void processAndroidKey(AndroidKeycode androidKey, const QKeyEvent* from);
+    void processFreeLook(const KeyMap::KeyMapNode& node, const InputEvent& from);
+    void processAndroidKey(AndroidKeycode androidKey, const InputEvent& from);
 
     // 按键转换
     void sendKeyEvent(AndroidKeyeventAction action, AndroidKeycode keyCode);
-    AndroidKeycode convertKeyCode(int key, Qt::KeyboardModifiers modifiers);
+    AndroidKeycode convertKeyCode(int key, uint32_t modifiers);
 
     // 触摸 ID 管理
     int attachTouchID(int key);
@@ -127,12 +120,13 @@ private:
     int getTouchID(int key);
 
 private:
-    QPointer<Controller> m_controller;
+    Controller* m_controller = nullptr;
     KeyMap* m_keyMap = nullptr;
 
-    QSize m_frameSize;
-    QSize m_showSize;
-    QSize m_mobileSize;
+    Size m_frameSize;
+    Size m_showSize;
+    Size m_mobileSize;
+    double m_devicePixelRatio = 1.0;  // DPR for logical→physical coordinate conversion
 
     // Handler 引用
     HandlerChain* m_handlerChain = nullptr;
@@ -147,6 +141,7 @@ private:
 
     // 光标状态
     std::atomic<bool> m_cursorCaptured{false};
+    bool m_cursorHidden = false;
     bool m_needBackMouseMove = false;
     bool m_processMouseMove = true;
 
@@ -156,17 +151,17 @@ private:
 
     // 鼠标移动防抖
     struct {
-        int timer = 0;
+        NativeTimer timer;
         int ignoreCount = 0;
     } m_ctrlMouseMove;
 
     // 按键状态
-    QHash<int, bool> m_keyStates;
+    std::unordered_map<int, bool> m_keyStates;
     bool m_modifierComboDetected = false;
     int m_lastModifierKey = 0;
 
     // 鼠标脚本按钮跟踪（用于跨模式释放）
-    QSet<Qt::MouseButton> m_pressedScriptMouseButtons;
+    std::unordered_set<uint32_t> m_pressedScriptMouseButtons;
 };
 
 #endif // INPUT_DISPATCHER_H

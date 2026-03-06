@@ -1,7 +1,8 @@
 #ifndef DEVICEMSG_H
 #define DEVICEMSG_H
 
-#include <QBuffer>
+#include <vector>
+#include <cstdint>
 
 #define DEVICE_MSG_MAX_SIZE (1 << 18) // 256k
 
@@ -11,19 +12,18 @@
  * 解析从 Android 设备接收到的控制响应消息。
  * Parses control response messages received from Android device.
  */
-class DeviceMsg : public QObject
+class DeviceMsg
 {
-    Q_OBJECT
 public:
     enum DeviceMsgType
     {
         DMT_NULL = -1,
     };
-    explicit DeviceMsg(QObject *parent = nullptr);
+    DeviceMsg();
     virtual ~DeviceMsg();
 
     DeviceMsg::DeviceMsgType type();
-    qint32 deserialize(QByteArray &byteArray);
+    int32_t deserialize(std::vector<uint8_t> &data);
 
 private:
     struct DeviceMsgData

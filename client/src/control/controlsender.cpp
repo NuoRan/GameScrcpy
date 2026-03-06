@@ -1,8 +1,9 @@
-#include <QDebug>
-#include <QThread>
+#define LOG_TAG "ControlSender"
+#include "Logger.h"
 
 #include "controlsender.h"
 #include "kcpcontrolsocket.h"
+#include "NativeTcpSocket.h"
 #include "interfaces/IControlChannel.h"
 
 /**
@@ -13,14 +14,12 @@
  * - TCP 模式：直接调用 TCP 写入（需在主线程）
  */
 
-ControlSender::ControlSender(QObject *parent)
-    : QObject(parent)
+ControlSender::ControlSender()
 {
     // 零延迟合并定时器，使用 0ms 单次定时器在下一次事件循环迭代时 flush
-    m_coalesceTimer = new QTimer(this);
-    m_coalesceTimer->setSingleShot(true);
-    m_coalesceTimer->setInterval(0);
-    connect(m_coalesceTimer, &QTimer::timeout, this, &ControlSender::flushCoalesced);
+    m_coalesceTimer.setSingleShot(true);
+    m_coalesceTimer.setInterval(0);
+    m_coalesceTimer.setCallback([this]() { flushCoalesced(); });
 }
 
 ControlSender::~ControlSender()
@@ -35,7 +34,7 @@ void ControlSender::setSocket(KcpControlSocket *socket)
     m_controlChannel = nullptr;
 }
 
-void ControlSender::setTcpSocket(QTcpSocket *socket)
+void ControlSender::setTcpSocket(NativeTcpSocket *socket)
 {
     m_tcpSocket = socket;
     m_socket = nullptr;
@@ -57,10 +56,10 @@ void ControlSender::setSendCallback(SendCallback callback)
 void ControlSender::setCoalesceEnabled(bool enabled)
 {
     m_coalesceEnabled = enabled;
-    if (!enabled && !m_coalesceBuf.isEmpty()) {
+    if (!enabled && !m_coalesceBuf.empty()) {
         flushCoalesced();
     }
-    qInfo() << "[ControlSender] Coalesce mode:" << (enabled ? "enabled" : "disabled");
+    LOGI() << "[ControlSender] Coalesce mode:" << (enabled ? "enabled" : "disabled");
 }
 
 void ControlSender::start()
@@ -69,11 +68,11 @@ void ControlSender::start()
     m_running.store(true);
 
     if (m_tcpSocket) {
-        qInfo() << "[ControlSender] Started (TCP immediate mode)";
+        LOGI() << "[ControlSender] Started (TCP immediate mode)";
     } else if (m_controlChannel || m_socket) {
-        qInfo() << "[ControlSender] Started (KCP immediate mode)";
+        LOGI() << "[ControlSender] Started (KCP immediate mode)";
     } else {
-        qWarning() << "[ControlSender] No channel configured!";
+        LOGW() << "[ControlSender] No channel configured!";
     }
 }
 
@@ -82,49 +81,50 @@ void ControlSender::stop()
     if (!m_running.load()) return;
     m_running.store(false);
 
-    qInfo() << "[ControlSender] Stopped";
+    LOGI() << "[ControlSender] Stopped";
 }
 
 // 统一写入接口
-qint64 ControlSender::doWrite(const QByteArray &data)
+int64_t ControlSender::doWrite(const char *data, int len)
 {
     // 优先使用 IControlChannel 接口
     if (m_controlChannel && m_controlChannel->isConnected()) {
         bool ok = m_controlChannel->send(
-            reinterpret_cast<const uint8_t*>(data.constData()),
-            data.size());
-        return ok ? data.size() : -1;
+            reinterpret_cast<const uint8_t*>(data), len);
+        return ok ? len : -1;
     }
     if (m_sendCallback) {
-        return m_sendCallback(data);
+        return m_sendCallback(data, len);
     }
-    if (m_tcpSocket && m_tcpSocket->state() == QAbstractSocket::ConnectedState) {
-        return m_tcpSocket->write(data);
+    if (m_tcpSocket && m_tcpSocket->isValid()) {
+        return m_tcpSocket->send(data, len);
     }
     if (m_socket && m_socket->isValid()) {
-        return m_socket->write(data);
+        return m_socket->write(data, len);
     }
     return -1;
 }
 
-bool ControlSender::send(const QByteArray &data)
+bool ControlSender::send(const char *data, int len)
 {
-    if (data.isEmpty() || !m_running.load(std::memory_order_relaxed)) {
+    if (!data || len <= 0 || !m_running.load(std::memory_order_relaxed)) {
         return false;
     }
 
     // 事件循环合并：同一迭代内的消息追加到缓冲区，下次迭代一次性发送
     if (m_coalesceEnabled) {
-        m_coalesceBuf.append(data);
-        if (!m_coalesceTimer->isActive()) {
-            m_coalesceTimer->start();
+        m_coalesceBuf.insert(m_coalesceBuf.end(),
+            reinterpret_cast<const uint8_t*>(data),
+            reinterpret_cast<const uint8_t*>(data) + len);
+        if (!m_coalesceTimer.isActive()) {
+            m_coalesceTimer.start();
         }
         return true;
     }
 
-    qint64 written = doWrite(data);
+    int64_t written = doWrite(data, len);
 
-    if (written == data.size()) {
+    if (written == len) {
         m_sentCount++;
         return true;
     }
@@ -135,11 +135,12 @@ bool ControlSender::send(const QByteArray &data)
 
 void ControlSender::flushCoalesced()
 {
-    if (m_coalesceBuf.isEmpty()) return;
+    if (m_coalesceBuf.empty()) return;
 
-    qint64 written = doWrite(m_coalesceBuf);
+    int bufLen = static_cast<int>(m_coalesceBuf.size());
+    int64_t written = doWrite(reinterpret_cast<const char*>(m_coalesceBuf.data()), bufLen);
 
-    if (written == m_coalesceBuf.size()) {
+    if (written == bufLen) {
         m_sentCount++;
         m_batchCount++;
     } else {
@@ -147,6 +148,5 @@ void ControlSender::flushCoalesced()
     }
 
     m_coalesceBuf.clear();
-    // 预留空间，减少下次 append 的内存分配
     m_coalesceBuf.reserve(128);
 }

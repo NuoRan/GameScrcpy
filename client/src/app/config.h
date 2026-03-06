@@ -14,9 +14,10 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include <QObject>
-#include <QPointer>
-#include <QRect>
+#include <string>
+#include <vector>
+#include <cstdint>
+#include "GameTypes.h"
 
 /**
  * @brief 用户启动配置结构体 / User Boot Configuration
@@ -26,13 +27,12 @@
  */
 struct UserBootConfig
 {
-    QString recordPath = "";
-    quint32 bitRate = 2000000;
+    std::string recordPath;
+    uint32_t bitRate = 2000000;
     int maxSizeIndex = 0;
     int recordFormatIndex = 0;
     int lockOrientationIndex = 0;
     int maxFps = 60;
-    int maxTouchPoints = 10;  // 最大触摸点数（1-10）
     bool recordScreen     = false;
     bool recordBackground = false;
     bool reverseConnect   = true;
@@ -47,33 +47,32 @@ struct UserBootConfig
     int videoCodecIndex   = 0;     // 0=H.264
 };
 
-class QSettings;
+class IniConfig;
 
 // ---------------------------------------------------------
 // 配置管理类 (单例) / Configuration Manager (Singleton)
 // 管理 config.ini (只读配置) 和 userdata.ini (用户偏好)
 // Manages config.ini (read-only) and userdata.ini (user preferences)
 // ---------------------------------------------------------
-class Config : public QObject
+class Config
 {
-    Q_OBJECT
 public:
     static Config &getInstance();
 
     // 读取全局配置 (config.ini) / Read global config (config.ini)
-    QString getLanguage();
-    void setLanguage(const QString &lang);
-    QString getTitle();
+    std::string getLanguage();
+    void setLanguage(const std::string &lang);
+    std::string getTitle();
     int getMaxFps();
     int getDesktopOpenGL();
     int getSkin();
     int getRenderExpiredFrames();
-    QString getServerPath();
-    QString getAdbPath();
-    QString getLogLevel();
-    QString getCodecOptions();
-    QString getCodecName();
-    QStringList getConnectedGroups();
+    std::string getServerPath();
+    std::string getAdbPath();
+    std::string getLogLevel();
+    std::string getCodecOptions();
+    std::string getCodecName();
+    std::vector<std::string> getConnectedGroups();
 
     // 读写用户配置 (userdata.ini) - 通用 / Read/write user config (userdata.ini) - general
     void setUserBootConfig(const UserBootConfig &config);
@@ -85,36 +84,48 @@ public:
     void setAgreementAccepted(bool accepted);
     bool getAgreementAccepted();
 
+    // 分场景引导状态 / Per-scene onboarding state
+    void setOnboardingCompleted(const std::string &scene, bool completed);
+    bool getOnboardingCompleted(const std::string &scene);
+    void resetAllOnboarding();  // 重置所有场景的引导状态
+
+    // 场景常量
+    static constexpr const char* OB_MAIN_WINDOW     = "mainWindow";
+    static constexpr const char* OB_VIDEO_FORM      = "videoForm";
+    static constexpr const char* OB_EDIT_MODE       = "editMode";
+    static constexpr const char* OB_SELECTION_TOOL   = "selectionTool";
+    static constexpr const char* OB_SCRIPT_EDITOR   = "scriptEditor";
+
     // 读写用户配置 - 设备专属 / Read/write user config - per-device
-    void setNickName(const QString &serial, const QString &name);
-    QString getNickName(const QString &serial);
-    void setRect(const QString &serial, const QRect &rc);
-    QRect getRect(const QString &serial);
+    void setNickName(const std::string &serial, const std::string &name);
+    std::string getNickName(const std::string &serial);
+    void setRect(const std::string &serial, const Rect &rc);
+    Rect getRect(const std::string &serial);
 
     // 读写键位映射配置 / Read/write key mapping config
-    void setKeyMap(const QString &serial, const QString &keyMapFile);
-    QString getKeyMap(const QString &serial);
+    void setKeyMap(const std::string &serial, const std::string &keyMapFile);
+    std::string getKeyMap(const std::string &serial);
 
-    void deleteGroup(const QString &serial);
+    void deleteGroup(const std::string &serial);
 
     // IP 历史记录 / IP history
-    void saveIpHistory(const QString &ip);
-    QStringList getIpHistory();
+    void saveIpHistory(const std::string &ip);
+    std::vector<std::string> getIpHistory();
     void clearIpHistory();
 
     // 端口历史记录 / Port history
-    void savePortHistory(const QString &port);
-    QStringList getPortHistory();
+    void savePortHistory(const std::string &port);
+    std::vector<std::string> getPortHistory();
     void clearPortHistory();
 
 private:
-    explicit Config(QObject *parent = nullptr);
-    const QString &getConfigPath();
+    Config();
+    const std::string &getConfigPath();
 
 private:
-    static QString s_configPath;
-    QPointer<QSettings> m_settings; // 对应 config.ini
-    QPointer<QSettings> m_userData; // 对应 userdata.ini
+    static std::string s_configPath;
+    IniConfig *m_settings = nullptr; // 对应 config.ini
+    IniConfig *m_userData = nullptr; // 对应 userdata.ini
 };
 
 #endif // CONFIG_H

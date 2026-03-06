@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class SurfaceEncoder implements AsyncProcessor {
 
@@ -46,23 +47,36 @@ public class SurfaceEncoder implements AsyncProcessor {
     private final IStreamer streamer;
     private final String encoderName;
     private final List<CodecOption> codecOptions;
-    private final int videoBitRate;
-    private final float maxFps;
+    private final int videoBitRate;    // 初始码率 (来自 Options)
+    private final float maxFps;        // 初始帧率 (来自 Options)
     private final boolean downsizeOnError;
+
+    // 运行时可变参数 (线程安全)
+    private volatile int runtimeBitRate;   // 当前生效码率 (ABR 基准)
+    private volatile float runtimeMaxFps;  // 当前生效帧率
+    // pendingMaxFps/pendingMaxSize: 非0 表示有待应用的参数变更 (需重启编码器)
+    private volatile float pendingMaxFps;  // 0 = 无变更
+    private volatile int pendingMaxSize;   // 0 = 无变更, -1 = 原始
+    private final AtomicBoolean streamingPaused = new AtomicBoolean(false);
 
     private boolean firstFrameSent;
     private int consecutiveErrors;
 
     private Thread thread;
     private final AtomicBoolean stopped = new AtomicBoolean();
+    private final AtomicInteger pendingBitRate = new AtomicInteger(0); // 0 = no change pending
+    private volatile MediaCodec runningCodec;
 
     private final CaptureReset reset = new CaptureReset();
+    private boolean useSafeCodecFormat;
 
     public SurfaceEncoder(SurfaceCapture capture, IStreamer streamer, Options options) {
         this.capture = capture;
         this.streamer = streamer;
         this.videoBitRate = options.getVideoBitRate();
         this.maxFps = options.getMaxFps();
+        this.runtimeBitRate = this.videoBitRate;
+        this.runtimeMaxFps = this.maxFps;
         this.codecOptions = options.getVideoCodecOptions();
         this.encoderName = options.getVideoEncoder();
         this.downsizeOnError = options.getDownsizeOnError();
@@ -71,7 +85,7 @@ public class SurfaceEncoder implements AsyncProcessor {
     private void streamCapture() throws IOException, ConfigurationException {
         Codec codec = streamer.getCodec();
         MediaCodec mediaCodec = createMediaCodec(codec, encoderName);
-        MediaFormat format = createFormat(codec.getMimeType(), videoBitRate, maxFps, codecOptions);
+        useSafeCodecFormat = false;
 
         capture.init(reset);
 
@@ -81,6 +95,22 @@ public class SurfaceEncoder implements AsyncProcessor {
 
             do {
                 reset.consumeReset(); // If a capture reset was requested, it is implicitly fulfilled
+
+                // 应用待处理的运行时参数变更 (FPS / maxSize)
+                float newFps = pendingMaxFps;
+                if (newFps > 0 || newFps == -1) { // -1 表示设为 unlimited
+                    runtimeMaxFps = newFps == -1 ? 0 : newFps;
+                    pendingMaxFps = 0;
+                    Ln.i("Runtime FPS changed to " + (runtimeMaxFps > 0 ? (int)runtimeMaxFps : "unlimited"));
+                }
+                int newMs = pendingMaxSize;
+                if (newMs != 0) {
+                    int actualSize = newMs == -1 ? 0 : newMs; // -1 → 0 (原始分辨率)
+                    capture.setMaxSize(actualSize);
+                    pendingMaxSize = 0;
+                    Ln.i("Runtime maxSize changed to " + (actualSize > 0 ? actualSize : "original"));
+                }
+
                 capture.prepare();
                 Size size = capture.getSize();
                 if (!headerWritten) {
@@ -88,8 +118,13 @@ public class SurfaceEncoder implements AsyncProcessor {
                     headerWritten = true;
                 }
 
+                MediaFormat format = createFormat(codec.getMimeType(), runtimeBitRate, runtimeMaxFps, codecOptions, !useSafeCodecFormat);
                 format.setInteger(MediaFormat.KEY_WIDTH, size.getWidth());
                 format.setInteger(MediaFormat.KEY_HEIGHT, size.getHeight());
+
+                Ln.i("Configuring encoder: " + size.getWidth() + "x" + size.getHeight()
+                    + " mode=" + (useSafeCodecFormat ? "safe" : "optimized")
+                    + " bitrate=" + runtimeBitRate + " fps=" + (runtimeMaxFps > 0 ? runtimeMaxFps : 60));
 
                 Surface surface = null;
                 boolean mediaCodecStarted = false;
@@ -103,6 +138,7 @@ public class SurfaceEncoder implements AsyncProcessor {
 
                     mediaCodec.start();
                     mediaCodecStarted = true;
+                    runningCodec = mediaCodec;
 
                     // Set the MediaCodec instance to "interrupt" (by signaling an EOS) on reset
                     reset.setRunningMediaCodec(mediaCodec);
@@ -120,7 +156,19 @@ public class SurfaceEncoder implements AsyncProcessor {
                         // disconnected)
                         alive = !stopped.get() && !capture.isClosed();
                     }
-                } catch (IllegalStateException | IllegalArgumentException | IOException e) {
+                } catch (IllegalArgumentException e) {
+                    if (!useSafeCodecFormat) {
+                        Ln.w("Encoder rejected optimized format, retrying with safe format");
+                        useSafeCodecFormat = true;
+                        alive = true;
+                        continue;
+                    }
+                    Ln.e("Capture/encoding error: " + e.getClass().getName() + ": " + e.getMessage());
+                    if (!prepareRetry(size)) {
+                        throw e;
+                    }
+                    alive = true;
+                } catch (IllegalStateException | IOException e) {
                     if (IO.isBrokenPipe(e)) {
                         // Do not retry on broken pipe, which is expected on close because the socket is
                         // closed by the client
@@ -132,6 +180,7 @@ public class SurfaceEncoder implements AsyncProcessor {
                     }
                     alive = true;
                 } finally {
+                    runningCodec = null;
                     reset.setRunningMediaCodec(null);
                     if (captureStarted) {
                         capture.stop();
@@ -210,7 +259,7 @@ public class SurfaceEncoder implements AsyncProcessor {
         // ABR 控制状态
         long abrWindowStart = SystemClock.elapsedRealtime();
         long abrWindowBytes = 0;
-        int abrCurrentBitrate = videoBitRate;
+        int abrCurrentBitrate = runtimeBitRate;
 
         // 网络拥塞反馈（可选）
         BitrateControl bitrateControl = (streamer instanceof BitrateControl) ? (BitrateControl) streamer : null;
@@ -220,6 +269,21 @@ public class SurfaceEncoder implements AsyncProcessor {
 
         boolean eos;
         do {
+            // 检查是否有待处理的运行时码率调整
+            int newBr = pendingBitRate.getAndSet(0);
+            if (newBr > 0) {
+                try {
+                    Bundle params = new Bundle();
+                    params.putInt(MediaCodec.PARAMETER_KEY_VIDEO_BITRATE, newBr);
+                    codec.setParameters(params);
+                    runtimeBitRate = newBr;    // 更新 ABR 基准
+                    abrCurrentBitrate = newBr;
+                    Ln.i("Runtime bitrate changed to " + newBr / 1000 + " kbps");
+                } catch (IllegalStateException e) {
+                    Ln.w("Failed to set runtime bitrate: " + e.getMessage());
+                }
+            }
+
             int outputBufferId = codec.dequeueOutputBuffer(bufferInfo, DEQUEUE_TIMEOUT_US);
 
             try {
@@ -233,18 +297,22 @@ public class SurfaceEncoder implements AsyncProcessor {
                         consecutiveErrors = 0;
                     }
 
-                    streamer.writePacket(codecBuffer, bufferInfo);
+                    // 暂停模式: 仍然 dequeue 以保持编码器活跃，但不发送数据
+                    if (!streamingPaused.get()) {
+                        streamer.writePacket(codecBuffer, bufferInfo);
+                    }
 
                     // =================== ABR 码率控制 ===================
-                    if (!isConfig) {
+                    if (!isConfig && !streamingPaused.get()) {
                         abrWindowBytes += bufferInfo.size;
                         long now = SystemClock.elapsedRealtime();
                         long elapsed = now - abrWindowStart;
 
                         if (elapsed >= ABR_WINDOW_MS) {
+                            int targetBr = runtimeBitRate; // 使用运行时码率作为 ABR 基准
                             // 计算窗口内实际码率 (bps)
                             long actualBitrate = abrWindowBytes * 8 * 1000 / elapsed;
-                            float ratio = (float) actualBitrate / videoBitRate;
+                            float ratio = (float) actualBitrate / targetBr;
 
                             int newTarget;
                             if (ratio > ABR_OVERSHOOT) {
@@ -252,19 +320,19 @@ public class SurfaceEncoder implements AsyncProcessor {
                                 newTarget = (int) (abrCurrentBitrate / ratio);
                             } else if (ratio < ABR_UNDERSHOOT) {
                                 // 实际码率偏低，逐步恢复（+10%）
-                                newTarget = Math.min(videoBitRate, (int) (abrCurrentBitrate * 1.1f));
+                                newTarget = Math.min(targetBr, (int) (abrCurrentBitrate * 1.1f));
                             } else {
                                 // 在目标范围内，保持不变
                                 newTarget = abrCurrentBitrate;
                             }
 
                             // Clamp 到合理范围
-                            newTarget = Math.max((int) (videoBitRate * ABR_MIN_RATIO),
-                                    Math.min(videoBitRate, newTarget));
+                            newTarget = Math.max((int) (targetBr * ABR_MIN_RATIO),
+                                    Math.min(targetBr, newTarget));
 
                             // 叠加网络拥塞反馈：取 ABR 和网络建议的较小值
                             if (bitrateControl != null) {
-                                int networkSuggested = bitrateControl.getSuggestedBitrate(videoBitRate);
+                                int networkSuggested = bitrateControl.getSuggestedBitrate(targetBr);
                                 newTarget = Math.min(newTarget, networkSuggested);
                             }
 
@@ -331,8 +399,8 @@ public class SurfaceEncoder implements AsyncProcessor {
         }
     }
 
-    private static MediaFormat createFormat(String videoMimeType, int bitRate, float maxFps,
-            List<CodecOption> codecOptions) {
+        private static MediaFormat createFormat(String videoMimeType, int bitRate, float maxFps,
+            List<CodecOption> codecOptions, boolean optimized) {
         MediaFormat format = new MediaFormat();
         format.setString(MediaFormat.KEY_MIME, videoMimeType);
         format.setInteger(MediaFormat.KEY_BIT_RATE, bitRate);
@@ -340,60 +408,79 @@ public class SurfaceEncoder implements AsyncProcessor {
         // frame rate, which is variable
         format.setInteger(MediaFormat.KEY_FRAME_RATE, maxFps > 0 ? (int) maxFps : 60);
         format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
-        if (Build.VERSION.SDK_INT >= AndroidVersions.API_24_ANDROID_7_0) {
-            format.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED);
-        }
         format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, DEFAULT_I_FRAME_INTERVAL);
 
-        // 低延迟编码配置：实时优先级
-        if (Build.VERSION.SDK_INT >= AndroidVersions.API_23_ANDROID_6_0) {
-            format.setInteger(MediaFormat.KEY_PRIORITY, 0); // 0 = realtime priority
-        }
-        // Android 11+ (API 30): 显式请求低延迟编码
-        if (Build.VERSION.SDK_INT >= AndroidVersions.API_30_ANDROID_11) {
-            format.setInteger(MediaFormat.KEY_LATENCY, 0); // 最低延迟
-        }
-        // 请求最大操作速率，禁止编码器降频节能
-        if (Build.VERSION.SDK_INT >= AndroidVersions.API_23_ANDROID_6_0) {
-            format.setInteger(MediaFormat.KEY_OPERATING_RATE, Short.MAX_VALUE);
-        }
-        // 高通/联发科私有低延迟标志（不支持的设备会忽略）
-        try {
-            format.setInteger("vendor.low-latency.enable", 1);
-        } catch (Exception ignored) {}
-        try {
-            format.setInteger("vendor.rtc-ext-enc-low-latency.enable", 1);
-        } catch (Exception ignored) {}
-
-        // 禁止 B 帧，消除帧重排序延迟
-        try {
-            format.setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0);
-        } catch (Exception ignored) {}
-
-        // H.264 Baseline Profile：无 B 帧，最低延迟
-        if (videoMimeType.equals(MediaFormat.MIMETYPE_VIDEO_AVC)) {
+        if (optimized) {
+            // COLOR_RANGE_LIMITED: 仅在优化模式设置，部分设备编码器不支持会抛 IllegalArgumentException
+            if (Build.VERSION.SDK_INT >= AndroidVersions.API_24_ANDROID_7_0) {
+                format.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED);
+            }
+            // 低延迟编码配置：实时优先级
+            if (Build.VERSION.SDK_INT >= AndroidVersions.API_23_ANDROID_6_0) {
+                format.setInteger(MediaFormat.KEY_PRIORITY, 0); // 0 = realtime priority
+            }
+            // Android 11+ (API 30): 显式请求低延迟编码
+            if (Build.VERSION.SDK_INT >= AndroidVersions.API_30_ANDROID_11) {
+                format.setInteger(MediaFormat.KEY_LATENCY, 0); // 最低延迟
+            }
+            // 请求最大操作速率，禁止编码器降频节能
+            if (Build.VERSION.SDK_INT >= AndroidVersions.API_23_ANDROID_6_0) {
+                format.setInteger(MediaFormat.KEY_OPERATING_RATE, Short.MAX_VALUE);
+            }
+            // 高通/联发科私有低延迟标志（不支持的设备会忽略）
             try {
-                format.setInteger(MediaFormat.KEY_PROFILE,
-                        MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline);
-                // Baseline Profile 只支持 Level 对齐的 slice
-                format.setInteger(MediaFormat.KEY_LEVEL,
-                        MediaCodecInfo.CodecProfileLevel.AVCLevel51);
+                format.setInteger("vendor.low-latency.enable", 1);
             } catch (Exception ignored) {
-                // 部分设备不支持显式设置 Profile，忽略
+            }
+            try {
+                format.setInteger("vendor.rtc-ext-enc-low-latency.enable", 1);
+            } catch (Exception ignored) {
+            }
+
+            // 禁止 B 帧，消除帧重排序延迟
+            try {
+                format.setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0);
+            } catch (Exception ignored) {
+            }
+
+            // H.264 Baseline Profile：无 B 帧，最低延迟
+            if (videoMimeType.equals(MediaFormat.MIMETYPE_VIDEO_AVC)) {
+                try {
+                    format.setInteger(MediaFormat.KEY_PROFILE,
+                            MediaCodecInfo.CodecProfileLevel.AVCProfileBaseline);
+                    // Baseline Profile 只支持 Level 对齐的 slice
+                    format.setInteger(MediaFormat.KEY_LEVEL,
+                            MediaCodecInfo.CodecProfileLevel.AVCLevel51);
+                } catch (Exception ignored) {
+                    // 部分设备不支持显式设置 Profile，忽略
+                }
+            }
+
+            // 厂商私有低延迟标志 (Qualcomm/Samsung/MTK)
+            try {
+                format.setInteger("vendor.qti-ext-enc-low-latency.enable", 1);
+            } catch (Exception ignored) {
+            }
+            try {
+                format.setInteger("vendor.samsung.enc.low-latency.enable", 1);
+            } catch (Exception ignored) {
+            }
+            try {
+                format.setInteger("vendor.mtk.enc.low-latency.enable", 1);
+            } catch (Exception ignored) {
+            }
+            try {
+                format.setInteger("low-latency", 1);
+            } catch (Exception ignored) {
+            }
+
+            // CBR 模式：更稳定的码率输出
+            try {
+                format.setInteger(MediaFormat.KEY_BITRATE_MODE,
+                        MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR);
+            } catch (Exception ignored) {
             }
         }
-
-        // 厂商私有低延迟标志 (Qualcomm/Samsung/MTK)
-        try { format.setInteger("vendor.qti-ext-enc-low-latency.enable", 1); } catch (Exception ignored) {}
-        try { format.setInteger("vendor.samsung.enc.low-latency.enable", 1); } catch (Exception ignored) {}
-        try { format.setInteger("vendor.mtk.enc.low-latency.enable", 1); } catch (Exception ignored) {}
-        try { format.setInteger("low-latency", 1); } catch (Exception ignored) {}
-
-        // CBR 模式：更稳定的码率输出
-        try {
-            format.setInteger(MediaFormat.KEY_BITRATE_MODE,
-                    MediaCodecInfo.EncoderCapabilities.BITRATE_MODE_CBR);
-        } catch (Exception ignored) {}
 
         // 不设置 KEY_REPEAT_PREVIOUS_FRAME_AFTER，有新帧才编码发送，没帧不发
         if (maxFps > 0) {
@@ -411,6 +498,8 @@ public class SurfaceEncoder implements AsyncProcessor {
                 Ln.d("Video codec option set: " + key + " (" + value.getClass().getSimpleName() + ") = " + value);
             }
         }
+
+        Ln.d("Video encoder format mode: " + (optimized ? "optimized" : "safe"));
 
         return format;
     }
@@ -456,5 +545,59 @@ public class SurfaceEncoder implements AsyncProcessor {
         if (thread != null) {
             thread.join();
         }
+    }
+
+    /**
+     * 运行时调整码率（线程安全，可从任意线程调用）
+     * 下一个编码周期生效。
+     */
+    public void setRuntimeBitRate(int bitrate) {
+        pendingBitRate.set(bitrate);
+    }
+
+    /**
+     * 运行时调整视频参数（线程安全）。
+     * 码率立即生效；帧率/分辨率变更会触发编码器重启（约 100-300ms 中断）。
+     *
+     * @param bitrate  新码率 (bps)，0 = 不变
+     * @param maxFps   新帧率，0 = 不限制，0xFFFF = 不变
+     * @param maxSize  新分辨率上限 (px)，0 = 原始，0xFFFF = 不变
+     */
+    public void setRuntimeVideoParams(int bitrate, int maxFps, int maxSize) {
+        // 码率可热更新，无需重启
+        if (bitrate > 0) {
+            pendingBitRate.set(bitrate);
+            runtimeBitRate = bitrate;
+        }
+
+        boolean needRestart = false;
+
+        if (maxFps != 0xFFFF) {
+            float target = maxFps;
+            if (target != runtimeMaxFps) {
+                pendingMaxFps = target == 0 ? -1 : target; // -1 sentinel = unlimited
+                needRestart = true;
+            }
+        }
+        if (maxSize != 0xFFFF) {
+            int target = maxSize;
+            // 用 -1 表示 "原始"，因为 0 是 pendingMaxSize 的 "无变更" 标记
+            pendingMaxSize = target == 0 ? -1 : target;
+            needRestart = true;
+        }
+
+        if (needRestart) {
+            Ln.i("Encoder restart requested (fps/resolution change)");
+            reset.reset();
+        }
+    }
+
+    /**
+     * 暂停/恢复视频流传输（线程安全）。
+     * 暂停后编码器仍运行，但不发送数据到客户端，节省带宽。
+     */
+    public void setStreamingPaused(boolean paused) {
+        streamingPaused.set(paused);
+        Ln.i("Video streaming " + (paused ? "PAUSED" : "RESUMED"));
     }
 }

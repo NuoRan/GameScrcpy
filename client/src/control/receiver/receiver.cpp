@@ -1,12 +1,12 @@
 #include "devicemsg.h"
 #include "receiver.h"
 
-Receiver::Receiver(QObject *parent) : QObject(parent) {}
+Receiver::Receiver() {}
 
 Receiver::~Receiver() {}
 
 void Receiver::recvDeviceMsg(DeviceMsg *deviceMsg)
 {
-    Q_UNUSED(deviceMsg);
+    (void)deviceMsg;
     // 暂无需要处理的设备消息
 }

@@ -2,7 +2,7 @@
 #define LOGGER_H
 
 #include <QDebug>
-#include <QString>
+#include <chrono>
 
 /**
  * @file Logger.h
@@ -147,13 +147,14 @@ inline bool shouldLog(LogLevel level) {
 // 性能日志宏
 // ============================================================================
 
-#include <QElapsedTimer>
+#include "ElapsedTimer.h"
+#include "GameTypes.h"
 
 // 作用域计时器
 #define LOG_PERF_SCOPE(name) \
-    QElapsedTimer __perfTimer_##name; \
+    ElapsedTimer __perfTimer_##name; \
     __perfTimer_##name.start(); \
-    auto __perfGuard_##name = qScopeGuard([&]() { \
+    auto __perfGuard_##name = makeScopeGuard([&]() { \
         if (qsc::shouldLog(qsc::LogLevel::Debug)) { \
             qDebug(LOG_PREFIX " [PERF] %s took %lld ms", #name, __perfTimer_##name.elapsed()); \
         } \
@@ -161,7 +162,7 @@ inline bool shouldLog(LogLevel level) {
 
 // 手动计时
 #define LOG_PERF_START(name) \
-    QElapsedTimer __perfTimer_##name; \
+    ElapsedTimer __perfTimer_##name; \
     __perfTimer_##name.start()
 
 #define LOG_PERF_END(name) \
@@ -194,8 +195,9 @@ inline bool shouldLog(LogLevel level) {
 
 #define LOG_THROTTLE(level, interval_ms, fmt, ...) \
     do { \
-        static qint64 __lastLogTime = 0; \
-        qint64 __now = QDateTime::currentMSecsSinceEpoch(); \
+        static int64_t __lastLogTime = 0; \
+        int64_t __now = std::chrono::duration_cast<std::chrono::milliseconds>( \
+            std::chrono::steady_clock::now().time_since_epoch()).count(); \
         if (__now - __lastLogTime >= (interval_ms)) { \
             __lastLogTime = __now; \
             q##level(LOG_PREFIX " " fmt, ##__VA_ARGS__); \

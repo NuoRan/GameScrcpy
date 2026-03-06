@@ -1,11 +1,16 @@
 #ifndef KCPSERVER_H
 #define KCPSERVER_H
 
-#include <QObject>
-#include <QPointer>
-#include <QSize>
+#include "GameSignal.h"
+#include "NativeTimer.h"
+
+#include "GameTypes.h"
+#include <string>
+#include <cstdint>
 
 #include "adbprocess.h"
+
+class NativeTcpSocket;
 #include "kcpvideosocket.h"
 #include "kcpcontrolsocket.h"
 
@@ -17,10 +22,8 @@
  * 特点：低延迟，适合实时投屏
  * Features: low latency, suitable for real-time screen mirroring.
  */
-class KcpServer : public QObject
+class KcpServer
 {
-    Q_OBJECT
-
     enum SERVER_START_STEP
     {
         SSS_NULL,
@@ -34,29 +37,31 @@ public:
     struct ServerParams
     {
         // necessary
-        QString serial = "";              // 设备序列号 (格式: IP:PORT, 如 192.168.1.100:5555)
-        QString serverLocalPath = "";     // 本地安卓server路径
+        std::string serial;              // 设备序列号 (格式: IP:PORT, 如 192.168.1.100:5555)
+        std::string serverLocalPath;     // 本地安卓server路径
 
         // optional
-        QString serverRemotePath = "/data/local/tmp/scrcpy-server.jar";
-        quint16 maxSize = 720;
-        quint32 bitRate = 8000000;
-        quint32 maxFps = 0;
+        std::string serverRemotePath = "/data/local/tmp/scrcpy-server.jar";
+        uint16_t maxSize = 720;
+        uint32_t bitRate = 8000000;
+        uint32_t maxFps = 0;
         int captureOrientationLock = 0;
         int captureOrientation = 0;
         int stayAwake = false;
-        QString serverVersion = "3.3.4";
-        QString logLevel = "debug";
-        QString videoCodec = "h264";  // "h264"
-        QString codecOptions = "";
-        QString codecName = "";
-        QString crop = "";
+        std::string serverVersion = "3.3.4";
+        std::string logLevel = "debug";
+        std::string videoCodec = "h264";  // "h264"
+        std::string codecOptions;
+        std::string codecName;
+        std::string crop;
         bool control = true;
-        quint16 kcpPort = 27185;          // KCP UDP 视频端口 (控制端口 = kcpPort + 1)
-        qint32 scid = -1;
+        bool audioEnabled = true;     // 是否启用音频通道
+        bool auxEnabled = true;       // 是否启用辅助通道
+        uint16_t kcpPort = 27185;          // KCP UDP 视频端口 (控制端口 = kcpPort + 1)
+        int32_t scid = -1;
     };
 
-    explicit KcpServer(QObject *parent = nullptr);
+    explicit KcpServer();
     virtual ~KcpServer();
 
     bool start(KcpServer::ServerParams params);
@@ -67,12 +72,19 @@ public:
     KcpVideoSocket *removeKcpVideoSocket();
     KcpControlSocket *getKcpControlSocket();
 
-signals:
-    void serverStarted(bool success, const QString &deviceName = "", const QSize &size = QSize());
-    void serverStoped();
+    // TCP 音频/辅助通道 (WiFi 模式通过 TCP 传输)
+    NativeTcpSocket *getAudioTcpSocket() { return m_audioTcpSocket; }
+    NativeTcpSocket *getAuxTcpSocket() { return m_auxTcpSocket; }
 
-protected:
-    void timerEvent(QTimerEvent *event);
+    // 服务器 IP
+    std::string getServerIp() const {
+        auto pos = m_params.serial.find(':');
+        return (pos != std::string::npos) ? m_params.serial.substr(0, pos) : m_params.serial;
+    }
+
+    // 信号 (Signal<>) — 替代 Qt signals
+    Signal<bool, const std::string&, const Size&> serverStarted;
+    Signal<> serverStoped;
 
 private:
     bool killOldServer();   // 杀死旧的 scrcpy 进程
@@ -86,23 +98,25 @@ private:
     void startWaitTimer();
     void stopWaitTimer();
 
-    QString findClientIpInSameSubnet(const QString &deviceIp) const;
+    std::string findClientIpInSameSubnet(const std::string &deviceIp) const;
 
-private slots:
     void onWorkProcessResult(qsc::AdbProcess::ADB_EXEC_RESULT processResult);
+    void onServerProcessResult(qsc::AdbProcess::ADB_EXEC_RESULT processResult);
 
 private:
     qsc::AdbProcess m_workProcess;
     qsc::AdbProcess m_serverProcess;
 
-    QPointer<KcpVideoSocket> m_kcpVideoSocket = Q_NULLPTR;
-    QPointer<KcpControlSocket> m_kcpControlSocket = Q_NULLPTR;
+    KcpVideoSocket* m_kcpVideoSocket = nullptr;
+    KcpControlSocket* m_kcpControlSocket = nullptr;
+    NativeTcpSocket *m_audioTcpSocket = nullptr;
+    NativeTcpSocket *m_auxTcpSocket = nullptr;
 
-    int m_waitTimer = 0;
-    quint32 m_waitCount = 0;
-    quint32 m_restartCount = 0;
-    QString m_deviceName = "";
-    QSize m_deviceSize = QSize();
+    NativeTimer m_waitTimer;
+    uint32_t m_waitCount = 0;
+    uint32_t m_restartCount = 0;
+    std::string m_deviceName;
+    Size m_deviceSize;
     ServerParams m_params;
 
     SERVER_START_STEP m_serverStartStep = SSS_NULL;

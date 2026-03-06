@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="../../releases"><img src="https://img.shields.io/github/v/release/nicenick14/GameScrcpy?style=flat-square&color=blue" alt="Release"></a>
-  <img src="https://img.shields.io/badge/Version-1.2.0-blue?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.3.0-blue?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11-blue?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/Qt-6.x-41CD52?style=flat-square&logo=qt" alt="Qt Version">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License"></a>
@@ -45,12 +45,13 @@
 
 ### 🖥️ HD Screen Mirroring
 
-- **HD & Low Latency** — H.264 hardware decoding, latency < 50ms
+- **HD & Low Latency** — H.264/H.265 hardware decoding, latency < 50ms
 - **USB / WiFi** — Both wired and wireless connections supported
 - **Dual Transport Mode** — KCP reliable transport + raw UDP ultra-low latency transport, auto-selected for WiFi
 - **FEC Forward Error Correction** — XOR 10:1 redundancy encoding, recovers 1 lost packet per group for better stability on weak networks
 - **Adaptive Bitrate** — Encoder-level ABR + network-layer feedback dual control, auto-adjusts video bitrate
 - **Server-side GPU Filter** — OpenGL affine transform (rotate/crop/scale), video processing done on server
+- **Audio Streaming** — OPUS audio real-time forwarding + WASAPI low-latency playback
 - **Adjustable FPS** — 0-999 FPS freely configurable, 0 = unlimited
 - **Performance Monitor** — Real-time FPS, decode latency, network latency, CPU/memory metrics
 
@@ -76,7 +77,7 @@
 
 ### 🤖 Scripting System
 
-- **JavaScript Engine** — Sandboxed scripting system based on QJSEngine
+- **JavaScript Engine** — Sandboxed scripting system based on QuickJS
 - **28 APIs** — Touch, key press, swipe, pinch, delay, image recognition, virtual buttons, predefined swipes, global state, etc.
 - **Script Editor** — Built-in editor + quick command panel + code snippet insertion + auto-complete
 - **Tools** — Selection Editor supports get position, new button, new swipe, capture image, create region, with right-click code generation
@@ -232,7 +233,7 @@ GameScrcpy/
 │   │   ├── control/       # Control, key mapping, script engine (sandboxed), chain-of-responsibility input
 │   │   ├── transport/     # Transport (TCP / KCP / raw UDP / ADB), FEC forward error correction
 │   │   ├── decoder/       # FFmpeg video decoding (zero-copy SIMD + D3D11VA GPU passthrough)
-│   │   ├── render/        # OpenGL rendering (PBO async DMA + D3D11-GL interop)
+│   │   ├── render/        # D3D11 native rendering (zero-copy frame submission)
 │   │   ├── core/          # Core architecture (interfaces/infra/impl/service)
 │   │   └── common/        # Config center, lock-free perf monitor, image matching
 │   └── env/               # Prebuilt dependencies (FFmpeg, ADB, OpenCV)
@@ -256,8 +257,9 @@ GameScrcpy/
 
 | Component | Description |
 |:----------|:------------|
-| Qt 6.x (MSVC 2022) | GUI framework, multimedia |
+| Qt 6.x (MSVC 2022) | GUI framework |
 | FFmpeg 7.1 | Video decoding |
+| QuickJS | JavaScript script engine |
 | OpenCV 4.12 | Image recognition (optional) |
 | KCP | Low-latency UDP transport |
 

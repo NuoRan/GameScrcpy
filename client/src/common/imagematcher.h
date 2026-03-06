@@ -1,13 +1,13 @@
 #ifndef IMAGEMATCHER_H
 #define IMAGEMATCHER_H
 
-#include <QString>
-#include <QImage>
-#include <QPointF>
-#include <QRectF>
+#include <string>
 #include <vector>
 #include <cstdint>
 #include <memory>
+#include <opencv2/core.hpp>
+#include "GrayFrame.h"
+#include "GameTypes.h"
 
 // 前向声明 opencv_matching 的类
 namespace template_matching {
@@ -56,10 +56,31 @@ public:
      * @return 匹配结果
      */
     ImageMatchResult findTemplate(
-        const QImage& mainImage,
-        const QImage& templateImage,
+        const cv::Mat& mainImage,
+        const cv::Mat& templateImage,
         double threshold = 0.7,
-        const QRectF& searchRegion = QRectF(),
+        const RectF& searchRegion = RectF(),
+        double maxAngle = 0.0
+    );
+
+    /**
+     * @brief 零拷贝灰度帧模板匹配 / Zero-copy grayscale frame template matching
+     *
+     * 直接使用 Y 分量灰度数据和磁盘模板进行匹配，
+     * 避免 QImage→cv::Mat 的深拷贝开销。
+     *
+     * @param grayFrame 灰度帧 (Y 分量)
+     * @param templateMat 模板图像 (cv::Mat, 通常已缓存为灰度)
+     * @param threshold 相似度阈值 (0.0~1.0)
+     * @param searchRegion 搜索区域 (归一化坐标)
+     * @param maxAngle 最大旋转角度
+     * @return 匹配结果
+     */
+    ImageMatchResult findTemplateFromGray(
+        const GrayFrame& grayFrame,
+        const cv::Mat& templateMat,
+        double threshold = 0.7,
+        const RectF& searchRegion = RectF(),
         double maxAngle = 0.0
     );
 
@@ -70,14 +91,14 @@ public:
     /**
      * @brief 获取图片目录路径
      */
-    static QString getImagesPath();
+    static std::string getImagesPath();
 
     /**
      * @brief 加载模板图片
      * @param imageName 图片名称 (不含路径，如 "button.png")
      * @return 加载的图像，失败返回空图像
      */
-    static QImage loadTemplateImage(const QString& imageName);
+    static cv::Mat loadTemplateImage(const std::string& imageName);
 
     /**
      * @brief 保存模板图片
@@ -85,12 +106,12 @@ public:
      * @param imageName 图片名称
      * @return 是否保存成功
      */
-    static bool saveTemplateImage(const QImage& image, const QString& imageName);
+    static bool saveTemplateImage(const cv::Mat& image, const std::string& imageName);
 
     /**
      * @brief 检查模板图片是否存在
      */
-    static bool templateExists(const QString& imageName);
+    static bool templateExists(const std::string& imageName);
 
 private:
     class Impl;

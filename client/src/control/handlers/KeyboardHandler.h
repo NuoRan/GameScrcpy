@@ -4,7 +4,6 @@
 #include "IInputHandler.h"
 #include "keymap.h"  // 需要 KeyMap::KeyMapNode
 #include "input.h"  // AndroidKeyeventAction, AndroidKeycode
-#include <QSize>
 
 class Controller;
 class SessionContext;
@@ -20,35 +19,34 @@ class SessionContext;
  */
 class KeyboardHandler : public IInputHandler
 {
-    Q_OBJECT
 public:
-    explicit KeyboardHandler(QObject* parent = nullptr);
+    KeyboardHandler();
     ~KeyboardHandler();
 
     void init(Controller* controller, SessionContext* context) override;
 
     // IInputHandler interface
-    bool handleKeyEvent(const QKeyEvent* event, const QSize& frameSize, const QSize& showSize) override;
-    bool handleMouseEvent(const QMouseEvent* event, const QSize& frameSize, const QSize& showSize) override;
-    bool handleWheelEvent(const QWheelEvent* event, const QSize& frameSize, const QSize& showSize) override;
+    bool handleKeyEvent(const InputEvent& event, const Size& frameSize, const Size& showSize) override;
+    bool handleMouseEvent(const InputEvent& event, const Size& frameSize, const Size& showSize) override;
+    bool handleWheelEvent(const InputEvent& event, const Size& frameSize, const Size& showSize) override;
     void onFocusLost() override;
     void reset() override;
     int priority() const override { return 200; }  // 最低优先级，作为默认处理
-    QString name() const override { return QStringLiteral("KeyboardHandler"); }
+    std::string name() const override { return "KeyboardHandler"; }
 
     void setKeyMap(KeyMap* keyMap) { m_keyMap = keyMap; }
 
     // ========== 键盘处理核心接口（由 SessionContext 调用）==========
 
     // 处理映射的 Android 按键
-    void processAndroidKey(AndroidKeycode androidKey, const QKeyEvent* event);
+    void processAndroidKey(AndroidKeycode androidKey, const InputEvent& event);
 
     // 处理默认按键转发（未映射的按键）
-    void processDefaultKey(const QKeyEvent* event);
+    void processDefaultKey(const InputEvent& event);
 
 private:
     void sendKeyEvent(AndroidKeyeventAction action, AndroidKeycode keyCode);
-    AndroidKeycode convertKeyCode(int key, Qt::KeyboardModifiers modifiers);
+    AndroidKeycode convertKeyCode(int key, uint32_t modifiers);
 
     KeyMap* m_keyMap = nullptr;
 };

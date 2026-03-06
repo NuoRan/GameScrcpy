@@ -9,6 +9,8 @@
 
 package com.genymobile.scrcpy;
 
+import com.genymobile.scrcpy.audio.AudioCodec;
+import com.genymobile.scrcpy.audio.AudioSource;
 import com.genymobile.scrcpy.device.Orientation;
 import com.genymobile.scrcpy.util.CodecOption;
 import com.genymobile.scrcpy.util.Ln;
@@ -36,6 +38,13 @@ public class Options {
     private Ln.Level logLevel = Ln.Level.DEBUG;
     private int scid = -1; // 31-bit non-negative value, or -1
     private boolean video = true;
+    private boolean audio = false;
+    private AudioCodec audioCodec = AudioCodec.OPUS;
+    private AudioSource audioSource = AudioSource.OUTPUT;
+    private boolean audioDup = false;
+    private int audioBitRate = 128000;
+    private List<CodecOption> audioCodecOptions;
+    private String audioEncoder;
     private int maxSize;
     private VideoCodec videoCodec = VideoCodec.H264;
     private int videoBitRate = 8000000;
@@ -71,6 +80,7 @@ public class Options {
     private boolean useKcp = false;  // false = TCP mode, true = KCP mode
     private int kcpPort = 27185;
     private int kcpControlPort = 27186;  // Control channel port (kcpPort + 1)
+    private int auxPort = 27187;           // Auxiliary channel port (kcpPort + 2 for KCP; TCP uses separate socket name)
     private String clientIp = "";
 
     public Ln.Level getLogLevel() {
@@ -83,6 +93,34 @@ public class Options {
 
     public boolean getVideo() {
         return video;
+    }
+
+    public boolean getAudio() {
+        return audio;
+    }
+
+    public AudioCodec getAudioCodec() {
+        return audioCodec;
+    }
+
+    public AudioSource getAudioSource() {
+        return audioSource;
+    }
+
+    public boolean getAudioDup() {
+        return audioDup;
+    }
+
+    public int getAudioBitRate() {
+        return audioBitRate;
+    }
+
+    public List<CodecOption> getAudioCodecOptions() {
+        return audioCodecOptions;
+    }
+
+    public String getAudioEncoder() {
+        return audioEncoder;
     }
 
     public int getMaxSize() {
@@ -201,6 +239,10 @@ public class Options {
         return kcpControlPort;
     }
 
+    public int getAuxPort() {
+        return auxPort;
+    }
+
     public String getClientIp() {
         return clientIp;
     }
@@ -242,7 +284,35 @@ public class Options {
                     options.video = Boolean.parseBoolean(value);
                     break;
                 case "audio":
-                    // ignored - audio disabled
+                    options.audio = Boolean.parseBoolean(value);
+                    break;
+                case "audio_codec":
+                    AudioCodec ac = AudioCodec.findByName(value);
+                    if (ac == null) {
+                        throw new IllegalArgumentException("Audio codec " + value + " not supported");
+                    }
+                    options.audioCodec = ac;
+                    break;
+                case "audio_source":
+                    AudioSource as = AudioSource.findByName(value);
+                    if (as == null) {
+                        throw new IllegalArgumentException("Audio source " + value + " not supported");
+                    }
+                    options.audioSource = as;
+                    break;
+                case "audio_dup":
+                    options.audioDup = Boolean.parseBoolean(value);
+                    break;
+                case "audio_bit_rate":
+                    options.audioBitRate = Integer.parseInt(value);
+                    break;
+                case "audio_codec_options":
+                    options.audioCodecOptions = CodecOption.parse(value);
+                    break;
+                case "audio_encoder":
+                    if (!value.isEmpty()) {
+                        options.audioEncoder = value;
+                    }
                     break;
                 case "video_codec":
                     VideoCodec videoCodec = VideoCodec.findByName(value);
@@ -343,6 +413,9 @@ public class Options {
                     break;
                 case "client_ip":
                     options.clientIp = value;
+                    break;
+                case "aux_port":
+                    options.auxPort = Integer.parseInt(value);
                     break;
                 case "raw_stream":
                     boolean rawStream = Boolean.parseBoolean(value);

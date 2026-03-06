@@ -14,15 +14,16 @@
 #ifndef CONTROL_SESSIONCONTEXT_H
 #define CONTROL_SESSIONCONTEXT_H
 
-#include <QObject>
-#include <QPointer>
-#include <QSize>
-#include <QPointF>
-#include <QImage>
-#include <QVariant>
+#include "GameTypes.h"
+#include <opencv2/core.hpp>
 #include <functional>
+#include <string>
+#include <vector>
+#include <cstdint>
 
+#include "GameSignal.h"
 #include "keymap.h"
+#include "GrayFrame.h"
 
 // 前向声明
 class Controller;
@@ -36,9 +37,7 @@ class ViewportHandler;
 class FreeLookHandler;
 class CursorHandler;
 class KeyboardHandler;
-class QKeyEvent;
-class QMouseEvent;
-class QWheelEvent;
+struct InputEvent;
 
 /**
  * @brief 设备会话上下文 (门面/协调器) / Device Session Context (Facade/Coordinator)
@@ -52,19 +51,17 @@ class QWheelEvent;
  *
  * 设计原则 / Design principles:
  * - 每个设备一个独立实例 / One independent instance per device
- * - 使用 QPointer 安全访问 Controller / Uses QPointer for safe Controller access
+ * - 使用裸指针访问 Controller / Uses raw pointer for Controller access (生命周期由 SessionContext 管理)
  * - 组件化设计，单一职责 / Component-based design, single responsibility
  */
-class SessionContext : public QObject {
-    Q_OBJECT
+class SessionContext {
 public:
     /**
      * @brief 构造函数
      * @param deviceId 设备 ID
-     * @param controller 控制器（使用 QPointer 安全访问）
-     * @param parent 父对象
+     * @param controller 控制器（生命周期由 SessionContext 管理）
      */
-    explicit SessionContext(const QString& deviceId, Controller* controller, QObject* parent = nullptr);
+    explicit SessionContext(const std::string& deviceId, Controller* controller);
     ~SessionContext();
 
     // 禁止拷贝
@@ -73,8 +70,8 @@ public:
 
     // ========== 设备信息 ==========
 
-    QString deviceId() const { return m_deviceId; }
-    Controller* controller() const { return m_controller.data(); }
+    std::string deviceId() const { return m_deviceId; }
+    Controller* controller() const { return m_controller; }
 
     // ========== 子组件访问 ==========
 
@@ -94,9 +91,9 @@ public:
 
     // ========== 事件处理（委托给 InputDispatcher）==========
 
-    void mouseEvent(const QMouseEvent* from, const QSize& frameSize, const QSize& showSize);
-    void wheelEvent(const QWheelEvent* from, const QSize& frameSize, const QSize& showSize);
-    void keyEvent(const QKeyEvent* from, const QSize& frameSize, const QSize& showSize);
+    void mouseEvent(const InputEvent& from, const Size& frameSize, const Size& showSize);
+    void wheelEvent(const InputEvent& from, const Size& frameSize, const Size& showSize);
+    void keyEvent(const InputEvent& from, const Size& frameSize, const Size& showSize);
 
     // ========== 窗口焦点 ==========
 
@@ -110,28 +107,30 @@ public:
 
     // ========== KeyMap 管理 ==========
 
-    void loadKeyMap(const QString& json, bool runAutoStartScripts = true);
+    void loadKeyMap(const std::string& json, bool runAutoStartScripts = true);
     KeyMap* keyMap() { return &m_keyMap; }
     const KeyMap* keyMap() const { return &m_keyMap; }
 
     // ========== 帧获取回调 ==========
 
-    void setFrameGrabCallback(std::function<QImage()> callback);
-    QImage grabFrame() const;
+    void setFrameGrabCallback(std::function<cv::Mat()> callback);
+    void setGrayFrameGrabCallback(GrayFrameGrabCallback callback);
+    cv::Mat grabFrame() const;
 
     // ========== 信号连接 ==========
 
-    void connectScriptTipSignal(std::function<void(const QString&, int, int)> callback);
+    void connectScriptTipSignal(std::function<void(const std::string&, int, int)> callback);
     void connectKeyMapOverlayUpdateSignal(std::function<void()> callback);
 
     // ========== 尺寸信息 ==========
 
-    void setFrameSize(const QSize& size);
-    void setShowSize(const QSize& size);
-    void setMobileSize(const QSize& size);
-    QSize frameSize() const;
-    QSize showSize() const;
-    QSize mobileSize() const;
+    void setFrameSize(const Size& size);
+    void setShowSize(const Size& size);
+    void setMobileSize(const Size& size);
+    void setDevicePixelRatio(double dpr);
+    Size frameSize() const;
+    Size showSize() const;
+    Size mobileSize() const;
 
     // ========== 光标状态（委托给 InputDispatcher）==========
 
@@ -144,53 +143,52 @@ public:
     void script_resetView();
     void script_setSteerWheelCoefficient(double up, double down, double left, double right);
     void script_resetSteerWheelCoefficient();
-    QPointF script_getMousePos();
+    PointF script_getMousePos();
     void script_setGameMapMode(bool enter);
     void script_resetWheel();
     int script_getKeyState(int qtKey);
-    int script_getKeyStateByName(const QString& displayName);
-    QVariantMap script_getKeyPos(int qtKey);
-    QVariantMap script_getKeyPosByName(const QString& displayName);
-    void script_simulateKey(const QString& keyName, bool press);
+    int script_getKeyStateByName(const std::string& displayName);
+    KeyPosResult script_getKeyPos(int qtKey);
+    KeyPosResult script_getKeyPosByName(const std::string& displayName);
+    void script_simulateKey(const std::string& keyName, bool press);
 
     // ========== 会话变量（委托给 SessionVars）==========
 
-    QVariant getVar(const QString& key, const QVariant& defaultValue = QVariant()) const;
-    void setVar(const QString& key, const QVariant& value);
-    bool hasVar(const QString& key) const;
-    void removeVar(const QString& key);
+    ScriptValue getVar(const std::string& key, const ScriptValue& defaultValue = ScriptValue()) const;
+    void setVar(const std::string& key, const ScriptValue& value);
+    bool hasVar(const std::string& key) const;
+    void removeVar(const std::string& key);
     void clearVars();
 
     // ========== 触摸序列 ID（委托给 SessionVars）==========
 
-    void addTouchSeq(int keyId, quint32 seqId);
-    QList<quint32> takeTouchSeqs(int keyId);
+    void addTouchSeq(int keyId, uint32_t seqId);
+    std::vector<uint32_t> takeTouchSeqs(int keyId);
     int touchSeqCount(int keyId) const;
     bool hasTouchSeqs(int keyId) const;
     void clearTouchSeqs();
 
     // ========== 辅助参数存储（委托给 SessionVars）==========
 
-    void setRadialParamKeyId(const QString& keyId);
-    QString radialParamKeyId() const;
+    void setRadialParamKeyId(const std::string& keyId);
+    std::string radialParamKeyId() const;
 
     // ========== 工具函数 ==========
 
-    QPointF calcFrameAbsolutePos(QPointF relativePos) const;
-    QPointF calcScreenAbsolutePos(QPointF relativePos) const;
+    PointF calcFrameAbsolutePos(PointF relativePos) const;
+    PointF calcScreenAbsolutePos(PointF relativePos) const;
     void sendKeyEvent(int action, int keyCode);
 
-signals:
-    void grabCursor(bool grab);
-    void scriptTipRequested(const QString& msg, int durationMs, int keyId);
-    void keyMapOverlayUpdateRequested();
+    Signal<bool> grabCursor;
+    Signal<const std::string&, int, int> scriptTipRequested;
+    Signal<> keyMapOverlayUpdateRequested;
 
 private:
     void initComponents();
-    int keyNameToQtKey(const QString& keyName);
+    int keyNameToQtKey(const std::string& keyName);
 
-    QString m_deviceId;
-    QPointer<Controller> m_controller;  // 使用 QPointer 安全访问
+    std::string m_deviceId;
+    Controller* m_controller = nullptr;  // 裸指针，生命周期由 SessionContext 管理
 
     // ===== 子组件 =====
     SessionVars* m_vars = nullptr;

@@ -1,8 +1,9 @@
 #include "HandlerChain.h"
-#include <QDebug>
+#include <algorithm>
+#define LOG_TAG "HandlerChain"
+#include "Logger.h"
 
-HandlerChain::HandlerChain(QObject* parent)
-    : QObject(parent)
+HandlerChain::HandlerChain()
 {
 }
 
@@ -26,8 +27,7 @@ void HandlerChain::addHandler(IInputHandler* handler)
 {
     if (!handler) return;
 
-    handler->setParent(this);  // 转移所有权
-    m_handlers.append(handler);
+    m_handlers.push_back(handler);
     m_sorted = false;
 
     // 如果已初始化，立即初始化新 Handler
@@ -35,7 +35,7 @@ void HandlerChain::addHandler(IInputHandler* handler)
         handler->init(m_controller, m_sessionContext);
     }
 
-    qDebug() << "[HandlerChain] Added handler:" << handler->name()
+    LOGD() << "[HandlerChain] Added handler:" << handler->name().c_str()
              << "priority:" << handler->priority();
 }
 
@@ -43,18 +43,18 @@ void HandlerChain::removeHandler(IInputHandler* handler)
 {
     if (!handler) return;
 
-    m_handlers.removeOne(handler);
-    handler->setParent(nullptr);
+    auto it = std::find(m_handlers.begin(), m_handlers.end(), handler);
+    if (it != m_handlers.end()) {
+        m_handlers.erase(it);
+    }
 
-    qDebug() << "[HandlerChain] Removed handler:" << handler->name();
+    LOGD() << "[HandlerChain] Removed handler:" << handler->name().c_str();
 }
 
 void HandlerChain::clear()
 {
-    for (auto handler : m_handlers) {
-        handler->setParent(nullptr);
-        delete handler;
-    }
+    // HandlerChain 不拥有 handler 的所有权（由 SessionContext 管理生命周期）
+    // 仅清空列表，不 delete handler，避免双重释放
     m_handlers.clear();
 }
 
@@ -69,9 +69,9 @@ void HandlerChain::sortHandlers()
     m_sorted = true;
 }
 
-bool HandlerChain::dispatchKeyEvent(const QKeyEvent* event,
-                                    const QSize& frameSize,
-                                    const QSize& showSize)
+bool HandlerChain::dispatchKeyEvent(const InputEvent& event,
+                                    const Size& frameSize,
+                                    const Size& showSize)
 {
     sortHandlers();
 
@@ -83,9 +83,9 @@ bool HandlerChain::dispatchKeyEvent(const QKeyEvent* event,
     return false;
 }
 
-bool HandlerChain::dispatchMouseEvent(const QMouseEvent* event,
-                                      const QSize& frameSize,
-                                      const QSize& showSize)
+bool HandlerChain::dispatchMouseEvent(const InputEvent& event,
+                                      const Size& frameSize,
+                                      const Size& showSize)
 {
     sortHandlers();
 
@@ -97,9 +97,9 @@ bool HandlerChain::dispatchMouseEvent(const QMouseEvent* event,
     return false;
 }
 
-bool HandlerChain::dispatchWheelEvent(const QWheelEvent* event,
-                                      const QSize& frameSize,
-                                      const QSize& showSize)
+bool HandlerChain::dispatchWheelEvent(const InputEvent& event,
+                                      const Size& frameSize,
+                                      const Size& showSize)
 {
     sortHandlers();
 

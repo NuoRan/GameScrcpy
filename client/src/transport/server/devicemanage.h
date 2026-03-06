@@ -1,15 +1,21 @@
 #ifndef DEVICEMANAGE_H
 #define DEVICEMANAGE_H
 
-#include <QMap>
-#include <QPointer>
+#include <map>
+
 #include <memory>
+#include <atomic>
 
 #include "GameScrcpyCore.h"
+#include "GameSignal.h"
 #include "adbprocess.h"
+
+#include "GameTypes.h"
 
 // 前向声明
 class Server;
+class AuxChannelClient;
+class AudioStreamManager;
 
 namespace qsc {
 namespace core {
@@ -25,27 +31,24 @@ class ZeroCopyStreamManager;
  * - DeviceSession（会话）/ DeviceSession (session)
  * - ZeroCopyStreamManager（视频流）/ ZeroCopyStreamManager (video stream)
  */
-class DeviceController : public QObject
+class DeviceController
 {
-    Q_OBJECT
-
 public:
-    explicit DeviceController(const DeviceParams& params, QObject* parent = nullptr);
+    explicit DeviceController(const DeviceParams& params);
     ~DeviceController();
 
     bool start();
     void stop();
 
-    const QString& serial() const { return m_params.serial; }
+    const std::string& serial() const { return m_params.serial; }
     core::DeviceSession* session() const { return m_session.get(); }
-    bool isReversePort(quint16 port) const;
+    bool isReversePort(uint16_t port) const;
 
-signals:
-    void connected(bool success, const QString& serial, const QString& deviceName, const QSize& size);
-    void disconnected(const QString& serial);
+    Signal<bool, const std::string&, const std::string&, const Size&> connected;
+    Signal<const std::string&> disconnected;
 
-private slots:
-    void onServerStart(bool success, const QString& deviceName, const QSize& size);
+private:
+    void onServerStart(bool success, const std::string& deviceName, const Size& size);
     void onServerStop();
     void onAdbSizeResult(AdbProcess::ADB_EXEC_RESULT processResult);
 
@@ -53,9 +56,13 @@ private:
     DeviceParams m_params;
     std::unique_ptr<core::DeviceSession> m_session;
     std::unique_ptr<core::ZeroCopyStreamManager> m_streamManager;
-    QPointer<Server> m_server;
+    Server* m_server = nullptr;
+    AuxChannelClient* m_auxChannel = nullptr;
+    AudioStreamManager* m_audioManager = nullptr;
     AdbProcess* m_adbSizeProcess = nullptr;
-    QSize m_mobileSize;
+    Size m_mobileSize;
+    bool m_stopping = false;
+    std::shared_ptr<std::atomic<bool>> m_aliveToken;
 };
 
 /**
@@ -66,29 +73,39 @@ private:
  */
 class DeviceManage : public IDeviceManage
 {
-    Q_OBJECT
-
 public:
     explicit DeviceManage();
     ~DeviceManage() override;
 
     // IDeviceManage 接口
     bool connectDevice(DeviceParams params) override;
-    bool disconnectDevice(const QString &serial) override;
+    bool disconnectDevice(const std::string &serial) override;
     void disconnectAllDevice() override;
-    core::DeviceSession* getSession(const QString& serial) override;
+    core::DeviceSession* getSession(const std::string& serial) override;
 
-private slots:
-    void onDeviceConnected(bool success, const QString& serial, const QString& deviceName, const QSize& size);
-    void onDeviceDisconnected(const QString& serial);
-
-private:
-    quint16 getFreePort();
-    void removeDevice(const QString& serial);
+    // 回调注册
+    int addDeviceConnectedListener(DeviceConnectedCb cb) override;
+    int addDeviceDisconnectedListener(DeviceDisconnectedCb cb) override;
+    void removeDeviceListener(int id) override;
 
 private:
-    QMap<QString, DeviceController*> m_devices;
-    quint16 m_localPortStart = 27183;
+    void onDeviceConnected(bool success, const std::string& serial, const std::string& deviceName, const Size& size);
+    void onDeviceDisconnected(const std::string& serial);
+    void notifyDeviceConnected(bool success, const std::string& serial, const std::string& deviceName, const Size& size);
+    void notifyDeviceDisconnected(const std::string& serial);
+
+private:
+    uint16_t getFreePort();
+    void removeDevice(const std::string& serial);
+
+private:
+    std::map<std::string, DeviceController*> m_devices;
+    uint16_t m_localPortStart = 27183;
+
+    struct ListenerEntry { int id; int type; };  // type: 0=connected, 1=disconnected
+    std::vector<std::pair<int, DeviceConnectedCb>> m_connectedListeners;
+    std::vector<std::pair<int, DeviceDisconnectedCb>> m_disconnectedListeners;
+    int m_nextListenerId = 1;
 };
 
 }

@@ -1,12 +1,12 @@
 ﻿#include <QCoreApplication>
-#include <QFileInfo>
-#include <QSettings>
-#include <QDebug>
+#include <filesystem>
+#include <algorithm>
+#include <set>
+#include <cctype>
 
 #include "config.h"
-#ifdef Q_OS_OSX
-#include "path.h"
-#endif
+#include "IniConfig.h"
+#include "StringUtils.h"
 
 // ---------------------------------------------------------
 // 配置文件键名与默认值定义
@@ -66,9 +66,6 @@
 
 #define COMMON_MAX_FPS_USER_KEY "MaxFpsUser"
 #define COMMON_MAX_FPS_USER_DEF 60
-
-#define COMMON_MAX_TOUCH_POINTS_KEY "MaxTouchPoints"
-#define COMMON_MAX_TOUCH_POINTS_DEF 10
 
 #define COMMON_RECORD_SCREEN_KEY "RecordScreen"
 #define COMMON_RECORD_SCREEN_DEF false
@@ -130,20 +127,18 @@
 #define SERIAL_KEYMAP_KEY "KeyMap"
 #define SERIAL_KEYMAP_DEF "default.json"
 
-QString Config::s_configPath = "";
+std::string Config::s_configPath;
 
 // ---------------------------------------------------------
 // 构造函数与单例获取
-// 初始化 QSettings 并设置编码
+// 初始化 IniConfig 读取 INI 文件
 // ---------------------------------------------------------
-Config::Config(QObject *parent) : QObject(parent)
+Config::Config()
 {
-    m_settings = new QSettings(getConfigPath() + "/config.ini", QSettings::IniFormat);
-    m_userData = new QSettings(getConfigPath() + "/userdata.ini", QSettings::IniFormat);
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-    m_settings->setIniCodec("UTF-8");
-    m_userData->setIniCodec("UTF-8");
-#endif
+    std::string cfgPath = getConfigPath() + "/config.ini";
+    std::string usrPath = getConfigPath() + "/userdata.ini";
+    m_settings = new IniConfig(cfgPath);
+    m_userData = new IniConfig(usrPath);
 }
 
 Config &Config::getInstance()
@@ -156,19 +151,19 @@ Config &Config::getInstance()
 // 获取配置文件存储路径
 // 兼容 Windows, Linux 和 macOS (App Bundle)
 // ---------------------------------------------------------
-const QString &Config::getConfigPath()
+const std::string &Config::getConfigPath()
 {
-    if (s_configPath.isEmpty()) {
-        s_configPath = QString::fromLocal8Bit(qgetenv("KZSCRCPY_CONFIG_PATH"));
-        QFileInfo fileInfo(s_configPath);
-        if (s_configPath.isEmpty() || !fileInfo.isDir()) {
-#ifdef Q_OS_OSX
-            // Mac下从finder打开app时，工作目录可能是"/"，需要获取App内部路径
-            s_configPath = Path::GetCurrentPath();
-            s_configPath += "/Contents/MacOS/config";
-#else
+    if (s_configPath.empty()) {
+        // Use _dupenv_s for MSVC safety
+        char *envVal = nullptr;
+        size_t envLen = 0;
+        if (_dupenv_s(&envVal, &envLen, "KZSCRCPY_CONFIG_PATH") == 0 && envVal) {
+            s_configPath = envVal;
+            free(envVal);
+        }
+        namespace fs = std::filesystem;
+        if (s_configPath.empty() || !fs::is_directory(strutil::toWide(s_configPath))) {
             s_configPath = "config";
-#endif
         }
     }
     return s_configPath;
@@ -180,54 +175,48 @@ const QString &Config::getConfigPath()
 // ---------------------------------------------------------
 void Config::setUserBootConfig(const UserBootConfig &config)
 {
-    m_userData->beginGroup(GROUP_COMMON);
-    m_userData->setValue(COMMON_RECORD_KEY, config.recordPath);
-    m_userData->setValue(COMMON_BITRATE_KEY, config.bitRate);
-    m_userData->setValue(COMMON_MAX_SIZE_INDEX_KEY, config.maxSizeIndex);
-    m_userData->setValue(COMMON_RECORD_FORMAT_INDEX_KEY, config.recordFormatIndex);
-    m_userData->setValue(COMMON_FRAMELESS_WINDOW_KEY, config.framelessWindow);
-    m_userData->setValue(COMMON_LOCK_ORIENTATION_INDEX_KEY, config.lockOrientationIndex);
-    m_userData->setValue(COMMON_MAX_FPS_USER_KEY, config.maxFps);
-    m_userData->setValue(COMMON_MAX_TOUCH_POINTS_KEY, config.maxTouchPoints);
-    m_userData->setValue(COMMON_RECORD_SCREEN_KEY, config.recordScreen);
-    m_userData->setValue(COMMON_RECORD_BACKGROUD_KEY, config.recordBackground);
-    m_userData->setValue(COMMON_REVERSE_CONNECT_KEY, config.reverseConnect);
-    m_userData->setValue(COMMON_SHOW_FPS_KEY, config.showFPS);
-    m_userData->setValue(COMMON_WINDOW_ON_TOP_KEY, config.windowOnTop);
-    m_userData->setValue(COMMON_AUTO_OFF_SCREEN_KEY, config.autoOffScreen);
-    m_userData->setValue(COMMON_KEEP_ALIVE_KEY, config.keepAlive);
-    m_userData->setValue(COMMON_SIMPLE_MODE_KEY, config.simpleMode);
-    m_userData->setValue(COMMON_AUTO_UPDATE_DEVICE_KEY, config.autoUpdateDevice);
-    m_userData->setValue(COMMON_SHOW_TOOLBAR_KEY, config.showToolbar);
-    m_userData->setValue(COMMON_VIDEO_CODEC_INDEX_KEY, config.videoCodecIndex);
-    m_userData->endGroup();
+    m_userData->setString("common/RecordPath", config.recordPath);
+    m_userData->setUInt("common/BitRate", config.bitRate);
+    m_userData->setInt("common/MaxSizeIndex", config.maxSizeIndex);
+    m_userData->setInt("common/RecordFormatIndex", config.recordFormatIndex);
+    m_userData->setBool("common/FramelessWindow", config.framelessWindow);
+    m_userData->setInt("common/LockDirectionIndex", config.lockOrientationIndex);
+    m_userData->setInt("common/MaxFpsUser", config.maxFps);
+    m_userData->setBool("common/RecordScreen", config.recordScreen);
+    m_userData->setBool("common/RecordBackGround", config.recordBackground);
+    m_userData->setBool("common/ReverseConnect", config.reverseConnect);
+    m_userData->setBool("common/ShowFPS", config.showFPS);
+    m_userData->setBool("common/WindowOnTop", config.windowOnTop);
+    m_userData->setBool("common/AutoOffScreen", config.autoOffScreen);
+    m_userData->setBool("common/KeepAlive", config.keepAlive);
+    m_userData->setBool("common/SimpleMode", config.simpleMode);
+    m_userData->setBool("common/AutoUpdateDevice", config.autoUpdateDevice);
+    m_userData->setBool("common/showToolbar", config.showToolbar);
+    m_userData->setInt("common/VideoCodecIndex", config.videoCodecIndex);
     m_userData->sync();
 }
 
 UserBootConfig Config::getUserBootConfig()
 {
     UserBootConfig config;
-    m_userData->beginGroup(GROUP_COMMON);
-    config.recordPath = m_userData->value(COMMON_RECORD_KEY, COMMON_RECORD_DEF).toString();
-    config.bitRate = m_userData->value(COMMON_BITRATE_KEY, COMMON_BITRATE_DEF).toUInt();
-    config.maxSizeIndex = m_userData->value(COMMON_MAX_SIZE_INDEX_KEY, COMMON_MAX_SIZE_INDEX_DEF).toInt();
-    config.recordFormatIndex = m_userData->value(COMMON_RECORD_FORMAT_INDEX_KEY, COMMON_RECORD_FORMAT_INDEX_DEF).toInt();
-    config.lockOrientationIndex = m_userData->value(COMMON_LOCK_ORIENTATION_INDEX_KEY, COMMON_LOCK_ORIENTATION_INDEX_DEF).toInt();
-    config.maxFps = m_userData->value(COMMON_MAX_FPS_USER_KEY, COMMON_MAX_FPS_USER_DEF).toInt();
-    config.maxTouchPoints = m_userData->value(COMMON_MAX_TOUCH_POINTS_KEY, COMMON_MAX_TOUCH_POINTS_DEF).toInt();
-    config.framelessWindow = m_userData->value(COMMON_FRAMELESS_WINDOW_KEY, COMMON_FRAMELESS_WINDOW_DEF).toBool();
-    config.recordScreen = m_userData->value(COMMON_RECORD_SCREEN_KEY, COMMON_RECORD_SCREEN_DEF).toBool();
-    config.recordBackground = m_userData->value(COMMON_RECORD_BACKGROUD_KEY, COMMON_RECORD_BACKGROUD_DEF).toBool();
-    config.reverseConnect = m_userData->value(COMMON_REVERSE_CONNECT_KEY, COMMON_REVERSE_CONNECT_DEF).toBool();
-    config.showFPS = m_userData->value(COMMON_SHOW_FPS_KEY, COMMON_SHOW_FPS_DEF).toBool();
-    config.windowOnTop = m_userData->value(COMMON_WINDOW_ON_TOP_KEY, COMMON_WINDOW_ON_TOP_DEF).toBool();
-    config.autoOffScreen = m_userData->value(COMMON_AUTO_OFF_SCREEN_KEY, COMMON_AUTO_OFF_SCREEN_DEF).toBool();
-    config.keepAlive = m_userData->value(COMMON_KEEP_ALIVE_KEY, COMMON_KEEP_ALIVE_DEF).toBool();
-    config.simpleMode = m_userData->value(COMMON_SIMPLE_MODE_KEY, COMMON_SIMPLE_MODE_DEF).toBool();
-    config.autoUpdateDevice = m_userData->value(COMMON_AUTO_UPDATE_DEVICE_KEY, COMMON_AUTO_UPDATE_DEVICE_DEF).toBool();
-    config.showToolbar =m_userData->value(COMMON_SHOW_TOOLBAR_KEY,COMMON_SHOW_TOOLBAR_DEF).toBool();
-    config.videoCodecIndex = m_userData->value(COMMON_VIDEO_CODEC_INDEX_KEY, COMMON_VIDEO_CODEC_INDEX_DEF).toInt();
-    m_userData->endGroup();
+    config.recordPath = m_userData->getString("common/RecordPath", COMMON_RECORD_DEF);
+    config.bitRate = m_userData->getUInt("common/BitRate", COMMON_BITRATE_DEF);
+    config.maxSizeIndex = m_userData->getInt("common/MaxSizeIndex", COMMON_MAX_SIZE_INDEX_DEF);
+    config.recordFormatIndex = m_userData->getInt("common/RecordFormatIndex", COMMON_RECORD_FORMAT_INDEX_DEF);
+    config.lockOrientationIndex = m_userData->getInt("common/LockDirectionIndex", COMMON_LOCK_ORIENTATION_INDEX_DEF);
+    config.maxFps = m_userData->getInt("common/MaxFpsUser", COMMON_MAX_FPS_USER_DEF);
+    config.framelessWindow = m_userData->getBool("common/FramelessWindow", COMMON_FRAMELESS_WINDOW_DEF);
+    config.recordScreen = m_userData->getBool("common/RecordScreen", COMMON_RECORD_SCREEN_DEF);
+    config.recordBackground = m_userData->getBool("common/RecordBackGround", COMMON_RECORD_BACKGROUD_DEF);
+    config.reverseConnect = m_userData->getBool("common/ReverseConnect", COMMON_REVERSE_CONNECT_DEF);
+    config.showFPS = m_userData->getBool("common/ShowFPS", COMMON_SHOW_FPS_DEF);
+    config.windowOnTop = m_userData->getBool("common/WindowOnTop", COMMON_WINDOW_ON_TOP_DEF);
+    config.autoOffScreen = m_userData->getBool("common/AutoOffScreen", COMMON_AUTO_OFF_SCREEN_DEF);
+    config.keepAlive = m_userData->getBool("common/KeepAlive", COMMON_KEEP_ALIVE_DEF);
+    config.simpleMode = m_userData->getBool("common/SimpleMode", COMMON_SIMPLE_MODE_DEF);
+    config.autoUpdateDevice = m_userData->getBool("common/AutoUpdateDevice", COMMON_AUTO_UPDATE_DEVICE_DEF);
+    config.showToolbar = m_userData->getBool("common/showToolbar", COMMON_SHOW_TOOLBAR_DEF);
+    config.videoCodecIndex = m_userData->getInt("common/VideoCodecIndex", COMMON_VIDEO_CODEC_INDEX_DEF);
     return config;
 }
 
@@ -236,19 +225,13 @@ UserBootConfig Config::getUserBootConfig()
 // ---------------------------------------------------------
 void Config::setTrayMessageShown(bool shown)
 {
-    m_userData->beginGroup(GROUP_COMMON);
-    m_userData->setValue(COMMON_TRAY_MESSAGE_SHOWN_KEY, shown);
-    m_userData->endGroup();
+    m_userData->setBool("common/TrayMessageShown", shown);
     m_userData->sync();
 }
 
 bool Config::getTrayMessageShown()
 {
-    bool shown;
-    m_userData->beginGroup(GROUP_COMMON);
-    shown = m_userData->value(COMMON_TRAY_MESSAGE_SHOWN_KEY, COMMON_TRAY_MESSAGE_SHOWN_DEF).toBool();
-    m_userData->endGroup();
-    return shown;
+    return m_userData->getBool("common/TrayMessageShown", COMMON_TRAY_MESSAGE_SHOWN_DEF);
 }
 
 // ---------------------------------------------------------
@@ -256,19 +239,40 @@ bool Config::getTrayMessageShown()
 // ---------------------------------------------------------
 void Config::setAgreementAccepted(bool accepted)
 {
-    m_userData->beginGroup(GROUP_COMMON);
-    m_userData->setValue("agreementAccepted", accepted);
-    m_userData->endGroup();
+    m_userData->setBool("common/agreementAccepted", accepted);
     m_userData->sync();
 }
 
 bool Config::getAgreementAccepted()
 {
-    bool accepted;
-    m_userData->beginGroup(GROUP_COMMON);
-    accepted = m_userData->value("agreementAccepted", false).toBool();
-    m_userData->endGroup();
-    return accepted;
+    return m_userData->getBool("common/agreementAccepted", false);
+}
+
+// ---------------------------------------------------------
+// 分场景引导状态
+// ---------------------------------------------------------
+void Config::setOnboardingCompleted(const std::string &scene, bool completed)
+{
+    std::string key = "onboarding/" + scene;
+    m_userData->setBool(key, completed);
+    m_userData->sync();
+}
+
+bool Config::getOnboardingCompleted(const std::string &scene)
+{
+    std::string key = "onboarding/" + scene;
+    return m_userData->getBool(key, false);
+}
+
+void Config::resetAllOnboarding()
+{
+    // keysInSection 返回不带 section 前缀的短键名，
+    // 但 remove() 需要 "section/key" 格式，所以手动拼接前缀。
+    auto allKeys = m_userData->keysInSection("onboarding");
+    for (const auto &k : allKeys) {
+        m_userData->remove("onboarding/" + k);
+    }
+    m_userData->sync();
 }
 
 // ---------------------------------------------------------
@@ -276,51 +280,45 @@ bool Config::getAgreementAccepted()
 // ---------------------------------------------------------
 
 // 辅助函数：将 serial 转换为安全的组名（替换特殊字符）
-static QString safeGroupName(const QString &serial) {
-    QString safe = serial;
-    safe.replace(':', '_');  // WiFi 设备 serial 包含冒号
-    safe.replace('/', '_');
+static std::string safeGroupName(const std::string &serial) {
+    std::string safe = serial;
+    std::replace(safe.begin(), safe.end(), ':', '_');  // WiFi 设备 serial 包含冒号
+    std::replace(safe.begin(), safe.end(), '/', '_');
     return safe;
 }
 
-void Config::setRect(const QString &serial, const QRect &rc)
+void Config::setRect(const std::string &serial, const Rect &rc)
 {
-    m_userData->beginGroup(safeGroupName(serial));
-    m_userData->setValue(SERIAL_WINDOW_RECT_KEY_X, rc.left());
-    m_userData->setValue(SERIAL_WINDOW_RECT_KEY_Y, rc.top());
-    m_userData->setValue(SERIAL_WINDOW_RECT_KEY_W, rc.width());
-    m_userData->setValue(SERIAL_WINDOW_RECT_KEY_H, rc.height());
-    m_userData->endGroup();
+    std::string group = safeGroupName(serial);
+    m_userData->setInt(group + "/WindowRectX", rc.x);
+    m_userData->setInt(group + "/WindowRectY", rc.y);
+    m_userData->setInt(group + "/WindowRectW", rc.width);
+    m_userData->setInt(group + "/WindowRectH", rc.height);
     m_userData->sync();
 }
 
-QRect Config::getRect(const QString &serial)
+Rect Config::getRect(const std::string &serial)
 {
-    QRect rc;
-    m_userData->beginGroup(safeGroupName(serial));
-    rc.setX(m_userData->value(SERIAL_WINDOW_RECT_KEY_X, SERIAL_WINDOW_RECT_KEY_DEF).toInt());
-    rc.setY(m_userData->value(SERIAL_WINDOW_RECT_KEY_Y, SERIAL_WINDOW_RECT_KEY_DEF).toInt());
-    rc.setWidth(m_userData->value(SERIAL_WINDOW_RECT_KEY_W, SERIAL_WINDOW_RECT_KEY_DEF).toInt());
-    rc.setHeight(m_userData->value(SERIAL_WINDOW_RECT_KEY_H, SERIAL_WINDOW_RECT_KEY_DEF).toInt());
-    m_userData->endGroup();
+    Rect rc;
+    std::string group = safeGroupName(serial);
+    rc.x = m_userData->getInt(group + "/WindowRectX", SERIAL_WINDOW_RECT_KEY_DEF);
+    rc.y = m_userData->getInt(group + "/WindowRectY", SERIAL_WINDOW_RECT_KEY_DEF);
+    rc.width = m_userData->getInt(group + "/WindowRectW", SERIAL_WINDOW_RECT_KEY_DEF);
+    rc.height = m_userData->getInt(group + "/WindowRectH", SERIAL_WINDOW_RECT_KEY_DEF);
     return rc;
 }
 
-void Config::setNickName(const QString &serial, const QString &name)
+void Config::setNickName(const std::string &serial, const std::string &name)
 {
-    m_userData->beginGroup(safeGroupName(serial));
-    m_userData->setValue(SERIAL_NICK_NAME_KEY, name);
-    m_userData->endGroup();
+    std::string group = safeGroupName(serial);
+    m_userData->setString(group + "/NickName", name);
     m_userData->sync();
 }
 
-QString Config::getNickName(const QString &serial)
+std::string Config::getNickName(const std::string &serial)
 {
-    QString name;
-    m_userData->beginGroup(safeGroupName(serial));
-    name = m_userData->value(SERIAL_NICK_NAME_KEY, SERIAL_NICK_NAME_DEF).toString();
-    m_userData->endGroup();
-    return name;
+    std::string group = safeGroupName(serial);
+    return m_userData->getString(group + "/NickName", SERIAL_NICK_NAME_DEF);
 }
 
 // ---------------------------------------------------------
@@ -328,20 +326,12 @@ QString Config::getNickName(const QString &serial)
 // ---------------------------------------------------------
 int Config::getMaxFps()
 {
-    int fps = 0;
-    m_settings->beginGroup(GROUP_COMMON);
-    fps = m_settings->value(COMMON_MAX_FPS_KEY, COMMON_MAX_FPS_DEF).toInt();
-    m_settings->endGroup();
-    return fps;
+    return m_settings->getInt("common/MaxFps", COMMON_MAX_FPS_DEF);
 }
 
 int Config::getDesktopOpenGL()
 {
-    int opengl = 0;
-    m_settings->beginGroup(GROUP_COMMON);
-    opengl = m_settings->value(COMMON_DESKTOP_OPENGL_KEY, COMMON_DESKTOP_OPENGL_DEF).toInt();
-    m_settings->endGroup();
-    return opengl;
+    return m_settings->getInt("common/UseDesktopOpenGL", COMMON_DESKTOP_OPENGL_DEF);
 }
 
 int Config::getSkin()
@@ -351,179 +341,234 @@ int Config::getSkin()
 
 int Config::getRenderExpiredFrames()
 {
-    int renderExpiredFrames = 1;
-    m_settings->beginGroup(GROUP_COMMON);
-    renderExpiredFrames = m_settings->value(COMMON_RENDER_EXPIRED_FRAMES_KEY, COMMON_RENDER_EXPIRED_FRAMES_DEF).toInt();
-    m_settings->endGroup();
-    return renderExpiredFrames;
+    return m_settings->getInt("common/RenderExpiredFrames", COMMON_RENDER_EXPIRED_FRAMES_DEF);
 }
 
-QString Config::getServerPath()
+std::string Config::getServerPath()
 {
-    QString serverPath;
-    m_settings->beginGroup(GROUP_COMMON);
-    serverPath = m_settings->value(COMMON_SERVER_PATH_KEY, COMMON_SERVER_PATH_DEF).toString();
-    m_settings->endGroup();
-    return serverPath;
+    return m_settings->getString("common/ServerPath", COMMON_SERVER_PATH_DEF);
 }
 
-QString Config::getAdbPath()
+std::string Config::getAdbPath()
 {
-    QString adbPath;
-    m_settings->beginGroup(GROUP_COMMON);
-    adbPath = m_settings->value(COMMON_ADB_PATH_KEY, COMMON_ADB_PATH_DEF).toString();
-    m_settings->endGroup();
-    return adbPath;
+    return m_settings->getString("common/AdbPath", COMMON_ADB_PATH_DEF);
 }
 
-QString Config::getLogLevel()
+std::string Config::getLogLevel()
 {
-    QString logLevel;
-    m_settings->beginGroup(GROUP_COMMON);
-    logLevel = m_settings->value(COMMON_LOG_LEVEL_KEY, COMMON_LOG_LEVEL_DEF).toString();
-    m_settings->endGroup();
-    return logLevel;
+    return m_settings->getString("common/LogLevel", COMMON_LOG_LEVEL_DEF);
 }
 
-QString Config::getCodecOptions()
+std::string Config::getCodecOptions()
 {
-    QString codecOptions;
-    m_settings->beginGroup(GROUP_COMMON);
-    codecOptions = m_settings->value(COMMON_CODEC_OPTIONS_KEY, COMMON_CODEC_OPTIONS_DEF).toString();
-    m_settings->endGroup();
-    return codecOptions;
+    return m_settings->getString("common/CodecOptions", COMMON_CODEC_OPTIONS_DEF);
 }
 
-QString Config::getCodecName()
+std::string Config::getCodecName()
 {
-    QString codecName;
-    m_settings->beginGroup(GROUP_COMMON);
-    codecName = m_settings->value(COMMON_CODEC_NAME_KEY, COMMON_CODEC_NAME_DEF).toString();
-    m_settings->endGroup();
-    return codecName;
+    return m_settings->getString("common/CodecName", COMMON_CODEC_NAME_DEF);
 }
 
-QStringList Config::getConnectedGroups()
+std::vector<std::string> Config::getConnectedGroups()
 {
-    return m_userData->childGroups();
-}
-
-void Config::deleteGroup(const QString &serial)
-{
-    m_userData->remove(serial);
-}
-
-QString Config::getLanguage()
-{
-    // 优先读取用户设置 (userdata.ini)
-    m_userData->beginGroup(GROUP_COMMON);
-    QString userLang = m_userData->value(COMMON_LANGUAGE_KEY, "").toString();
-    m_userData->endGroup();
-    if (!userLang.isEmpty()) {
-        return userLang;
+    auto allKeys = m_userData->allKeys();
+    std::set<std::string> sections;
+    for (const auto &k : allKeys) {
+        auto pos = k.find('/');
+        if (pos != std::string::npos) {
+            std::string section = k.substr(0, pos);
+            if (section != "common" && section != "onboarding" && section != "General") {
+                sections.insert(section);
+            }
+        }
     }
-    // 回退到全局配置 (config.ini)
-    QString language;
-    m_settings->beginGroup(GROUP_COMMON);
-    language = m_settings->value(COMMON_LANGUAGE_KEY, COMMON_LANGUAGE_DEF).toString();
-    m_settings->endGroup();
-    return language;
+    return std::vector<std::string>(sections.begin(), sections.end());
 }
 
-void Config::setLanguage(const QString &lang)
+void Config::deleteGroup(const std::string &serial)
 {
-    m_userData->beginGroup(GROUP_COMMON);
-    m_userData->setValue(COMMON_LANGUAGE_KEY, lang);
-    m_userData->endGroup();
+    std::string prefix = serial;
+    auto allKeys = m_userData->allKeys();
+    for (const auto &k : allKeys) {
+        if (k.find(prefix + "/") == 0 || k == prefix) {
+            m_userData->remove(k);
+        }
+    }
     m_userData->sync();
 }
 
-QString Config::getTitle()
+std::string Config::getLanguage()
 {
-    QString title;
-    m_settings->beginGroup(GROUP_COMMON);
-    title = m_settings->value(COMMON_TITLE_KEY, COMMON_TITLE_DEF).toString();
-    m_settings->endGroup();
+    std::string userLang = m_userData->getString("common/Language", "");
+    if (!userLang.empty()) {
+        return userLang;
+    }
+    return m_settings->getString("common/Language", COMMON_LANGUAGE_DEF);
+}
+
+void Config::setLanguage(const std::string &lang)
+{
+    m_userData->setString("common/Language", lang);
+    m_userData->sync();
+}
+
+std::string Config::getTitle()
+{
+    std::string title = m_settings->getString("common/WindowTitle", "");
+    if (title.empty()) {
+        return strutil::fromQ(QCoreApplication::applicationName());
+    }
     return title;
 }
+
+namespace {
+
+std::string trimCopy(const std::string& value)
+{
+    size_t begin = 0;
+    size_t end = value.size();
+    while (begin < end && std::isspace(static_cast<unsigned char>(value[begin]))) {
+        ++begin;
+    }
+    while (end > begin && std::isspace(static_cast<unsigned char>(value[end - 1]))) {
+        --end;
+    }
+    return value.substr(begin, end - begin);
+}
+
+void appendHistoryNormalized(const std::string& raw, std::vector<std::string>& output)
+{
+    std::string item = trimCopy(raw);
+    if (item.empty()) return;
+
+    const auto hasDelimiter = item.find(',') != std::string::npos
+        || item.find(';') != std::string::npos
+        || item.find('\n') != std::string::npos
+        || item.find('\r') != std::string::npos;
+
+    if (!hasDelimiter) {
+        output.push_back(item);
+        return;
+    }
+
+    std::string token;
+    token.reserve(item.size());
+    auto flushToken = [&output, &token]() {
+        std::string normalized = trimCopy(token);
+        if (!normalized.empty()) {
+            output.push_back(normalized);
+        }
+        token.clear();
+    };
+
+    for (char ch : item) {
+        if (ch == ',' || ch == ';' || ch == '\n' || ch == '\r') {
+            flushToken();
+        } else {
+            token.push_back(ch);
+        }
+    }
+    flushToken();
+}
+
+void deduplicatePreserveOrder(std::vector<std::string>& values)
+{
+    std::set<std::string> seen;
+    std::vector<std::string> result;
+    result.reserve(values.size());
+    for (auto& value : values) {
+        if (value.empty()) continue;
+        if (seen.insert(value).second) {
+            result.push_back(value);
+        }
+    }
+    values.swap(result);
+}
+
+} // namespace
 
 // ---------------------------------------------------------
 // IP 历史记录管理
 // ---------------------------------------------------------
-void Config::saveIpHistory(const QString &ip)
+void Config::saveIpHistory(const std::string &ip)
 {
-    QStringList ipList = getIpHistory();
-    ipList.removeAll(ip); // 去重
-    ipList.prepend(ip);   // 插入头部
+    auto ipList = getIpHistory();
+    // Remove duplicates
+    ipList.erase(std::remove(ipList.begin(), ipList.end(), ip), ipList.end());
+    ipList.insert(ipList.begin(), ip); // Prepend
 
-    // 限制历史记录数量
-    while (ipList.size() > IP_HISTORY_MAX) {
-        ipList.removeLast();
+    // Limit history size
+    while (static_cast<int>(ipList.size()) > IP_HISTORY_MAX) {
+        ipList.pop_back();
     }
 
-    m_userData->setValue(IP_HISTORY_KEY, ipList);
+    m_userData->setStringList("General/IpHistory", ipList);
     m_userData->sync();
 }
 
-QStringList Config::getIpHistory()
+std::vector<std::string> Config::getIpHistory()
 {
-    QStringList ipList = m_userData->value(IP_HISTORY_KEY, IP_HISTORY_DEF).toStringList();
-    ipList.removeAll("");
-    return ipList;
+    auto vec = m_userData->getStringList("General/IpHistory");
+    std::vector<std::string> result;
+    for (const auto &s : vec) {
+        appendHistoryNormalized(s, result);
+    }
+    deduplicatePreserveOrder(result);
+    return result;
 }
 
 void Config::clearIpHistory()
 {
-    m_userData->remove(IP_HISTORY_KEY);
+    m_userData->remove("General/IpHistory");
     m_userData->sync();
 }
 
 // ---------------------------------------------------------
 // 端口历史记录管理
 // ---------------------------------------------------------
-void Config::savePortHistory(const QString &port)
+void Config::savePortHistory(const std::string &port)
 {
-    QStringList portList = getPortHistory();
-    portList.removeAll(port);
-    portList.prepend(port);
+    auto portList = getPortHistory();
+    portList.erase(std::remove(portList.begin(), portList.end(), port), portList.end());
+    portList.insert(portList.begin(), port);
 
-    while (portList.size() > PORT_HISTORY_MAX) {
-        portList.removeLast();
+    while (static_cast<int>(portList.size()) > PORT_HISTORY_MAX) {
+        portList.pop_back();
     }
 
-    m_userData->setValue(PORT_HISTORY_KEY, portList);
+    m_userData->setStringList("General/PortHistory", portList);
     m_userData->sync();
 }
 
-QStringList Config::getPortHistory()
+std::vector<std::string> Config::getPortHistory()
 {
-    QStringList portList = m_userData->value(PORT_HISTORY_KEY, PORT_HISTORY_DEF).toStringList();
-    portList.removeAll("");
-    return portList;
+    auto vec = m_userData->getStringList("General/PortHistory");
+    std::vector<std::string> result;
+    for (const auto &s : vec) {
+        appendHistoryNormalized(s, result);
+    }
+    deduplicatePreserveOrder(result);
+    return result;
 }
 
 void Config::clearPortHistory()
 {
-    m_userData->remove(PORT_HISTORY_KEY);
+    m_userData->remove("General/PortHistory");
     m_userData->sync();
 }
 
 // ---------------------------------------------------------
 // 键位映射文件配置
 // ---------------------------------------------------------
-void Config::setKeyMap(const QString &serial, const QString &keyMapFile)
+void Config::setKeyMap(const std::string &serial, const std::string &keyMapFile)
 {
-    m_userData->beginGroup(safeGroupName(serial));
-    m_userData->setValue(SERIAL_KEYMAP_KEY, keyMapFile);
-    m_userData->endGroup();
+    std::string group = safeGroupName(serial);
+    m_userData->setString(group + "/KeyMap", keyMapFile);
     m_userData->sync();
 }
 
-QString Config::getKeyMap(const QString &serial)
+std::string Config::getKeyMap(const std::string &serial)
 {
-    QString file;
-    m_userData->beginGroup(safeGroupName(serial));
-    file = m_userData->value(SERIAL_KEYMAP_KEY, SERIAL_KEYMAP_DEF).toString();
-    m_userData->endGroup();
-    return file;
+    std::string group = safeGroupName(serial);
+    return m_userData->getString(group + "/KeyMap", SERIAL_KEYMAP_DEF);
 }

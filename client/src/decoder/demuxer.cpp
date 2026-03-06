@@ -1,8 +1,8 @@
-#include <QDebug>
-#include <QTime>
-#include <QDateTime>
-#include <QApplication>
+#define LOG_TAG "Demuxer"
+#include "Logger.h"
 
+#include <cstdlib>
+#include "ThreadDispatcher.h"
 #include "compat.h"
 #include "demuxer.h"
 #include "kcpvideosocket.h"
@@ -10,7 +10,7 @@
 #include "interfaces/IVideoChannel.h"
 
 // 解码线程优先级提升所需的平台头文件
-#ifdef Q_OS_WIN
+#ifdef _WIN32
 #include <windows.h>
 #include <avrt.h>   // MMCSS 实时调度
 #else
@@ -27,20 +27,23 @@
 #define SC_PACKET_FLAG_KEY_FRAME (UINT64_C(1) << 62) // 关键帧标志
 #define SC_PACKET_PTS_MASK (SC_PACKET_FLAG_KEY_FRAME - 1) // PTS 掩码
 
-typedef qint32 (*ReadPacketFunc)(void *, quint8 *, qint32);
+typedef int32_t (*ReadPacketFunc)(void *, uint8_t *, int32_t);
 
-Demuxer::Demuxer(QObject *parent)
-    : QThread(parent)
+Demuxer::Demuxer()
 {}
 
-Demuxer::~Demuxer() {}
+Demuxer::~Demuxer()
+{
+    // 确保线程已经停止
+    stopDecode();
+}
 
 // FFmpeg 日志重定向
 // 仅输出 WARNING 及以上级别；INFO/DEBUG/VERBOSE 静默丢弃
 // 避免每帧 nal_unit_type 等调试日志刷屏
 static void avLogCallback(void *avcl, int level, const char *fmt, va_list vl)
 {
-    Q_UNUSED(avcl)
+    (void)avcl;
 
     // 过滤低优先级日志
     if (level > AV_LOG_WARNING) return;
@@ -59,13 +62,13 @@ static void avLogCallback(void *avcl, int level, const char *fmt, va_list vl)
     switch (level) {
     case AV_LOG_PANIC:
     case AV_LOG_FATAL:
-        qFatal("[FFmpeg] %s", buf);
+        LOG_E("[FFmpeg][FATAL] %s", buf);
         break;
     case AV_LOG_ERROR:
-        qCritical("[FFmpeg] %s", buf);
+        LOG_E("[FFmpeg] %s", buf);
         break;
     case AV_LOG_WARNING:
-        qWarning("[FFmpeg] %s", buf);
+        LOG_W("[FFmpeg] %s", buf);
         break;
     }
     return;
@@ -100,8 +103,7 @@ void Demuxer::installKcpVideoSocket(KcpVideoSocket *kcpVideoSocket)
 
 void Demuxer::installVideoSocket(VideoSocket *videoSocket)
 {
-    // 关键：在主线程中把 socket 移动到 Demuxer 线程
-    videoSocket->moveToThread(this);
+    // VideoSocket 已非 QObject，无需 moveToThread
     m_videoSocket = videoSocket;
     m_kcpVideoSocket = nullptr;  // 互斥
     m_videoChannel = nullptr;
@@ -114,12 +116,12 @@ void Demuxer::installVideoChannel(qsc::core::IVideoChannel* channel)
     m_videoSocket = nullptr;
 }
 
-void Demuxer::setFrameSize(const QSize &frameSize)
+void Demuxer::setFrameSize(const Size &frameSize)
 {
     m_frameSize = frameSize;
 }
 
-void Demuxer::setVideoCodec(const QString &codec)
+void Demuxer::setVideoCodec(const std::string &codec)
 {
     m_videoCodec = codec;
 }
@@ -131,7 +133,7 @@ void Demuxer::setVideoCodec(const QString &codec)
 // 2. KCP (KcpVideoSocket) - WiFi 模式
 // 3. TCP (VideoSocket) - USB 模式
 // ---------------------------------------------------------
-qint32 Demuxer::recvData(quint8 *buf, qint32 bufSize)
+int32_t Demuxer::recvData(uint8_t *buf, int32_t bufSize)
 {
     if (!buf || m_stopRequested.load()) {
         return 0;
@@ -160,14 +162,13 @@ qint32 Demuxer::recvData(quint8 *buf, qint32 bufSize)
 // ---------------------------------------------------------
 bool Demuxer::startDecode()
 {
-    if (!m_kcpVideoSocket && !m_videoSocket) {
+    if (!m_kcpVideoSocket && !m_videoSocket && !m_videoChannel) {
         return false;
     }
     // 重置停止标志
     m_stopRequested.store(false);
-    // 使用 NormalPriority 避免在 MMCSS 环境下 InheritPriority 导致 "参数错误"
-    // 实际优先级由 run() 内部通过 SetThreadPriority + MMCSS 设置
-    start(QThread::NormalPriority);
+    // 启动工作线程 (优先级在 run() 内部通过 SetThreadPriority + MMCSS 设置)
+    m_thread = std::thread(&Demuxer::run, this);
     return true;
 }
 
@@ -183,16 +184,13 @@ void Demuxer::stopDecode()
 
     // TCP 模式: 通知 VideoSocket 停止等待
     // requestStop() 只设置原子标志，是线程安全的
-    // QTcpSocket 本身不能跨线程操作，但原子标志可以
     if (m_videoSocket) {
         m_videoSocket->requestStop();
     }
 
-    // 等待线程结束 (最多等待 500ms，因为现在超时只有 100ms)
-    if (!wait(500)) {
-        qWarning() << "Demuxer thread did not exit in time, forcing termination";
-        terminate();
-        wait(100);
+    // 等待线程结束 (网络 socket 已关闭，线程会很快退出)
+    if (m_thread.joinable()) {
+        m_thread.join();
     }
 }
 
@@ -203,7 +201,7 @@ void Demuxer::stopDecode()
 void Demuxer::run()
 {
     // 提升解码线程优先级
-#ifdef Q_OS_WIN
+#ifdef _WIN32
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
     // MMCSS: 注册为 "Pro Audio" 获得内核级优先级提升
     void* mmcssHandle = nullptr;
@@ -220,7 +218,7 @@ void Demuxer::run()
                 mmcssHandle = pfnSet("Pro Audio", &taskIndex);
                 if (mmcssHandle && pfnPri) {
                     pfnPri(mmcssHandle, AVRT_PRIORITY_CRITICAL);
-                    qInfo("[Demuxer] MMCSS registered: Pro Audio, index=%u", taskIndex);
+                    LOG_I("[Demuxer] MMCSS registered: Pro Audio, index=%u", taskIndex);
                 }
             }
         }
@@ -235,59 +233,74 @@ void Demuxer::run()
     }
 #endif
 
-    m_codecCtx = Q_NULLPTR;
-    m_parser = Q_NULLPTR;
-    AVPacket *packet = Q_NULLPTR;
-    const AVCodec* codec = Q_NULLPTR;
+    m_codecCtx = nullptr;
+    m_parser = nullptr;
+    AVPacket *packet = nullptr;
+    const AVCodec* codec = nullptr;
+    AVCodecID resolvedCodecId = AV_CODEC_ID_H264;
+    const char* codecLabel = "H.264";
 
     // KCP 模式：首先接收 Video Header (12 字节: codec_id + width + height)
     // TCP 模式：设备信息已在 TcpServerHandler::readInfo() 中读取，跳过此步骤
     if (m_kcpVideoSocket) {
-    quint8 videoHeader[12];
+    uint8_t videoHeader[12];
     if (recvData(videoHeader, 12) != 12) {
-            qCritical("Failed to receive video header (KCP mode)!");
+            LOG_E("Failed to receive video header (KCP mode)!");
         goto runQuit;
     }
 
-        quint32 codecId = (videoHeader[0] << 24) | (videoHeader[1] << 16) | (videoHeader[2] << 8) | videoHeader[3];
-        quint32 width = (videoHeader[4] << 24) | (videoHeader[5] << 16) | (videoHeader[6] << 8) | videoHeader[7];
-        quint32 height = (videoHeader[8] << 24) | (videoHeader[9] << 16) | (videoHeader[10] << 8) | videoHeader[11];
+        uint32_t codecId = (videoHeader[0] << 24) | (videoHeader[1] << 16) | (videoHeader[2] << 8) | videoHeader[3];
+        uint32_t width = (videoHeader[4] << 24) | (videoHeader[5] << 16) | (videoHeader[6] << 8) | videoHeader[7];
+        uint32_t height = (videoHeader[8] << 24) | (videoHeader[9] << 16) | (videoHeader[10] << 8) | videoHeader[11];
 
-        Q_UNUSED(codecId);
+        // 根据服务端发送的 codec ID 覆盖本地配置
+        if (codecId == 0x68323634) m_videoCodec = "h264";
+        else if (codecId == 0x68323635) m_videoCodec = "h265";
         // 更新帧大小（如果服务器发送的和预设的不同）
         if (width > 0 && height > 0) {
-            m_frameSize = QSize(width, height);
+            m_frameSize = Size(width, height);
         }
-        qInfo() << "KCP mode: received video header, size:" << m_frameSize;
+        LOGI() << "KCP mode: received video header, size:" << m_frameSize.width << "x" << m_frameSize.height;
     } else {
-        qInfo() << "TCP mode: using pre-set frame size:" << m_frameSize;
+        LOGI() << "TCP mode: using pre-set frame size:" << m_frameSize.width << "x" << m_frameSize.height;
     }
 
+    // 根据配置选择编解码器
+    if (m_videoCodec == "h265") {
+        resolvedCodecId = AV_CODEC_ID_HEVC;
+        codecLabel = "H.265";
+    }
+
+    // H.264/H.265 的 config（SPS/PPS/VPS）需要与后续数据包拼接
+    m_mustMergeConfig = true;
+
+    LOGI() << "Codec:" << codecLabel << "- finding decoder...";
+
     // 查找解码器
-    codec = avcodec_find_decoder(AV_CODEC_ID_H264);
+    codec = avcodec_find_decoder(resolvedCodecId);
     if (!codec) {
-        qCritical("H.264 decoder not found");
+        LOG_E("%s decoder not found", codecLabel);
         goto runQuit;
     }
 
     // 分配上下文
     m_codecCtx = avcodec_alloc_context3(codec);
     if (!m_codecCtx) {
-        qCritical("Could not allocate codec context");
+        LOG_E("Could not allocate codec context");
         goto runQuit;
     }
     m_codecCtx->flags |= AV_CODEC_FLAG_LOW_DELAY;
     m_codecCtx->flags2 |= AV_CODEC_FLAG2_FAST;  // 允许不规范的加速技巧
     m_codecCtx->thread_count = 1;                // 单线程避免帧重排序延迟
     m_codecCtx->thread_type = 0;                 // 禁用多线程缓冲
-    m_codecCtx->width = m_frameSize.width();
-    m_codecCtx->height = m_frameSize.height();
+    m_codecCtx->width = m_frameSize.width;
+    m_codecCtx->height = m_frameSize.height;
     m_codecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
 
     // 初始化解析器
-    m_parser = av_parser_init(AV_CODEC_ID_H264);
+    m_parser = av_parser_init(resolvedCodecId);
     if (!m_parser) {
-        qCritical("Could not initialize parser");
+        LOG_E("Could not initialize parser");
         goto runQuit;
     }
 
@@ -296,9 +309,11 @@ void Demuxer::run()
 
     packet = av_packet_alloc();
     if (!packet) {
-        qCritical("OOM");
+        LOG_E("OOM");
         goto runQuit;
     }
+
+    LOGI() << "Parser initialized, entering receive loop";
 
     // 接收循环
     for (;;) {
@@ -312,8 +327,22 @@ void Demuxer::run()
             break;
         }
 
+        // 首包详细日志
+        static thread_local int s_pktCount = 0;
+        if (s_pktCount < 1) {
+            LOGI() << "Packet #" << s_pktCount << ": size=" << packet->size
+                   << " pts=" << packet->pts
+                   << (packet->pts == AV_NOPTS_VALUE ? " (CONFIG)" : " (DATA)");
+        }
+
         ok = pushPacket(packet);
         av_packet_unref(packet);
+
+        if (s_pktCount < 1) {
+            LOGI() << "Packet #" << s_pktCount << " pushed ok=" << ok;
+            s_pktCount++;
+        }
+
         if (!ok) {
             break;
         }
@@ -324,29 +353,33 @@ void Demuxer::run()
     }
 
     av_packet_free(&packet);
-    av_parser_close(m_parser);
 
 runQuit:
+    if (m_parser) {
+        av_parser_close(m_parser);
+        m_parser = nullptr;
+    }
     if (m_codecCtx) {
         avcodec_free_context(&m_codecCtx);
     }
 
     if (m_kcpVideoSocket) {
-        // KcpVideoSocket 在主线程创建（含 QTimer），不能在 Demuxer 线程操作
-        // 将对象移回主线程，由 deleteLater() 在主线程事件循环中安全 close+销毁
-        KcpVideoSocket *socket = m_kcpVideoSocket.data();
-        m_kcpVideoSocket = Q_NULLPTR;
-        socket->moveToThread(QApplication::instance()->thread());
-        QMetaObject::invokeMethod(socket, "deleteLater", Qt::QueuedConnection);
+        // KcpVideoSocket 在主线程创建（含 QTimer），不能在工作线程操作
+        // 通过 QMetaObject::invokeMethod 投递到主线程事件循环中安全销毁
+        KcpVideoSocket *socket = m_kcpVideoSocket;
+        m_kcpVideoSocket = nullptr;
+        dispatch::postToMain([socket]() {
+            delete socket;
+        });
     }
 
     if (m_videoSocket) {
-        m_videoSocket->close();
+        m_videoSocket->requestStop();
         delete m_videoSocket;
-        m_videoSocket = Q_NULLPTR;
+        m_videoSocket = nullptr;
     }
 
-    emit onStreamStop();
+    onStreamStop.fire();
 }
 
 // ---------------------------------------------------------
@@ -360,8 +393,8 @@ bool Demuxer::recvPacket(AVPacket *packet)
     }
 
     // 读取头部
-    quint8 header[12];
-    qint32 ret = recvData(header, 12);
+    uint8_t header[12];
+    int32_t ret = recvData(header, 12);
     if (ret != 12) {
         return false;
     }
@@ -379,14 +412,23 @@ bool Demuxer::recvPacket(AVPacket *packet)
         return false;
     }
 
-    // 解析 PTS
-    uint64_t pts = ((uint64_t)header[0] << 56) | ((uint64_t)header[1] << 48) |
-                   ((uint64_t)header[2] << 40) | ((uint64_t)header[3] << 32) |
-                   ((uint64_t)header[4] << 24) | ((uint64_t)header[5] << 16) |
-                   ((uint64_t)header[6] << 8) | header[7];
+    // 解析 PTS 和标志位
+    uint64_t pts_flags = ((uint64_t)header[0] << 56) | ((uint64_t)header[1] << 48) |
+                         ((uint64_t)header[2] << 40) | ((uint64_t)header[3] << 32) |
+                         ((uint64_t)header[4] << 24) | ((uint64_t)header[5] << 16) |
+                         ((uint64_t)header[6] << 8) | header[7];
 
-    packet->pts = pts;
-    packet->dts = pts;
+    if (pts_flags & SC_PACKET_FLAG_CONFIG) {
+        packet->pts = AV_NOPTS_VALUE;
+    } else {
+        packet->pts = (int64_t)(pts_flags & SC_PACKET_PTS_MASK);
+    }
+
+    if (pts_flags & SC_PACKET_FLAG_KEY_FRAME) {
+        packet->flags |= AV_PKT_FLAG_KEY;
+    }
+
+    packet->dts = packet->pts;
 
     return true;
 }
@@ -399,13 +441,13 @@ bool Demuxer::pushPacket(AVPacket *packet)
 {
     bool isConfig = packet->pts == AV_NOPTS_VALUE;
 
-    // Config 包需要和后续的数据包拼接后才能解码
-    if (m_pending || isConfig) {
-        qint32 offset;
+    // 只有 H.264/H.265 的 Config 包（SPS/PPS/VPS）需要和后续数据包拼接。
+    if (m_mustMergeConfig && (m_pending || isConfig)) {
+        int32_t offset;
         if (m_pending) {
             offset = m_pending->size;
             if (av_grow_packet(m_pending, packet->size)) {
-                qCritical("Could not grow packet");
+                LOG_E("Could not grow packet");
                 return false;
             }
         } else {
@@ -413,7 +455,7 @@ bool Demuxer::pushPacket(AVPacket *packet)
             m_pending = av_packet_alloc();
             if (av_new_packet(m_pending, packet->size)) {
                 av_packet_free(&m_pending);
-                qCritical("Could not create packet");
+                LOG_E("Could not create packet");
                 return false;
             }
         }
@@ -430,6 +472,7 @@ bool Demuxer::pushPacket(AVPacket *packet)
     }
 
     if (isConfig) {
+        // config 包仅通知信号后丢弃
         bool ok = processConfigPacket(packet);
         if (!ok) {
             return false;
@@ -451,7 +494,7 @@ bool Demuxer::pushPacket(AVPacket *packet)
 
 bool Demuxer::processConfigPacket(AVPacket *packet)
 {
-    emit getConfigFrame(packet);
+    getConfigFrame.fire(packet);
     return true;
 }
 
@@ -460,16 +503,17 @@ bool Demuxer::processConfigPacket(AVPacket *packet)
 // ---------------------------------------------------------
 bool Demuxer::parse(AVPacket *packet)
 {
-    quint8 *inData = packet->data;
+    uint8_t *inData = packet->data;
     int inLen = packet->size;
-    quint8 *outData = Q_NULLPTR;
+    uint8_t *outData = nullptr;
     int outLen = 0;
     // 调用 FFmpeg 解析器，标记关键帧
     int r = av_parser_parse2(m_parser, m_codecCtx, &outData, &outLen, inData, inLen, AV_NOPTS_VALUE, AV_NOPTS_VALUE, -1);
 
-    Q_ASSERT(r == inLen);
+    if (r != inLen || outLen != inLen) {
+        LOG_W("Parser consumed %d/%d bytes, output %d bytes", r, inLen, outLen);
+    }
     (void)r;
-    Q_ASSERT(outLen == inLen);
 
     if (m_parser->key_frame == 1) {
         packet->flags |= AV_PKT_FLAG_KEY;
@@ -477,7 +521,7 @@ bool Demuxer::parse(AVPacket *packet)
 
     bool ok = processFrame(packet);
     if (!ok) {
-        qCritical("Could not process frame");
+        LOG_E("Could not process frame");
         return false;
     }
 
@@ -487,6 +531,6 @@ bool Demuxer::parse(AVPacket *packet)
 bool Demuxer::processFrame(AVPacket *packet)
 {
     packet->dts = packet->pts;
-    emit getFrame(packet);
+    getFrame.fire(packet);
     return true;
 }

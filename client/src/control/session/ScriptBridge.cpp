@@ -5,25 +5,26 @@
 #include "controller.h"
 #include "fastmsg.h"
 #include "keymap.h"
+#include "StringUtils.h"
 #include "SteerWheelHandler.h"
 #include "ViewportHandler.h"
 #include "FreeLookHandler.h"
 #include "CursorHandler.h"
 #include "KeyboardHandler.h"
 
-#include <QDebug>
-#include <QDir>
+#include <filesystem>
+#define LOG_TAG "ScriptBridge"
+#include "Logger.h"
 
-ScriptBridge::ScriptBridge(QPointer<Controller> controller, SessionVars* vars, QObject* parent)
-    : QObject(parent)
-    , m_controller(controller)
+ScriptBridge::ScriptBridge(Controller* controller, SessionVars* vars)
+    : m_controller(controller)
     , m_vars(vars)
 {
-    // 创建脚本引擎（使用 QPointer 安全访问 controller）
+    // 创建脚本引擎（controller 生命周期由 SessionContext 管理）
     // 注意：ScriptEngine 需要 SessionContext，但这里我们传 nullptr
     // 因为 ScriptBridge 会在 SessionContext 中创建，由 SessionContext 提供上下文
-    m_scriptEngine = new ScriptEngine(controller.data(), nullptr, this);
-    m_scriptEngine->setScriptBasePath(QDir::currentPath() + "/keymap/scripts");
+    m_scriptEngine = new ScriptEngine(controller, nullptr);
+    m_scriptEngine->setScriptBasePath((std::filesystem::current_path() / "keymap" / "scripts").string());
 
     setupConnections();
 }
@@ -32,48 +33,48 @@ ScriptBridge::~ScriptBridge()
 {
     if (m_scriptEngine) {
         m_scriptEngine->stopAll();
+        delete m_scriptEngine;
+        m_scriptEngine = nullptr;
     }
 }
 
 void ScriptBridge::setupConnections()
 {
-    if (!m_scriptEngine || m_controller.isNull()) return;
+    if (!m_scriptEngine || !m_controller) return;
 
-    // 使用 QPointer 捕获，确保安全访问
-    QPointer<Controller> safeController = m_controller;
+    // 使用裸指针捕获，生命周期由 SessionContext 管理
+    Controller* safeController = m_controller;
 
-    // 连接 ScriptEngine 信号到主线程处理
-    connect(m_scriptEngine, &ScriptEngine::touchRequested, this,
-        [safeController](quint32 seqId, quint8 action, quint16 x, quint16 y) {
-            if (safeController.isNull()) return;
+    // 连接 ScriptEngine Signal<> 信号到主线程处理
+    m_scriptEngine->touchRequested.connect(
+        [safeController](uint32_t seqId, uint8_t action, uint16_t x, uint16_t y) {
+            if (!safeController) return;
             if (action != FTA_DOWN && action != FTA_UP && action != FTA_MOVE) return;
             safeController->postFastMsg(FastMsg::serializeTouch(FastTouchEvent(seqId, action, x, y)));
         });
 
-    connect(m_scriptEngine, &ScriptEngine::keyRequested, this,
-        [safeController](quint8 action, quint16 keycode) {
-            if (safeController.isNull()) return;
+    m_scriptEngine->keyRequested.connect(
+        [safeController](uint8_t action, uint16_t keycode) {
+            if (!safeController) return;
             safeController->postFastMsg(FastMsg::serializeKey(FastKeyEvent(action, keycode)));
         });
 
-    connect(m_scriptEngine, &ScriptEngine::shotmodeRequested, this,
+    m_scriptEngine->shotmodeRequested.connect(
         [this](bool gameMode) {
-            // 这个需要由 SessionContext 来处理，因为涉及光标状态
-            // 暂时留空，由 SessionContext 自己连接
-            Q_UNUSED(gameMode);
+            (void)gameMode;
         });
 
-    connect(m_scriptEngine, &ScriptEngine::radialParamRequested, this,
+    m_scriptEngine->radialParamRequested.connect(
         [this](double up, double down, double left, double right) {
             script_setSteerWheelCoefficient(up, down, left, right);
         });
 
-    connect(m_scriptEngine, &ScriptEngine::resetviewRequested, this,
+    m_scriptEngine->resetviewRequested.connect(
         [this]() {
             script_resetView();
         });
 
-    connect(m_scriptEngine, &ScriptEngine::resetWheelRequested, this,
+    m_scriptEngine->resetWheelRequested.connect(
         [this]() {
             script_resetWheel();
         });
@@ -86,21 +87,21 @@ void ScriptBridge::setSessionContext(SessionContext* ctx)
     }
 }
 
-void ScriptBridge::setScriptBasePath(const QString& path)
+void ScriptBridge::setScriptBasePath(const std::string& path)
 {
     if (m_scriptEngine) {
         m_scriptEngine->setScriptBasePath(path);
     }
 }
 
-void ScriptBridge::setVideoSize(const QSize& size)
+void ScriptBridge::setVideoSize(const Size& size)
 {
     if (m_scriptEngine) {
         m_scriptEngine->setVideoSize(size);
     }
 }
 
-void ScriptBridge::setFrameGrabCallback(std::function<QImage()> callback)
+void ScriptBridge::setFrameGrabCallback(std::function<cv::Mat()> callback)
 {
     m_frameGrabCallback = callback;
     if (m_scriptEngine) {
@@ -108,23 +109,31 @@ void ScriptBridge::setFrameGrabCallback(std::function<QImage()> callback)
     }
 }
 
-QImage ScriptBridge::grabFrame() const
+void ScriptBridge::setGrayFrameGrabCallback(GrayFrameGrabCallback callback)
+{
+    if (m_scriptEngine) {
+        m_scriptEngine->setGrayFrameGrabCallback(std::move(callback));
+    }
+}
+
+cv::Mat ScriptBridge::grabFrame() const
 {
     if (m_frameGrabCallback) {
         return m_frameGrabCallback();
     }
-    return QImage();
+    return cv::Mat();
 }
 
-void ScriptBridge::connectScriptTipSignal(std::function<void(const QString&, int, int)> callback)
+void ScriptBridge::connectScriptTipSignal(std::function<void(const std::string&, int, int)> callback)
 {
     if (!m_scriptEngine) return;
 
-    disconnect(m_scriptEngine, &ScriptEngine::tipRequested, this, nullptr);
+    m_scriptEngine->tipRequested.disconnectAll();
     m_tipCallback = callback;
 
     if (callback) {
-        connect(m_scriptEngine, &ScriptEngine::tipRequested, this, &ScriptBridge::onTipRequested);
+        m_scriptEngine->tipRequested.connect(
+            [this](const std::string& msg, int durationMs, int keyId) { onTipRequested(msg, durationMs, keyId); });
     }
 }
 
@@ -132,16 +141,16 @@ void ScriptBridge::connectKeyMapOverlayUpdateSignal(std::function<void()> callba
 {
     if (!m_scriptEngine) return;
 
-    disconnect(m_scriptEngine, &ScriptEngine::keyMapOverlayUpdateRequested, this, nullptr);
+    m_scriptEngine->keyMapOverlayUpdateRequested.disconnectAll();
     m_overlayUpdateCallback = callback;
 
     if (callback) {
-        connect(m_scriptEngine, &ScriptEngine::keyMapOverlayUpdateRequested,
-                this, &ScriptBridge::onKeyMapOverlayUpdateRequested);
+        m_scriptEngine->keyMapOverlayUpdateRequested.connect(
+            [this]() { onKeyMapOverlayUpdateRequested(); });
     }
 }
 
-void ScriptBridge::onTipRequested(const QString& msg, int durationMs, int keyId)
+void ScriptBridge::onTipRequested(const std::string& msg, int durationMs, int keyId)
 {
     if (m_tipCallback) {
         m_tipCallback(msg, durationMs, keyId);
@@ -174,13 +183,13 @@ void ScriptBridge::releaseAllScriptTouches()
     if (!m_vars) return;
 
     // 取出所有活跃的脚本触摸序列并发送 FTA_UP 释放
-    QHash<int, QList<quint32>> allSeqs = m_vars->takeAllTouchSeqs();
-    if (allSeqs.isEmpty()) return;
+    auto allSeqs = m_vars->takeAllTouchSeqs();
+    if (allSeqs.empty()) return;
 
-    if (m_controller.isNull()) return;
+    if (!m_controller) return;
 
-    for (auto it = allSeqs.constBegin(); it != allSeqs.constEnd(); ++it) {
-        for (quint32 seqId : it.value()) {
+    for (auto& [keyId, seqs] : allSeqs) {
+        for (uint32_t seqId : seqs) {
             m_controller->postFastMsg(FastMsg::serializeTouch(
                 FastTouchEvent(seqId, FTA_UP, 0, 0)));
         }
@@ -193,7 +202,7 @@ void ScriptBridge::runAutoStartScripts(KeyMap* keyMap)
 
     const auto& nodes = keyMap->getKeyMapNodes();
     for (const auto& node : nodes) {
-        if (node.type == KeyMap::KMT_SCRIPT && !node.script.isEmpty()) {
+        if (node.type == KeyMap::KMT_SCRIPT && !node.script.empty()) {
             if (ScriptEngine::isAutoStartScript(node.script)) {
                 m_scriptEngine->runAutoStartScript(node.script);
             }
@@ -201,7 +210,7 @@ void ScriptBridge::runAutoStartScripts(KeyMap* keyMap)
     }
 }
 
-void ScriptBridge::runInlineScript(const QString& script, int keyId, const QPointF& pos, bool isPress)
+void ScriptBridge::runInlineScript(const std::string& script, int keyId, const PointF& pos, bool isPress)
 {
     if (m_scriptEngine) {
         m_scriptEngine->runInlineScript(script, keyId, pos, isPress);
@@ -251,12 +260,12 @@ void ScriptBridge::script_resetWheel()
     }
 }
 
-QPointF ScriptBridge::script_getMousePos(bool cursorCaptured)
+PointF ScriptBridge::script_getMousePos(bool cursorCaptured)
 {
     if (cursorCaptured) {
-        return m_viewportHandler ? m_viewportHandler->lastConvertedPos() : QPointF();
+        return m_viewportHandler ? m_viewportHandler->lastConvertedPos() : PointF();
     } else {
-        return m_cursorHandler ? m_cursorHandler->lastPos() : QPointF();
+        return m_cursorHandler ? m_cursorHandler->lastPos() : PointF();
     }
 }
 
@@ -268,13 +277,14 @@ void ScriptBridge::script_setGameMapMode(bool enter, bool& cursorCaptured,
     }
 }
 
-int ScriptBridge::script_getKeyState(int qtKey, const QHash<int, bool>& keyStates)
+int ScriptBridge::script_getKeyState(int qtKey, const std::unordered_map<int, bool>& keyStates)
 {
-    return keyStates.value(qtKey, false) ? 1 : 0;
+    auto it = keyStates.find(qtKey);
+    return (it != keyStates.end() && it->second) ? 1 : 0;
 }
 
-int ScriptBridge::script_getKeyStateByName(const QString& displayName, KeyMap* keyMap,
-                                            const QHash<int, bool>& keyStates)
+int ScriptBridge::script_getKeyStateByName(const std::string& displayName, KeyMap* keyMap,
+                                            const std::unordered_map<int, bool>& keyStates)
 {
     if (!keyMap) return 0;
 
@@ -284,7 +294,7 @@ int ScriptBridge::script_getKeyStateByName(const QString& displayName, KeyMap* k
     }
 
     int key = 0;
-    Qt::KeyboardModifiers modifiers = Qt::NoModifier;
+    uint32_t modifiers = GameMod::NoModifier;
 
     if (node.type == KeyMap::KMT_SCRIPT) {
         key = node.data.script.keyNode.key;
@@ -293,48 +303,56 @@ int ScriptBridge::script_getKeyStateByName(const QString& displayName, KeyMap* k
         return 0;
     }
 
-    if (!keyStates.value(key, false)) {
+    auto isKeyDown = [&keyStates](int k) -> bool {
+        auto it = keyStates.find(k);
+        return it != keyStates.end() && it->second;
+    };
+
+    if (!isKeyDown(key)) {
         return 0;
     }
 
-    if (modifiers & Qt::ControlModifier) {
-        if (!keyStates.value(Qt::Key_Control, false)) return 0;
+    if (modifiers & GameMod::ControlModifier) {
+        if (!isKeyDown(GameKey::Key_Control)) return 0;
     }
-    if (modifiers & Qt::ShiftModifier) {
-        if (!keyStates.value(Qt::Key_Shift, false)) return 0;
+    if (modifiers & GameMod::ShiftModifier) {
+        if (!isKeyDown(GameKey::Key_Shift)) return 0;
     }
-    if (modifiers & Qt::AltModifier) {
-        if (!keyStates.value(Qt::Key_Alt, false)) return 0;
+    if (modifiers & GameMod::AltModifier) {
+        if (!isKeyDown(GameKey::Key_Alt)) return 0;
     }
-    if (modifiers & Qt::MetaModifier) {
-        if (!keyStates.value(Qt::Key_Meta, false)) return 0;
+    if (modifiers & GameMod::MetaModifier) {
+        if (!isKeyDown(GameKey::Key_Meta)) return 0;
     }
 
     return 1;
 }
 
-QVariantMap ScriptBridge::script_getKeyPos(int qtKey, KeyMap* keyMap)
+KeyPosResult ScriptBridge::script_getKeyPos(int qtKey, KeyMap* keyMap)
 {
-    QVariantMap map;
-    map.insert("x", -1);
-    map.insert("y", -1);
+    KeyPosResult result;
+    result.x = -1;
+    result.y = -1;
+    result.valid = false;
 
-    if (!keyMap) return map;
+    if (!keyMap) return result;
 
     const KeyMap::KeyMapNode& node = keyMap->getKeyMapNodeKey(qtKey);
 
-    if (node.type == KeyMap::KMT_INVALID) return map;
+    if (node.type == KeyMap::KMT_INVALID) return result;
 
-    QPointF pos;
+    double posX = 0, posY = 0;
     bool hasPos = false;
 
     switch(node.type) {
     case KeyMap::KMT_STEER_WHEEL:
-        pos = node.data.steerWheel.centerPos;
+        posX = node.data.steerWheel.centerPos.x;
+        posY = node.data.steerWheel.centerPos.y;
         hasPos = true;
         break;
     case KeyMap::KMT_SCRIPT:
-        pos = node.data.script.keyNode.pos;
+        posX = node.data.script.keyNode.pos.x;
+        posY = node.data.script.keyNode.pos.y;
         hasPos = true;
         break;
     default:
@@ -342,36 +360,38 @@ QVariantMap ScriptBridge::script_getKeyPos(int qtKey, KeyMap* keyMap)
     }
 
     if (hasPos) {
-        map["x"] = qRound(pos.x() * 10000.0) / 10000.0;
-        map["y"] = qRound(pos.y() * 10000.0) / 10000.0;
-        map["valid"] = true;
+        result.x = std::round(posX * 10000.0) / 10000.0;
+        result.y = std::round(posY * 10000.0) / 10000.0;
+        result.valid = true;
     }
-    return map;
+    return result;
 }
 
-QVariantMap ScriptBridge::script_getKeyPosByName(const QString& displayName, KeyMap* keyMap)
+KeyPosResult ScriptBridge::script_getKeyPosByName(const std::string& displayName, KeyMap* keyMap)
 {
-    QVariantMap map;
-    map.insert("x", 0.0);
-    map.insert("y", 0.0);
-    map.insert("valid", false);
+    KeyPosResult result;
+    result.x = 0.0;
+    result.y = 0.0;
+    result.valid = false;
 
-    if (!keyMap) return map;
+    if (!keyMap) return result;
 
     const KeyMap::KeyMapNode& node = keyMap->getKeyMapNodeByDisplayName(displayName);
 
-    if (node.type == KeyMap::KMT_INVALID) return map;
+    if (node.type == KeyMap::KMT_INVALID) return result;
 
-    QPointF pos;
+    double posX = 0, posY = 0;
     bool hasPos = false;
 
     switch(node.type) {
     case KeyMap::KMT_STEER_WHEEL:
-        pos = node.data.steerWheel.centerPos;
+        posX = node.data.steerWheel.centerPos.x;
+        posY = node.data.steerWheel.centerPos.y;
         hasPos = true;
         break;
     case KeyMap::KMT_SCRIPT:
-        pos = node.data.script.keyNode.pos;
+        posX = node.data.script.keyNode.pos.x;
+        posY = node.data.script.keyNode.pos.y;
         hasPos = true;
         break;
     default:
@@ -379,9 +399,9 @@ QVariantMap ScriptBridge::script_getKeyPosByName(const QString& displayName, Key
     }
 
     if (hasPos) {
-        map["x"] = qRound(pos.x() * 10000.0) / 10000.0;
-        map["y"] = qRound(pos.y() * 10000.0) / 10000.0;
-        map["valid"] = true;
+        result.x = std::round(posX * 10000.0) / 10000.0;
+        result.y = std::round(posY * 10000.0) / 10000.0;
+        result.valid = true;
     }
-    return map;
+    return result;
 }

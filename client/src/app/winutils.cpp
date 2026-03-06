@@ -1,4 +1,5 @@
-#include <QDebug>
+#define LOG_TAG "WinUtils"
+#include "Logger.h"
 #include <Windows.h>
 #include <dwmapi.h>
 #include <avrt.h>
@@ -29,7 +30,7 @@ bool WinUtils::setDarkBorderToWindow(const HWND &hwnd, const bool &d)
     const bool ok = SUCCEEDED(DwmSetWindowAttribute(hwnd, DwmwaUseImmersiveDarkMode, &darkBorder, sizeof(darkBorder)))
                     || SUCCEEDED(DwmSetWindowAttribute(hwnd, DwmwaUseImmersiveDarkModeBefore20h1, &darkBorder, sizeof(darkBorder)));
     if (!ok)
-        qWarning("%s: Unable to set dark window border.", __FUNCTION__);
+        LOG_W("%s: Unable to set dark window border.", __FUNCTION__);
     return ok;
 }
 
@@ -43,12 +44,12 @@ void* WinUtils::enableMMCSS(const char* taskName)
     if (hTask) {
         // 进一步将 MMCSS 优先级设为 CRITICAL（最高级别）
         if (!AvSetMmThreadPriority(hTask, AVRT_PRIORITY_CRITICAL)) {
-            qWarning("[MMCSS] Failed to set thread priority to CRITICAL for task '%s'", taskName);
+            LOG_W("[MMCSS] Failed to set thread priority to CRITICAL for task '%s'", taskName);
         }
-        qInfo("[MMCSS] Thread registered: task='%s', index=%u", taskName, taskIndex);
+        LOG_I("[MMCSS] Thread registered: task='%s', index=%u", taskName, taskIndex);
     } else {
         DWORD err = GetLastError();
-        qWarning("[MMCSS] AvSetMmThreadCharacteristics failed for '%s': error=%lu", taskName, err);
+        LOG_W("[MMCSS] AvSetMmThreadCharacteristics failed for '%s': error=%lu", taskName, err);
     }
     return static_cast<void*>(hTask);
 }
@@ -58,9 +59,9 @@ void WinUtils::disableMMCSS(void* taskHandle)
     if (taskHandle) {
         HANDLE hTask = static_cast<HANDLE>(taskHandle);
         if (AvRevertMmThreadCharacteristics(hTask)) {
-            qInfo("[MMCSS] Thread unregistered successfully");
+            LOG_I("[MMCSS] Thread unregistered successfully");
         } else {
-            qWarning("[MMCSS] AvRevertMmThreadCharacteristics failed");
+            LOG_W("[MMCSS] AvRevertMmThreadCharacteristics failed");
         }
     }
 }

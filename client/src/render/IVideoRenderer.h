@@ -1,14 +1,15 @@
 #ifndef IVIDEORENDERER_H
 #define IVIDEORENDERER_H
 
-#include <QObject>
-#include <QSize>
-#include <QImage>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <vector>
 
 #include "ErrorCode.h"
+#include "GameTypes.h"
+
+class QImage;  // Forward declaration — only QWidget renderers implement grabCurrentFrame()
 
 namespace qsc {
 
@@ -81,9 +82,9 @@ struct YUVFrame
  */
 struct RenderStats
 {
-    quint32 fps = 0;                    // 当前帧率
-    quint32 droppedFrames = 0;          // 丢帧数
-    quint64 totalFrames = 0;            // 总帧数
+    uint32_t fps = 0;                   // 当前帧率
+    uint32_t droppedFrames = 0;         // 丢帧数
+    uint64_t totalFrames = 0;           // 总帧数
     double avgRenderTime = 0;           // 平均渲染时间（毫秒）
     double avgUploadTime = 0;           // 平均上传时间（毫秒）
     bool pboEnabled = false;            // PBO 是否启用
@@ -129,12 +130,12 @@ public:
      * @brief 设置视频帧尺寸
      * @param size 帧尺寸
      */
-    virtual void setFrameSize(const QSize& size) = 0;
+    virtual void setFrameSize(const Size& size) = 0;
 
     /**
      * @brief 获取当前帧尺寸
      */
-    virtual QSize frameSize() const = 0;
+    virtual Size frameSize() const = 0;
 
     /**
      * @brief 更新 YUV 纹理数据

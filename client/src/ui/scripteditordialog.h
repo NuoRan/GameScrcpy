@@ -9,16 +9,14 @@
 #include <QFileDialog>
 #include <QMessageBox>
 #include <QLabel>
-#include <QCoreApplication>
-#include <QDir>
-#include <QDesktopServices>
-#include <QUrl>
+#include <filesystem>
+#include <windows.h>
+#include <shellapi.h>
 #include <QGroupBox>
 #include <QGridLayout>
 #include <QToolButton>
 #include <QMenu>
 #include <QScrollArea>
-#include <QImage>
 #include <QSyntaxHighlighter>
 #include <QRegularExpression>
 #include <QPainter>
@@ -36,6 +34,12 @@
 
 #include "selectioneditordialog.h"
 #include "selectionregionmanager.h"
+#include "ThemeManager.h"
+#include "DesignTokens.h"
+#include "FluentDialog.h"
+#include "OnboardingOverlay.h"
+#include "config.h"
+#include "StringUtils.h"
 
 // FrameGrabFunc 已在 selectioneditordialog.h 中定义
 
@@ -487,93 +491,69 @@ public:
 
         // 设置 Windows 深色标题栏
 #ifdef Q_OS_WIN
-        WinUtils::setDarkBorderToWindow(reinterpret_cast<HWND>(winId()), true);
+        WinUtils::setDarkBorderToWindow(reinterpret_cast<HWND>(winId()),
+            Fluent::ThemeManager::instance().isDarkMode());
 #endif
 
-        // 设置对话框整体样式 (与 modern_dark.qss 一致的 Zinc 色系)
-        setStyleSheet(
-            "QDialog { background-color: #18181b; }"
-            "QWidget { background-color: #18181b; }"
-            "QLabel { color: #fafafa; background: transparent; }"
-            "QGroupBox { "
-            "  font-weight: bold; "
-            "  color: #fafafa; "
-            "  margin-top: 12px; "
-            "  padding-top: 12px; "
-            "  border: 1px solid #3f3f46; "
-            "  border-radius: 6px; "
-            "  background-color: #18181b; "
+        auto &tm = Fluent::ThemeManager::instance();
+
+        // === Fluent Focus 全局对话框样式 (3色方案: #09090B + #18181B + accent) ===
+        setStyleSheet(QString(
+            "QDialog { background-color: %1; }"
+            "QGroupBox {"
+            "  background-color: %1;"
+            "  border: 1px solid %2;"
+            "  border-radius: 8px;"
+            "  margin-top: 20px;"
+            "  padding-top: 12px;"
+            "  font-size: 10pt;"
             "}"
-            "QGroupBox::title { "
-            "  subcontrol-origin: margin; "
-            "  left: 10px; "
-            "  padding: 0 6px; "
-            "  color: #a1a1aa; "
-            "  background-color: #18181b; "
+            "QGroupBox::title {"
+            "  subcontrol-origin: margin;"
+            "  subcontrol-position: top left;"
+            "  padding: 2px 10px;"
+            "  color: %3;"
+            "  font-weight: 600;"
+            "  font-size: 10pt;"
+            "  background: transparent;"
             "}"
-            "QScrollArea { border: none; background-color: #18181b; }"
-            "QScrollArea > QWidget > QWidget { background-color: #18181b; }"
-            "QScrollBar:vertical { "
-            "  background: #18181b; "
-            "  width: 8px; "
-            "  border-radius: 4px; "
-            "}"
-            "QScrollBar::handle:vertical { "
-            "  background: #3f3f46; "
-            "  border-radius: 4px; "
-            "  min-height: 30px; "
-            "}"
-            "QScrollBar::handle:vertical:hover { background: #52525b; }"
-            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
-            "QMenu { "
-            "  background-color: #18181b; "
-            "  color: #fafafa; "
-            "  border: 1px solid #3f3f46; "
-            "  border-radius: 6px; "
-            "  padding: 4px; "
-            "}"
-            "QMenu::item { "
-            "  padding: 8px 16px; "
-            "  border-radius: 4px; "
-            "}"
-            "QMenu::item:selected { "
-            "  background-color: #6366f1; "
-            "}"
-            "QMenu::separator { "
-            "  height: 1px; "
-            "  background-color: #3f3f46; "
-            "  margin: 4px 8px; "
-            "}"
-            "QMessageBox { background-color: #18181b; color: #fafafa; }"
-            "QMessageBox QLabel { color: #fafafa; }"
-            "QMessageBox QPushButton { "
-            "  background-color: #27272a; "
-            "  color: #fafafa; "
-            "  border: 1px solid #3f3f46; "
-            "  border-radius: 6px; "
-            "  padding: 6px 16px; "
-            "}"
-            "QMessageBox QPushButton:hover { background-color: #3f3f46; }"
-        );
+            "QScrollBar:vertical { width: 4px; background: transparent; }"
+            "QScrollBar::handle:vertical { background: %4; border-radius: 2px; }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0px; }"
+            "QScrollBar:horizontal { height: 0px; }"
+            "QLabel { background: transparent; }"
+        ).arg(tm.base(), tm.border(),
+              tm.textPrimary(), tm.scrollThumb()));
 
         // 初始化选区编辑器引用
         m_selectionEditorDialog = nullptr;
 
         QHBoxLayout* mainLayout = new QHBoxLayout(this);
+        mainLayout->setContentsMargins(12, 12, 12, 12);
+        mainLayout->setSpacing(12);
 
         // =========================================================
         // 左侧：快捷指令面板
         // =========================================================
         QWidget* snippetPanel = createSnippetPanel();
+        m_snippetPanel = snippetPanel;
         mainLayout->addWidget(snippetPanel);
 
         // =========================================================
-        // 右侧：代码编辑区
+        // 右侧：代码编辑区（包裹在卡片容器中）
         // =========================================================
-        QVBoxLayout* editorLayout = new QVBoxLayout();
+        QWidget* editorCard = new QWidget(this);
+        editorCard->setStyleSheet(QString(
+            "QWidget#editorCard { background-color: %1; border: 1px solid %2; border-radius: 8px; }"
+        ).arg(tm.card(), tm.border()));
+        editorCard->setObjectName("editorCard");
+
+        QVBoxLayout* editorLayout = new QVBoxLayout(editorCard);
+        editorLayout->setContentsMargins(10, 10, 10, 10);
+        editorLayout->setSpacing(8);
 
         QLabel* titleLabel = new QLabel(tr("JavaScript 脚本 (mapi 为内置对象):"), this);
-        titleLabel->setStyleSheet("color: #a1a1aa; font-size: 10pt;");
+        titleLabel->setStyleSheet(QString("color: %1; font-size: 10pt;").arg(tm.textTertiary()));
         editorLayout->addWidget(titleLabel);
 
         m_editor = new CodeEditor(this);
@@ -588,20 +568,21 @@ public:
             "mapi.release();\n"
         );
         m_editor->setStyleSheet(
-            "CodeEditor, QPlainTextEdit {"
-            "  background-color: #1e1e1e;"
-            "  color: #d4d4d4;"
+            QString("CodeEditor, QPlainTextEdit {"
+            "  background-color: %1;"
+            "  color: %2;"
             "  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;"
             "  font-size: 11pt;"
-            "  border: 1px solid #3f3f46;"
+            "  border: 1px solid %3;"
             "  border-radius: 6px;"
             "  padding: 4px;"
-            "  selection-background-color: #264f78;"
+            "  selection-background-color: %4;"
             "  selection-color: #ffffff;"
             "}"
             "CodeEditor:focus, QPlainTextEdit:focus {"
-            "  border-color: #6366f1;"
-            "}"
+            "  border-color: %5;"
+            "}").arg(tm.inputBg(), tm.textPrimary(), tm.inputBorder(),
+                     Fluent::Accent::Subtle, tm.inputFocusBorder())
         );
         m_editor->setTabStopDistance(40);
         editorLayout->addWidget(m_editor, 1);
@@ -610,11 +591,11 @@ public:
         QHBoxLayout* btnLayout = new QHBoxLayout();
 
         // "获取工具" 按钮 (打开选区编辑器)
-        QPushButton* btnTools = new QPushButton(tr("获取工具"), this);
-        btnTools->setToolTip(tr("打开自定义选区管理器\n支持获取位置、创建选区、截图等"));
-        styleButton(btnTools, false);
-        connect(btnTools, &QPushButton::clicked, this, &ScriptEditorDialog::onCustomRegion);
-        btnLayout->addWidget(btnTools);
+        m_btnTools = new QPushButton(tr("获取工具"), this);
+        m_btnTools->setToolTip(tr("打开自定义选区管理器\n支持获取位置、创建选区、截图等"));
+        styleButton(m_btnTools, false);
+        connect(m_btnTools, &QPushButton::clicked, this, &ScriptEditorDialog::onCustomRegion);
+        btnLayout->addWidget(m_btnTools);
 
         QPushButton* btnOpenDir = new QPushButton(tr("打开脚本目录"), this);
         styleButton(btnOpenDir, false);
@@ -624,7 +605,7 @@ public:
         QPushButton* btnClear = new QPushButton(tr("清空"), this);
         styleButton(btnClear, false);
         connect(btnClear, &QPushButton::clicked, [this]() {
-            if (QMessageBox::question(this, tr("确认"), tr("确定要清空脚本内容吗？")) == QMessageBox::Yes) {
+            if (Fluent::FluentDialog::confirm(this, tr("确认"), tr("确定要清空脚本内容吗？"))) {
                 m_editor->clear();
             }
         });
@@ -637,13 +618,13 @@ public:
         connect(btnCancel, &QPushButton::clicked, this, &QDialog::reject);
         btnLayout->addWidget(btnCancel);
 
-        QPushButton* btnSave = new QPushButton(tr("保存"), this);
-        styleButton(btnSave, true);  // 主按钮
-        connect(btnSave, &QPushButton::clicked, this, &ScriptEditorDialog::onSave);
-        btnLayout->addWidget(btnSave);
+        m_btnSave = new QPushButton(tr("保存"), this);
+        styleButton(m_btnSave, true);  // 主按钮
+        connect(m_btnSave, &QPushButton::clicked, this, &ScriptEditorDialog::onSave);
+        btnLayout->addWidget(m_btnSave);
 
         editorLayout->addLayout(btnLayout);
-        mainLayout->addLayout(editorLayout, 1);
+        mainLayout->addWidget(editorCard, 1);
     }
 
     QString getScript() const { return m_script; }
@@ -664,10 +645,11 @@ private:
     // 按钮样式辅助函数
     // =========================================================
     void styleButton(QPushButton* btn, bool isPrimary) {
+        auto &tm = Fluent::ThemeManager::instance();
         if (isPrimary) {
             btn->setStyleSheet(
-                "QPushButton {"
-                "  background-color: #6366f1;"
+                QString("QPushButton {"
+                "  background-color: %1;"
                 "  color: #ffffff;"
                 "  border: none;"
                 "  border-radius: 6px;"
@@ -676,29 +658,29 @@ private:
                 "  font-size: 10pt;"
                 "}"
                 "QPushButton:hover {"
-                "  background-color: #818cf8;"
+                "  background-color: %2;"
                 "}"
                 "QPushButton:pressed {"
-                "  background-color: #4f46e5;"
-                "}"
+                "  background-color: %3;"
+                "}").arg(tm.accentPrimary(), tm.accentHover(), tm.accentActive())
             );
         } else {
             btn->setStyleSheet(
-                "QPushButton {"
-                "  background-color: #27272a;"
-                "  color: #fafafa;"
-                "  border: 1px solid #3f3f46;"
+                QString("QPushButton {"
+                "  background-color: %1;"
+                "  color: %2;"
+                "  border: 1px solid %3;"
                 "  border-radius: 6px;"
                 "  padding: 8px 16px;"
                 "  font-size: 10pt;"
                 "}"
                 "QPushButton:hover {"
-                "  background-color: #3f3f46;"
-                "  border-color: #52525b;"
+                "  background-color: %3;"
+                "  border-color: %4;"
                 "}"
                 "QPushButton:pressed {"
-                "  background-color: #52525b;"
-                "}"
+                "  background-color: %4;"
+                "}").arg(tm.card(), tm.textPrimary(), tm.border(), tm.inputFocusBorder())
             );
         }
     }
@@ -706,16 +688,21 @@ private:
     // 创建快捷指令面板
     // =========================================================
     QWidget* createSnippetPanel() {
+        auto &tm = Fluent::ThemeManager::instance();
+
         QScrollArea* scrollArea = new QScrollArea(this);
-        scrollArea->setFixedWidth(240);
+        scrollArea->setFixedWidth(250);
         scrollArea->setWidgetResizable(true);
         scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        scrollArea->setStyleSheet("QScrollArea { background-color: #18181b; border: none; }");
+        scrollArea->setFrameShape(QFrame::NoFrame);
+        scrollArea->setStyleSheet(QString(
+            "QScrollArea { background: %1; border: 1px solid %2; border-radius: 8px; }"
+        ).arg(tm.card(), tm.border()));
 
         QWidget* panel = new QWidget();
-        panel->setStyleSheet("QWidget { background-color: #18181b; }");
+        panel->setStyleSheet(QString("background: transparent;"));
         QVBoxLayout* layout = new QVBoxLayout(panel);
-        layout->setContentsMargins(8, 8, 8, 8);
+        layout->setContentsMargins(12, 12, 12, 12);
         layout->setSpacing(10);
 
         // ---------------------------------------------------------
@@ -723,7 +710,7 @@ private:
         // ---------------------------------------------------------
         QGroupBox* touchGroup = new QGroupBox(tr("触摸操作"), panel);
         QVBoxLayout* touchLayout = new QVBoxLayout(touchGroup);
-        touchLayout->setSpacing(3);
+        touchLayout->setSpacing(4);
 
         addSnippetButton(touchLayout, tr("点击 (click)"),
             "mapi.click();  // 省略参数使用锚点位置，或 mapi.click(x, y);",
@@ -756,7 +743,7 @@ private:
         // ---------------------------------------------------------
         QGroupBox* keyGroup = new QGroupBox(tr("按键操作"), panel);
         QVBoxLayout* keyLayout = new QVBoxLayout(keyGroup);
-        keyLayout->setSpacing(3);
+        keyLayout->setSpacing(4);
 
         addSnippetButton(keyLayout, tr("执行按键 (key)"),
             "mapi.key(\"W\", 50);  // 执行 W 键，按下 50ms",
@@ -769,7 +756,7 @@ private:
         // ---------------------------------------------------------
         QGroupBox* viewGroup = new QGroupBox(tr("视角控制"), panel);
         QVBoxLayout* viewLayout = new QVBoxLayout(viewGroup);
-        viewLayout->setSpacing(3);
+        viewLayout->setSpacing(4);
 
         addSnippetButton(viewLayout, tr("重置视角"),
             "mapi.resetview();",
@@ -798,7 +785,7 @@ private:
         // ---------------------------------------------------------
         QGroupBox* queryGroup = new QGroupBox(tr("状态查询"), panel);
         QVBoxLayout* queryLayout = new QVBoxLayout(queryGroup);
-        queryLayout->setSpacing(3);
+        queryLayout->setSpacing(4);
 
         addSnippetButton(queryLayout, tr("获取鼠标位置"),
             "var pos = mapi.getmousepos();\nmapi.toast(\"x=\" + pos.x + \", y=\" + pos.y);",
@@ -827,7 +814,7 @@ private:
         // ---------------------------------------------------------
         QGroupBox* imageGroup = new QGroupBox(tr("图像识别"), panel);
         QVBoxLayout* imageLayout = new QVBoxLayout(imageGroup);
-        imageLayout->setSpacing(3);
+        imageLayout->setSpacing(4);
 
         // 区域找图按钮
         QPushButton* btnFindImage = new QPushButton(tr("区域找图 (findImage)"), this);
@@ -870,7 +857,7 @@ private:
         // ---------------------------------------------------------
         QGroupBox* utilGroup = new QGroupBox(tr("工具"), panel);
         QVBoxLayout* utilLayout = new QVBoxLayout(utilGroup);
-        utilLayout->setSpacing(3);
+        utilLayout->setSpacing(4);
 
         addSnippetButton(utilLayout, tr("延时 (sleep)"),
             "mapi.sleep(100);  // 暂停 100 毫秒",
@@ -903,7 +890,7 @@ private:
         // ---------------------------------------------------------
         QGroupBox* globalGroup = new QGroupBox(tr("全局状态"), panel);
         QVBoxLayout* globalLayout = new QVBoxLayout(globalGroup);
-        globalLayout->setSpacing(3);
+        globalLayout->setSpacing(4);
 
         addSnippetButton(globalLayout, tr("设置全局变量"),
             "mapi.setGlobal(\"模式\", \"攻击\");  // 设置全局状态",
@@ -920,7 +907,7 @@ private:
         // ---------------------------------------------------------
         QGroupBox* codeGroup = new QGroupBox(tr("代码结构"), panel);
         QVBoxLayout* codeLayout = new QVBoxLayout(codeGroup);
-        codeLayout->setSpacing(3);
+        codeLayout->setSpacing(4);
 
         addSnippetButton(codeLayout, tr("if 条件判断"),
             "// 条件判断：当 condition 为 true 时执行大括号内的代码\nif (condition) {\n    // 条件为真时执行的代码\n}",
@@ -963,25 +950,20 @@ private:
     // 添加快捷指令按钮
     // =========================================================
     void styleSnippetButton(QPushButton* btn) {
+        auto &tm = Fluent::ThemeManager::instance();
         btn->setStyleSheet(
-            "QPushButton {"
+            QString("QPushButton {"
+            "  background: transparent;"
+            "  color: %1;"
+            "  border: none;"
+            "  border-radius: 4px;"
+            "  padding: 4px 12px;"
             "  text-align: left;"
-            "  padding: 6px 10px;"
-            "  border: 1px solid #3f3f46;"
-            "  border-radius: 6px;"
-            "  background-color: #27272a;"
-            "  color: #e4e4e7;"
             "  font-size: 9pt;"
             "}"
             "QPushButton:hover {"
-            "  background-color: #3f3f46;"
-            "  border-color: #6366f1;"
-            "  color: #fafafa;"
-            "}"
-            "QPushButton:pressed {"
-            "  background-color: #6366f1;"
-            "  color: #ffffff;"
-            "}"
+            "  background: %2;"
+            "}").arg(tm.textPrimary(), tm.navHover())
         );
     }
 
@@ -1019,16 +1001,16 @@ private:
 
 private slots:
     QString getScriptPath() {
-        QString path = QCoreApplication::applicationDirPath() + "/keymap/scripts";
-        QDir dir(path);
-        if (!dir.exists()) {
-            dir.mkpath(".");
+        std::string pathStd = strutil::appDirPath() + "/keymap/scripts";
+        if (!std::filesystem::exists(pathStd)) {
+            std::filesystem::create_directories(pathStd);
         }
-        return path;
+        return strutil::toQ(pathStd);
     }
 
     void onOpenScriptDir() {
-        QDesktopServices::openUrl(QUrl::fromLocalFile(getScriptPath()));
+        QString path = getScriptPath();
+        ShellExecuteW(nullptr, L"open", path.toStdWString().c_str(), nullptr, nullptr, SW_SHOW);
     }
 
     void onSave() {
@@ -1060,6 +1042,101 @@ private:
     QString m_script;
     FrameGrabFunc m_frameGrabCallback;
     SelectionEditorDialog* m_selectionEditorDialog = nullptr;
+    QWidget* m_snippetPanel = nullptr;
+    QPushButton* m_btnTools = nullptr;
+    QPushButton* m_btnSave = nullptr;
+    bool m_onboardingShown = false;
+    Fluent::OnboardingOverlay* m_onboarding = nullptr;
+
+protected:
+    void showEvent(QShowEvent *event) override {
+        QDialog::showEvent(event);
+        if (!m_onboardingShown && !Config::getInstance().getOnboardingCompleted(Config::OB_SCRIPT_EDITOR)) {
+            m_onboardingShown = true;
+            QTimer::singleShot(500, this, [this]() {
+                startScriptEditorOnboarding();
+            });
+        }
+    }
+
+private:
+    void startScriptEditorOnboarding() {
+        if (m_onboarding) {
+            m_onboarding->deleteLater();
+            m_onboarding = nullptr;
+        }
+
+        using Fluent::OnboardingStep;
+        using Fluent::OnboardingOverlay;
+
+        m_onboarding = new OnboardingOverlay(this);
+
+        QVector<OnboardingStep> steps;
+
+        // ── 步骤 1: 欢迎 ──
+        steps.append({nullptr,
+            tr("脚本编辑器"),
+            tr("JavaScript 脚本编辑器，\n"
+               "用于为键位组件编写自动化宏脚本。\n"
+               "通过内置 mapi 对象控制设备。"),
+            QStringLiteral("*")});
+
+        // ── 步骤 2: 快捷指令面板 ──
+        if (m_snippetPanel) {
+            steps.append({m_snippetPanel,
+                tr("快捷指令面板"),
+                tr("左侧面板按分类列出所有 mapi API。\n"
+                   "点击按钮即可将代码模板插入编辑器。\n"
+                   "悬停按钮可查看参数说明。"),
+                QStringLiteral(">")});
+        }
+
+        // ── 步骤 3: 代码编辑器 ──
+        if (m_editor) {
+            steps.append({m_editor,
+                tr("代码编辑区"),
+                tr("编写 JavaScript 脚本代码。\n"
+                   "支持语法高亮、自动补全、括号匹配。\n"
+                   "用 mapi.isPress() 判断按下/松开。"),
+                QStringLiteral(">")});
+        }
+
+        // ── 步骤 4: 获取工具 ──
+        if (m_btnTools) {
+            steps.append({m_btnTools,
+                tr("获取工具按钮"),
+                tr("打开选区管理器，可在设备画面上\n"
+                   "获取坐标、创建按钮/滑动/图片等，\n"
+                   "自动生成代码插入编辑器。"),
+                QStringLiteral(">")});
+        }
+
+        // ── 步骤 5: 保存按钮 ──
+        if (m_btnSave) {
+            steps.append({m_btnSave,
+                tr("保存脚本"),
+                tr("保存后脚本绑定到当前键位组件。\n"
+                   "按下/松开绑定按键时会执行脚本。"),
+                QStringLiteral(">")});
+        }
+
+        // ── 步骤 6: 典型示例 ──
+        steps.append({nullptr,
+            tr("脚本编辑器引导完成!"),
+            tr("现在可以开始编写脚本了。\n"
+               "从左侧面板插入代码模板快速上手。"),
+            QStringLiteral("!")});
+
+        m_onboarding->setSteps(steps);
+
+        connect(m_onboarding, &OnboardingOverlay::finished, this, [this]() {
+            Config::getInstance().setOnboardingCompleted(Config::OB_SCRIPT_EDITOR, true);
+            m_onboarding->deleteLater();
+            m_onboarding = nullptr;
+        });
+
+        m_onboarding->start();
+    }
 };
 
 #endif // SCRIPTEDITORDIALOG_H

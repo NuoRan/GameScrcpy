@@ -3,7 +3,8 @@
 
 #include "interfaces/IControlChannel.h"
 #include <memory>
-#include <QTcpSocket>
+
+class NativeTcpSocket;
 
 namespace qsc {
 namespace core {
@@ -11,8 +12,8 @@ namespace core {
 /**
  * @brief TCP 控制通道实现 / TCP Control Channel Implementation
  *
- * 使用 QTcpSocket 实现 IControlChannel 接口。
- * Implements IControlChannel using QTcpSocket.
+ * 使用 NativeTcpSocket 实现 IControlChannel 接口。
+ * Implements IControlChannel using NativeTcpSocket.
  * 用于 USB 模式下的控制命令传输。
  * Used for control command transport in USB mode.
  */
@@ -31,10 +32,10 @@ public:
     const char* typeName() const override { return "TCP"; }
 
     // 获取底层 Socket（用于兼容旧代码）
-    QTcpSocket* socket() const { return m_socket.get(); }
+    NativeTcpSocket* socket() const { return m_socket.get(); }
 
 private:
-    std::unique_ptr<QTcpSocket> m_socket;
+    std::unique_ptr<NativeTcpSocket> m_socket;
     bool m_connected = false;
 };
 

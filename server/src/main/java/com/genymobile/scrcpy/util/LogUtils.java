@@ -1,6 +1,7 @@
 package com.genymobile.scrcpy.util;
 
 import com.genymobile.scrcpy.AndroidVersions;
+import com.genymobile.scrcpy.audio.AudioCodec;
 import com.genymobile.scrcpy.device.DeviceApp;
 import com.genymobile.scrcpy.device.DisplayInfo;
 import com.genymobile.scrcpy.device.Size;
@@ -23,15 +24,15 @@ public final class LogUtils {
         // not instantiable
     }
 
-    public static String buildVideoEncoderListMessage() {
-        StringBuilder builder = new StringBuilder("List of video encoders:");
+    private static String buildEncoderListMessage(String type, Codec[] codecs) {
+        StringBuilder builder = new StringBuilder("List of ").append(type).append(" encoders:");
         MediaCodecList codecList = new MediaCodecList(MediaCodecList.REGULAR_CODECS);
-        for (Codec codec : VideoCodec.values()) {
+        for (Codec codec : codecs) {
             MediaCodecInfo[] encoders = CodecUtils.getEncoders(codecList, codec.getMimeType());
             for (MediaCodecInfo info : encoders) {
                 int lineStart = builder.length();
-                builder.append("\n    --video-codec=").append(codec.getName());
-                builder.append(" --video-encoder=").append(info.getName());
+                builder.append("\n    --").append(type).append("-codec=").append(codec.getName());
+                builder.append(" --").append(type).append("-encoder=").append(info.getName());
                 if (Build.VERSION.SDK_INT >= AndroidVersions.API_29_ANDROID_10) {
                     int lineLength = builder.length() - lineStart;
                     final int column = 70;
@@ -50,6 +51,14 @@ public final class LogUtils {
             }
         }
         return builder.toString();
+    }
+
+    public static String buildVideoEncoderListMessage() {
+        return buildEncoderListMessage("video", VideoCodec.values());
+    }
+
+    public static String buildAudioEncoderListMessage() {
+        return buildEncoderListMessage("audio", AudioCodec.values());
     }
 
     @TargetApi(AndroidVersions.API_29_ANDROID_10)

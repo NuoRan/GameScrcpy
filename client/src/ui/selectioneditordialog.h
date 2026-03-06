@@ -10,13 +10,15 @@
 #include <QLabel>
 #include <QImage>
 #include <QPainter>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 #include <QMenu>
 #include <QAction>
 #include <QMessageBox>
 #include <QInputDialog>
 #include <QFileDialog>
-#include <QDesktopServices>
-#include <QUrl>
+#include <windows.h>
+#include <shellapi.h>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
@@ -24,10 +26,13 @@
 #include <QApplication>
 #include <QScrollArea>
 #include <QScrollBar>
-#include <QDir>
+#include <filesystem>
 #include <QTimer>
 #include <QFrame>
 #include <QToolButton>
+#include <QStackedWidget>
+#include <QSvgRenderer>
+#include <QPixmap>
 #include <functional>
 #include <cmath>
 
@@ -39,6 +44,10 @@
 #include "scriptbuttonmanager.h"
 #include "scriptswipemanager.h"
 #include "imagecapturedialog.h"
+#include "ThemeManager.h"
+#include "DesignTokens.h"
+#include "OnboardingOverlay.h"
+#include "config.h"
 
 // 帧获取回调类型 / Frame grab callback type
 using FrameGrabFunc = std::function<QImage()>;
@@ -206,8 +215,8 @@ protected:
         QPainter painter(this);
 
         if (m_scaledFrame.isNull()) {
-            painter.fillRect(rect(), QColor(0x09, 0x09, 0x0b));
-            painter.setPen(QColor(0xa1, 0xa1, 0xaa));
+            painter.fillRect(rect(), Fluent::ThemeManager::instance().baseColor());
+            painter.setPen(QColor(Fluent::ThemeManager::instance().textTertiary()));
             painter.drawText(rect(), Qt::AlignCenter, tr("无预览帧\n请先连接设备"));
             return;
         }
@@ -524,7 +533,7 @@ private:
         update();
     }
 
-    void drawHandles(QPainter& painter, const QRectF& r, const QColor& color = QColor(99, 102, 241)) const {
+    void drawHandles(QPainter& painter, const QRectF& r, const QColor& color = Fluent::ThemeManager::instance().accentColor()) const {
         painter.setBrush(color);
         painter.setPen(QPen(Qt::white, 1));
         const double hs = 6.0;
@@ -583,72 +592,25 @@ public:
         setMinimumSize(700, 450);
 
 #ifdef Q_OS_WIN
-        WinUtils::setDarkBorderToWindow(reinterpret_cast<HWND>(winId()), true);
+        WinUtils::setDarkBorderToWindow(reinterpret_cast<HWND>(winId()),
+            Fluent::ThemeManager::instance().isDarkMode());
 #endif
 
-        setStyleSheet(
-            "QDialog { background-color: #18181b; }"
-            "QWidget { background-color: #18181b; }"
-            "QLabel { color: #fafafa; background: transparent; }"
-            "QListWidget {"
-            "  background-color: #1e1e1e;"
-            "  color: #e4e4e7;"
-            "  border: 1px solid #3f3f46;"
-            "  border-radius: 6px;"
-            "  font-family: 'Consolas', 'Monaco', monospace;"
-            "  font-size: 10pt;"
-            "  outline: none;"
-            "}"
-            "QListWidget::item {"
-            "  padding: 8px 10px;"
-            "  border-bottom: 1px solid #27272a;"
-            "}"
-            "QListWidget::item:selected {"
-            "  background-color: #6366f1;"
-            "  color: #ffffff;"
-            "}"
-            "QListWidget::item:hover:!selected {"
-            "  background-color: #27272a;"
-            "}"
-            "QMenu {"
-            "  background-color: #18181b;"
-            "  color: #fafafa;"
-            "  border: 1px solid #3f3f46;"
-            "  border-radius: 6px;"
-            "  padding: 4px;"
-            "}"
-            "QMenu::item {"
-            "  padding: 8px 16px;"
-            "  border-radius: 4px;"
-            "}"
-            "QMenu::item:selected {"
-            "  background-color: #6366f1;"
-            "}"
-            "QMenu::separator {"
-            "  height: 1px;"
-            "  background-color: #3f3f46;"
-            "  margin: 4px 8px;"
-            "}"
-            "QMessageBox { background-color: #18181b; color: #fafafa; }"
-            "QMessageBox QLabel { color: #fafafa; }"
-            "QMessageBox QPushButton {"
-            "  background-color: #27272a;"
-            "  color: #fafafa;"
-            "  border: 1px solid #3f3f46;"
-            "  border-radius: 6px;"
-            "  padding: 6px 16px;"
-            "}"
-            "QMessageBox QPushButton:hover { background-color: #3f3f46; }"
-        );
+        // 使用全局 Fluent QSS 主题 — 仅补充局部样式
+        auto &tm = Fluent::ThemeManager::instance();
+
+        // 对话框整体背景用 base 色 (#09090B)，三色方案
+        setStyleSheet(QString("SelectionEditorDialog { background-color: %1; }").arg(tm.base()));
 
         // --- 主布局 ---
-        QHBoxLayout* mainLayout = new QHBoxLayout(this);
+        QVBoxLayout* mainLayout = new QVBoxLayout(this);
         mainLayout->setContentsMargins(0, 0, 0, 0);
         mainLayout->setSpacing(0);
 
         QSplitter* splitter = new QSplitter(Qt::Horizontal, this);
         splitter->setStyleSheet(
-            "QSplitter::handle { background-color: #3f3f46; width: 2px; }");
+            QString("QSplitter::handle { background-color: %1; width: 2px; }")
+            .arg(Fluent::ThemeManager::instance().border()));
         splitter->setChildrenCollapsible(false);
 
         // =========================================================
@@ -661,20 +623,141 @@ public:
         QScrollArea* leftScroll = new QScrollArea(this);
         leftScroll->setWidgetResizable(true);
         leftScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-        leftScroll->setStyleSheet("QScrollArea { border: none; background-color: #18181b; }"
-                                  "QScrollBar:vertical { background: #18181b; width: 6px; }"
-                                  "QScrollBar::handle:vertical { background: #3f3f46; border-radius: 3px; min-height: 30px; }"
-                                  "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }");
 
         QVBoxLayout* leftLayout = new QVBoxLayout(leftPanel);
         leftLayout->setContentsMargins(12, 12, 12, 12);
         leftLayout->setSpacing(8);
 
+        // ---- 分段控件（选区 / 按钮 / 滑动 三个 Tab） ----
+        QWidget* tabBar = new QWidget(this);
+        tabBar->setStyleSheet(QString("background: transparent; border-bottom: 1px solid %1;").arg(tm.border()));
+        QHBoxLayout* tabBarLayout = new QHBoxLayout(tabBar);
+        tabBarLayout->setContentsMargins(0, 0, 0, 0);
+        tabBarLayout->setSpacing(0);
+
+        auto makeTab = [this, &tm](const QString& text) -> QPushButton* {
+            QPushButton* btn = new QPushButton(text, this);
+            btn->setCheckable(true);
+            btn->setFixedHeight(32);
+            btn->setCursor(Qt::PointingHandCursor);
+            btn->setStyleSheet(
+                QString("QPushButton { background: transparent; color: %1; border: none;"
+                "  border-bottom: 2px solid transparent; font-size: 10pt; font-weight: 500;"
+                "  padding: 4px 0px; }"
+                "QPushButton:hover { color: %2; }"
+                "QPushButton:checked { color: %2; border-bottom-color: %3; font-weight: 600; }")
+                .arg(tm.textSecondary(), tm.textPrimary(), tm.accentPrimary()));
+            return btn;
+        };
+
+        m_tabRegion = makeTab(tr("选区"));
+        m_tabButton = makeTab(tr("按钮"));
+        m_tabSwipe  = makeTab(tr("滑动"));
+        m_tabRegion->setChecked(true);
+
+        tabBarLayout->addWidget(m_tabRegion, 1);
+        tabBarLayout->addWidget(m_tabButton, 1);
+        tabBarLayout->addWidget(m_tabSwipe, 1);
+        leftLayout->addWidget(tabBar);
+
+        // ---- QStackedWidget: 三个列表页面 ----
+        m_listStack = new QStackedWidget(this);
+
+        // Page 1: 按钮列表
+        m_buttonListContainer = new QWidget(this);
+        QVBoxLayout* btnContainerLayout = new QVBoxLayout(m_buttonListContainer);
+        btnContainerLayout->setContentsMargins(0, 0, 0, 0);
+        btnContainerLayout->setSpacing(4);
+
+        m_buttonListWidget = new QListWidget(this);
+        m_buttonListWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+        m_buttonListWidget->setSelectionMode(QAbstractItemView::SingleSelection);
+        connect(m_buttonListWidget, &QListWidget::customContextMenuRequested,
+                this, &SelectionEditorDialog::onButtonContextMenu);
+        connect(m_buttonListWidget, &QListWidget::currentRowChanged,
+                this, &SelectionEditorDialog::onButtonSelectionChanged);
+        btnContainerLayout->addWidget(m_buttonListWidget);
+
+        m_buttonInfoLabel = new QLabel(tr("共 0 个按钮"), this);
+        m_buttonInfoLabel->setStyleSheet(QString("color: %1; font-size: 9pt;").arg(tm.textSecondary()));
+        btnContainerLayout->addWidget(m_buttonInfoLabel);
+
+        m_listStack->addWidget(m_buttonListContainer);
+
+        // ---- 滑动列表 ----
+
+        // Page 2: 滑动列表
+        m_swipeListContainer = new QWidget(this);
+        QVBoxLayout* swipeContainerLayout = new QVBoxLayout(m_swipeListContainer);
+        swipeContainerLayout->setContentsMargins(0, 0, 0, 0);
+        swipeContainerLayout->setSpacing(4);
+
+        m_swipeListWidget = new QListWidget(this);
+        m_swipeListWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+        m_swipeListWidget->setSelectionMode(QAbstractItemView::SingleSelection);
+        connect(m_swipeListWidget, &QListWidget::customContextMenuRequested,
+                this, &SelectionEditorDialog::onSwipeContextMenu);
+        connect(m_swipeListWidget, &QListWidget::currentRowChanged,
+                this, &SelectionEditorDialog::onSwipeSelectionChanged);
+        swipeContainerLayout->addWidget(m_swipeListWidget);
+
+        m_swipeInfoLabel = new QLabel(tr("共 0 个滑动"), this);
+        m_swipeInfoLabel->setStyleSheet(QString("color: %1; font-size: 9pt;").arg(tm.textSecondary()));
+        swipeContainerLayout->addWidget(m_swipeInfoLabel);
+
+        m_listStack->addWidget(m_swipeListContainer);
+
+        // ---- 选区列表 ----
+
+        // Page 0: 选区列表
+        m_regionListContainer = new QWidget(this);
+        QVBoxLayout* regionContainerLayout = new QVBoxLayout(m_regionListContainer);
+        regionContainerLayout->setContentsMargins(0, 0, 0, 0);
+        regionContainerLayout->setSpacing(4);
+
+        m_listWidget = new QListWidget(this);
+        m_listWidget->setContextMenuPolicy(Qt::CustomContextMenu);
+        m_listWidget->setSelectionMode(QAbstractItemView::SingleSelection);
+        connect(m_listWidget, &QListWidget::customContextMenuRequested,
+                this, &SelectionEditorDialog::onContextMenu);
+        connect(m_listWidget, &QListWidget::currentRowChanged,
+                this, &SelectionEditorDialog::onSelectionChanged);
+        regionContainerLayout->addWidget(m_listWidget);
+
+        m_infoLabel = new QLabel(tr("共 0 个选区"), this);
+        m_infoLabel->setStyleSheet(QString("color: %1; font-size: 9pt;").arg(tm.textSecondary()));
+        regionContainerLayout->addWidget(m_infoLabel);
+
+        m_listStack->addWidget(m_regionListContainer);
+
+        leftLayout->addWidget(m_listStack, 1);
+
+        // ---- Tab 切换逻辑 ----
+        // QStackedWidget 页面顺序: 0=按钮, 1=滑动, 2=选区
+        auto switchTab = [this](int tabId) {
+            m_tabRegion->setChecked(tabId == 0);
+            m_tabButton->setChecked(tabId == 1);
+            m_tabSwipe->setChecked(tabId == 2);
+            static const int pageMap[] = {2, 0, 1}; // 选区→2, 按钮→0, 滑动→1
+            m_listStack->setCurrentIndex(pageMap[tabId]);
+        };
+        connect(m_tabRegion, &QPushButton::clicked, [switchTab]() { switchTab(0); });
+        connect(m_tabButton, &QPushButton::clicked, [switchTab]() { switchTab(1); });
+        connect(m_tabSwipe,  &QPushButton::clicked, [switchTab]() { switchTab(2); });
+        switchTab(0); // 默认选中"选区"页
+
+        // ---- 分隔线 ----
+        QFrame* separator = new QFrame(this);
+        separator->setFrameShape(QFrame::HLine);
+        separator->setStyleSheet(QString("color: %1;").arg(tm.border()));
+        leftLayout->addWidget(separator);
+
+        // ---- 操作按钮区域 ----
         QLabel* opLabel = new QLabel(tr("操作"), this);
-        opLabel->setStyleSheet("color: #a1a1aa; font-size: 9pt; font-weight: bold;");
+        opLabel->setStyleSheet(QString("color: %1; font-size: 9pt; font-weight: bold;").arg(tm.textTertiary()));
         leftLayout->addWidget(opLabel);
 
-        // 第一行 (NEW): 新建按钮 + 新建滑动
+        // 第一行: 新建按钮 + 新建滑动
         QHBoxLayout* row0 = new QHBoxLayout();
         row0->setSpacing(6);
         m_btnCreateButton = new QPushButton(tr("新建按钮"), this);
@@ -713,10 +796,10 @@ public:
         QPushButton* btnOpenDir = new QPushButton(tr("打开文件夹"), this);
         styleActionButton(btnOpenDir);
         connect(btnOpenDir, &QPushButton::clicked, []() {
-            QString dir = SelectionRegionManager::configDir();
-            QDir d(dir);
-            if (!d.exists()) d.mkpath(".");
-            QDesktopServices::openUrl(QUrl::fromLocalFile(dir));
+            std::string dir = SelectionRegionManager::configDir();
+            std::filesystem::create_directories(dir);
+            std::wstring wdir(dir.begin(), dir.end());
+            ShellExecuteW(nullptr, L"open", wdir.c_str(), nullptr, nullptr, SW_SHOW);
         });
         row2->addWidget(btnOpenDir);
         leftLayout->addLayout(row2);
@@ -727,124 +810,10 @@ public:
         connect(m_btnGetPos, &QPushButton::clicked, this, &SelectionEditorDialog::onToggleGetPositionMode);
         leftLayout->addWidget(m_btnGetPos);
 
-        QFrame* separator = new QFrame(this);
-        separator->setFrameShape(QFrame::HLine);
-        separator->setStyleSheet("color: #3f3f46;");
-        leftLayout->addWidget(separator);
-
-        // ---- 按钮列表 (可折叠) ----
-        auto createSectionHeader = [this](const QString& title, bool expanded = true) -> QToolButton* {
-            QToolButton* toggle = new QToolButton(this);
-            toggle->setText(title);
-            toggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-            toggle->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
-            toggle->setCheckable(true);
-            toggle->setChecked(expanded);
-            toggle->setStyleSheet(
-                "QToolButton {"
-                "  color: #a1a1aa; font-size: 9pt; font-weight: bold;"
-                "  background: transparent; border: none; padding: 2px 0px;"
-                "}"
-                "QToolButton:hover { color: #fafafa; }"
-            );
-            return toggle;
-        };
-
-        QToolButton* btnSectionToggle = createSectionHeader(tr("按钮列表"));
-        leftLayout->addWidget(btnSectionToggle);
-
-        m_buttonListContainer = new QWidget(this);
-        QVBoxLayout* btnContainerLayout = new QVBoxLayout(m_buttonListContainer);
-        btnContainerLayout->setContentsMargins(0, 0, 0, 0);
-        btnContainerLayout->setSpacing(4);
-
-        m_buttonListWidget = new QListWidget(this);
-        m_buttonListWidget->setContextMenuPolicy(Qt::CustomContextMenu);
-        m_buttonListWidget->setSelectionMode(QAbstractItemView::SingleSelection);
-        m_buttonListWidget->setMaximumHeight(120);
-        connect(m_buttonListWidget, &QListWidget::customContextMenuRequested,
-                this, &SelectionEditorDialog::onButtonContextMenu);
-        connect(m_buttonListWidget, &QListWidget::currentRowChanged,
-                this, &SelectionEditorDialog::onButtonSelectionChanged);
-        btnContainerLayout->addWidget(m_buttonListWidget);
-
-        m_buttonInfoLabel = new QLabel(tr("共 0 个按钮"), this);
-        m_buttonInfoLabel->setStyleSheet("color: #71717a; font-size: 9pt;");
-        btnContainerLayout->addWidget(m_buttonInfoLabel);
-
-        leftLayout->addWidget(m_buttonListContainer);
-
-        connect(btnSectionToggle, &QToolButton::toggled, [this, btnSectionToggle](bool checked) {
-            m_buttonListContainer->setVisible(checked);
-            btnSectionToggle->setArrowType(checked ? Qt::DownArrow : Qt::RightArrow);
-        });
-
-        // ---- 滑动列表 (可折叠) ----
-        QToolButton* swipeSectionToggle = createSectionHeader(tr("滑动列表"));
-        leftLayout->addWidget(swipeSectionToggle);
-
-        m_swipeListContainer = new QWidget(this);
-        QVBoxLayout* swipeContainerLayout = new QVBoxLayout(m_swipeListContainer);
-        swipeContainerLayout->setContentsMargins(0, 0, 0, 0);
-        swipeContainerLayout->setSpacing(4);
-
-        m_swipeListWidget = new QListWidget(this);
-        m_swipeListWidget->setContextMenuPolicy(Qt::CustomContextMenu);
-        m_swipeListWidget->setSelectionMode(QAbstractItemView::SingleSelection);
-        m_swipeListWidget->setMaximumHeight(120);
-        connect(m_swipeListWidget, &QListWidget::customContextMenuRequested,
-                this, &SelectionEditorDialog::onSwipeContextMenu);
-        connect(m_swipeListWidget, &QListWidget::currentRowChanged,
-                this, &SelectionEditorDialog::onSwipeSelectionChanged);
-        swipeContainerLayout->addWidget(m_swipeListWidget);
-
-        m_swipeInfoLabel = new QLabel(tr("共 0 个滑动"), this);
-        m_swipeInfoLabel->setStyleSheet("color: #71717a; font-size: 9pt;");
-        swipeContainerLayout->addWidget(m_swipeInfoLabel);
-
-        leftLayout->addWidget(m_swipeListContainer);
-
-        connect(swipeSectionToggle, &QToolButton::toggled, [this, swipeSectionToggle](bool checked) {
-            m_swipeListContainer->setVisible(checked);
-            swipeSectionToggle->setArrowType(checked ? Qt::DownArrow : Qt::RightArrow);
-        });
-
-        // ---- 选区列表 (可折叠) ----
-        QToolButton* regionSectionToggle = createSectionHeader(tr("选区列表"));
-        leftLayout->addWidget(regionSectionToggle);
-
-        m_regionListContainer = new QWidget(this);
-        QVBoxLayout* regionContainerLayout = new QVBoxLayout(m_regionListContainer);
-        regionContainerLayout->setContentsMargins(0, 0, 0, 0);
-        regionContainerLayout->setSpacing(4);
-
-        m_listWidget = new QListWidget(this);
-        m_listWidget->setContextMenuPolicy(Qt::CustomContextMenu);
-        m_listWidget->setSelectionMode(QAbstractItemView::SingleSelection);
-        connect(m_listWidget, &QListWidget::customContextMenuRequested,
-                this, &SelectionEditorDialog::onContextMenu);
-        connect(m_listWidget, &QListWidget::currentRowChanged,
-                this, &SelectionEditorDialog::onSelectionChanged);
-        regionContainerLayout->addWidget(m_listWidget);
-
-        m_infoLabel = new QLabel(tr("共 0 个选区"), this);
-        m_infoLabel->setStyleSheet("color: #71717a; font-size: 9pt;");
-        regionContainerLayout->addWidget(m_infoLabel);
-
-        leftLayout->addWidget(m_regionListContainer, 1);
-
-        connect(regionSectionToggle, &QToolButton::toggled, [this, regionSectionToggle](bool checked) {
-            m_regionListContainer->setVisible(checked);
-            regionSectionToggle->setArrowType(checked ? Qt::DownArrow : Qt::RightArrow);
-        });
-
-        leftLayout->addStretch();
-
         leftScroll->setWidget(leftPanel);
-        splitter->addWidget(leftScroll);
 
         // =========================================================
-        // 右侧面板: 工具栏 + 滚动预览区
+        // 左侧面板: 工具栏 + 滚动预览区 (MD: 预览在左)
         // =========================================================
         QWidget* rightPanel = new QWidget(this);
         QVBoxLayout* rightLayout = new QVBoxLayout(rightPanel);
@@ -853,59 +822,76 @@ public:
 
         // 工具栏
         QWidget* toolbar = new QWidget(this);
-        toolbar->setStyleSheet("background-color: #18181b;");
+        toolbar->setStyleSheet(QString("background-color: %1; border-bottom: 1px solid %2;").arg(tm.card(), tm.border()));
         QHBoxLayout* toolbarLayout = new QHBoxLayout(toolbar);
         toolbarLayout->setContentsMargins(12, 5, 12, 5);
 
         m_hintLabel = new QLabel(this);
-        m_hintLabel->setStyleSheet("color: #a1a1aa; font-size: 11px;");
+        m_hintLabel->setStyleSheet(QString("color: %1; font-size: 11px;").arg(tm.textTertiary()));
         toolbarLayout->addWidget(m_hintLabel);
 
         toolbarLayout->addStretch();
 
         m_scaleLabel = new QLabel("100%", this);
-        m_scaleLabel->setStyleSheet("color: #a1a1aa; font-size: 11px;");
+        m_scaleLabel->setStyleSheet(QString("color: %1; font-size: 11px;").arg(tm.textTertiary()));
         toolbarLayout->addWidget(m_scaleLabel);
 
-        auto makeToolBtn = [&](const QString& text, int w = 28) {
-            QPushButton* btn = new QPushButton(text, this);
+        auto makeToolBtn = [&](const QString& iconPath, const QString& fallbackText, int w = 28) {
+            QPushButton* btn = new QPushButton(this);
             btn->setFixedSize(w, 26);
+            // 加载 SVG 图标并染色
+            QSvgRenderer renderer(iconPath);
+            if (renderer.isValid()) {
+                QPixmap px(16, 16);
+                px.fill(Qt::transparent);
+                QPainter p(&px);
+                renderer.render(&p);
+                p.setCompositionMode(QPainter::CompositionMode_SourceIn);
+                p.fillRect(px.rect(), QColor(tm.textPrimary()));
+                p.end();
+                btn->setIcon(QIcon(px));
+                btn->setIconSize(QSize(16, 16));
+            } else {
+                btn->setText(fallbackText);
+            }
             btn->setStyleSheet(
-                "QPushButton { background: #27272a; color: #fafafa; border: 1px solid #3f3f46;"
-                "  border-radius: 6px; font-weight: bold; }"
-                "QPushButton:hover { background: #3f3f46; border-color: #6366f1; }");
+                QString("QPushButton { background: %1; color: %2; border: 1px solid %3;"
+                "  border-radius: 6px; font-weight: bold; font-size: 12px; }"
+                "QPushButton:hover { background: %4; border-color: %5; color: #ffffff; }")
+                .arg(tm.card(), tm.textPrimary(), tm.border(), tm.accentPrimary(), tm.accentPrimary()));
             return btn;
         };
 
-        QPushButton* btnRefresh = makeToolBtn("⟳", 32);
+        QPushButton* btnRefresh = makeToolBtn(QStringLiteral(":/icons/refresh.svg"), "R", 32);
         btnRefresh->setToolTip(tr("刷新帧"));
         connect(btnRefresh, &QPushButton::clicked, this, &SelectionEditorDialog::refreshFrame);
         toolbarLayout->addWidget(btnRefresh);
 
-        QPushButton* btnZoomIn = makeToolBtn("+");
+        QPushButton* btnZoomIn = makeToolBtn(QStringLiteral(":/icons/zoom-in.svg"), "+");
         connect(btnZoomIn, &QPushButton::clicked, [this]() { zoom(0.25); });
         toolbarLayout->addWidget(btnZoomIn);
 
-        QPushButton* btnZoomOut = makeToolBtn("-");
+        QPushButton* btnZoomOut = makeToolBtn(QStringLiteral(":/icons/zoom-out.svg"), "-");
         connect(btnZoomOut, &QPushButton::clicked, [this]() { zoom(-0.25); });
         toolbarLayout->addWidget(btnZoomOut);
 
-        QPushButton* btnFit = makeToolBtn(tr("适应"), 42);
+        QPushButton* btnFit = makeToolBtn(QStringLiteral(":/icons/maximize.svg"), tr("适应"), 42);
         connect(btnFit, &QPushButton::clicked, this, &SelectionEditorDialog::fitToWindow);
         toolbarLayout->addWidget(btnFit);
 
         // 图层切换按钮
         auto makeLayerToggle = [&](const QString& text, PreviewLayer layer, int w = 36) {
             QPushButton* btn = new QPushButton(text, this);
-            btn->setFixedSize(w, 26);
+            btn->setFixedSize(w, 28);
             btn->setCheckable(true);
             btn->setChecked(true);
             btn->setToolTip(tr("显示/隐藏图层"));
             btn->setStyleSheet(
-                "QPushButton { background: #27272a; color: #a1a1aa; border: 1px solid #3f3f46;"
-                "  border-radius: 6px; font-size: 9pt; }"
-                "QPushButton:hover { background: #3f3f46; border-color: #6366f1; color: #fafafa; }"
-                "QPushButton:checked { background: #3f3f46; color: #fafafa; border-color: #6366f1; }");
+                QString("QPushButton { background: %1; color: %2; border: 1px solid %3;"
+                "  border-radius: 6px; font-size: 10px; padding: 0 6px; }"
+                "QPushButton:hover { background: %3; border-color: %4; color: %5; }"
+                "QPushButton:checked { background: %3; color: %5; border-color: %4; }")
+                .arg(tm.card(), tm.textSecondary(), tm.border(), tm.accentPrimary(), tm.textPrimary()));
             connect(btn, &QPushButton::toggled, [this, layer](bool checked) {
                 if (m_preview) m_preview->setLayerVisible(layer, checked);
             });
@@ -916,18 +902,18 @@ public:
         QFrame* tbSep = new QFrame(this);
         tbSep->setFrameShape(QFrame::VLine);
         tbSep->setFixedSize(1, 20);
-        tbSep->setStyleSheet("background: #3f3f46;");
+        tbSep->setStyleSheet(QString("background: %1;").arg(tm.border()));
         toolbarLayout->addWidget(tbSep);
 
-        toolbarLayout->addWidget(makeLayerToggle(tr("按钮"), PreviewLayer::Buttons, 40));
-        toolbarLayout->addWidget(makeLayerToggle(tr("滑动"), PreviewLayer::Swipes, 40));
-        toolbarLayout->addWidget(makeLayerToggle(tr("选区"), PreviewLayer::Regions, 40));
+        toolbarLayout->addWidget(makeLayerToggle(tr("按钮"), PreviewLayer::Buttons, 50));
+        toolbarLayout->addWidget(makeLayerToggle(tr("滑动"), PreviewLayer::Swipes, 50));
+        toolbarLayout->addWidget(makeLayerToggle(tr("选区"), PreviewLayer::Regions, 50));
 
         rightLayout->addWidget(toolbar);
 
         // 滚动预览区
         m_scrollArea = new QScrollArea(this);
-        m_scrollArea->setStyleSheet("QScrollArea { background-color: #09090b; border: none; }");
+        m_scrollArea->setStyleSheet(QString("QScrollArea { background-color: %1; border: none; }").arg(tm.base()));
         m_scrollArea->setWidgetResizable(false);
         m_scrollArea->setAlignment(Qt::AlignCenter);
 
@@ -943,21 +929,50 @@ public:
 
         rightLayout->addWidget(m_scrollArea, 1);
 
+        // MD布局: 左=预览, 右=管理面板
         splitter->addWidget(rightPanel);
+        splitter->addWidget(leftScroll);
 
-        splitter->setStretchFactor(0, 3);
-        splitter->setStretchFactor(1, 7);
+        splitter->setStretchFactor(0, 7);   // 预览: 70%
+        splitter->setStretchFactor(1, 3);   // 管理面板: 30%
 
-        mainLayout->addWidget(splitter);
+        mainLayout->addWidget(splitter, 1);
+
+        // ---- 状态栏 ----
+        m_statusBar = new QWidget(this);
+        m_statusBar->setFixedHeight(24);
+        m_statusBar->setStyleSheet(QString("background-color: %1; border-top: 1px solid %2;")
+            .arg(tm.card(), tm.border()));
+        QHBoxLayout* statusLayout = new QHBoxLayout(m_statusBar);
+        statusLayout->setContentsMargins(12, 0, 12, 0);
+        statusLayout->setSpacing(16);
+
+        m_statusScaleLabel = new QLabel(QString("缩放: 100%"), this);
+        m_statusScaleLabel->setStyleSheet(QString("color: %1; font-size: 9pt;").arg(tm.textTertiary()));
+        statusLayout->addWidget(m_statusScaleLabel);
+
+        m_statusModeLabel = new QLabel(QString("模式: %1").arg(tr("浏览")), this);
+        m_statusModeLabel->setStyleSheet(QString("color: %1; font-size: 9pt;").arg(tm.textTertiary()));
+        statusLayout->addWidget(m_statusModeLabel);
+
+        statusLayout->addStretch();
+
+        m_statusCountLabel = new QLabel(QString("选区: 0 | 按钮: 0 | 滑动: 0"), this);
+        m_statusCountLabel->setStyleSheet(QString("color: %1; font-size: 9pt;").arg(tm.textTertiary()));
+        statusLayout->addWidget(m_statusCountLabel);
+
+        mainLayout->addWidget(m_statusBar);
 
         // --- 浮动确认栏 (覆盖在 scrollArea 之上，初始隐藏) ---
         m_confirmBar = new QWidget(m_scrollArea->viewport());
         m_confirmBar->setStyleSheet(
-            "QWidget#confirmBar {"
-            "  background-color: rgba(24, 24, 27, 220);"
-            "  border: 1px solid #6366f1;"
+            QString("QWidget#confirmBar {"
+            "  background-color: rgba(%1, %2, %3, 220);"
+            "  border: 1px solid %4;"
             "  border-radius: 6px;"
-            "}"
+            "}")
+            .arg(tm.baseColor().red()).arg(tm.baseColor().green()).arg(tm.baseColor().blue())
+            .arg(tm.accentPrimary())
         );
         m_confirmBar->setObjectName("confirmBar");
         QHBoxLayout* confirmLayout = new QHBoxLayout(m_confirmBar);
@@ -965,26 +980,28 @@ public:
         confirmLayout->setSpacing(6);
 
         m_confirmHintLabel = new QLabel("", m_confirmBar);
-        m_confirmHintLabel->setStyleSheet("color: #a1a1aa; font-size: 11px; background: transparent;");
+        m_confirmHintLabel->setStyleSheet(QString("color: %1; font-size: 11px; background: transparent;").arg(tm.textTertiary()));
         confirmLayout->addWidget(m_confirmHintLabel);
 
         confirmLayout->addStretch();
 
         m_btnConfirmCancel = new QPushButton(tr("取消"), m_confirmBar);
-        m_btnConfirmCancel->setFixedSize(50, 24);
+        m_btnConfirmCancel->setFixedSize(60, 26);
         m_btnConfirmCancel->setStyleSheet(
-            "QPushButton { background: #3f3f46; color: #fafafa; border: 1px solid #52525b;"
+            QString("QPushButton { background: %1; color: %2; border: 1px solid %3;"
             "  border-radius: 4px; font-size: 10pt; }"
-            "QPushButton:hover { background: #52525b; }");
+            "QPushButton:hover { background: %3; }")
+            .arg(tm.border(), tm.textPrimary(), tm.textTertiary()));
         connect(m_btnConfirmCancel, &QPushButton::clicked, this, &SelectionEditorDialog::onPendingCancel);
         confirmLayout->addWidget(m_btnConfirmCancel);
 
         m_btnConfirmOk = new QPushButton(tr("确定"), m_confirmBar);
-        m_btnConfirmOk->setFixedSize(50, 24);
+        m_btnConfirmOk->setFixedSize(60, 26);
         m_btnConfirmOk->setStyleSheet(
-            "QPushButton { background: #6366f1; color: #ffffff; border: none;"
+            QString("QPushButton { background: %1; color: #ffffff; border: none;"
             "  border-radius: 4px; font-size: 10pt; }"
-            "QPushButton:hover { background: #818cf8; }");
+            "QPushButton:hover { background: %2; }")
+            .arg(tm.accentPrimary(), tm.accentHover()));
         connect(m_btnConfirmOk, &QPushButton::clicked, this, &SelectionEditorDialog::onPendingConfirm);
         confirmLayout->addWidget(m_btnConfirmOk);
 
@@ -1042,6 +1059,16 @@ protected:
         }
 
         return QDialog::eventFilter(obj, event);
+    }
+
+    void showEvent(QShowEvent *event) override {
+        QDialog::showEvent(event);
+        if (!m_onboardingShown && !Config::getInstance().getOnboardingCompleted(Config::OB_SELECTION_TOOL)) {
+            m_onboardingShown = true;
+            QTimer::singleShot(600, this, [this]() {
+                startSelectionToolOnboarding();
+            });
+        }
     }
 
     void keyPressEvent(QKeyEvent* event) override {
@@ -1131,7 +1158,7 @@ private slots:
     void onImportRegion() {
         QString filePath = QFileDialog::getOpenFileName(
             this, tr("导入选区配置"),
-            SelectionRegionManager::configDir(),
+            QString::fromStdString(SelectionRegionManager::configDir()),
             "JSON Files (*.json);;All Files (*)");
         if (filePath.isEmpty()) return;
 
@@ -2245,6 +2272,7 @@ private:
             m_preview->setScale(newScale);
         }
         m_scaleLabel->setText(QString("%1%").arg(int(m_preview->scale() * 100)));
+        if (m_statusScaleLabel) m_statusScaleLabel->setText(QString("缩放: %1%").arg(int(m_preview->scale() * 100)));
 
         // 缩放后更新确认栏位置
         if (m_pendingConfirm) {
@@ -2262,6 +2290,7 @@ private:
         double s = qMin(sw, sh);
         m_preview->setScale(s);
         if (m_scaleLabel) m_scaleLabel->setText(QString("%1%").arg(int(s * 100)));
+        if (m_statusScaleLabel) m_statusScaleLabel->setText(QString("缩放: %1%").arg(int(s * 100)));
 
         if (m_pendingConfirm) {
             QTimer::singleShot(0, this, [this]() { updateConfirmBarPosition(); });
@@ -2273,6 +2302,7 @@ private:
     // =========================================================
     void updateHint() {
         if (!m_hintLabel) return;
+        QString modeText;
         if (m_pendingConfirm) {
             if (m_currentCreateMode == CreateMode::GetPosition && m_preview && m_preview->hasPositionMarker()) {
                 QPointF p = m_preview->positionMarker();
@@ -2309,6 +2339,25 @@ private:
             m_hintLabel->setText(tr("已选中滑动 | 右键菜单操作"));
         } else {
             m_hintLabel->setText(tr("滚轮缩放 | 选中左侧列表项后可操作"));
+            modeText = tr("浏览");
+        }
+        // 更新状态栏模式
+        if (m_statusModeLabel) {
+            if (modeText.isEmpty()) {
+                if (m_currentCreateMode == CreateMode::CreateRegion || m_currentCreateMode == CreateMode::CreateImage)
+                    modeText = tr("创建");
+                else if (m_currentCreateMode == CreateMode::GetPosition)
+                    modeText = tr("取点");
+                else if (m_currentCreateMode == CreateMode::CreateButton)
+                    modeText = tr("放置");
+                else if (m_currentCreateMode == CreateMode::CreateSwipe)
+                    modeText = tr("滑动");
+                else if (m_pendingConfirm)
+                    modeText = tr("确认");
+                else
+                    modeText = tr("浏览");
+            }
+            m_statusModeLabel->setText(QString("模式: %1").arg(modeText));
         }
     }
 
@@ -2323,6 +2372,7 @@ private:
             item->setData(Qt::UserRole, r.id);
         }
         m_infoLabel->setText(QString(tr("共 %1 个选区")).arg(allRegions.size()));
+        updateStatusCount();
         m_preview->update();
     }
 
@@ -2337,6 +2387,7 @@ private:
             item->setData(Qt::UserRole, b.id);
         }
         m_buttonInfoLabel->setText(QString(tr("共 %1 个按钮")).arg(allButtons.size()));
+        updateStatusCount();
         m_preview->update();
     }
 
@@ -2351,7 +2402,16 @@ private:
             item->setData(Qt::UserRole, s.id);
         }
         m_swipeInfoLabel->setText(QString(tr("共 %1 个滑动")).arg(allSwipes.size()));
+        updateStatusCount();
         m_preview->update();
+    }
+
+    void updateStatusCount() {
+        if (!m_statusCountLabel) return;
+        int regions = m_listWidget ? m_listWidget->count() : 0;
+        int buttons = m_buttonListWidget ? m_buttonListWidget->count() : 0;
+        int swipes = m_swipeListWidget ? m_swipeListWidget->count() : 0;
+        m_statusCountLabel->setText(QString("选区: %1 | 按钮: %2 | 滑动: %3").arg(regions).arg(buttons).arg(swipes));
     }
 
     void refreshFrame() {
@@ -2425,7 +2485,7 @@ private:
 
         QString imageName = tr("模板图片");
         if (selectTemplate) {
-            QString imagesPath = ImageMatcher::getImagesPath();
+            QString imagesPath = strutil::toQ(ImageMatcher::getImagesPath());
             QString fileName = QFileDialog::getOpenFileName(
                 this, tr("选择模板图片"), imagesPath,
                 "Images (*.png *.jpg *.bmp);;All Files (*)");
@@ -2486,7 +2546,7 @@ private:
             name += ".png";
         }
 
-        if (ImageMatcher::templateExists(name)) {
+        if (ImageMatcher::templateExists(strutil::fromQ(name))) {
             auto btn = QMessageBox::question(this, tr("文件已存在"),
                 QString(tr("图片 '%1' 已存在，是否覆盖？")).arg(name),
                 QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
@@ -2497,7 +2557,15 @@ private:
             }
         }
 
-        if (ImageMatcher::saveTemplateImage(image, name)) {
+        // QImage→cv::Mat 转换 (UI 边界)
+        cv::Mat mat;
+        {
+            QImage converted = image.convertToFormat(QImage::Format_RGB888);
+            cv::Mat tmp(converted.height(), converted.width(), CV_8UC3,
+                        const_cast<uchar*>(converted.bits()), converted.bytesPerLine());
+            cv::cvtColor(tmp, mat, cv::COLOR_RGB2BGR);
+        }
+        if (ImageMatcher::saveTemplateImage(mat, strutil::fromQ(name))) {
             QMessageBox::information(this, tr("成功"),
                 QString(tr("模板图片已保存: %1")).arg(name));
         } else {
@@ -2510,16 +2578,18 @@ private:
     // =========================================================
     void showPositionResultDialog(double x, double y) {
         QString coordStr = QString("%1, %2").arg(x, 0, 'f', 4).arg(y, 0, 'f', 4);
+        auto &tm = Fluent::ThemeManager::instance();
 
         QDialog dlg(this);
         dlg.setWindowTitle(tr("坐标操作"));
         dlg.setFixedSize(300, 130);
         dlg.setStyleSheet(
-            "QDialog { background-color: #18181b; }"
-            "QLabel { color: #fafafa; background: transparent; }"
+            QString("QDialog { background-color: %1; }"
+            "QLabel { color: %2; background: transparent; }")
+            .arg(tm.card(), tm.textPrimary())
         );
 #ifdef Q_OS_WIN
-        WinUtils::setDarkBorderToWindow(reinterpret_cast<HWND>(dlg.winId()), true);
+        WinUtils::setDarkBorderToWindow(reinterpret_cast<HWND>(dlg.winId()), tm.isDarkMode());
 #endif
 
         QVBoxLayout* layout = new QVBoxLayout(&dlg);
@@ -2528,25 +2598,27 @@ private:
 
         QLabel* label = new QLabel(QString(tr("坐标: (%1)")).arg(coordStr), &dlg);
         label->setAlignment(Qt::AlignCenter);
-        label->setStyleSheet("font-size: 13pt; font-weight: bold; color: #fafafa;");
+        label->setStyleSheet(QString("font-size: 13pt; font-weight: bold; color: %1;").arg(tm.textPrimary()));
         layout->addWidget(label);
 
         QHBoxLayout* btnLayout = new QHBoxLayout();
         btnLayout->setSpacing(8);
 
-        auto styleDlgBtn = [](QPushButton* btn, bool primary = false) {
+        auto styleDlgBtn = [&tm](QPushButton* btn, bool primary = false) {
             if (primary) {
                 btn->setStyleSheet(
-                    "QPushButton { background: #6366f1; color: #fff; border: none;"
+                    QString("QPushButton { background: %1; color: #fff; border: none;"
                     "  border-radius: 6px; padding: 8px 16px; font-size: 10pt; }"
-                    "QPushButton:hover { background: #818cf8; }"
-                    "QPushButton:pressed { background: #4f46e5; }");
+                    "QPushButton:hover { background: %2; }"
+                    "QPushButton:pressed { background: %3; }")
+                    .arg(tm.accentPrimary(), tm.accentHover(), tm.accentActive()));
             } else {
                 btn->setStyleSheet(
-                    "QPushButton { background: #27272a; color: #fafafa; border: 1px solid #3f3f46;"
+                    QString("QPushButton { background: %1; color: %2; border: 1px solid %3;"
                     "  border-radius: 6px; padding: 8px 16px; font-size: 10pt; }"
-                    "QPushButton:hover { background: #3f3f46; border-color: #52525b; }"
-                    "QPushButton:pressed { background: #52525b; }");
+                    "QPushButton:hover { background: %3; border-color: %4; }"
+                    "QPushButton:pressed { background: %4; }")
+                    .arg(tm.card(), tm.textPrimary(), tm.border(), tm.textTertiary()));
             }
             btn->setCursor(Qt::PointingHandCursor);
         };
@@ -2584,16 +2656,18 @@ private:
     // 获取位置: 生成代码子对话框
     bool showPositionCodeDialog(double x, double y) {
         QString coordStr = QString("%1, %2").arg(x, 0, 'f', 4).arg(y, 0, 'f', 4);
+        auto &tm = Fluent::ThemeManager::instance();
 
         QDialog dlg(this);
         dlg.setWindowTitle(tr("生成代码"));
         dlg.setFixedSize(280, 130);
         dlg.setStyleSheet(
-            "QDialog { background-color: #18181b; }"
-            "QLabel { color: #fafafa; background: transparent; }"
+            QString("QDialog { background-color: %1; }"
+            "QLabel { color: %2; background: transparent; }")
+            .arg(tm.card(), tm.textPrimary())
         );
 #ifdef Q_OS_WIN
-        WinUtils::setDarkBorderToWindow(reinterpret_cast<HWND>(dlg.winId()), true);
+        WinUtils::setDarkBorderToWindow(reinterpret_cast<HWND>(dlg.winId()), tm.isDarkMode());
 #endif
 
         QVBoxLayout* layout = new QVBoxLayout(&dlg);
@@ -2601,25 +2675,27 @@ private:
         layout->setSpacing(12);
 
         QLabel* label = new QLabel(tr("选择生成的操作类型:"), &dlg);
-        label->setStyleSheet("font-size: 10pt; color: #a1a1aa;");
+        label->setStyleSheet(QString("font-size: 10pt; color: %1;").arg(tm.textTertiary()));
         layout->addWidget(label);
 
         QHBoxLayout* btnLayout = new QHBoxLayout();
         btnLayout->setSpacing(8);
 
-        auto styleDlgBtn = [](QPushButton* btn, bool primary = false) {
+        auto styleDlgBtn = [&tm](QPushButton* btn, bool primary = false) {
             if (primary) {
                 btn->setStyleSheet(
-                    "QPushButton { background: #6366f1; color: #fff; border: none;"
+                    QString("QPushButton { background: %1; color: #fff; border: none;"
                     "  border-radius: 6px; padding: 8px 16px; font-size: 10pt; }"
-                    "QPushButton:hover { background: #818cf8; }"
-                    "QPushButton:pressed { background: #4f46e5; }");
+                    "QPushButton:hover { background: %2; }"
+                    "QPushButton:pressed { background: %3; }")
+                    .arg(tm.accentPrimary(), tm.accentHover(), tm.accentActive()));
             } else {
                 btn->setStyleSheet(
-                    "QPushButton { background: #27272a; color: #fafafa; border: 1px solid #3f3f46;"
+                    QString("QPushButton { background: %1; color: %2; border: 1px solid %3;"
                     "  border-radius: 6px; padding: 8px 16px; font-size: 10pt; }"
-                    "QPushButton:hover { background: #3f3f46; border-color: #52525b; }"
-                    "QPushButton:pressed { background: #52525b; }");
+                    "QPushButton:hover { background: %3; border-color: %4; }"
+                    "QPushButton:pressed { background: %4; }")
+                    .arg(tm.card(), tm.textPrimary(), tm.border(), tm.textTertiary()));
             }
             btn->setCursor(Qt::PointingHandCursor);
         };
@@ -2659,17 +2735,20 @@ private:
     }
 
     void styleActionButton(QPushButton* btn) {
+        auto &tm = Fluent::ThemeManager::instance();
         btn->setCursor(Qt::PointingHandCursor);
         btn->setStyleSheet(
-            "QPushButton {"
-            "  background-color: #27272a; color: #fafafa;"
-            "  border: 1px solid #3f3f46; border-radius: 6px;"
+            QString("QPushButton {"
+            "  background-color: %1; color: %2;"
+            "  border: 1px solid %3; border-radius: 6px;"
             "  padding: 7px 14px; font-size: 10pt; text-align: left;"
             "}"
             "QPushButton:hover {"
-            "  background-color: #3f3f46; border-color: #6366f1;"
+            "  background-color: %3; border-color: %4;"
             "}"
-            "QPushButton:pressed { background-color: #52525b; }"
+            "QPushButton:pressed { background-color: %5; }").arg(
+                tm.card(), tm.textPrimary(), tm.border(),
+                tm.accentPrimary(), tm.inputBorder())
         );
     }
 
@@ -2741,6 +2820,104 @@ private:
     // =========================================================
     // 成员变量
     // =========================================================
+
+    // 引导
+    bool m_onboardingShown = false;
+    Fluent::OnboardingOverlay* m_onboarding = nullptr;
+
+    void startSelectionToolOnboarding() {
+        if (m_onboarding) {
+            m_onboarding->deleteLater();
+            m_onboarding = nullptr;
+        }
+
+        using Fluent::OnboardingStep;
+        using Fluent::OnboardingOverlay;
+
+        m_onboarding = new OnboardingOverlay(this);
+
+        QVector<OnboardingStep> steps;
+
+        // ── 步骤 1: 欢迎 ──
+        steps.append({nullptr,
+            tr("选区工具"),
+            tr("选区工具用于在设备画面上定义各种\n"
+               "可交互元素，供脚本自动化使用。\n\n"
+               "三种元素类型：\n"
+               "  📍 按钮 — 标记可点击的位置\n"
+               "  📐 选区 — 框选屏幕区域（用于图像识别）\n"
+               "  〰️ 滑动 — 定义起点到终点的滑动路径\n\n"
+               "创建完成后自动生成脚本代码片段。"),
+            QStringLiteral("*")});
+
+        // ── 步骤 2: 预览区域 ──
+        if (m_preview) {
+            steps.append({m_preview,
+                tr("画面预览区"),
+                tr("显示设备画面截图。\n"
+                   "可缩放、框选、点击放置、拖拽元素。\n"
+                   "工具栏可刷新截图和控制图层显示。"),
+                QStringLiteral(">")});
+        }
+
+        // ── 步骤 3: Tab 切换 ──
+        if (m_tabRegion) {
+            steps.append({m_tabRegion,
+                tr("分类标签页"),
+                tr("三个标签页分类管理不同类型的元素：\n\n"
+                   "  📐 选区\n"
+                   "     屏幕区域，用于 mapi.findImageByRegion()\n"
+                   "     限定图像识别的搜索范围\n"
+                   "     也可框选保存图片作为模板\n\n"
+                   "  📍 按钮\n"
+                   "     屏幕上的点击位置\n"
+                   "     脚本中用 mapi.getbuttonpos(id) 获取坐标\n"
+                   "     方便脚本点击指定位置\n\n"
+                   "  〰️ 滑动\n"
+                   "     起点到终点的滑动路径\n"
+                   "     脚本中用 mapi.swipeById(id) 执行滑动\n\n"
+                   "ℹ️ 每个元素都有编号 (id)，脚本通过编号引用。"),
+                QStringLiteral(">")});
+        }
+
+        // ── 步骤 4: 操作按钮 ──
+        if (m_btnNew) {
+            steps.append({m_btnNew,
+                tr("创建工具按钮"),
+                tr("底部按钮用于创建各类元素：\n"
+                   "按钮、滑动、截图、选区、获取位置。\n"
+                   "创建后可导出代码到脚本编辑器。"),
+                QStringLiteral(">")});
+        }
+
+        // ── 步骤 5: 列表管理 ──
+        if (m_listWidget) {
+            steps.append({m_listWidget,
+                tr("元素列表"),
+                tr("已创建的元素显示在列表中。\n"
+                   "单击选中高亮，右键可重命名/删除/导出代码。"),
+                QStringLiteral(">")});
+        }
+
+        // ── 步骤 6: 完成 ──
+        steps.append({nullptr,
+            tr("选区工具引导完成!"),
+            tr("现在可以开始创建元素了。\n"
+               "右键导出代码到脚本编辑器使用。\n"
+               "按 Esc 可退出当前创建模式。"),
+            QStringLiteral("!")});
+
+        m_onboarding->setSteps(steps);
+
+        connect(m_onboarding, &OnboardingOverlay::finished, this, [this]() {
+            Config::getInstance().setOnboardingCompleted(Config::OB_SELECTION_TOOL, true);
+            m_onboarding->deleteLater();
+            m_onboarding = nullptr;
+        });
+
+        m_onboarding->start();
+    }
+
     QPushButton* m_btnCaptureImage = nullptr;
     QPushButton* m_btnNew = nullptr;
     QPushButton* m_btnGetPos = nullptr;
@@ -2760,6 +2937,18 @@ private:
     QScrollArea* m_scrollArea = nullptr;
     SelectionPreviewWidget* m_preview = nullptr;
     FrameGrabFunc m_frameGrabCallback;
+
+    // 分段 Tab 控件
+    QPushButton* m_tabRegion = nullptr;
+    QPushButton* m_tabButton = nullptr;
+    QPushButton* m_tabSwipe = nullptr;
+    QStackedWidget* m_listStack = nullptr;
+
+    // 状态栏
+    QWidget* m_statusBar = nullptr;
+    QLabel* m_statusScaleLabel = nullptr;
+    QLabel* m_statusModeLabel = nullptr;
+    QLabel* m_statusCountLabel = nullptr;
 
     // 浮动确认栏
     QWidget* m_confirmBar = nullptr;

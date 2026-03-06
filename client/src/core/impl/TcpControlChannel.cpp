@@ -1,12 +1,12 @@
 #include "TcpControlChannel.h"
+#include "NativeTcpSocket.h"
 #include "fastmsg.h"
-#include <QHostAddress>
 
 namespace qsc {
 namespace core {
 
 TcpControlChannel::TcpControlChannel()
-    : m_socket(std::make_unique<QTcpSocket>())
+    : m_socket(std::make_unique<NativeTcpSocket>())
 {
 }
 
@@ -21,15 +21,9 @@ bool TcpControlChannel::connect(const char* host, uint16_t port)
         return false;
     }
 
-    QHostAddress addr(QString::fromUtf8(host));
-    m_socket->connectToHost(addr, port);
-
-    // 等待连接（阻塞式，最多 5 秒）
-    if (m_socket->waitForConnected(5000)) {
-        // 禁用 Nagle 算法，减少小包延迟
-        m_socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
-        // 缩小发送缓冲区到 16KB，减少内核排队延迟
-        m_socket->setSocketOption(QAbstractSocket::SendBufferSizeSocketOption, 16 * 1024);
+    if (m_socket->connectToHost(std::string(host), port, 5000)) {
+        m_socket->setNoDelay(true);
+        m_socket->setSendBufferSize(16 * 1024);
         m_connected = true;
         return true;
     }
@@ -40,7 +34,6 @@ bool TcpControlChannel::connect(const char* host, uint16_t port)
 void TcpControlChannel::disconnect()
 {
     if (m_socket) {
-        m_socket->disconnectFromHost();
         m_socket->close();
     }
     m_connected = false;
@@ -48,8 +41,7 @@ void TcpControlChannel::disconnect()
 
 bool TcpControlChannel::isConnected() const
 {
-    return m_connected && m_socket &&
-           m_socket->state() == QAbstractSocket::ConnectedState;
+    return m_connected && m_socket && m_socket->isValid();
 }
 
 bool TcpControlChannel::send(const uint8_t* data, int32_t size)
@@ -58,7 +50,7 @@ bool TcpControlChannel::send(const uint8_t* data, int32_t size)
         return false;
     }
 
-    qint64 written = m_socket->write(reinterpret_cast<const char*>(data), size);
+    int written = m_socket->send(reinterpret_cast<const char*>(data), size);
     return written == size;
 }
 
@@ -70,9 +62,10 @@ bool TcpControlChannel::sendTouch(uint32_t seqId, uint8_t action, uint16_t x, ui
 
     // 使用 FastMsg 协议构建触摸消息
     FastTouchEvent event(seqId, action, x, y);
-    QByteArray data = FastMsg::serializeTouch(event);
+    char buf[6];
+    int len = FastMsg::serializeTouchInto(buf, event);
 
-    return send(reinterpret_cast<const uint8_t*>(data.constData()), data.size());
+    return send(reinterpret_cast<const uint8_t*>(buf), len);
 }
 
 bool TcpControlChannel::sendKey(uint8_t action, int32_t keycode)
@@ -82,10 +75,11 @@ bool TcpControlChannel::sendKey(uint8_t action, int32_t keycode)
     }
 
     // 使用 FastMsg 协议构建按键消息
-    FastKeyEvent event(action, static_cast<quint16>(keycode));
-    QByteArray data = FastMsg::serializeKey(event);
+    FastKeyEvent event(action, static_cast<uint16_t>(keycode));
+    char buf[3];
+    FastMsg::serializeKeyInto(buf, event);
 
-    return send(reinterpret_cast<const uint8_t*>(data.constData()), data.size());
+    return send(reinterpret_cast<const uint8_t*>(buf), 3);
 }
 
 } // namespace core

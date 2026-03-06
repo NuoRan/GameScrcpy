@@ -1,49 +1,48 @@
 #ifndef SCRIPTSWIPEMANAGER_H
 #define SCRIPTSWIPEMANAGER_H
 
-#include <QObject>
 #include <QString>
 #include <QVector>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QFile>
-#include <QDir>
-#include <QCoreApplication>
-#include <QReadWriteLock>
+#include <filesystem>
+#include <fstream>
+#include <shared_mutex>
+
+#include "StringUtils.h"
+
+#include <nlohmann/json.hpp>
 
 // ---------------------------------------------------------
-// 滑动路径数据结构 / Script Swipe Data Structure
-// 表示从起点到终点的一条滑动路径
+// 濠婃垵濮╃捄顖氱窞閺佺増宓佺紒鎾寸€?/ Script Swipe Data Structure
+// 鐞涖劎銇氭禒搴ゆ崳閻愮懓鍩岀紒鍫㈠仯閻ㄥ嫪绔撮弶鈩冪拨閸斻劏鐭惧?
 // ---------------------------------------------------------
 struct ScriptSwipe
 {
-    int id = 0;             // 滑动编号 (唯一) / Swipe ID (unique)
-    QString name;           // 备注名字 / Label name
-    double x0 = 0.3;       // 起点 x (0.0~1.0) / Start x
-    double y0 = 0.5;       // 起点 y (0.0~1.0) / Start y
-    double x1 = 0.7;       // 终点 x (0.0~1.0) / End x
-    double y1 = 0.5;       // 终点 y (0.0~1.0) / End y
+    int id = 0;             // 濠婃垵濮╃紓鏍у娇 (閸烆垯绔? / Swipe ID (unique)
+    QString name;           // 婢跺洦鏁為崥宥呯摟 / Label name
+    double x0 = 0.3;       // 鐠ч鍋?x (0.0~1.0) / Start x
+    double y0 = 0.5;       // 鐠ч鍋?y (0.0~1.0) / Start y
+    double x1 = 0.7;       // 缂佸牏鍋?x (0.0~1.0) / End x
+    double y1 = 0.5;       // 缂佸牏鍋?y (0.0~1.0) / End y
 
-    QJsonObject toJson() const {
-        QJsonObject obj;
-        obj["id"] = id;
-        obj["name"] = name;
-        obj["x0"] = x0;
-        obj["y0"] = y0;
-        obj["x1"] = x1;
-        obj["y1"] = y1;
-        return obj;
+    nlohmann::json toJson() const {
+        return {
+            {"id", id},
+            {"name", name.toStdString()},
+            {"x0", x0},
+            {"y0", y0},
+            {"x1", x1},
+            {"y1", y1}
+        };
     }
 
-    static ScriptSwipe fromJson(const QJsonObject& obj) {
+    static ScriptSwipe fromJson(const nlohmann::json& j) {
         ScriptSwipe s;
-        s.id = obj["id"].toInt();
-        s.name = obj["name"].toString();
-        s.x0 = obj["x0"].toDouble(0.3);
-        s.y0 = obj["y0"].toDouble(0.5);
-        s.x1 = obj["x1"].toDouble(0.7);
-        s.y1 = obj["y1"].toDouble(0.5);
+        s.id = j.value("id", 0);
+        s.name = QString::fromStdString(j.value("name", std::string()));
+        s.x0 = j.value("x0", 0.3);
+        s.y0 = j.value("y0", 0.5);
+        s.x1 = j.value("x1", 0.7);
+        s.y1 = j.value("y1", 0.5);
         return s;
     }
 
@@ -57,60 +56,59 @@ struct ScriptSwipe
 };
 
 // ---------------------------------------------------------
-// 滑动路径管理器 - 管理脚本滑动路径的增删改查和持久化
-// 线程安全：所有公共方法均通过 QReadWriteLock 保护
+// 濠婃垵濮╃捄顖氱窞缁狅紕鎮婇崳?- 缁狅紕鎮婇懘姘拱濠婃垵濮╃捄顖氱窞閻ㄥ嫬顤冮崚鐘虫暭閺屻儱鎷伴幐浣风畽閸?
+// 缁捐法鈻肩€瑰鍙忛敍姘閺堝鍙曢崗杈ㄦ煙濞夋洖娼庨柅姘崇箖 std::shared_mutex 娣囨繃濮?
 // ---------------------------------------------------------
-class ScriptSwipeManager : public QObject
+class ScriptSwipeManager
 {
-    Q_OBJECT
 public:
     static ScriptSwipeManager& instance() {
         static ScriptSwipeManager s_instance;
         return s_instance;
     }
 
-    static QString configPath() {
-        return QCoreApplication::applicationDirPath() + "/keymap/swipes.json";
+    static std::string configPath() {
+        return strutil::appDirPath() + "/keymap/swipes.json";
     }
 
-    static QString configDir() {
-        return QCoreApplication::applicationDirPath() + "/keymap";
+    static std::string configDir() {
+        return strutil::appDirPath() + "/keymap";
     }
 
     void load() {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         loadInternal();
     }
 
     bool save() const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         return saveInternal();
     }
 
     QVector<ScriptSwipe> swipes() const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         return m_swipes;
     }
 
     bool findById(int id, ScriptSwipe& out) const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         const ScriptSwipe* s = findByIdInternal(id);
         if (s) { out = *s; return true; }
         return false;
     }
 
     int nextId() const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         return nextIdInternal();
     }
 
     bool nameExists(const QString& name, int excludeId = -1) const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         return nameExistsInternal(name, excludeId);
     }
 
     bool add(const ScriptSwipe& swipe) {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         if (findByIdInternal(swipe.id)) return false;
         m_swipes.append(swipe);
         saveInternal();
@@ -118,7 +116,7 @@ public:
     }
 
     bool remove(int id) {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         for (int i = 0; i < m_swipes.size(); ++i) {
             if (m_swipes[i].id == id) {
                 m_swipes.removeAt(i);
@@ -130,7 +128,7 @@ public:
     }
 
     bool rename(int id, const QString& newName) {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         if (nameExistsInternal(newName, id)) return false;
         for (auto& s : m_swipes) {
             if (s.id == id) {
@@ -143,7 +141,7 @@ public:
     }
 
     bool updateCoords(int id, double x0, double y0, double x1, double y1) {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         for (auto& s : m_swipes) {
             if (s.id == id) {
                 s.x0 = x0;
@@ -165,27 +163,29 @@ private:
 
     void loadInternal() {
         m_swipes.clear();
-        QFile file(configPath());
-        if (!file.open(QIODevice::ReadOnly)) return;
-        QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        std::ifstream file(configPath());
+        if (!file.is_open()) return;
+        std::string data((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         file.close();
-        if (!doc.isArray()) return;
-        const QJsonArray arr = doc.array();
-        for (const QJsonValue& v : arr) {
-            m_swipes.append(ScriptSwipe::fromJson(v.toObject()));
-        }
+        try {
+            auto arr = nlohmann::json::parse(data);
+            if (!arr.is_array()) return;
+            for (const auto& v : arr) {
+                m_swipes.append(ScriptSwipe::fromJson(v));
+            }
+        } catch (...) {}
     }
 
     bool saveInternal() const {
-        QDir dir;
-        dir.mkpath(configDir());
-        QFile file(configPath());
-        if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
-        QJsonArray arr;
+        std::filesystem::create_directories(configDir());
+        std::ofstream file(configPath());
+        if (!file.is_open()) return false;
+        nlohmann::json arr = nlohmann::json::array();
         for (const ScriptSwipe& s : m_swipes) {
-            arr.append(s.toJson());
+            arr.push_back(s.toJson());
         }
-        file.write(QJsonDocument(arr).toJson(QJsonDocument::Indented));
+        std::string out = arr.dump(4);
+        file << out;
         file.close();
         return true;
     }
@@ -213,7 +213,7 @@ private:
     }
 
     QVector<ScriptSwipe> m_swipes;
-    mutable QReadWriteLock m_lock;
+    mutable std::shared_mutex m_lock;
 };
 
 #endif // SCRIPTSWIPEMANAGER_H

@@ -1,13 +1,13 @@
 #ifndef SCRIPT_BRIDGE_H
 #define SCRIPT_BRIDGE_H
 
-#include <QObject>
-#include <QPointer>
-#include <QPointF>
-#include <QSize>
-#include <QImage>
-#include <QVariantMap>
+#include "GameTypes.h"
+#include <opencv2/core.hpp>
 #include <functional>
+#include <string>
+#include <unordered_map>
+#include "GameSignal.h"
+#include "GrayFrame.h"
 
 class Controller;
 class SessionContext;
@@ -32,11 +32,10 @@ class KeyboardHandler;
  * 从 SessionContext 拆分出来，专注于脚本相关功能。
  * Split from SessionContext, focused on script-related functionality.
  */
-class ScriptBridge : public QObject
+class ScriptBridge
 {
-    Q_OBJECT
 public:
-    explicit ScriptBridge(QPointer<Controller> controller, SessionVars* vars, QObject* parent = nullptr);
+    explicit ScriptBridge(Controller* controller, SessionVars* vars);
     ~ScriptBridge();
 
     // ========== 脚本引擎访问 ==========
@@ -48,20 +47,21 @@ public:
 
     // ========== 脚本基础路径 ==========
 
-    void setScriptBasePath(const QString& path);
+    void setScriptBasePath(const std::string& path);
 
     // ========== 视频尺寸（用于脚本坐标计算）==========
 
-    void setVideoSize(const QSize& size);
+    void setVideoSize(const Size& size);
 
     // ========== 帧获取回调 ==========
 
-    void setFrameGrabCallback(std::function<QImage()> callback);
-    QImage grabFrame() const;
+    void setFrameGrabCallback(std::function<cv::Mat()> callback);
+    void setGrayFrameGrabCallback(GrayFrameGrabCallback callback);
+    cv::Mat grabFrame() const;
 
     // ========== 信号连接 ==========
 
-    void connectScriptTipSignal(std::function<void(const QString&, int, int)> callback);
+    void connectScriptTipSignal(std::function<void(const std::string&, int, int)> callback);
     void connectKeyMapOverlayUpdateSignal(std::function<void()> callback);
 
     // ========== 脚本管理 ==========
@@ -73,7 +73,7 @@ public:
 
     // ========== 脚本执行 ==========
 
-    void runInlineScript(const QString& script, int keyId, const QPointF& pos, bool isPress);
+    void runInlineScript(const std::string& script, int keyId, const PointF& pos, bool isPress);
 
     // ========== Handler 设置（用于脚本 API）==========
 
@@ -89,24 +89,23 @@ public:
     void script_setSteerWheelCoefficient(double up, double down, double left, double right);
     void script_resetSteerWheelCoefficient();
     void script_resetWheel();
-    QPointF script_getMousePos(bool cursorCaptured);
+    PointF script_getMousePos(bool cursorCaptured);
     void script_setGameMapMode(bool enter, bool& cursorCaptured, std::function<void()> toggleCallback);
-    int script_getKeyState(int qtKey, const QHash<int, bool>& keyStates);
-    int script_getKeyStateByName(const QString& displayName, KeyMap* keyMap, const QHash<int, bool>& keyStates);
-    QVariantMap script_getKeyPos(int qtKey, KeyMap* keyMap);
-    QVariantMap script_getKeyPosByName(const QString& displayName, KeyMap* keyMap);
+    int script_getKeyState(int qtKey, const std::unordered_map<int, bool>& keyStates);
+    int script_getKeyStateByName(const std::string& displayName, KeyMap* keyMap, const std::unordered_map<int, bool>& keyStates);
+    KeyPosResult script_getKeyPos(int qtKey, KeyMap* keyMap);
+    KeyPosResult script_getKeyPosByName(const std::string& displayName, KeyMap* keyMap);
 
-signals:
-    void grabCursor(bool grab);
+    Signal<bool> grabCursor;
 
-private slots:
-    void onTipRequested(const QString& msg, int durationMs, int keyId);
+private:
+    void onTipRequested(const std::string& msg, int durationMs, int keyId);
     void onKeyMapOverlayUpdateRequested();
 
 private:
     void setupConnections();
 
-    QPointer<Controller> m_controller;
+    Controller* m_controller = nullptr;
     SessionVars* m_vars = nullptr;
     ScriptEngine* m_scriptEngine = nullptr;
 
@@ -118,10 +117,10 @@ private:
     KeyboardHandler* m_keyboardHandler = nullptr;
 
     // 帧获取回调
-    std::function<QImage()> m_frameGrabCallback;
+    std::function<cv::Mat()> m_frameGrabCallback;
 
     // 信号回调（避免 lambda 捕获问题）
-    std::function<void(const QString&, int, int)> m_tipCallback;
+    std::function<void(const std::string&, int, int)> m_tipCallback;
     std::function<void()> m_overlayUpdateCallback;
 };
 

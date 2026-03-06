@@ -1,9 +1,9 @@
 #ifndef CORE_SESSIONPARAMS_H
 #define CORE_SESSIONPARAMS_H
 
-#include <QString>
-#include <QSize>
+#include <string>
 #include <cstdint>
+#include "GameTypes.h"
 
 namespace qsc {
 namespace core {
@@ -16,8 +16,8 @@ namespace core {
  */
 struct SessionParams {
     // 必需参数 / Required parameters
-    QString serial;                 // 设备序列号 / Device serial number
-    QString serverLocalPath;        // 本地 server jar 路径 / Local server jar path
+    std::string serial;                 // 设备序列号 / Device serial number
+    std::string serverLocalPath;        // 本地 server jar 路径 / Local server jar path
 
     // 视频参数 / Video parameters
     uint16_t maxSize = 720;         // 最大分辨率 / Max resolution
@@ -26,35 +26,34 @@ struct SessionParams {
 
     // 连接参数 / Connection parameters
     bool useKcp = false;            // true=KCP/UDP(WiFi), false=TCP(USB)
-    QString deviceIP;               // WiFi 模式下的设备 IP / Device IP for WiFi mode
+    std::string deviceIP;               // WiFi 模式下的设备 IP / Device IP for WiFi mode
     uint16_t kcpPort = 27185;       // KCP 端口 / KCP port
     uint16_t tcpPort = 27183;       // TCP 端口
     bool useReverse = true;         // 是否使用 adb reverse
 
     // Server 参数
-    QString serverRemotePath = "/data/local/tmp/scrcpy-server.jar";
-    QString serverVersion = "3.3.4";
-    QString logLevel = "info";
-    QString videoCodec = "h264";  // "h264"
-    QString codecOptions;
-    QString codecName;
+    std::string serverRemotePath = "/data/local/tmp/scrcpy-server.jar";
+    std::string serverVersion = "3.3.4";
+    std::string logLevel = "info";
+    std::string videoCodec = "h264";  // "h264"
+    std::string codecOptions;
+    std::string codecName;
     uint32_t scid = 0;              // 连接标识 (随机数)
 
     // 显示参数
     bool closeScreen = false;       // 启动时息屏
     bool renderExpiredFrames = false;
-    QSize frameSize;                // 预期帧尺寸
+    Size frameSize;                // 预期帧尺寸
 
     // 键位脚本
-    QString keyMapJson;             // 键位映射 JSON（别名 gameScript）
-    int maxTouchPoints = 10;        // 最大触摸点数
+    std::string keyMapJson;             // 键位映射 JSON（别名 gameScript）
 
     // 兼容别名
-    const QString& gameScript() const { return keyMapJson; }
+    const std::string& gameScript() const { return keyMapJson; }
 
     // 辅助方法
-    bool isWiFiMode() const { return useKcp && !deviceIP.isEmpty(); }
-    bool isValid() const { return !serial.isEmpty() && !serverLocalPath.isEmpty(); }
+    bool isWiFiMode() const { return useKcp && !deviceIP.empty(); }
+    bool isValid() const { return !serial.empty() && !serverLocalPath.empty(); }
 };
 
 /**

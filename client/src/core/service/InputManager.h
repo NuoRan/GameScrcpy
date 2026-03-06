@@ -1,19 +1,19 @@
 #ifndef CORE_INPUTMANAGER_H
 #define CORE_INPUTMANAGER_H
 
-#include <QObject>
-#include <QSize>
-#include <QImage>
+#include <string>
+#include <cstdint>
+#include <opencv2/core.hpp>
 #include <memory>
 #include <functional>
+#include "GrayFrame.h"
+#include "GameTypes.h"
 
 // 前向声明
 class Controller;
-class QKeyEvent;
-class QMouseEvent;
-class QWheelEvent;
+struct InputEvent;
 class KcpControlSocket;
-class QTcpSocket;
+class NativeTcpSocket;
 
 namespace qsc {
 namespace core {
@@ -34,24 +34,29 @@ class IInputProcessor;
  * - 管理键位映射和脚本系统
  * - 处理系统快捷命令（返回、主页等）
  */
-class InputManager : public QObject {
-    Q_OBJECT
-
+class InputManager {
 public:
+    /**
+     * @brief 回调类型
+     */
+    using CursorGrabCallback = std::function<void(bool grabbed)>;
+    using ScriptTipCallback = std::function<void(const std::string& msg, int durationMs, int keyId)>;
+    using KeyMapOverlayCallback = std::function<void()>;
+
     /**
      * @brief KCP 发送回调类型
      */
-    using KcpSendCallback = std::function<qint64(const QByteArray&)>;
+    using KcpSendCallback = std::function<int64_t(const char*, int)>;
 
-    explicit InputManager(QObject* parent = nullptr);
-    ~InputManager() override;
+    explicit InputManager();
+    ~InputManager();
 
     /**
      * @brief 初始化（创建 Controller）
      * @param sendCallback KCP 发送回调
      * @param gameScript 初始键位配置
      */
-    void initialize(KcpSendCallback sendCallback, const QString& gameScript = "");
+    void initialize(KcpSendCallback sendCallback, const std::string& gameScript = "");
 
     /**
      * @brief 设置控制通道（用于非阻塞发送）
@@ -66,12 +71,12 @@ public:
     /**
      * @brief 设置 TCP 控制 Socket
      */
-    void setTcpControlSocket(QTcpSocket* socket);
+    void setTcpControlSocket(NativeTcpSocket* socket);
 
     /**
      * @brief 设置设备分辨率
      */
-    void setMobileSize(const QSize& size);
+    void setMobileSize(const Size& size);
 
     /**
      * @brief 启动控制发送
@@ -85,9 +90,11 @@ public:
 
     // === 事件处理 ===
 
-    void keyEvent(const QKeyEvent* event, const QSize& frameSize, const QSize& showSize);
-    void mouseEvent(const QMouseEvent* event, const QSize& frameSize, const QSize& showSize);
-    void wheelEvent(const QWheelEvent* event, const QSize& frameSize, const QSize& showSize);
+    void keyEvent(const InputEvent& event, const Size& frameSize, const Size& showSize);
+    void mouseEvent(const InputEvent& event, const Size& frameSize, const Size& showSize);
+    void wheelEvent(const InputEvent& event, const Size& frameSize, const Size& showSize);
+
+    void setDevicePixelRatio(double dpr);
 
     // === 系统命令 ===
 
@@ -102,6 +109,11 @@ public:
     void postKeyCodeClick(int keycode);
     void postDisconnect();
 
+    // === 运行时参数调整 ===
+
+    void postSetVideoBitRate(uint32_t bitrate);
+    void postSetDisplayPower(bool on);
+
     // === 状态管理 ===
 
     void onWindowFocusLost();
@@ -109,39 +121,33 @@ public:
 
     // === 脚本管理 ===
 
-    void updateScript(const QString& gameScript, bool runAutoStartScripts = true);
+    void updateScript(const std::string& gameScript, bool runAutoStartScripts = true);
     void resetScriptState();
     void runAutoStartScripts();
     bool isCurrentCustomKeymap() const;
 
     // === 帧获取（用于脚本图像识别）===
 
-    void setFrameGrabCallback(std::function<QImage()> callback);
+    void setFrameGrabCallback(std::function<cv::Mat()> callback);
+    void setGrayFrameGrabCallback(GrayFrameGrabCallback callback);
+
+    // === 回调注册 ===
+
+    void setCursorGrabCallback(CursorGrabCallback cb) { m_cursorGrabCb = std::move(cb); }
+    void setScriptTipCallback(ScriptTipCallback cb) { m_scriptTipCb = std::move(cb); }
+    void setKeyMapOverlayCallback(KeyMapOverlayCallback cb) { m_keyMapOverlayCb = std::move(cb); }
 
     // === 获取底层 Controller ===
 
     Controller* controller() const { return m_controller.get(); }
 
-signals:
-    /**
-     * @brief 光标抓取状态变化
-     */
-    void cursorGrabChanged(bool grabbed);
-
-    /**
-     * @brief 脚本提示信号
-     */
-    void scriptTip(const QString& msg, int durationMs, int keyId);
-
-    /**
-     * @brief 键位覆盖层更新信号
-     */
-    void keyMapOverlayUpdated();
-
 private:
     std::unique_ptr<Controller> m_controller;
     IControlChannel* m_controlChannel = nullptr;
-    QSize m_mobileSize;
+    Size m_mobileSize;
+    CursorGrabCallback m_cursorGrabCb;
+    ScriptTipCallback m_scriptTipCb;
+    KeyMapOverlayCallback m_keyMapOverlayCb;
 };
 
 } // namespace core

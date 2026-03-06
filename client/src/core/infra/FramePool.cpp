@@ -11,10 +11,14 @@ namespace qsc {
 namespace core {
 
 FramePool::FramePool(int poolSize, int maxWidth, int maxHeight)
-    : m_frames(poolSize)
+    : m_frames(std::min(poolSize, MAX_POOL_SIZE))
     , m_width(maxWidth)
     , m_height(maxHeight)
 {
+    if (poolSize > MAX_POOL_SIZE) {
+        poolSize = MAX_POOL_SIZE;
+    }
+
     // 初始化无锁标志位
     for (int i = 0; i < MAX_POOL_SIZE; ++i) {
         m_inUse[i].store(false, std::memory_order_relaxed);
@@ -66,7 +70,8 @@ FrameData* FramePool::acquire()
 
 void FramePool::release(FrameData* frame)
 {
-    if (!frame || frame->poolIndex < 0) {
+    if (!frame || frame->poolIndex < 0
+        || frame->poolIndex >= static_cast<int>(m_frames.size())) {
         return;
     }
 

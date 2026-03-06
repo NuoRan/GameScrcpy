@@ -1,9 +1,7 @@
 #include "GameInputProcessor.h"
 #include "controller.h"
 #include "SessionContext.h"
-#include <QKeyEvent>
-#include <QMouseEvent>
-#include <QWheelEvent>
+#include "StringUtils.h"
 
 namespace qsc {
 namespace core {
@@ -12,66 +10,82 @@ GameInputProcessor::GameInputProcessor(Controller* controller)
     : m_controller(controller)
 {
     // SessionContext 由 Controller 内部创建和管理
-    if (m_controller) {
-        m_sessionContext = m_controller->sessionContext();
-    }
+    // 不再缓存指针，因为 Controller::updateScript() 会销毁并重建 SessionContext
+    // 所有访问都通过 m_controller->sessionContext() 获取最新指针
 }
 
 GameInputProcessor::~GameInputProcessor() = default;
 
-void GameInputProcessor::processKeyEvent(const QKeyEvent* event,
-                                         const QSize& frameSize,
-                                         const QSize& showSize)
+SessionContext* GameInputProcessor::sessionContext() const
 {
-    if (m_sessionContext) {
-        m_sessionContext->keyEvent(event, frameSize, showSize);
+    return currentContext();
+}
+
+SessionContext* GameInputProcessor::currentContext() const
+{
+    return m_controller ? m_controller->sessionContext() : nullptr;
+}
+
+void GameInputProcessor::processKeyEvent(const InputEvent& event,
+                                         const Size& frameSize,
+                                         const Size& showSize)
+{
+    auto* ctx = currentContext();
+    if (ctx) {
+        ctx->keyEvent(event, frameSize, showSize);
     }
 }
 
-void GameInputProcessor::processMouseEvent(const QMouseEvent* event,
-                                           const QSize& frameSize,
-                                           const QSize& showSize)
+void GameInputProcessor::processMouseEvent(const InputEvent& event,
+                                           const Size& frameSize,
+                                           const Size& showSize)
 {
-    if (m_sessionContext) {
-        m_sessionContext->mouseEvent(event, frameSize, showSize);
+    auto* ctx = currentContext();
+    if (ctx) {
+        ctx->mouseEvent(event, frameSize, showSize);
     }
 }
 
-void GameInputProcessor::processWheelEvent(const QWheelEvent* event,
-                                           const QSize& frameSize,
-                                           const QSize& showSize)
+void GameInputProcessor::processWheelEvent(const InputEvent& event,
+                                           const Size& frameSize,
+                                           const Size& showSize)
 {
-    if (m_sessionContext) {
-        m_sessionContext->wheelEvent(event, frameSize, showSize);
+    auto* ctx = currentContext();
+    if (ctx) {
+        ctx->wheelEvent(event, frameSize, showSize);
     }
 }
 
-void GameInputProcessor::loadKeyMap(const QString& json, bool runAutoStart)
+void GameInputProcessor::loadKeyMap(const std::string& json, bool runAutoStart)
 {
-    if (m_sessionContext) {
-        m_sessionContext->loadKeyMap(json, runAutoStart);
+    auto* ctx = currentContext();
+    if (ctx) {
+        ctx->loadKeyMap(json, runAutoStart);
     }
 }
 
 void GameInputProcessor::onWindowFocusLost()
 {
-    if (m_sessionContext) {
-        m_sessionContext->onWindowFocusLost();
+    auto* ctx = currentContext();
+    if (ctx) {
+        ctx->onWindowFocusLost();
     }
 }
 
 void GameInputProcessor::resetState()
 {
-    if (m_sessionContext) {
-        m_sessionContext->resetScriptState();
+    auto* ctx = currentContext();
+    if (ctx) {
+        ctx->resetScriptState();
     }
 }
 
 void GameInputProcessor::releaseAllTouchPoints()
 {
     // 通过 onWindowFocusLost 间接实现
-    if (m_sessionContext) {
-        m_sessionContext->onWindowFocusLost();
+    auto* ctx = currentContext();
+    if (ctx) {
+        ctx->onWindowFocusLost();
     }
 }
 
@@ -95,25 +109,19 @@ void GameInputProcessor::setCursorGrabCallback(CursorGrabCallback callback)
 
 void GameInputProcessor::setFrameGrabCallback(FrameGrabCallback callback)
 {
-    if (m_sessionContext) {
-        // 将 void* 回调转换为 QImage 回调
-        m_sessionContext->setFrameGrabCallback([callback]() -> QImage {
-            if (callback) {
-                void* result = callback();
-                if (result) {
-                    return *static_cast<QImage*>(result);
-                }
-            }
-            return QImage();
-        });
+    auto* ctx = currentContext();
+    if (ctx) {
+        // FrameGrabCallback 已经是 std::function<cv::Mat()>，直接转发给 SessionContext
+        ctx->setFrameGrabCallback(std::move(callback));
     }
 }
 
 void GameInputProcessor::setScriptTipCallback(ScriptTipCallback callback)
 {
-    if (m_sessionContext) {
-        m_sessionContext->connectScriptTipSignal(
-            [callback](const QString& msg, int durationMs, int keyId) {
+    auto* ctx = currentContext();
+    if (ctx) {
+        ctx->connectScriptTipSignal(
+            [callback](const std::string& msg, int durationMs, int keyId) {
                 if (callback) {
                     callback(msg, durationMs, keyId);
                 }
@@ -124,8 +132,9 @@ void GameInputProcessor::setScriptTipCallback(ScriptTipCallback callback)
 
 void GameInputProcessor::setKeyMapOverlayCallback(KeyMapOverlayCallback callback)
 {
-    if (m_sessionContext) {
-        m_sessionContext->connectKeyMapOverlayUpdateSignal(
+    auto* ctx = currentContext();
+    if (ctx) {
+        ctx->connectKeyMapOverlayUpdateSignal(
             [callback]() {
                 if (callback) {
                     callback();
@@ -137,15 +146,17 @@ void GameInputProcessor::setKeyMapOverlayCallback(KeyMapOverlayCallback callback
 
 void GameInputProcessor::runAutoStartScripts()
 {
-    if (m_sessionContext) {
-        m_sessionContext->runAutoStartScripts();
+    auto* ctx = currentContext();
+    if (ctx) {
+        ctx->runAutoStartScripts();
     }
 }
 
 void GameInputProcessor::resetScriptState()
 {
-    if (m_sessionContext) {
-        m_sessionContext->resetScriptState();
+    auto* ctx = currentContext();
+    if (ctx) {
+        ctx->resetScriptState();
     }
 }
 

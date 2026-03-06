@@ -5,11 +5,24 @@
 #include "SessionContext.h"
 #include "fastmsg.h"
 #include "ConfigCenter.h"
-#include <QDebug>
-#include <QRandomGenerator>
+#define LOG_TAG "SteerWheelHandler"
+#include "Logger.h"
+#include <random>
+
+static thread_local std::mt19937 t_rng{std::random_device{}()};
+
+static double randomDouble() {
+    std::uniform_real_distribution<double> dist(0.0, 1.0);
+    return dist(t_rng);
+}
+
+static int randomBounded(int max) {
+    std::uniform_int_distribution<int> dist(0, max - 1);
+    return dist(t_rng);
+}
 
 // 静态辅助函数：应用随机偏移
-static QPointF applyRandomOffset(const QPointF& pos, const QSize& targetSize) {
+static PointF applyRandomOffset(const PointF& pos, const Size& targetSize) {
     int offsetLevel = qsc::ConfigCenter::instance().randomOffset();
     if (offsetLevel <= 0 || targetSize.isEmpty()) {
         return pos;
@@ -19,48 +32,44 @@ static QPointF applyRandomOffset(const QPointF& pos, const QSize& targetSize) {
     double maxPixelOffset = offsetLevel * 0.5;
 
     // 生成随机偏移（像素）
-    double offsetX = (QRandomGenerator::global()->generateDouble() - 0.5) * 2.0 * maxPixelOffset;
-    double offsetY = (QRandomGenerator::global()->generateDouble() - 0.5) * 2.0 * maxPixelOffset;
+    double offsetX = (randomDouble() - 0.5) * 2.0 * maxPixelOffset;
+    double offsetY = (randomDouble() - 0.5) * 2.0 * maxPixelOffset;
 
     // 转换为归一化偏移量
-    double normalizedOffsetX = offsetX / targetSize.width();
-    double normalizedOffsetY = offsetY / targetSize.height();
+    double normalizedOffsetX = offsetX / targetSize.width;
+    double normalizedOffsetY = offsetY / targetSize.height;
 
-    QPointF result = pos;
-    result.rx() += normalizedOffsetX;
-    result.ry() += normalizedOffsetY;
+    PointF result = pos;
+    result.x += normalizedOffsetX;
+    result.y += normalizedOffsetY;
 
     // 确保结果在 0~1 范围内
-    result.setX(qBound(0.001, result.x(), 0.999));
-    result.setY(qBound(0.001, result.y(), 0.999));
+    result.x = std::clamp(result.x, 0.001, 0.999);
+    result.y = std::clamp(result.y, 0.001, 0.999);
 
     return result;
 }
 
 // 静态辅助函数：获取目标尺寸
-static QSize getTargetSize(const QSize& frameSize, const QSize& showSize) {
+static Size getTargetSize(const Size& frameSize, const Size& showSize) {
     if (frameSize.isValid() && !frameSize.isEmpty()) {
         return frameSize;
     }
     return showSize;
 }
 
-SteerWheelHandler::SteerWheelHandler(QObject* parent)
-    : IInputHandler(parent)
+SteerWheelHandler::SteerWheelHandler()
 {
     // 初始化定时器
-    m_state.delayData.timer = new QTimer(this);
-    m_state.delayData.timer->setSingleShot(true);
-    connect(m_state.delayData.timer, &QTimer::timeout, this, &SteerWheelHandler::onSteerWheelTimer);
+    m_state.delayData.timer.setSingleShot(true);
+    m_state.delayData.timer.setCallback([this]() { onSteerWheelTimer(); });
 
-    m_state.firstPressTimer = new QTimer(this);
-    m_state.firstPressTimer->setSingleShot(true);
-    m_state.firstPressTimer->setInterval(5);
-    connect(m_state.firstPressTimer, &QTimer::timeout, this, &SteerWheelHandler::onFirstPressTimer);
+    m_state.firstPressTimer.setSingleShot(true);
+    m_state.firstPressTimer.setInterval(5);
+    m_state.firstPressTimer.setCallback([this]() { onFirstPressTimer(); });
 
-    m_state.humanizeTimer = new QTimer(this);
-    m_state.humanizeTimer->setSingleShot(true);
-    connect(m_state.humanizeTimer, &QTimer::timeout, this, &SteerWheelHandler::onHumanizeTimer);
+    m_state.humanizeTimer.setSingleShot(true);
+    m_state.humanizeTimer.setCallback([this]() { onHumanizeTimer(); });
 }
 
 SteerWheelHandler::~SteerWheelHandler()
@@ -73,16 +82,16 @@ void SteerWheelHandler::init(Controller* controller, SessionContext* context)
     IInputHandler::init(controller, context);
 }
 
-bool SteerWheelHandler::handleKeyEvent(const QKeyEvent* event,
-                                       const QSize& frameSize,
-                                       const QSize& showSize)
+bool SteerWheelHandler::handleKeyEvent(const InputEvent& event,
+                                       const Size& frameSize,
+                                       const Size& showSize)
 {
     if (!m_keyMap) return false;
 
     m_frameSize = frameSize;
     m_showSize = showSize;
 
-    int key = event->key();
+    int key = event.key;
     const KeyMap::KeyMapNode& node = m_keyMap->getKeyMapNodeKey(key);
 
     // 只处理轮盘类型
@@ -111,9 +120,9 @@ void SteerWheelHandler::onFocusLost()
 
 void SteerWheelHandler::reset()
 {
-    m_state.firstPressTimer->stop();
-    m_state.humanizeTimer->stop();
-    m_state.delayData.timer->stop();
+    m_state.firstPressTimer.stop();
+    m_state.humanizeTimer.stop();
+    m_state.delayData.timer.stop();
 
     if (m_state.fastTouchSeqId != 0) {
         sendFastTouch(FTA_UP, m_state.delayData.currentPos);
@@ -139,7 +148,7 @@ void SteerWheelHandler::setCoefficient(double up, double down, double left, doub
         if (m_state.fastTouchSeqId != 0 && m_state.delayData.pressedNum > 0) {
             const KeyMap::KeyMapNode* node = m_keyMap->getSteerWheelNode();
             if (node) {
-                m_state.delayData.timer->stop();
+                m_state.delayData.timer.stop();
                 m_state.delayData.queueTimer.clear();
                 m_state.delayData.queuePos.clear();
                 executeMove(*node);
@@ -161,11 +170,11 @@ void SteerWheelHandler::resetWheel()
     // 游戏内的轮盘已经被重置，但用户仍然按着方向键
 
     // 1. 停止所有定时器和清空队列
-    if (m_state.firstPressTimer) {
-        m_state.firstPressTimer->stop();
+    if (m_state.firstPressTimer.isActive()) {
+        m_state.firstPressTimer.stop();
     }
-    if (m_state.delayData.timer) {
-        m_state.delayData.timer->stop();
+    if (m_state.delayData.timer.isActive()) {
+        m_state.delayData.timer.stop();
     }
     m_state.delayData.queueTimer.clear();
     m_state.delayData.queuePos.clear();
@@ -204,7 +213,8 @@ void SteerWheelHandler::onSteerWheelTimer()
         return;
     }
 
-    m_state.delayData.currentPos = m_state.delayData.queuePos.dequeue();
+    m_state.delayData.currentPos = m_state.delayData.queuePos.front();
+    m_state.delayData.queuePos.pop_front();
     sendFastTouch(FTA_MOVE, m_state.delayData.currentPos);
 
     if (m_state.delayData.queuePos.empty() && m_state.delayData.pressedNum == 0) {
@@ -214,7 +224,9 @@ void SteerWheelHandler::onSteerWheelTimer()
     }
 
     if (!m_state.delayData.queuePos.empty()) {
-        m_state.delayData.timer->start(m_state.delayData.queueTimer.dequeue());
+        auto nextTimer = m_state.delayData.queueTimer.front();
+        m_state.delayData.queueTimer.pop_front();
+        m_state.delayData.timer.start(nextTimer);
     }
 }
 
@@ -237,11 +249,11 @@ void SteerWheelHandler::onHumanizeTimer()
     // 生成新的轻微波动目标（比状态变化时更小的波动）
     // 角度：±10%的轻微波动（相比状态变化时的±30%）
     double angleVariation = 0.10;
-    m_state.targetAngleOffset = (QRandomGenerator::global()->generateDouble() * 2.0 - 1.0) * angleVariation * M_PI / 4.0;
+    m_state.targetAngleOffset = (randomDouble() * 2.0 - 1.0) * angleVariation * M_PI / 4.0;
 
     // 长度：±5%的轻微波动（相比状态变化时的±10%）
     double lengthVariation = 0.05;
-    m_state.targetLengthFactor = 1.0 + (QRandomGenerator::global()->generateDouble() * 2.0 - 1.0) * lengthVariation;
+    m_state.targetLengthFactor = 1.0 + (randomDouble() * 2.0 - 1.0) * lengthVariation;
 
     // 触发轮盘重新计算（会平滑过渡到新目标）
     if (m_keyMap) {
@@ -252,14 +264,14 @@ void SteerWheelHandler::onHumanizeTimer()
     }
 
     // 设置下次波动时间（2-8秒随机）
-    int nextInterval = 2000 + QRandomGenerator::global()->bounded(6000);
-    m_state.humanizeTimer->start(nextInterval);
+    int nextInterval = 2000 + randomBounded(6000);
+    m_state.humanizeTimer.start(nextInterval);
 }
 
-void SteerWheelHandler::processSteerWheel(const KeyMap::KeyMapNode& node, const QKeyEvent* event)
+void SteerWheelHandler::processSteerWheel(const KeyMap::KeyMapNode& node, const InputEvent& event)
 {
-    int key = event->key();
-    bool flag = event->type() == QEvent::KeyPress;
+    int key = event.key;
+    bool flag = event.isPress();
 
     // 更新按键状态
     if (key == node.data.steerWheel.up.key) {
@@ -282,11 +294,11 @@ void SteerWheelHandler::processSteerWheel(const KeyMap::KeyMapNode& node, const 
 
     // 所有键都松开了
     if (pressedNum == 0) {
-        m_state.firstPressTimer->stop();
+        m_state.firstPressTimer.stop();
         m_state.isFirstPress = true;
 
-        if (m_state.delayData.timer->isActive()) {
-            m_state.delayData.timer->stop();
+        if (m_state.delayData.timer.isActive()) {
+            m_state.delayData.timer.stop();
             m_state.delayData.queueTimer.clear();
             m_state.delayData.queuePos.clear();
         }
@@ -302,12 +314,12 @@ void SteerWheelHandler::processSteerWheel(const KeyMap::KeyMapNode& node, const 
     if (m_state.isFirstPress && flag) {
         m_state.pendingNode = &node;
         m_state.isFirstPress = false;
-        m_state.firstPressTimer->start();
+        m_state.firstPressTimer.start();
         return;
     }
 
     // 首次延迟定时器还在运行
-    if (m_state.firstPressTimer->isActive()) {
+    if (m_state.firstPressTimer.isActive()) {
         return;
     }
 
@@ -327,14 +339,14 @@ void SteerWheelHandler::executeMove(const KeyMap::KeyMapNode& node)
         m_state.lastPressedState = currentState;
 
         double angleVariation = 0.30;
-        m_state.targetAngleOffset = (QRandomGenerator::global()->generateDouble() * 2.0 - 1.0) * angleVariation * M_PI / 4.0;
+        m_state.targetAngleOffset = (randomDouble() * 2.0 - 1.0) * angleVariation * M_PI / 4.0;
 
         double lengthVariation = 0.10;
-        m_state.targetLengthFactor = 1.0 + (QRandomGenerator::global()->generateDouble() * 2.0 - 1.0) * lengthVariation;
+        m_state.targetLengthFactor = 1.0 + (randomDouble() * 2.0 - 1.0) * lengthVariation;
 
-        if (!m_state.humanizeTimer->isActive() && currentState != 0) {
-            int nextInterval = 2000 + QRandomGenerator::global()->bounded(6000);
-            m_state.humanizeTimer->start(nextInterval);
+        if (!m_state.humanizeTimer.isActive() && currentState != 0) {
+            int nextInterval = 2000 + randomBounded(6000);
+            m_state.humanizeTimer.start(nextInterval);
         }
     }
 
@@ -344,33 +356,33 @@ void SteerWheelHandler::executeMove(const KeyMap::KeyMapNode& node)
     m_state.currentLengthFactor += (m_state.targetLengthFactor - m_state.currentLengthFactor) * smoothFactor;
 
     // 计算偏移
-    QPointF offset(0.0, 0.0);
+    PointF offset(0.0, 0.0);
     int pressedNum = 0;
 
     if (m_state.pressedUp) {
         ++pressedNum;
-        offset.ry() -= node.data.steerWheel.up.extendOffset * m_keyMap->getSteerWheelCoefficient(0);
+        offset.y -= node.data.steerWheel.up.extendOffset * m_keyMap->getSteerWheelCoefficient(0);
     }
     if (m_state.pressedDown) {
         ++pressedNum;
-        offset.ry() += node.data.steerWheel.down.extendOffset * m_keyMap->getSteerWheelCoefficient(1);
+        offset.y += node.data.steerWheel.down.extendOffset * m_keyMap->getSteerWheelCoefficient(1);
     }
     if (m_state.pressedLeft) {
         ++pressedNum;
-        offset.rx() -= node.data.steerWheel.left.extendOffset * m_keyMap->getSteerWheelCoefficient(2);
+        offset.x -= node.data.steerWheel.left.extendOffset * m_keyMap->getSteerWheelCoefficient(2);
     }
     if (m_state.pressedRight) {
         ++pressedNum;
-        offset.rx() += node.data.steerWheel.right.extendOffset * m_keyMap->getSteerWheelCoefficient(3);
+        offset.x += node.data.steerWheel.right.extendOffset * m_keyMap->getSteerWheelCoefficient(3);
     }
 
     // 对角方向时应用角度偏移
-    if (pressedNum > 1 && (offset.x() != 0 || offset.y() != 0)) {
+    if (pressedNum > 1 && (offset.x != 0 || offset.y != 0)) {
         double cosA = std::cos(m_state.currentAngleOffset);
         double sinA = std::sin(m_state.currentAngleOffset);
-        QPointF rotatedOffset(
-            offset.x() * cosA - offset.y() * sinA,
-            offset.x() * sinA + offset.y() * cosA
+        PointF rotatedOffset(
+            offset.x * cosA - offset.y * sinA,
+            offset.x * sinA + offset.y * cosA
         );
         offset = rotatedOffset;
     }
@@ -378,14 +390,14 @@ void SteerWheelHandler::executeMove(const KeyMap::KeyMapNode& node)
     // 应用长度系数
     offset *= m_state.currentLengthFactor;
 
-    m_state.delayData.timer->stop();
+    m_state.delayData.timer.stop();
     m_state.delayData.queueTimer.clear();
     m_state.delayData.queuePos.clear();
 
     // 如果还没开始触摸，先按下（应用随机偏移）
     if (m_state.fastTouchSeqId == 0) {
-        QSize targetSize = getTargetSize(m_frameSize, m_showSize);
-        QPointF randomCenterPos = applyRandomOffset(node.data.steerWheel.centerPos, targetSize);
+        Size targetSize = getTargetSize(m_frameSize, m_showSize);
+        PointF randomCenterPos = applyRandomOffset(node.data.steerWheel.centerPos, targetSize);
         m_state.fastTouchSeqId = FastTouchSeq::next();
         m_state.delayData.currentPos = randomCenterPos;
         sendFastTouch(FTA_DOWN, randomCenterPos);
@@ -402,21 +414,21 @@ void SteerWheelHandler::executeMove(const KeyMap::KeyMapNode& node)
     }
 
     if (!m_state.delayData.queuePos.empty()) {
-        m_state.delayData.timer->start();
+        m_state.delayData.timer.start();
     }
 
     // 所有按键都松开，停止间隙波动定时器
     if (currentState == 0) {
-        m_state.humanizeTimer->stop();
+        m_state.humanizeTimer.stop();
     }
 }
 
-void SteerWheelHandler::sendFastTouch(quint8 action, const QPointF& pos)
+void SteerWheelHandler::sendFastTouch(uint8_t action, const PointF& pos)
 {
     if (!m_controller) return;
 
-    quint16 nx = static_cast<quint16>(qBound(0.0, pos.x(), 1.0) * 65535);
-    quint16 ny = static_cast<quint16>(qBound(0.0, pos.y(), 1.0) * 65535);
+    uint16_t nx = static_cast<uint16_t>(std::clamp(pos.x, 0.0, 1.0) * 65535);
+    uint16_t ny = static_cast<uint16_t>(std::clamp(pos.y, 0.0, 1.0) * 65535);
 
     // 栈缓冲区序列化，避免堆分配
     char buf[10];
@@ -425,29 +437,29 @@ void SteerWheelHandler::sendFastTouch(quint8 action, const QPointF& pos)
     m_controller->postFastMsg(buf, len);
 }
 
-void SteerWheelHandler::getDelayQueue(const QPointF& start, const QPointF& end,
+void SteerWheelHandler::getDelayQueue(const PointF& start, const PointF& end,
                                       double distanceStep, double posStep,
-                                      quint32 lowestTimer, quint32 highestTimer,
-                                      QQueue<QPointF>& queuePos, QQueue<quint32>& queueTimer)
+                                      uint32_t lowestTimer, uint32_t highestTimer,
+                                      std::deque<PointF>& queuePos, std::deque<uint32_t>& queueTimer)
 {
-    Q_UNUSED(posStep)
+    (void)posStep;
 
     // 获取平滑度和曲线设置
     int smoothLevel = qsc::ConfigCenter::instance().steerWheelSmooth();
     int curveLevel = qsc::ConfigCenter::instance().steerWheelCurve();
 
-    double x1 = start.x();
-    double y1 = start.y();
-    double x2 = end.x();
-    double y2 = end.y();
+    double x1 = start.x;
+    double y1 = start.y;
+    double x2 = end.x;
+    double y2 = end.y;
 
     double dx = x2 - x1;
     double dy = y2 - y1;
     double distance = std::sqrt(dx * dx + dy * dy);
 
     if (distance < 0.0001) {
-        queuePos.enqueue(end);
-        queueTimer.enqueue(lowestTimer);
+        queuePos.push_back(end);
+        queueTimer.push_back(lowestTimer);
         return;
     }
 
@@ -465,27 +477,27 @@ void SteerWheelHandler::getDelayQueue(const QPointF& start, const QPointF& end,
     // ===== 多频率曲线叠加，模拟真实人手的多曲度轨迹 =====
 
     // 主曲线（1个周期）：整体弧度方向，幅度最大
-    double mainDirection = (QRandomGenerator::global()->bounded(2) == 0) ? 1.0 : -1.0;
+    double mainDirection = (randomBounded(2) == 0) ? 1.0 : -1.0;
     double mainAmplitude = (curveLevel / 100.0) * 0.2 * distance;
 
     // 次级波动（1.5-2.5个周期）：中间的起伏变化
-    double secondFreq = 1.5 + QRandomGenerator::global()->generateDouble();  // 1.5 ~ 2.5
-    double secondDirection = (QRandomGenerator::global()->bounded(2) == 0) ? 1.0 : -1.0;
+    double secondFreq = 1.5 + randomDouble();  // 1.5 ~ 2.5
+    double secondDirection = (randomBounded(2) == 0) ? 1.0 : -1.0;
     double secondAmplitude = (curveLevel / 100.0) * 0.08 * distance;
 
     // 微小波动（3-5个周期）：细微的不规则抖动
-    double microFreq = 3.0 + QRandomGenerator::global()->generateDouble() * 2.0;  // 3 ~ 5
-    double microDirection = (QRandomGenerator::global()->bounded(2) == 0) ? 1.0 : -1.0;
+    double microFreq = 3.0 + randomDouble() * 2.0;  // 3 ~ 5
+    double microDirection = (randomBounded(2) == 0) ? 1.0 : -1.0;
     double microAmplitude = (curveLevel / 100.0) * 0.03 * distance;
 
     // 随机相位偏移，让每次轨迹不同
-    double mainPhase = QRandomGenerator::global()->generateDouble() * 0.2;      // 0 ~ 0.2
-    double secondPhase = QRandomGenerator::global()->generateDouble() * M_PI;   // 0 ~ π
-    double microPhase = QRandomGenerator::global()->generateDouble() * M_PI * 2; // 0 ~ 2π
+    double mainPhase = randomDouble() * 0.2;      // 0 ~ 0.2
+    double secondPhase = randomDouble() * M_PI;   // 0 ~ π
+    double microPhase = randomDouble() * M_PI * 2; // 0 ~ 2π
 
     // 计算延迟时间（基于平滑度）
-    quint32 baseDelay = (lowestTimer + highestTimer) / 2;
-    quint32 stepDelay = static_cast<quint32>(baseDelay * (1.0 + smoothLevel / 50.0));
+    uint32_t baseDelay = (lowestTimer + highestTimer) / 2;
+    uint32_t stepDelay = static_cast<uint32_t>(baseDelay * (1.0 + smoothLevel / 50.0));
 
     for (int i = 1; i <= steps; i++) {
         double t = static_cast<double>(i) / steps;
@@ -517,7 +529,7 @@ void SteerWheelHandler::getDelayQueue(const QPointF& start, const QPointF& end,
         double finalX = baseX + perpX * totalOffset;
         double finalY = baseY + perpY * totalOffset;
 
-        queuePos.enqueue(QPointF(finalX, finalY));
-        queueTimer.enqueue(stepDelay);
+        queuePos.push_back(PointF(finalX, finalY));
+        queueTimer.push_back(stepDelay);
     }
 }

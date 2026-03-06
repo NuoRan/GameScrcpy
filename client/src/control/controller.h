@@ -15,28 +15,30 @@
 #ifndef CONTROLLER_H
 #define CONTROLLER_H
 
-#include <QObject>
-#include <QPointer>
-#include <QImage>
-#include <QTcpSocket>
+#include "GameTypes.h"
+#include <opencv2/core.hpp>
+#include <string>
 #include <functional>
+#include <vector>
+#include <cstdint>
 
+#include "GameSignal.h"
 #include "keycodes.h"
+#include "GrayFrame.h"
 
+class NativeTcpSocket;
 class KcpControlSocket;
 class Receiver;
 class DeviceMsg;
 class ControlSender;
 class SessionContext;
-class QKeyEvent;
-class QMouseEvent;
-class QWheelEvent;
+struct InputEvent;
 
 // 前向声明
 namespace qsc { namespace core { class IControlChannel; } }
 
 /// KCP 发送回调函数类型 / KCP send callback function type
-using KcpSendCallback = std::function<qint64(const QByteArray&)>;
+using KcpSendCallback = std::function<int64_t(const char*, int)>;
 
 /**
  * @brief 设备控制器类 / Device Controller Class
@@ -46,22 +48,21 @@ using KcpSendCallback = std::function<qint64(const QByteArray&)>;
  * - 输入处理委托给 SessionContext / Input processing delegated to SessionContext
  * - 脚本管理 / Script management
  */
-class Controller : public QObject
+class Controller
 {
-    Q_OBJECT
 public:
-    Controller(KcpSendCallback sendCallback, QString gameScript = "", QObject *parent = Q_NULLPTR);
+    Controller(KcpSendCallback sendCallback, std::string gameScript = "");
     virtual ~Controller();
 
     void startSender();
     void stopSender();
 
-    void postFastMsg(const QByteArray &data);  // FastMsg 协议快速发送
+    void postFastMsg(const std::vector<uint8_t> &data);  // FastMsg 协议快速发送
     void postFastMsg(const char *data, int len);  // P-KCP: 零分配版本
     void recvDeviceMsg(DeviceMsg *deviceMsg);
 
     // 脚本管理
-    void updateScript(QString gameScript = "", bool runAutoStartScripts = true);
+    void updateScript(std::string gameScript = "", bool runAutoStartScripts = true);
     bool isCurrentCustomKeymap();
 
     // Android 常用功能快捷接口
@@ -74,9 +75,9 @@ public:
     void postVolumeDown();
 
     // 输入转换接口（委托给 SessionContext）
-    void mouseEvent(const QMouseEvent *from, const QSize &frameSize, const QSize &showSize);
-    void wheelEvent(const QWheelEvent *from, const QSize &frameSize, const QSize &showSize);
-    void keyEvent(const QKeyEvent *from, const QSize &frameSize, const QSize &showSize);
+    void mouseEvent(const InputEvent& from, const Size &frameSize, const Size &showSize);
+    void wheelEvent(const InputEvent& from, const Size &frameSize, const Size &showSize);
+    void keyEvent(const InputEvent& from, const Size &frameSize, const Size &showSize);
 
     // 返回键/亮屏
     void postBackOrScreenOn(bool down);
@@ -85,26 +86,31 @@ public:
     void postKeyCodeClick(AndroidKeycode keycode);
 
     // 设置移动设备分辨率
-    void setMobileSize(const QSize &size);
+    void setMobileSize(const Size &size);
 
     // 设置控制 socket
     void setControlSocket(KcpControlSocket *socket);  // WiFi 模式 (KCP)
-    void setTcpControlSocket(QTcpSocket *socket);     // USB 模式 (TCP)
+    void setTcpControlSocket(NativeTcpSocket *socket);     // USB 模式 (TCP)
 
     // 设置控制通道接口
     void setControlChannel(qsc::core::IControlChannel* channel);
 
     // 设置帧获取回调 (用于脚本图像识别)
-    void setFrameGrabCallback(std::function<QImage()> callback);
+    void setFrameGrabCallback(std::function<cv::Mat()> callback);
+    void setGrayFrameGrabCallback(GrayFrameGrabCallback callback);
 
     // 连接脚本 tip 信号
-    void connectScriptTipSignal(std::function<void(const QString&, int, int)> callback);
+    void connectScriptTipSignal(std::function<void(const std::string&, int, int)> callback);
 
     // 连接键位覆盖层更新信号
     void connectKeyMapOverlayUpdateSignal(std::function<void()> callback);
 
     // 发送断开消息给服务端
     void postDisconnect();
+
+    // 运行时参数调整
+    void postSetVideoBitRate(uint32_t bitrate);
+    void postSetDisplayPower(bool on);
 
     // 窗口失去焦点时调用，重置输入状态
     void onWindowFocusLost();
@@ -121,20 +127,22 @@ public:
     // 获取 SessionContext（供其他模块访问）
     SessionContext* sessionContext() const { return m_sessionContext; }
 
-signals:
-    void grabCursor(bool grab);
+    Signal<bool> grabCursor;
 
 private:
     KcpSendCallback m_sendCallback;
-    QPointer<ControlSender> m_controlSender;
-    QPointer<Receiver> m_receiver;
+    ControlSender* m_controlSender = nullptr;
+    Receiver* m_receiver = nullptr;
 
     SessionContext* m_sessionContext = nullptr;
 
-    QSize m_mobileSize;
-    std::function<QImage()> m_frameGrabCallback;
-    std::function<void(const QString&, int, int)> m_scriptTipCallback;
+    Size m_mobileSize;
+    std::function<cv::Mat()> m_frameGrabCallback;
+    GrayFrameGrabCallback m_grayFrameGrabCallback;
+    std::function<void(const std::string&, int, int)> m_scriptTipCallback;
     std::function<void()> m_overlayUpdateCallback;
+    bool m_senderStarted = false;
+    bool m_disconnectSent = false;
 };
 
 #endif // CONTROLLER_H

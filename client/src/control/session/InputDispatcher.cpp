@@ -1,13 +1,13 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
-#include <QDebug>
-#include <QCursor>
-#include <QGuiApplication>
-#include <QTimer>
-#include <QKeyEvent>
-#include <QMouseEvent>
-#include <QWheelEvent>
-#include <QTimerEvent>
+#define LOG_TAG "InputDispatch"
+#include "Logger.h"
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+#include "ThreadDispatcher.h"
 
 #include "InputDispatcher.h"
 #include "ScriptBridge.h"
@@ -24,15 +24,15 @@
 #define CURSOR_POS_CHECK 50
 
 // 辅助函数：获取目标尺寸
-static QSize getTargetSize(const QSize& frameSize, const QSize& showSize, const QSize& mobileSize) {
+static Size getTargetSize(const Size& frameSize, const Size& showSize, const Size& mobileSize) {
     if (mobileSize.isValid()) {
-        QSize target = mobileSize;
-        QSize refSize = frameSize.isValid() ? frameSize : showSize;
+        Size target = mobileSize;
+        Size refSize = frameSize.isValid() ? frameSize : showSize;
         if (refSize.isValid()) {
-            bool refLandscape = refSize.width() > refSize.height();
-            bool mobileLandscape = target.width() > target.height();
+            bool refLandscape = refSize.width > refSize.height;
+            bool mobileLandscape = target.width > target.height;
             if (refLandscape != mobileLandscape) {
-                target.transpose();
+                target = target.transposed();
             }
         }
         return target;
@@ -40,11 +40,15 @@ static QSize getTargetSize(const QSize& frameSize, const QSize& showSize, const 
     return frameSize;
 }
 
-InputDispatcher::InputDispatcher(QPointer<Controller> controller, KeyMap* keyMap, QObject* parent)
-    : QObject(parent)
-    , m_controller(controller)
+InputDispatcher::InputDispatcher(Controller* controller, KeyMap* keyMap)
+    : m_controller(controller)
     , m_keyMap(keyMap)
 {
+    m_ctrlMouseMove.timer.setSingleShot(true);
+    m_ctrlMouseMove.timer.setInterval(500);
+    m_ctrlMouseMove.timer.setCallback([this]() {
+        mouseMoveStopTouch();
+    });
     setCursorCaptured(false);
 }
 
@@ -69,29 +73,31 @@ void InputDispatcher::setCursorCaptured(bool captured)
     if (m_cursorCaptured) {
         if (m_keyMap && m_keyMap->isValidMouseMoveMap()) {
 #ifdef QT_NO_DEBUG
-            QGuiApplication::setOverrideCursor(QCursor(Qt::BlankCursor));
+            ShowCursor(FALSE);
+            m_cursorHidden = true;
 #else
-            QGuiApplication::setOverrideCursor(QCursor(Qt::CrossCursor));
+            SetCursor(LoadCursor(NULL, IDC_CROSS));
 #endif
-            emit grabCursor(true);
-
-            // 切回游戏模式时重置视角到中心，避免光标模式下鼠标偏移导致视角跳动
+            grabCursor.fire(true);
             if (m_viewportHandler) {
                 m_viewportHandler->resetView();
             }
         }
         m_ctrlMouseMove.ignoreCount = 1;
     } else {
-        QGuiApplication::restoreOverrideCursor();
-        emit grabCursor(false);
+        if (m_cursorHidden) {
+            ShowCursor(TRUE);
+            m_cursorHidden = false;
+        }
+        grabCursor.fire(false);
 
         stopMouseMoveTimer();
         mouseMoveStopTouch();
 
         // 退出游戏模式时释放鼠标脚本触摸，防止模式切换导致触摸残留
-        if (!m_pressedScriptMouseButtons.isEmpty() && m_keyMap) {
-            for (Qt::MouseButton btn : m_pressedScriptMouseButtons) {
-                const KeyMap::KeyMapNode &node = m_keyMap->getKeyMapNodeMouse(btn);
+        if (!m_pressedScriptMouseButtons.empty() && m_keyMap) {
+            for (uint32_t btn : m_pressedScriptMouseButtons) {
+                const KeyMap::KeyMapNode &node = m_keyMap->getKeyMapNodeMouse(static_cast<int>(btn));
                 if (node.type == KeyMap::KMT_SCRIPT) {
                     processScript(node, false);
                 }
@@ -103,29 +109,31 @@ void InputDispatcher::setCursorCaptured(bool captured)
 
 // ========== 事件处理 ==========
 
-void InputDispatcher::mouseEvent(const QMouseEvent* from, const QSize& frameSize, const QSize& showSize)
+void InputDispatcher::mouseEvent(const InputEvent& from, const Size& frameSize, const Size& showSize)
 {
     updateSize(frameSize, showSize);
 
     // 检测"模式切换"热键
     if (m_keyMap && m_keyMap->isSwitchOnKeyboard() == false &&
-        m_keyMap->getSwitchKey() == static_cast<int>(from->button())) {
-        if (from->type() != QEvent::MouseButtonPress) {
+        m_keyMap->getSwitchKey() == static_cast<int>(from.button)) {
+        if (from.type != InputEventType::MousePress) {
             return;
-        }
-        if (!toggleCursorCaptured()) {
+        }        // 只有配置了视角控制（鼠标移动映射）时才允许切换捕获模式
+        if (!m_keyMap->isValidMouseMoveMap()) {
+            return;
+        }        if (!toggleCursorCaptured()) {
             m_needBackMouseMove = false;
         }
         return;
     }
     // 跨模式释放：光标模式下释放游戏模式按下的鼠标脚本键
-    if (from->type() == QEvent::MouseButtonRelease &&
+    if (from.type == InputEventType::MouseRelease &&
         !m_cursorCaptured &&
-        m_pressedScriptMouseButtons.contains(from->button()))
+        m_pressedScriptMouseButtons.count(from.button))
     {
-        m_pressedScriptMouseButtons.remove(from->button());
+        m_pressedScriptMouseButtons.erase(from.button);
         if (m_keyMap) {
-            const KeyMap::KeyMapNode &node = m_keyMap->getKeyMapNodeMouse(from->button());
+            const KeyMap::KeyMapNode &node = m_keyMap->getKeyMapNodeMouse(static_cast<int>(from.button));
             if (node.type == KeyMap::KMT_SCRIPT) {
                 processScript(node, false);
             }
@@ -140,7 +148,7 @@ void InputDispatcher::mouseEvent(const QMouseEvent* from, const QSize& frameSize
 
     // [状态 B：光标隐藏/捕获] (游戏模式)
     if (!m_needBackMouseMove) {
-        if (from->type() == QEvent::MouseButtonPress || from->type() == QEvent::MouseButtonRelease) {
+        if (from.type == InputEventType::MousePress || from.type == InputEventType::MouseRelease) {
             if (processMouseClick(from)) {
                 return;
             }
@@ -154,14 +162,14 @@ void InputDispatcher::mouseEvent(const QMouseEvent* from, const QSize& frameSize
     }
 }
 
-void InputDispatcher::wheelEvent(const QWheelEvent* from, const QSize& frameSize, const QSize& showSize)
+void InputDispatcher::wheelEvent(const InputEvent& from, const Size& frameSize, const Size& showSize)
 {
-    Q_UNUSED(frameSize);
-    Q_UNUSED(showSize);
+    (void)frameSize;
+    (void)showSize;
 
     if (!m_keyMap) return;
 
-    int wheelKey = (from->angleDelta().y() > 0) ? WHEEL_UP : WHEEL_DOWN;
+    int wheelKey = (from.wheelDelta > 0) ? WHEEL_UP : WHEEL_DOWN;
 
     const KeyMap::KeyMapNode *pNode = &m_keyMap->getKeyMapNodeMouse(wheelKey);
     if (pNode->type == KeyMap::KMT_INVALID) {
@@ -178,30 +186,37 @@ void InputDispatcher::wheelEvent(const QWheelEvent* from, const QSize& frameSize
     }
 }
 
-void InputDispatcher::keyEvent(const QKeyEvent* from, const QSize& frameSize, const QSize& showSize)
+void InputDispatcher::keyEvent(const InputEvent& from, const Size& frameSize, const Size& showSize)
 {
     if (!m_keyMap) return;
 
-    int key = from->key();
-    bool isModifier = (key == Qt::Key_Alt || key == Qt::Key_Shift ||
-                       key == Qt::Key_Control || key == Qt::Key_Meta);
+    int key = from.key;
+    bool isModifier = (key == GameKey::Key_Alt || key == GameKey::Key_Shift ||
+                       key == GameKey::Key_Control || key == GameKey::Key_Meta);
 
-    if (from->type() == QEvent::KeyPress) {
+    if (from.type == InputEventType::KeyPress) {
         m_keyStates[key] = true;
 
         if (isModifier) {
             m_lastModifierKey = key;
             m_modifierComboDetected = false;
-        } else if (m_lastModifierKey != 0 && m_keyStates.value(m_lastModifierKey, false)) {
-            m_modifierComboDetected = true;
+        } else if (m_lastModifierKey != 0) {
+            auto it = m_keyStates.find(m_lastModifierKey);
+            if (it != m_keyStates.end() && it->second) {
+                m_modifierComboDetected = true;
+            }
         }
-    } else if (from->type() == QEvent::KeyRelease && !from->isAutoRepeat()) {
+    } else if (from.type == InputEventType::KeyRelease && !from.isAutoRepeat) {
         m_keyStates[key] = false;
     }
 
     // 检测键盘上的切换键
-    if (m_keyMap->isSwitchOnKeyboard() && m_keyMap->getSwitchKey() == from->key()) {
-        if (QEvent::KeyPress != from->type()) {
+    if (m_keyMap->isSwitchOnKeyboard() && m_keyMap->getSwitchKey() == from.key) {
+        if (InputEventType::KeyPress != from.type) {
+            return;
+        }
+        // 只有配置了视角控制（鼠标移动映射）时才允许切换捕获模式
+        if (!m_keyMap->isValidMouseMoveMap()) {
             return;
         }
         if (!toggleCursorCaptured()) {
@@ -211,39 +226,39 @@ void InputDispatcher::keyEvent(const QKeyEvent* from, const QSize& frameSize, co
     }
 
     // 特殊处理：Shift+Tab -> Tab
-    if (key == Qt::Key_Backtab) {
-        key = Qt::Key_Tab;
+    if (key == GameKey::Key_Backtab) {
+        key = GameKey::Key_Tab;
     }
 
     // 获取当前按键的修饰键状态
-    Qt::KeyboardModifiers mods = Qt::NoModifier;
+    uint32_t mods = 0;
     if (!isModifier) {
-        mods = from->modifiers() & (Qt::ShiftModifier | Qt::ControlModifier | Qt::AltModifier);
+        mods = from.modifiers & (InputModifier::Shift | InputModifier::Ctrl | InputModifier::Alt);
     }
 
     // 优先尝试精确匹配（带修饰键）
-    const KeyMap::KeyMapNode *pNode = &m_keyMap->getKeyMapNodeKey(key, mods);
+    const KeyMap::KeyMapNode *pNode = &m_keyMap->getKeyMapNodeKey(key, static_cast<uint32_t>(mods));
 
     // 辅助按键处理（Shift+数字 -> 符号键的映射）
-    if (pNode->type == KeyMap::KMT_INVALID && (from->modifiers() & Qt::ShiftModifier)) {
+    if (pNode->type == KeyMap::KMT_INVALID && (from.modifiers & InputModifier::Shift)) {
         int tempKey = 0;
         switch (key) {
-        case Qt::Key_Exclam:        tempKey = Qt::Key_1; break;
-        case Qt::Key_At:            tempKey = Qt::Key_2; break;
-        case Qt::Key_NumberSign:    tempKey = Qt::Key_3; break;
-        case Qt::Key_Dollar:        tempKey = Qt::Key_4; break;
-        case Qt::Key_Percent:       tempKey = Qt::Key_5; break;
-        case Qt::Key_AsciiCircum:   tempKey = Qt::Key_6; break;
-        case Qt::Key_Ampersand:     tempKey = Qt::Key_7; break;
-        case Qt::Key_Asterisk:      tempKey = Qt::Key_8; break;
-        case Qt::Key_ParenLeft:     tempKey = Qt::Key_9; break;
-        case Qt::Key_ParenRight:    tempKey = Qt::Key_0; break;
-        case Qt::Key_Underscore:    tempKey = Qt::Key_Minus; break;
-        case Qt::Key_Plus:          tempKey = Qt::Key_Equal; break;
+        case GameKey::Key_Exclam:        tempKey = GameKey::Key_1; break;
+        case GameKey::Key_At:            tempKey = GameKey::Key_2; break;
+        case GameKey::Key_NumberSign:    tempKey = GameKey::Key_3; break;
+        case GameKey::Key_Dollar:        tempKey = GameKey::Key_4; break;
+        case GameKey::Key_Percent:       tempKey = GameKey::Key_5; break;
+        case GameKey::Key_AsciiCircum:   tempKey = GameKey::Key_6; break;
+        case GameKey::Key_Ampersand:     tempKey = GameKey::Key_7; break;
+        case GameKey::Key_Asterisk:      tempKey = GameKey::Key_8; break;
+        case GameKey::Key_ParenLeft:     tempKey = GameKey::Key_9; break;
+        case GameKey::Key_ParenRight:    tempKey = GameKey::Key_0; break;
+        case GameKey::Key_Underscore:    tempKey = GameKey::Key_Minus; break;
+        case GameKey::Key_Plus:          tempKey = GameKey::Key_Equal; break;
         }
 
         if (tempKey != 0) {
-            const KeyMap::KeyMapNode *tempNode = &m_keyMap->getKeyMapNodeKey(tempKey, mods);
+            const KeyMap::KeyMapNode *tempNode = &m_keyMap->getKeyMapNodeKey(tempKey, static_cast<uint32_t>(mods));
             if (tempNode->type != KeyMap::KMT_INVALID) {
                 pNode = tempNode;
             }
@@ -253,7 +268,7 @@ void InputDispatcher::keyEvent(const QKeyEvent* from, const QSize& frameSize, co
     const KeyMap::KeyMapNode &node = *pNode;
 
     updateSize(frameSize, showSize);
-    if (!from || from->isAutoRepeat()) {
+    if (from.isAutoRepeat) {
         return;
     }
 
@@ -271,8 +286,8 @@ void InputDispatcher::keyEvent(const QKeyEvent* from, const QSize& frameSize, co
         return;
 
     case KeyMap::KMT_SCRIPT:
-        if (from->type() == QEvent::KeyPress || from->type() == QEvent::KeyRelease) {
-            processScript(node, from->type() == QEvent::KeyPress);
+        if (from.type == InputEventType::KeyPress || from.type == InputEventType::KeyRelease) {
+            processScript(node, from.type == InputEventType::KeyPress);
         }
         return;
 
@@ -325,12 +340,12 @@ void InputDispatcher::onWindowFocusLost()
 
 // ========== 内部处理函数 ==========
 
-void InputDispatcher::updateSize(const QSize& frameSize, const QSize& showSize)
+void InputDispatcher::updateSize(const Size& frameSize, const Size& showSize)
 {
     if (showSize != m_showSize) {
         if (m_cursorCaptured && m_keyMap && m_keyMap->isValidMouseMoveMap()) {
 #ifdef QT_NO_DEBUG
-            emit grabCursor(true);
+            grabCursor.fire(true);
 #endif
         }
     }
@@ -338,14 +353,14 @@ void InputDispatcher::updateSize(const QSize& frameSize, const QSize& showSize)
     m_showSize = showSize;
 
     if (m_scriptBridge) {
-        QSize realSize = getTargetSize(frameSize, showSize, m_mobileSize);
+        Size realSize = getTargetSize(frameSize, showSize, m_mobileSize);
         m_scriptBridge->setVideoSize(realSize);
     }
 }
 
-void InputDispatcher::processCursorMouse(const QMouseEvent* from)
+void InputDispatcher::processCursorMouse(const InputEvent& from)
 {
-    if (m_cursorHandler && from) {
+    if (m_cursorHandler) {
         m_cursorHandler->processMouseEvent(from, m_showSize);
     }
 }
@@ -355,42 +370,42 @@ void InputDispatcher::processScript(const KeyMap::KeyMapNode& node, bool isPress
     if (!m_scriptBridge) return;
 
     int key = node.data.script.keyNode.key;
-    QString script = node.script;
-    if (script.isEmpty()) return;
+    const std::string& script = node.script;
+    if (script.empty()) return;
 
     m_scriptBridge->runInlineScript(script, key, node.data.script.keyNode.pos, isPress);
 }
 
-void InputDispatcher::processFreeLook(const KeyMap::KeyMapNode& node, const QKeyEvent* from)
+void InputDispatcher::processFreeLook(const KeyMap::KeyMapNode& node, const InputEvent& from)
 {
-    if (m_freeLookHandler && from) {
+    if (m_freeLookHandler) {
         m_freeLookHandler->setModifierComboDetected(m_modifierComboDetected);
         m_freeLookHandler->processKeyEvent(node, from, m_frameSize, m_showSize);
     }
 }
 
-void InputDispatcher::processAndroidKey(AndroidKeycode androidKey, const QKeyEvent* from)
+void InputDispatcher::processAndroidKey(AndroidKeycode androidKey, const InputEvent& from)
 {
-    if (m_keyboardHandler && from) {
+    if (m_keyboardHandler) {
         m_keyboardHandler->processAndroidKey(androidKey, from);
     }
 }
 
-bool InputDispatcher::processMouseClick(const QMouseEvent* from)
+bool InputDispatcher::processMouseClick(const InputEvent& from)
 {
     if (!m_keyMap) return false;
 
-    const KeyMap::KeyMapNode &node = m_keyMap->getKeyMapNodeMouse(from->button());
+    const KeyMap::KeyMapNode &node = m_keyMap->getKeyMapNodeMouse(static_cast<int>(from.button));
     if (KeyMap::KMT_INVALID == node.type) {
         return false;
     }
 
     if (node.type == KeyMap::KMT_SCRIPT) {
-        if (from->type() == QEvent::MouseButtonPress) {
-            m_pressedScriptMouseButtons.insert(from->button());
+        if (from.type == InputEventType::MousePress) {
+            m_pressedScriptMouseButtons.insert(from.button);
             processScript(node, true);
-        } else if (from->type() == QEvent::MouseButtonRelease) {
-            m_pressedScriptMouseButtons.remove(from->button());
+        } else if (from.type == InputEventType::MouseRelease) {
+            m_pressedScriptMouseButtons.erase(from.button);
             processScript(node, false);
         }
         return true;
@@ -399,9 +414,9 @@ bool InputDispatcher::processMouseClick(const QMouseEvent* from)
     return false;
 }
 
-bool InputDispatcher::processMouseMove(const QMouseEvent* from)
+bool InputDispatcher::processMouseMove(const InputEvent& from)
 {
-    if (QEvent::MouseMove != from->type()) {
+    if (InputEventType::MouseMove != from.type) {
         return false;
     }
 
@@ -410,25 +425,29 @@ bool InputDispatcher::processMouseMove(const QMouseEvent* from)
         return true;
     }
 
-    QPoint center(m_showSize.width() / 2, m_showSize.height() / 2);
+    int centerX = m_showSize.width / 2;
+    int centerY = m_showSize.height / 2;
 
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-    QPointF currentPos = from->localPos();
-#else
-    QPointF currentPos = from->position();
-#endif
+    PointF currentPos(from.localX, from.localY);
 
-    QPointF delta = currentPos - center;
+    PointF delta(currentPos.x - centerX, currentPos.y - centerY);
     if (delta.isNull()) {
         return true;
     }
 
-    if (delta.manhattanLength() < 1.0) {
+    // Qt 6 报告逻辑坐标（DPI 缩放后），但我们需要物理鼠标位移量。
+    // 乘以 DPR 将逻辑像素转换为物理像素，确保不同 DPI 缩放下视角灵敏度一致。
+    if (m_devicePixelRatio > 1.0) {
+        delta.x *= m_devicePixelRatio;
+        delta.y *= m_devicePixelRatio;
+    }
+
+    if ((std::abs(delta.x) + std::abs(delta.y)) < 1.0) {
         return true;
     }
 
     m_ctrlMouseMove.ignoreCount = 1;
-    moveCursorTo(from, center);
+    moveCursorTo(from, centerX, centerY);
 
     // 小眼睛自由视角处理
     if (m_freeLookHandler && m_freeLookHandler->isActive() && m_freeLookHandler->hasTouchId()) {
@@ -442,13 +461,13 @@ bool InputDispatcher::processMouseMove(const QMouseEvent* from)
             m_viewportHandler->startTouch(m_frameSize, m_showSize);
         }
 
-        QPointF speedRatio = m_keyMap->getMouseMoveMap().data.mouseMove.speedRatio;
-        QSize targetSize = getTargetSize(m_frameSize, m_showSize, m_mobileSize);
-        QPointF distance(0, 0);
+        PointF speedRatio = m_keyMap->getMouseMoveMap().data.mouseMove.speedRatio;
+        Size targetSize = getTargetSize(m_frameSize, m_showSize, m_mobileSize);
+        PointF distance(0, 0);
 
-        if (targetSize.width() > 0 && targetSize.height() > 0 && speedRatio.x() > 0 && speedRatio.y() > 0) {
-            distance.setX(delta.x() / speedRatio.x() / targetSize.width());
-            distance.setY(delta.y() / speedRatio.y() / targetSize.height());
+        if (targetSize.width > 0 && targetSize.height > 0 && speedRatio.x > 0 && speedRatio.y > 0) {
+            distance.x = delta.x / speedRatio.x / targetSize.width;
+            distance.y = delta.y / speedRatio.y / targetSize.height;
         }
 
         m_viewportHandler->addMoveDelta(distance);
@@ -458,25 +477,40 @@ bool InputDispatcher::processMouseMove(const QMouseEvent* from)
     return true;
 }
 
-void InputDispatcher::moveCursorTo(const QMouseEvent* from, const QPoint& localPosPixel)
+void InputDispatcher::moveCursorTo(const InputEvent& from, int localX, int localY)
 {
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-    QPoint posOffset = from->pos() - localPosPixel;
-    QPoint globalPos = from->globalPos();
-#else
-    QPoint posOffset = from->position().toPoint() - localPosPixel;
-    QPoint globalPos = from->globalPosition().toPoint();
-#endif
-    globalPos -= posOffset;
+    int posOffsetX = static_cast<int>(std::lround(from.localX)) - localX;
+    int posOffsetY = static_cast<int>(std::lround(from.localY)) - localY;
 
-    QTimer::singleShot(0, [globalPos]() {
-        QCursor::setPos(globalPos);
-    });
+    // 用 lround 而非 static_cast<int> 截断，避免窗口位于非整数逻辑坐标时
+    // 反复产生 ±1 像素的系统性偏移（WiFi 模式下尤其明显，详见下方注释）
+    int globalX = static_cast<int>(std::lround(from.globalX)) - posOffsetX;
+    int globalY = static_cast<int>(std::lround(from.globalY)) - posOffsetY;
+
+    // Qt 6 的 globalPosition() 返回逻辑坐标 (device-independent)，
+    // SetCursorPos 需要物理屏幕坐标，按 DPR 缩放。
+    double dpr = m_devicePixelRatio;
+    int physX = static_cast<int>(std::lround(globalX * dpr));
+    int physY = static_cast<int>(std::lround(globalY * dpr));
+
+    // **直接调用 SetCursorPos，不经 dispatch::postToMain 异步投递。**
+    //
+    // 原因：processMouseMove 已在主线程执行，在此同步调用 SetCursorPos 后，
+    // 操作系统生成的 WM_MOUSEMOVE 响应事件将排在 Qt 事件队列尾部，
+    // 确保 ignoreCount=1 刚好吃掉该响应事件。
+    //
+    // 若改用 dispatch::postToMain 异步投递，SetCursorPos 会被延后到下一轮
+    // 事件循环迭代：WiFi/KCP 模式下 KCP 定时器、UDP 回调等事件挤入队列，
+    // 导致 ignoreCount 被真实鼠标事件提前消耗，SetCursorPos 的回弹事件
+    // 反而携带截断误差通过 processMouseMove → 累积为系统性视角漂移。
+#ifdef _WIN32
+    SetCursorPos(physX, physY);
+#endif
 }
 
-void InputDispatcher::mouseMoveStartTouch(const QMouseEvent* from)
+void InputDispatcher::mouseMoveStartTouch(const InputEvent& from)
 {
-    Q_UNUSED(from)
+    (void)from;
     if (m_viewportHandler) {
         m_viewportHandler->startTouch(m_frameSize, m_showSize);
     }
@@ -492,132 +526,121 @@ void InputDispatcher::mouseMoveStopTouch()
 void InputDispatcher::startMouseMoveTimer()
 {
     stopMouseMoveTimer();
-    m_ctrlMouseMove.timer = startTimer(500);
+    m_ctrlMouseMove.timer.start();
 }
 
 void InputDispatcher::stopMouseMoveTimer()
 {
-    if (0 != m_ctrlMouseMove.timer) {
-        killTimer(m_ctrlMouseMove.timer);
-        m_ctrlMouseMove.timer = 0;
-    }
-}
-
-void InputDispatcher::timerEvent(QTimerEvent* event)
-{
-    if (m_ctrlMouseMove.timer == event->timerId()) {
-        stopMouseMoveTimer();
-        mouseMoveStopTouch();
-    }
+    m_ctrlMouseMove.timer.stop();
 }
 
 // ========== 工具函数 ==========
 
-QPointF InputDispatcher::calcFrameAbsolutePos(QPointF relativePos) const
+PointF InputDispatcher::calcFrameAbsolutePos(PointF relativePos) const
 {
-    QPointF absolutePos;
-    QSize targetSize = getTargetSize(m_frameSize, m_showSize, m_mobileSize);
+    PointF absolutePos;
+    Size targetSize = getTargetSize(m_frameSize, m_showSize, m_mobileSize);
 
-    absolutePos.setX(targetSize.width() * relativePos.x());
-    absolutePos.setY(targetSize.height() * relativePos.y());
+    absolutePos.x = targetSize.width * relativePos.x;
+    absolutePos.y = targetSize.height * relativePos.y;
     return absolutePos;
 }
 
-QPointF InputDispatcher::calcScreenAbsolutePos(QPointF relativePos) const
+PointF InputDispatcher::calcScreenAbsolutePos(PointF relativePos) const
 {
-    QPointF absolutePos;
-    absolutePos.setX(m_showSize.width() * relativePos.x());
-    absolutePos.setY(m_showSize.height() * relativePos.y());
+    PointF absolutePos;
+    absolutePos.x = m_showSize.width * relativePos.x;
+    absolutePos.y = m_showSize.height * relativePos.y;
     return absolutePos;
 }
 
 void InputDispatcher::sendKeyEvent(AndroidKeyeventAction action, AndroidKeycode keyCode)
 {
-    if (m_controller.isNull()) return;
+    if (!m_controller) return;
 
     m_controller->postFastMsg(FastMsg::serializeKey(
         FastKeyEvent(action == AKEY_EVENT_ACTION_DOWN ? FKA_DOWN : FKA_UP,
-                     static_cast<quint16>(keyCode))));
+                     static_cast<uint16_t>(keyCode))));
 }
 
-AndroidKeycode InputDispatcher::convertKeyCode(int key, Qt::KeyboardModifiers modifiers)
+AndroidKeycode InputDispatcher::convertKeyCode(int key, uint32_t modifiers)
 {
     AndroidKeycode keyCode = AKEYCODE_UNKNOWN;
     switch (key) {
-    case Qt::Key_Return:        keyCode = AKEYCODE_ENTER; break;
-    case Qt::Key_Enter:         keyCode = AKEYCODE_NUMPAD_ENTER; break;
-    case Qt::Key_Escape:        keyCode = AKEYCODE_ESCAPE; break;
-    case Qt::Key_Backspace:     keyCode = AKEYCODE_DEL; break;
-    case Qt::Key_Delete:        keyCode = AKEYCODE_FORWARD_DEL; break;
-    case Qt::Key_Tab:           keyCode = AKEYCODE_TAB; break;
-    case Qt::Key_Home:          keyCode = AKEYCODE_MOVE_HOME; break;
-    case Qt::Key_End:           keyCode = AKEYCODE_MOVE_END; break;
-    case Qt::Key_PageUp:        keyCode = AKEYCODE_PAGE_UP; break;
-    case Qt::Key_PageDown:      keyCode = AKEYCODE_PAGE_DOWN; break;
-    case Qt::Key_Left:          keyCode = AKEYCODE_DPAD_LEFT; break;
-    case Qt::Key_Right:         keyCode = AKEYCODE_DPAD_RIGHT; break;
-    case Qt::Key_Up:            keyCode = AKEYCODE_DPAD_UP; break;
-    case Qt::Key_Down:          keyCode = AKEYCODE_DPAD_DOWN; break;
+    case GameKey::Key_Return:        keyCode = AKEYCODE_ENTER; break;
+    case GameKey::Key_Enter:         keyCode = AKEYCODE_NUMPAD_ENTER; break;
+    case GameKey::Key_Escape:        keyCode = AKEYCODE_ESCAPE; break;
+    case GameKey::Key_Backspace:     keyCode = AKEYCODE_DEL; break;
+    case GameKey::Key_Delete:        keyCode = AKEYCODE_FORWARD_DEL; break;
+    case GameKey::Key_Tab:           keyCode = AKEYCODE_TAB; break;
+    case GameKey::Key_Home:          keyCode = AKEYCODE_MOVE_HOME; break;
+    case GameKey::Key_End:           keyCode = AKEYCODE_MOVE_END; break;
+    case GameKey::Key_PageUp:        keyCode = AKEYCODE_PAGE_UP; break;
+    case GameKey::Key_PageDown:      keyCode = AKEYCODE_PAGE_DOWN; break;
+    case GameKey::Key_Left:          keyCode = AKEYCODE_DPAD_LEFT; break;
+    case GameKey::Key_Right:         keyCode = AKEYCODE_DPAD_RIGHT; break;
+    case GameKey::Key_Up:            keyCode = AKEYCODE_DPAD_UP; break;
+    case GameKey::Key_Down:          keyCode = AKEYCODE_DPAD_DOWN; break;
     }
 
     if (AKEYCODE_UNKNOWN != keyCode) return keyCode;
-    if (modifiers & (Qt::AltModifier | Qt::MetaModifier)) return keyCode;
+    if (modifiers & (InputModifier::Alt | InputModifier::Meta)) return keyCode;
 
     switch (key) {
-    case Qt::Key_A: keyCode = AKEYCODE_A; break;
-    case Qt::Key_B: keyCode = AKEYCODE_B; break;
-    case Qt::Key_C: keyCode = AKEYCODE_C; break;
-    case Qt::Key_D: keyCode = AKEYCODE_D; break;
-    case Qt::Key_E: keyCode = AKEYCODE_E; break;
-    case Qt::Key_F: keyCode = AKEYCODE_F; break;
-    case Qt::Key_G: keyCode = AKEYCODE_G; break;
-    case Qt::Key_H: keyCode = AKEYCODE_H; break;
-    case Qt::Key_I: keyCode = AKEYCODE_I; break;
-    case Qt::Key_J: keyCode = AKEYCODE_J; break;
-    case Qt::Key_K: keyCode = AKEYCODE_K; break;
-    case Qt::Key_L: keyCode = AKEYCODE_L; break;
-    case Qt::Key_M: keyCode = AKEYCODE_M; break;
-    case Qt::Key_N: keyCode = AKEYCODE_N; break;
-    case Qt::Key_O: keyCode = AKEYCODE_O; break;
-    case Qt::Key_P: keyCode = AKEYCODE_P; break;
-    case Qt::Key_Q: keyCode = AKEYCODE_Q; break;
-    case Qt::Key_R: keyCode = AKEYCODE_R; break;
-    case Qt::Key_S: keyCode = AKEYCODE_S; break;
-    case Qt::Key_T: keyCode = AKEYCODE_T; break;
-    case Qt::Key_U: keyCode = AKEYCODE_U; break;
-    case Qt::Key_V: keyCode = AKEYCODE_V; break;
-    case Qt::Key_W: keyCode = AKEYCODE_W; break;
-    case Qt::Key_X: keyCode = AKEYCODE_X; break;
-    case Qt::Key_Y: keyCode = AKEYCODE_Y; break;
-    case Qt::Key_Z: keyCode = AKEYCODE_Z; break;
-    case Qt::Key_0: keyCode = AKEYCODE_0; break;
-    case Qt::Key_1: case Qt::Key_Exclam: keyCode = AKEYCODE_1; break;
-    case Qt::Key_2: keyCode = AKEYCODE_2; break;
-    case Qt::Key_3: keyCode = AKEYCODE_3; break;
-    case Qt::Key_4: case Qt::Key_Dollar: keyCode = AKEYCODE_4; break;
-    case Qt::Key_5: case Qt::Key_Percent: keyCode = AKEYCODE_5; break;
-    case Qt::Key_6: case Qt::Key_AsciiCircum: keyCode = AKEYCODE_6; break;
-    case Qt::Key_7: case Qt::Key_Ampersand: keyCode = AKEYCODE_7; break;
-    case Qt::Key_8: keyCode = AKEYCODE_8; break;
-    case Qt::Key_9: keyCode = AKEYCODE_9; break;
-    case Qt::Key_Space: keyCode = AKEYCODE_SPACE; break;
-    case Qt::Key_Comma: case Qt::Key_Less: keyCode = AKEYCODE_COMMA; break;
-    case Qt::Key_Period: case Qt::Key_Greater: keyCode = AKEYCODE_PERIOD; break;
-    case Qt::Key_Minus: case Qt::Key_Underscore: keyCode = AKEYCODE_MINUS; break;
-    case Qt::Key_Equal: keyCode = AKEYCODE_EQUALS; break;
-    case Qt::Key_BracketLeft: case Qt::Key_BraceLeft: keyCode = AKEYCODE_LEFT_BRACKET; break;
-    case Qt::Key_BracketRight: case Qt::Key_BraceRight: keyCode = AKEYCODE_RIGHT_BRACKET; break;
-    case Qt::Key_Backslash: case Qt::Key_Bar: keyCode = AKEYCODE_BACKSLASH; break;
-    case Qt::Key_Semicolon: case Qt::Key_Colon: keyCode = AKEYCODE_SEMICOLON; break;
-    case Qt::Key_Apostrophe: case Qt::Key_QuoteDbl: keyCode = AKEYCODE_APOSTROPHE; break;
-    case Qt::Key_Slash: case Qt::Key_Question: keyCode = AKEYCODE_SLASH; break;
-    case Qt::Key_At: keyCode = AKEYCODE_AT; break;
-    case Qt::Key_Plus: keyCode = AKEYCODE_PLUS; break;
-    case Qt::Key_QuoteLeft: case Qt::Key_AsciiTilde: keyCode = AKEYCODE_GRAVE; break;
-    case Qt::Key_NumberSign: keyCode = AKEYCODE_POUND; break;
-    case Qt::Key_ParenLeft: keyCode = AKEYCODE_NUMPAD_LEFT_PAREN; break;
-    case Qt::Key_ParenRight: keyCode = AKEYCODE_NUMPAD_RIGHT_PAREN; break;
-    case Qt::Key_Asterisk: keyCode = AKEYCODE_STAR; break;
+    case GameKey::Key_A: keyCode = AKEYCODE_A; break;
+    case GameKey::Key_B: keyCode = AKEYCODE_B; break;
+    case GameKey::Key_C: keyCode = AKEYCODE_C; break;
+    case GameKey::Key_D: keyCode = AKEYCODE_D; break;
+    case GameKey::Key_E: keyCode = AKEYCODE_E; break;
+    case GameKey::Key_F: keyCode = AKEYCODE_F; break;
+    case GameKey::Key_G: keyCode = AKEYCODE_G; break;
+    case GameKey::Key_H: keyCode = AKEYCODE_H; break;
+    case GameKey::Key_I: keyCode = AKEYCODE_I; break;
+    case GameKey::Key_J: keyCode = AKEYCODE_J; break;
+    case GameKey::Key_K: keyCode = AKEYCODE_K; break;
+    case GameKey::Key_L: keyCode = AKEYCODE_L; break;
+    case GameKey::Key_M: keyCode = AKEYCODE_M; break;
+    case GameKey::Key_N: keyCode = AKEYCODE_N; break;
+    case GameKey::Key_O: keyCode = AKEYCODE_O; break;
+    case GameKey::Key_P: keyCode = AKEYCODE_P; break;
+    case GameKey::Key_Q: keyCode = AKEYCODE_Q; break;
+    case GameKey::Key_R: keyCode = AKEYCODE_R; break;
+    case GameKey::Key_S: keyCode = AKEYCODE_S; break;
+    case GameKey::Key_T: keyCode = AKEYCODE_T; break;
+    case GameKey::Key_U: keyCode = AKEYCODE_U; break;
+    case GameKey::Key_V: keyCode = AKEYCODE_V; break;
+    case GameKey::Key_W: keyCode = AKEYCODE_W; break;
+    case GameKey::Key_X: keyCode = AKEYCODE_X; break;
+    case GameKey::Key_Y: keyCode = AKEYCODE_Y; break;
+    case GameKey::Key_Z: keyCode = AKEYCODE_Z; break;
+    case GameKey::Key_0: keyCode = AKEYCODE_0; break;
+    case GameKey::Key_1: case GameKey::Key_Exclam: keyCode = AKEYCODE_1; break;
+    case GameKey::Key_2: keyCode = AKEYCODE_2; break;
+    case GameKey::Key_3: keyCode = AKEYCODE_3; break;
+    case GameKey::Key_4: case GameKey::Key_Dollar: keyCode = AKEYCODE_4; break;
+    case GameKey::Key_5: case GameKey::Key_Percent: keyCode = AKEYCODE_5; break;
+    case GameKey::Key_6: case GameKey::Key_AsciiCircum: keyCode = AKEYCODE_6; break;
+    case GameKey::Key_7: case GameKey::Key_Ampersand: keyCode = AKEYCODE_7; break;
+    case GameKey::Key_8: keyCode = AKEYCODE_8; break;
+    case GameKey::Key_9: keyCode = AKEYCODE_9; break;
+    case GameKey::Key_Space: keyCode = AKEYCODE_SPACE; break;
+    case GameKey::Key_Comma: case GameKey::Key_Less: keyCode = AKEYCODE_COMMA; break;
+    case GameKey::Key_Period: case GameKey::Key_Greater: keyCode = AKEYCODE_PERIOD; break;
+    case GameKey::Key_Minus: case GameKey::Key_Underscore: keyCode = AKEYCODE_MINUS; break;
+    case GameKey::Key_Equal: keyCode = AKEYCODE_EQUALS; break;
+    case GameKey::Key_BracketLeft: case GameKey::Key_BraceLeft: keyCode = AKEYCODE_LEFT_BRACKET; break;
+    case GameKey::Key_BracketRight: case GameKey::Key_BraceRight: keyCode = AKEYCODE_RIGHT_BRACKET; break;
+    case GameKey::Key_Backslash: case GameKey::Key_Bar: keyCode = AKEYCODE_BACKSLASH; break;
+    case GameKey::Key_Semicolon: case GameKey::Key_Colon: keyCode = AKEYCODE_SEMICOLON; break;
+    case GameKey::Key_Apostrophe: case GameKey::Key_QuoteDbl: keyCode = AKEYCODE_APOSTROPHE; break;
+    case GameKey::Key_Slash: case GameKey::Key_Question: keyCode = AKEYCODE_SLASH; break;
+    case GameKey::Key_At: keyCode = AKEYCODE_AT; break;
+    case GameKey::Key_Plus: keyCode = AKEYCODE_PLUS; break;
+    case GameKey::Key_QuoteLeft: case GameKey::Key_AsciiTilde: keyCode = AKEYCODE_GRAVE; break;
+    case GameKey::Key_NumberSign: keyCode = AKEYCODE_POUND; break;
+    case GameKey::Key_ParenLeft: keyCode = AKEYCODE_NUMPAD_LEFT_PAREN; break;
+    case GameKey::Key_ParenRight: keyCode = AKEYCODE_NUMPAD_RIGHT_PAREN; break;
+    case GameKey::Key_Asterisk: keyCode = AKEYCODE_STAR; break;
     }
     return keyCode;
 }

@@ -1,10 +1,13 @@
 #ifndef PERFORMANCEMONITOR_H
 #define PERFORMANCEMONITOR_H
 
-#include <QObject>
-#include <QElapsedTimer>
-#include <QTimer>
+#include "ElapsedTimer.h"
+#include "GameTypes.h"
 #include <atomic>
+#include <functional>
+#include <string>
+#include <cstdint>
+#include <algorithm>
 
 namespace qsc {
 
@@ -13,27 +16,27 @@ namespace qsc {
  */
 struct PerformanceMetrics {
     // 视频管线指标 / Video pipeline metrics
-    quint32 fps = 0;                    // 当前帧率 / Current FPS
+    uint32_t fps = 0;                   // 当前帧率 / Current FPS
     double avgDecodeLatencyMs = 0;      // 平均解码延迟 (ms) / Average decode latency (ms)
     double avgRenderLatencyMs = 0;      // 平均渲染延迟 (ms) / Average render latency (ms)
-    quint64 totalFrames = 0;            // 总帧数 / Total frames
-    quint64 droppedFrames = 0;          // 丢帧数 / Dropped frames
+    uint64_t totalFrames = 0;           // 总帧数 / Total frames
+    uint64_t droppedFrames = 0;         // 丢帧数 / Dropped frames
     int frameQueueDepth = 0;            // 帧队列深度 / Frame queue depth
 
     // 网络指标 / Network metrics
     double networkLatencyMs = 0;        // 网络延迟 (ms) / Network latency (ms)
-    quint64 bytesSent = 0;              // 发送字节数 / Bytes sent
-    quint64 bytesReceived = 0;          // 接收字节数 / Bytes received
+    uint64_t bytesSent = 0;             // 发送字节数 / Bytes sent
+    uint64_t bytesReceived = 0;         // 接收字节数 / Bytes received
     int pendingBytes = 0;               // 待发送字节数 / Pending bytes
     int kcpRetransmits = 0;             // KCP 重传次数 / KCP retransmissions
 
     // 输入指标 / Input metrics
     double avgInputLatencyMs = 0;       // 平均输入延迟 (ms) / Average input latency (ms)
-    quint64 inputEventsProcessed = 0;   // 已处理输入事件数 / Input events processed
-    quint64 inputEventsDropped = 0;     // 丢弃的输入事件数 / Input events dropped
+    uint64_t inputEventsProcessed = 0;  // 已处理输入事件数 / Input events processed
+    uint64_t inputEventsDropped = 0;    // 丢弃的输入事件数 / Input events dropped
 
     // 内存指标 / Memory metrics
-    quint64 memoryUsageBytes = 0;       // 内存使用 (字节) / Memory usage (bytes)
+    uint64_t memoryUsageBytes = 0;      // 内存使用 (字节) / Memory usage (bytes)
     int framePoolUsed = 0;              // 已使用帧池数 / Frame pool used
     int framePoolTotal = 0;             // 帧池总数 / Frame pool total
 
@@ -52,7 +55,7 @@ struct PerformanceMetrics {
 class LatencyTracker {
 public:
     explicit LatencyTracker(int windowSize = 60)
-        : m_windowSize(qMin(windowSize, MAX_SAMPLES)) {}
+        : m_windowSize(std::min(windowSize, MAX_SAMPLES)) {}
 
     void addSample(double latencyMs) {
         // 无锁: 仅原子递增写索引
@@ -121,15 +124,13 @@ private:
  *    connect(&PerformanceMonitor::instance(), &PerformanceMonitor::metricsUpdated,
  *            this, &MyWidget::onMetricsUpdated);
  */
-class PerformanceMonitor : public QObject {
-    Q_OBJECT
-
+class PerformanceMonitor {
 public:
     // 单例访问（实现在 .cpp 中确保唯一实例）
     static PerformanceMonitor& instance();
 
     // === 视频指标报告 ===
-    void reportFps(quint32 fps);
+    void reportFps(uint32_t fps);
     void reportDecodeLatency(double latencyMs);
     void reportRenderLatency(double latencyMs);
     void reportFrameDecoded();
@@ -138,8 +139,8 @@ public:
 
     // === 网络指标报告 ===
     void reportNetworkLatency(double latencyMs);
-    void reportBytesSent(quint64 bytes);
-    void reportBytesReceived(quint64 bytes);
+    void reportBytesSent(uint64_t bytes);
+    void reportBytesReceived(uint64_t bytes);
     void reportPendingBytes(int bytes);
     void reportKcpRetransmit();
 
@@ -160,15 +161,12 @@ public:
     void reset();
 
     // === 格式化输出 ===
-    QString formatSummary() const;
-    QString formatDetailed() const;
-
-signals:
-    void metricsUpdated(const PerformanceMetrics& metrics);
+    std::string formatSummary() const;
+    std::string formatDetailed() const;
 
 private:
     PerformanceMonitor();
-    ~PerformanceMonitor() override = default;
+    ~PerformanceMonitor() = default;
 
     PerformanceMonitor(const PerformanceMonitor&) = delete;
     PerformanceMonitor& operator=(const PerformanceMonitor&) = delete;
@@ -180,7 +178,6 @@ private:
     LatencyTracker m_networkLatency{60};
     LatencyTracker m_inputLatency{60};
 
-    QTimer* m_updateTimer = nullptr;
     bool m_enabled = false;
 };
 
@@ -202,14 +199,14 @@ private:
 
 // 作用域延迟计时器
 #define PERF_SCOPE_DECODE() \
-    QElapsedTimer __perfDecodeTimer; __perfDecodeTimer.start(); \
-    auto __perfDecodeGuard = qScopeGuard([&]() { \
+    ElapsedTimer __perfDecodeTimer; __perfDecodeTimer.start(); \
+    auto __perfDecodeGuard = makeScopeGuard([&]() { \
         PERF_REPORT_DECODE_LATENCY(__perfDecodeTimer.nsecsElapsed() / 1000000.0); \
     })
 
 #define PERF_SCOPE_RENDER() \
-    QElapsedTimer __perfRenderTimer; __perfRenderTimer.start(); \
-    auto __perfRenderGuard = qScopeGuard([&]() { \
+    ElapsedTimer __perfRenderTimer; __perfRenderTimer.start(); \
+    auto __perfRenderGuard = makeScopeGuard([&]() { \
         PERF_REPORT_RENDER_LATENCY(__perfRenderTimer.nsecsElapsed() / 1000000.0); \
     })
 

@@ -1,5 +1,6 @@
 #include "ZeroCopyRenderer.h"
-#include <QDebug>
+#define LOG_TAG "ZeroCopyRenderer"
+#include "Logger.h"
 #include <cstring>
 
 // GPU 直通帧需要释放 AVFrame 引用
@@ -13,7 +14,7 @@ namespace core {
 ZeroCopyRenderer::ZeroCopyRenderer(QWidget* parent)
     : QYUVOpenGLWidget(parent)
 {
-    qInfo("[ZeroCopyRenderer] Created (event-driven mode)");
+    LOG_I("[ZeroCopyRenderer] Created (event-driven mode)");
 }
 
 ZeroCopyRenderer::~ZeroCopyRenderer()
@@ -57,7 +58,7 @@ void ZeroCopyRenderer::renderFrame(const FrameData& frame)
         // 需要 D3D11GLInterop 支持，当前以 NV12 格式渲染
         // TODO: 在 QYUVOpenGLWidget 中实现 renderGPUDirectFrame(frame)
         //       调用 D3D11GLInterop::lock() → bind NV12 textures → draw → unlock()
-        qDebug("[ZeroCopyRenderer] GPU direct frame: %dx%d, tex=%p, idx=%d",
+        LOG_D("[ZeroCopyRenderer] GPU direct frame: %dx%d, tex=%p, idx=%d",
                frame.width, frame.height,
                frame.d3d11Texture, frame.d3d11TextureIndex);
 
@@ -150,7 +151,7 @@ void ZeroCopyRenderer::consumeAndRender()
     }
 
     if (droppedFrames > 0) {
-        qDebug("[ZeroCopyRenderer] Skipped %d stale frame(s) to reduce latency", droppedFrames);
+        LOG_D("[ZeroCopyRenderer] Skipped %d stale frame(s) to reduce latency", droppedFrames);
     }
 
     m_currentFrame = latest;

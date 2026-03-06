@@ -1,13 +1,15 @@
 #ifndef SERVER_H
 #define SERVER_H
 
-#include <QObject>
-#include <QPointer>
-#include <QSize>
-#include <QTcpSocket>
+#include "GameSignal.h"
+
+#include <string>
+#include <cstdint>
+#include "GameTypes.h"
 
 // 前向声明
 class KcpServer;
+class NativeTcpSocket;
 class TcpServerHandler;
 class KcpVideoSocket;
 class KcpControlSocket;
@@ -22,45 +24,48 @@ class VideoSocket;
  * - 不包含 ':' (如 abcd1234): USB 模式 (TCP)
  *   No ':': USB mode (TCP)
  */
-class Server : public QObject
+class Server
 {
-    Q_OBJECT
 
 public:
     struct ServerParams
     {
         // 必需参数 / Required parameters
-        QString serial = "";              // 设备序列号 / Device serial
-        QString serverLocalPath = "";     // 本地 server 路径 / Local server path
+        std::string serial;              // 设备序列号 / Device serial
+        std::string serverLocalPath;     // 本地 server 路径 / Local server path
 
         // 可选参数 / Optional parameters
-        QString serverRemotePath = "/data/local/tmp/scrcpy-server.jar";
-        quint16 maxSize = 720;
-        quint32 bitRate = 8000000;
-        quint32 maxFps = 0;
+        std::string serverRemotePath = "/data/local/tmp/scrcpy-server.jar";
+        uint16_t maxSize = 720;
+        uint32_t bitRate = 8000000;
+        uint32_t maxFps = 0;
         int captureOrientationLock = 0;
         int captureOrientation = 0;
         int stayAwake = false;
-        QString serverVersion = "3.3.4";
-        QString logLevel = "debug";
-        QString videoCodec = "h264";  // "h264"
-        QString codecOptions = "";
-        QString codecName = "";
-        QString crop = "";
+        std::string serverVersion = "3.3.4";
+        std::string logLevel = "debug";
+        std::string videoCodec = "h264";  // "h264"
+        std::string codecOptions;
+        std::string codecName;
+        std::string crop;
         bool control = true;
+        bool audioEnabled = true;     // 是否启用音频通道
+        bool auxEnabled = true;       // 是否启用辅助通道
 
         // TCP 模式参数 / TCP mode parameters
-        quint16 localPort = 27183;        // TCP 本地端口 (USB 模式) / TCP local port (USB)
-        quint16 localPortCtrl = 27184;    // TCP 控制端口 / TCP control port
+        uint16_t localPort = 27183;        // TCP 本地端口 (USB 模式) / TCP local port (USB)
+        uint16_t localPortAudio = 27186;   // TCP 音频端口 / TCP audio port
+        uint16_t localPortCtrl = 27184;    // TCP 控制端口 / TCP control port
+        uint16_t localPortAux = 27185;     // TCP 辅助通道端口 / TCP aux channel port
         bool useReverse = true;           // TCP 模式: 先尝试 reverse / TCP: try reverse first
 
         // KCP 模式参数 / KCP mode parameters
-        quint16 kcpPort = 27185;          // KCP UDP 视频端口 / KCP UDP video port (ctrl = kcpPort+1)
+        uint16_t kcpPort = 27185;          // KCP UDP 视频端口 / KCP UDP video port (ctrl = kcpPort+1)
 
-        qint32 scid = -1;
+        int32_t scid = -1;
     };
 
-    explicit Server(QObject *parent = nullptr);
+    explicit Server();
     virtual ~Server();
 
     bool start(Server::ServerParams params);
@@ -80,19 +85,24 @@ public:
 
     // 获取 sockets (TCP 模式)
     VideoSocket *removeVideoSocket();
-    QTcpSocket *getControlSocket();
+    NativeTcpSocket *getControlSocket();
+    NativeTcpSocket *getAudioTcpSocket();  // USB 或 WiFi 模式都可用
+    NativeTcpSocket *getAuxTcpSocket();    // USB 或 WiFi 模式都可用
 
-signals:
-    void serverStarted(bool success, const QString &deviceName = "", const QSize &size = QSize());
-    void serverStoped();
+    // 获取服务器IP (WiFi 模式)
+    std::string getServerIp() const;
+
+    // 信号 (Signal<>) — 替代 Qt signals
+    Signal<bool, const std::string&, const Size&> serverStarted;
+    Signal<> serverStoped;
 
 private:
     bool m_useKcp = false;
     ServerParams m_params;
 
     // 内部实现 (互斥)
-    QPointer<KcpServer> m_kcpServer;
-    QPointer<TcpServerHandler> m_tcpServer;
+    KcpServer* m_kcpServer = nullptr;
+    TcpServerHandler* m_tcpServer = nullptr;
 };
 
 #endif // SERVER_H

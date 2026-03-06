@@ -4,26 +4,27 @@
 #include "interfaces/IVideoChannel.h"
 #include "interfaces/IControlChannel.h"
 #include "infra/FrameQueue.h"
+#include "AuxChannelClient.h"
 #include "decoder.h"
 
-#include <QDebug>
+#define LOG_TAG "DeviceSession"
+#include "Logger.h"
 
 namespace qsc {
 namespace core {
 
-DeviceSession::DeviceSession(const SessionParams& params, QObject* parent)
-    : QObject(parent)
-    , m_params(params)
-    , m_streamManager(std::make_unique<StreamManager>(this))
-    , m_inputManager(std::make_unique<InputManager>(this))
+DeviceSession::DeviceSession(const SessionParams& params)
+    : m_params(params)
+    , m_streamManager(std::make_unique<StreamManager>())
+    , m_inputManager(std::make_unique<InputManager>())
 {
-    qDebug() << "[DeviceSession] Created for device:" << params.serial;
+    LOGD() << "[DeviceSession] Created for device:" << params.serial;
     setupConnections();
 }
 
 DeviceSession::~DeviceSession()
 {
-    qDebug() << "[DeviceSession] Destroying" << m_params.serial;
+    LOGD() << "[DeviceSession] Destroying" << m_params.serial;
     stop();
 }
 
@@ -35,42 +36,45 @@ void DeviceSession::setState(SessionState state)
 
     // 验证状态转换是否有效
     if (!isValidStateTransition(m_state, state)) {
-        qWarning("[DeviceSession] Invalid state transition: %s -> %s",
+        LOG_W("[DeviceSession] Invalid state transition: %s -> %s",
                  sessionStateToString(m_state), sessionStateToString(state));
         return;
     }
 
-    qDebug("[DeviceSession] State: %s -> %s",
+    LOG_D("[DeviceSession] State: %s -> %s",
            sessionStateToString(m_state), sessionStateToString(state));
 
     m_state = state;
-    emit stateChanged(state);
+    stateChanged.fire(state);
 }
 
 void DeviceSession::setupConnections()
 {
-    // 连接 StreamManager 信号
-    connect(m_streamManager.get(), &StreamManager::fpsUpdated,
-            this, &DeviceSession::fpsUpdated);
-    connect(m_streamManager.get(), &StreamManager::streamStopped,
-            this, [this]() {
-                qDebug() << "[DeviceSession] Stream stopped";
-                stop();
-            });
-    connect(m_streamManager.get(), &StreamManager::frameSizeChanged,
-            this, &DeviceSession::frameSizeChanged);
-    connect(m_streamManager.get(), &StreamManager::decoderInfo,
-            this, &DeviceSession::decoderInfo);
+    // 连接 StreamManager 信号 (Signal<>)
+    m_streamManager->fpsUpdated.connect([this](uint32_t fps) {
+        fpsUpdated.fire(fps);
+    });
+    m_streamManager->streamStopped.connect([this]() {
+        LOGD() << "[DeviceSession] Stream stopped";
+        stop();
+    });
+    m_streamManager->frameSizeChanged.connect([this](const Size& size) {
+        frameSizeChanged.fire(size);
+    });
+    m_streamManager->decoderInfo.connect([this](bool hwAccel, const std::string& name) {
+        decoderInfo.fire(hwAccel, name);
+    });
 
-    // 连接 InputManager 信号
-    connect(m_inputManager.get(), &InputManager::cursorGrabChanged,
-            this, &DeviceSession::cursorGrabChanged);
-    connect(m_inputManager.get(), &InputManager::scriptTip,
-            this, [this](const QString& msg, int durationMs, int keyId) {
-                emit scriptTip(msg, keyId, durationMs);
-            });
-    connect(m_inputManager.get(), &InputManager::keyMapOverlayUpdated,
-            this, &DeviceSession::keyMapOverlayUpdated);
+    // 注册 InputManager 回调
+    m_inputManager->setCursorGrabCallback([this](bool grabbed) {
+        cursorGrabChanged.fire(grabbed);
+    });
+    m_inputManager->setScriptTipCallback([this](const std::string& msg, int durationMs, int keyId) {
+        scriptTip.fire(msg, keyId, durationMs);
+    });
+    m_inputManager->setKeyMapOverlayCallback([this]() {
+        keyMapOverlayUpdated.fire();
+    });
 }
 
 bool DeviceSession::start(Decoder* decoder,
@@ -78,13 +82,13 @@ bool DeviceSession::start(Decoder* decoder,
                           IControlChannel* controlChannel)
 {
     if (m_state != SessionState::Disconnected && m_state != SessionState::Error) {
-        qWarning() << "[DeviceSession] Cannot start: current state is"
+        LOGW() << "[DeviceSession] Cannot start: current state is"
                    << sessionStateToString(m_state);
         return false;
     }
 
     setState(SessionState::Connecting);
-    qDebug() << "[DeviceSession] Starting session for" << m_params.serial;
+    LOGD() << "[DeviceSession] Starting session for" << m_params.serial;
 
     m_videoChannel = videoChannel;
     m_controlChannel = controlChannel;
@@ -114,7 +118,7 @@ void DeviceSession::stop()
     }
 
     setState(SessionState::Disconnecting);
-    qDebug() << "[DeviceSession] Stopping session for" << m_params.serial;
+    LOGD() << "[DeviceSession] Stopping session for" << m_params.serial;
 
     if (m_streamManager) {
         m_streamManager->stop();
@@ -125,7 +129,7 @@ void DeviceSession::stop()
     }
 
     setState(SessionState::Disconnected);
-    emit stopped(m_params.serial);
+    stopped.fire(m_params.serial);
 }
 
 bool DeviceSession::isRunning() const
@@ -134,31 +138,38 @@ bool DeviceSession::isRunning() const
            m_state == SessionState::Paused;
 }
 
-quint32 DeviceSession::fps() const
+uint32_t DeviceSession::fps() const
 {
     return m_streamManager ? m_streamManager->fps() : 0;
 }
 
 // === 输入事件 ===
 
-void DeviceSession::keyEvent(const QKeyEvent* event, const QSize& frameSize, const QSize& showSize)
+void DeviceSession::keyEvent(const InputEvent& event, const Size& frameSize, const Size& showSize)
 {
     if (m_inputManager) {
         m_inputManager->keyEvent(event, frameSize, showSize);
     }
 }
 
-void DeviceSession::mouseEvent(const QMouseEvent* event, const QSize& frameSize, const QSize& showSize)
+void DeviceSession::mouseEvent(const InputEvent& event, const Size& frameSize, const Size& showSize)
 {
     if (m_inputManager) {
         m_inputManager->mouseEvent(event, frameSize, showSize);
     }
 }
 
-void DeviceSession::wheelEvent(const QWheelEvent* event, const QSize& frameSize, const QSize& showSize)
+void DeviceSession::wheelEvent(const InputEvent& event, const Size& frameSize, const Size& showSize)
 {
     if (m_inputManager) {
         m_inputManager->wheelEvent(event, frameSize, showSize);
+    }
+}
+
+void DeviceSession::setDevicePixelRatio(double dpr)
+{
+    if (m_inputManager) {
+        m_inputManager->setDevicePixelRatio(dpr);
     }
 }
 
@@ -222,7 +233,7 @@ void DeviceSession::screenshot(std::function<void(int, int, uint8_t*)> callback)
     }
 }
 
-void DeviceSession::updateScript(const QString& json, bool runAutoStart)
+void DeviceSession::updateScript(const std::string& json, bool runAutoStart)
 {
     if (m_inputManager) {
         m_inputManager->updateScript(json, runAutoStart);
@@ -264,13 +275,63 @@ void DeviceSession::resetAllTouchPoints()
     }
 }
 
+void DeviceSession::setVideoBitRate(uint32_t bitrate)
+{
+    if (m_inputManager) {
+        m_inputManager->postSetVideoBitRate(bitrate);
+    }
+}
+
+void DeviceSession::setDisplayPower(bool on)
+{
+    if (m_inputManager) {
+        m_inputManager->postSetDisplayPower(on);
+    }
+}
+
+void DeviceSession::setVideoParams(uint32_t bitrate, uint16_t maxFps, uint16_t maxSize)
+{
+    if (m_auxChannel) {
+        m_auxChannel->sendVideoParams(bitrate, maxFps, maxSize);
+    } else {
+        LOG_W("[DeviceSession] setVideoParams: aux channel not available");
+    }
+}
+
+void DeviceSession::setVideoStreaming(bool on)
+{
+    if (m_auxChannel) {
+        m_auxChannel->sendVideoStreaming(on);
+    } else {
+        LOG_W("[DeviceSession] setVideoStreaming: aux channel not available");
+    }
+}
+
+void DeviceSession::setAuxChannel(AuxChannelClient* client)
+{
+    m_auxChannel = client;
+}
+
+void DeviceSession::setAudioManager(AudioStreamManager* mgr)
+{
+    m_audioManager = mgr;
+}
+
 // === 回调设置 ===
 
-void DeviceSession::setFrameGrabCallback(std::function<QImage()> callback)
+void DeviceSession::setFrameGrabCallback(std::function<cv::Mat()> callback)
 {
     m_frameGrabCallback = callback;  // 先拷贝保存
     if (m_inputManager) {
         m_inputManager->setFrameGrabCallback(std::move(callback));  // 再 move 给 InputManager
+    }
+}
+
+void DeviceSession::setGrayFrameGrabCallback(GrayFrameGrabCallback callback)
+{
+    m_grayFrameGrabCallback = callback;
+    if (m_inputManager) {
+        m_inputManager->setGrayFrameGrabCallback(std::move(callback));
     }
 }
 

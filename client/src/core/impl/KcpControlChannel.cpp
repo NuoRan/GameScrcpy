@@ -1,8 +1,6 @@
 #include "KcpControlChannel.h"
 #include "kcpcontrolsocket.h"
 #include "fastmsg.h"
-#include <QHostAddress>
-#include <QByteArray>
 
 namespace qsc {
 namespace core {
@@ -23,8 +21,7 @@ bool KcpControlChannel::connect(const char* host, uint16_t port)
         return false;
     }
 
-    QHostAddress addr(QString::fromUtf8(host));
-    m_socket->connectToHost(addr, port);
+    m_socket->connectToHost(std::string(host), port);
 
     // KCP 是 UDP，不需要等待连接
     m_connected = m_socket->isValid();
@@ -50,7 +47,7 @@ bool KcpControlChannel::send(const uint8_t* data, int32_t size)
         return false;
     }
 
-    qint64 written = m_socket->write(reinterpret_cast<const char*>(data), size);
+    int64_t written = m_socket->write(reinterpret_cast<const char*>(data), size);
     return written == size;
 }
 
@@ -62,9 +59,10 @@ bool KcpControlChannel::sendTouch(uint32_t seqId, uint8_t action, uint16_t x, ui
 
     // 使用 FastMsg 协议构建触摸消息
     FastTouchEvent event(seqId, action, x, y);
-    QByteArray data = FastMsg::serializeTouch(event);
+    char buf[6];
+    int len = FastMsg::serializeTouchInto(buf, event);
 
-    return send(reinterpret_cast<const uint8_t*>(data.constData()), data.size());
+    return send(reinterpret_cast<const uint8_t*>(buf), len);
 }
 
 bool KcpControlChannel::sendKey(uint8_t action, int32_t keycode)
@@ -74,10 +72,11 @@ bool KcpControlChannel::sendKey(uint8_t action, int32_t keycode)
     }
 
     // 使用 FastMsg 协议构建按键消息
-    FastKeyEvent event(action, static_cast<quint16>(keycode));
-    QByteArray data = FastMsg::serializeKey(event);
+    FastKeyEvent event(action, static_cast<uint16_t>(keycode));
+    char buf[3];
+    FastMsg::serializeKeyInto(buf, event);
 
-    return send(reinterpret_cast<const uint8_t*>(data.constData()), data.size());
+    return send(reinterpret_cast<const uint8_t*>(buf), 3);
 }
 
 bool KcpControlChannel::bind(uint16_t port)

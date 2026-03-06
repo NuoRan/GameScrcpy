@@ -1,12 +1,15 @@
 #ifndef IDECODER_H
 #define IDECODER_H
 
-#include <QObject>
-#include <QSize>
+#include <cstdint>
 #include <functional>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "ErrorCode.h"
+#include "GameSignal.h"
+#include "GameTypes.h"
 
 // Forward declarations
 struct AVPacket;
@@ -85,12 +88,10 @@ using RGBFrameCallback = std::function<void(int width, int height, uint8_t* data
  * 定义解码器的标准接口，支持软件解码和硬件加速解码。
  * Standard decoder interface supporting software and hardware-accelerated decoding.
  */
-class IDecoder : public QObject
+class IDecoder
 {
-    Q_OBJECT
-
 public:
-    explicit IDecoder(QObject* parent = nullptr) : QObject(parent) {}
+    IDecoder() = default;
     virtual ~IDecoder() = default;
 
     // =========================================================================
@@ -161,34 +162,18 @@ public:
     /**
      * @brief 获取硬件解码器名称
      */
-    virtual QString hardwareDecoderName() const = 0;
+    virtual std::string hardwareDecoderName() const = 0;
 
     /**
      * @brief 获取当前解码分辨率
      */
-    virtual QSize frameSize() const = 0;
+    virtual Size frameSize() const = 0;
 
-signals:
-    /**
-     * @brief 状态变化信号
-     */
-    void stateChanged(DecoderState newState, DecoderState oldState);
-
-    /**
-     * @brief FPS 更新信号
-     */
-    void fpsUpdated(quint32 fps);
-
-    /**
-     * @brief 硬件解码器回退信号
-     * @param reason 回退原因
-     */
-    void hardwareDecoderFallback(const QString& reason);
-
-    /**
-     * @brief 解码错误信号
-     */
-    void decoderError(ErrorCode code, const QString& message);
+    // 信号 / Signals
+    Signal<DecoderState, DecoderState> stateChanged;
+    Signal<uint32_t> fpsUpdated;
+    Signal<const std::string&> hardwareDecoderFallback;
+    Signal<ErrorCode, const std::string&> decoderError;
 };
 
 /**
@@ -206,14 +191,13 @@ public:
      * @return 解码器实例
      */
     virtual std::unique_ptr<IDecoder> createDecoder(
-        FrameCallback callback,
-        QObject* parent = nullptr
+        FrameCallback callback
     ) = 0;
 
     /**
      * @brief 获取可用的硬件解码器列表
      */
-    virtual QStringList availableHardwareDecoders() const = 0;
+    virtual std::vector<std::string> availableHardwareDecoders() const = 0;
 };
 
 } // namespace qsc

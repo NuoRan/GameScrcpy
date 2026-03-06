@@ -5,10 +5,11 @@
 #include <QGraphicsScene>
 #include <QPainter>
 #include <QPen>
-#include <QJsonObject>
+#include "third_party/nlohmann/json.hpp"
 #include <QSharedPointer>
 #include <QKeyEvent>
 #include <QGraphicsSceneMouseEvent>
+#include "DesignTokens.h"
 
 // ---------------------------------------------------------
 // 键位类型枚举 / Key Map Type Enumeration
@@ -38,8 +39,8 @@ public:
     virtual ~KeyMapItemBase() {}
 
     // 纯虚函数：序列化与反序列化，子类必须实现
-    virtual QJsonObject toJson() const = 0;
-    virtual void fromJson(const QJsonObject& json) = 0;
+    virtual nlohmann::json toJson() const = 0;
+    virtual void fromJson(const nlohmann::json& json) = 0;
     virtual KeyMapType typeId() const = 0;
 
     // 设置/获取按键冲突状态（冲突时通常显示红色）
@@ -59,8 +60,8 @@ public:
         QRectF closeRect = closeButtonRect(itemRect);
         painter->save();
         painter->setPen(Qt::NoPen);
-        painter->setBrush(QColor(220, 38, 38, 200));
-        painter->drawEllipse(closeRect);
+        painter->setBrush(QColor(Fluent::Accent::Error));
+        painter->drawRoundedRect(closeRect, 3, 3);
         painter->setPen(QPen(Qt::white, 1.5));
         double cx = closeRect.center().x(), cy = closeRect.center().y(), r = 3;
         painter->drawLine(QPointF(cx - r, cy - r), QPointF(cx + r, cy + r));

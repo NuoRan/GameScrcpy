@@ -1,4 +1,5 @@
-#include <QDebug>
+﻿#define LOG_TAG "Server"
+#include "Logger.h"
 
 #include "server.h"
 #include "kcpserver.h"
@@ -7,7 +8,7 @@
 #include "tcpserverhandler.h"
 #include "videosocket.h"
 
-Server::Server(QObject *parent) : QObject(parent)
+Server::Server()
 {
 }
 
@@ -23,15 +24,22 @@ bool Server::start(Server::ServerParams params)
     // 自动检测连接模式
     // 包含 ':' 的是 WiFi 连接 (如 192.168.1.100:5555)
     // 否则是 USB 连接 (如 abcd1234)
-    m_useKcp = m_params.serial.contains(':');
+    m_useKcp = m_params.serial.find(':') != std::string::npos;
 
     if (m_useKcp) {
-        qInfo() << "Server: Detected WiFi connection, using KCP mode";
+        LOGI() << "Server: Detected WiFi connection, using KCP mode";
 
         // 创建 KcpServer
-        m_kcpServer = new KcpServer(this);
-        connect(m_kcpServer, &KcpServer::serverStarted, this, &Server::serverStarted);
-        connect(m_kcpServer, &KcpServer::serverStoped, this, &Server::serverStoped);
+        m_kcpServer = new KcpServer();
+        // 桥接 KcpServer 的 Signal<> 到 Server 的 Signal<>
+        m_kcpServer->serverStarted.connect(
+            [this](bool ok, const std::string& name, const Size& sz) {
+                serverStarted.fire(ok, name, sz);
+            });
+        m_kcpServer->serverStoped.connect(
+            [this]() {
+                serverStoped.fire();
+            });
 
         // 转换参数
         KcpServer::ServerParams kcpParams;
@@ -51,17 +59,26 @@ bool Server::start(Server::ServerParams params)
         kcpParams.videoCodec = m_params.videoCodec;
         kcpParams.crop = m_params.crop;
         kcpParams.control = m_params.control;
+        kcpParams.audioEnabled = m_params.audioEnabled;
+        kcpParams.auxEnabled = m_params.auxEnabled;
         kcpParams.kcpPort = m_params.kcpPort;
         kcpParams.scid = m_params.scid;
 
         return m_kcpServer->start(kcpParams);
     } else {
-        qInfo() << "Server: Detected USB connection, using TCP mode";
+        LOGI() << "Server: Detected USB connection, using TCP mode";
 
         // 创建 TcpServerHandler
-        m_tcpServer = new TcpServerHandler(this);
-        connect(m_tcpServer, &TcpServerHandler::serverStarted, this, &Server::serverStarted);
-        connect(m_tcpServer, &TcpServerHandler::serverStoped, this, &Server::serverStoped);
+        m_tcpServer = new TcpServerHandler();
+        // 桥接 TcpServerHandler 的 Signal<> 到 Server 的 Signal<>
+        m_tcpServer->serverStarted.connect(
+            [this](bool ok, const std::string& name, const Size& sz) {
+                serverStarted.fire(ok, name, sz);
+            });
+        m_tcpServer->serverStoped.connect(
+            [this]() {
+                serverStoped.fire();
+            });
 
         // 转换参数
         TcpServerHandler::ServerParams tcpParams;
@@ -69,7 +86,9 @@ bool Server::start(Server::ServerParams params)
         tcpParams.serverLocalPath = m_params.serverLocalPath;
         tcpParams.serverRemotePath = m_params.serverRemotePath;
         tcpParams.localPort = m_params.localPort;
+        tcpParams.localPortAudio = m_params.localPortAudio;
         tcpParams.localPortCtrl = m_params.localPortCtrl;
+        tcpParams.localPortAux = m_params.localPortAux;
         tcpParams.maxSize = m_params.maxSize;
         tcpParams.bitRate = m_params.bitRate;
         tcpParams.maxFps = m_params.maxFps;
@@ -84,6 +103,8 @@ bool Server::start(Server::ServerParams params)
         tcpParams.videoCodec = m_params.videoCodec;
         tcpParams.crop = m_params.crop;
         tcpParams.control = m_params.control;
+        tcpParams.audioEnabled = m_params.audioEnabled;
+        tcpParams.auxEnabled = m_params.auxEnabled;
         tcpParams.scid = m_params.scid;
 
         return m_tcpServer->start(tcpParams);
@@ -94,13 +115,13 @@ void Server::stop()
 {
     if (m_kcpServer) {
         m_kcpServer->stop();
-        m_kcpServer->deleteLater();
-        m_kcpServer = Q_NULLPTR;
+        delete m_kcpServer;
+        m_kcpServer = nullptr;
     }
     if (m_tcpServer) {
         m_tcpServer->stop();
-        m_tcpServer->deleteLater();
-        m_tcpServer = Q_NULLPTR;
+        delete m_tcpServer;
+        m_tcpServer = nullptr;
     }
 }
 
@@ -122,7 +143,7 @@ KcpVideoSocket* Server::removeKcpVideoSocket()
     if (m_kcpServer) {
         return m_kcpServer->removeKcpVideoSocket();
     }
-    return Q_NULLPTR;
+    return nullptr;
 }
 
 KcpControlSocket* Server::getKcpControlSocket()
@@ -130,7 +151,7 @@ KcpControlSocket* Server::getKcpControlSocket()
     if (m_kcpServer) {
         return m_kcpServer->getKcpControlSocket();
     }
-    return Q_NULLPTR;
+    return nullptr;
 }
 
 VideoSocket* Server::removeVideoSocket()
@@ -138,13 +159,43 @@ VideoSocket* Server::removeVideoSocket()
     if (m_tcpServer) {
         return m_tcpServer->removeVideoSocket();
     }
-    return Q_NULLPTR;
+    return nullptr;
 }
 
-QTcpSocket* Server::getControlSocket()
+NativeTcpSocket* Server::getControlSocket()
 {
     if (m_tcpServer) {
         return m_tcpServer->getControlSocket();
     }
-    return Q_NULLPTR;
+    return nullptr;
+}
+
+NativeTcpSocket* Server::getAudioTcpSocket()
+{
+    if (m_tcpServer) {
+        return m_tcpServer->getAudioSocket();
+    }
+    if (m_kcpServer) {
+        return m_kcpServer->getAudioTcpSocket();
+    }
+    return nullptr;
+}
+
+NativeTcpSocket* Server::getAuxTcpSocket()
+{
+    if (m_tcpServer) {
+        return m_tcpServer->getAuxSocket();
+    }
+    if (m_kcpServer) {
+        return m_kcpServer->getAuxTcpSocket();
+    }
+    return nullptr;
+}
+
+std::string Server::getServerIp() const
+{
+    if (m_kcpServer) {
+        return m_kcpServer->getServerIp();
+    }
+    return std::string();
 }

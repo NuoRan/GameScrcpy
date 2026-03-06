@@ -6,6 +6,7 @@
 #include <QHash>
 #include <QSet>
 #include <QPainter>
+#include <QTimer>
 
 // ---------------------------------------------------------
 // KeyMapOverlay - 键位提示覆盖层 / Key Map Hint Overlay
@@ -34,6 +35,10 @@ public:
     void setOpacity(qreal opacity);  // 0.0 - 1.0
     qreal opacity() const { return m_opacity; }
 
+    // v23: 设置 color key 背景色 (Windows D3D11 覆盖层透明模式)
+    // 设置后 paintEvent 会用精确像素值填充背景, 配合 LWA_COLORKEY 实现透明
+    void setColorKeyBackground(const QColor& color);
+
     // 设置指定热键的 UI 位置覆盖 (用于脚本动态更新)
     // 如果 x=0, y=0 则清除覆盖，恢复原位置
     // 如果 x=-1 则隐藏该按键 UI
@@ -41,6 +46,8 @@ public:
     static QPointF getKeyPosOverride(const QString& keyName);
     static bool isKeyHidden(const QString& keyName);  // 检查按键是否被隐藏
     static void clearAllOverrides();
+
+    void scheduleUpdate();  // 合并重绘：16ms 内多次调用只触发一次 update()
 
 protected:
     void paintEvent(QPaintEvent *event) override;
@@ -55,6 +62,8 @@ private:
 private:
     QList<KeyInfo> m_keyInfos;
     qreal m_opacity = 0.6;
+    QTimer m_coalescingTimer;  // 合并重绘定时器
+    QColor m_colorKeyBg;      // v23: color key 背景色 (invalid = 正常透明模式)
 
     // 静态位置覆盖映射 (key: 按键名称, value: 覆盖位置)
     static QHash<QString, QPointF> s_posOverrides;

@@ -1,65 +1,42 @@
-#include <QDebug>
-#include <QTimerEvent>
+#define LOG_TAG "FpsCounter"
+#include "Logger.h"
 
 #include "fpscounter.h"
 
-FpsCounter::FpsCounter(QObject *parent) : QObject(parent) {}
-
-FpsCounter::~FpsCounter() {}
-
 void FpsCounter::start()
 {
-    resetCounter();
-    startCounterTimer();
+    m_rendered.store(0, std::memory_order_relaxed);
+    m_skipped.store(0, std::memory_order_relaxed);
+    m_lastRendered.store(0, std::memory_order_relaxed);
+    m_running.store(true, std::memory_order_release);
 }
 
 void FpsCounter::stop()
 {
-    stopCounterTimer();
-    resetCounter();
+    m_running.store(false, std::memory_order_release);
+    m_rendered.store(0, std::memory_order_relaxed);
+    m_skipped.store(0, std::memory_order_relaxed);
 }
 
-bool FpsCounter::isStarted()
+bool FpsCounter::isStarted() const
 {
-    return m_counterTimer;
+    return m_running.load(std::memory_order_acquire);
 }
 
 void FpsCounter::addRenderedFrame()
 {
-    m_rendered++;
+    m_rendered.fetch_add(1, std::memory_order_relaxed);
 }
 
 void FpsCounter::addSkippedFrame()
 {
-    m_skipped++;
+    m_skipped.fetch_add(1, std::memory_order_relaxed);
 }
 
-void FpsCounter::timerEvent(QTimerEvent *event)
+uint32_t FpsCounter::pollFps()
 {
-    if (event && m_counterTimer == event->timerId()) {
-        m_curRendered = m_rendered;
-        m_curSkipped = m_skipped;
-        resetCounter();
-        emit updateFPS(m_curRendered);
-    }
-}
-
-void FpsCounter::startCounterTimer()
-{
-    stopCounterTimer();
-    m_counterTimer = startTimer(1000);
-}
-
-void FpsCounter::stopCounterTimer()
-{
-    if (m_counterTimer) {
-        killTimer(m_counterTimer);
-        m_counterTimer = 0;
-    }
-}
-
-void FpsCounter::resetCounter()
-{
-    m_rendered = 0;
-    m_skipped = 0;
+    uint32_t rendered = m_rendered.exchange(0, std::memory_order_acq_rel);
+    m_skipped.exchange(0, std::memory_order_relaxed);
+    m_lastRendered.store(rendered, std::memory_order_relaxed);
+    return rendered;
 }

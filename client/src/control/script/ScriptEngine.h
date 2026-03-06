@@ -15,21 +15,22 @@
 #ifndef SCRIPTENGINE_H
 #define SCRIPTENGINE_H
 
-#include <QObject>
-#include <QHash>
-#include <QMutex>
-#include <QPointF>
-#include <QSize>
-#include <QImage>
+#include <unordered_map>
+#include <mutex>
+#include <string>
+#include "GameTypes.h"
 #include <atomic>
 #include <functional>
+#include <opencv2/core.hpp>
+#include "GrayFrame.h"
+#include "GameSignal.h"
 
 class Controller;
 class SessionContext;
 class ScriptSandbox;
 
 /// 帧获取回调类型 (用于图像识别) / Frame grab callback type (for image recognition)
-using FrameGrabCallback = std::function<QImage()>;
+using FrameGrabCallback = std::function<cv::Mat()>;
 
 /**
  * @brief JavaScript 脚本引擎 / JavaScript Script Engine
@@ -40,11 +41,10 @@ using FrameGrabCallback = std::function<QImage()>;
  * - 会话绑定: 通过 SessionContext 管理状态 / Session binding: state managed via SessionContext
  * - API 兼容: 完全兼容旧版 mapi 接口 / API compatible: fully compatible with legacy mapi interface
  */
-class ScriptEngine : public QObject
+class ScriptEngine
 {
-    Q_OBJECT
 public:
-    explicit ScriptEngine(Controller* controller, SessionContext* ctx, QObject* parent = nullptr);
+    ScriptEngine(Controller* controller, SessionContext* ctx);
     ~ScriptEngine();
 
     // 获取/设置会话上下文
@@ -52,27 +52,30 @@ public:
     void setSessionContext(SessionContext* ctx);  // 实现在 cpp 中，需要通知所有沙箱
 
     // 设置脚本基础路径
-    void setScriptBasePath(const QString& path) { m_scriptBasePath = path; }
-    QString scriptBasePath() const { return m_scriptBasePath; }
+    void setScriptBasePath(const std::string& path) { m_scriptBasePath = path; }
+    std::string scriptBasePath() const { return m_scriptBasePath; }
 
     // 设置视频尺寸（用于脚本坐标计算）
-    void setVideoSize(const QSize& size) { m_videoSize = size; }
-    QSize videoSize() const { return m_videoSize; }
+    void setVideoSize(const Size& size) { m_videoSize = size; }
+    Size videoSize() const { return m_videoSize; }
 
     void setFrameGrabCallback(FrameGrabCallback callback);
-    static QImage grabCurrentFrame();
+    static cv::Mat grabCurrentFrame();
+
+    void setGrayFrameGrabCallback(GrayFrameGrabCallback callback);
+    static GrayFrame grabCurrentGrayFrame();
 
     // 执行脚本文件（返回沙箱 ID）
-    int runScript(const QString& scriptPath, int keyId, const QPointF& anchorPos, bool isPress);
+    int runScript(const std::string& scriptPath, int keyId, const PointF& anchorPos, bool isPress);
 
     // 执行内联脚本（返回沙箱 ID）
-    int runInlineScript(const QString& script, int keyId, const QPointF& anchorPos, bool isPress);
+    int runInlineScript(const std::string& script, int keyId, const PointF& anchorPos, bool isPress);
 
     // 执行自动启动脚本（keyId 从 -1000 开始递减）
-    void runAutoStartScript(const QString& script);
+    void runAutoStartScript(const std::string& script);
 
     // 检查脚本是否包含自动启动标记
-    static bool isAutoStartScript(const QString& script);
+    static bool isAutoStartScript(const std::string& script);
 
     // 停止指定沙箱
     void stopSandbox(int sandboxId);
@@ -90,58 +93,46 @@ public:
     static void setMaxTouchPoints(int max);
 
     // 设置热键 UI 显示位置
-    void setKeyUIPos(const QString& keyName, double x, double y);
+    void setKeyUIPos(const std::string& keyName, double x, double y);
 
-signals:
-    // 触摸请求信号（转发到主线程处理）
-    void touchRequested(quint32 seqId, quint8 action, quint16 x, quint16 y);
-    void keyRequested(quint8 action, quint16 keycode);
-
-    // UI 信号
-    void tipRequested(const QString& msg, int durationMs, int keyId);
-    void shotmodeRequested(bool gameMode);
-
-    // 参数调整信号
-    void radialParamRequested(double up, double down, double left, double right);
-    void resetviewRequested();
-    void resetWheelRequested();
-
-    // 按键模拟信号
-    void simulateKeyRequested(const QString& keyName, bool press);
-    void keyUIPosRequested(const QString& keyName, double x, double y);
-
-    // 键位覆盖层更新信号
-    void keyMapOverlayUpdateRequested();
-
-    // 脚本错误信号
-    void scriptError(const QString& error);
-
-private slots:
-    void onSandboxFinished(int sandboxId);
-
-    // P-KCP: 仅保留有额外逻辑的槽（其余已改为直接信号→信号连接）
-    void onKeyUIPosRequested(const QString& keyName, double x, double y);
+    // Signals (Signal<>)
+    Signal<uint32_t, uint8_t, uint16_t, uint16_t> touchRequested;
+    Signal<uint8_t, uint16_t> keyRequested;
+    Signal<const std::string&, int, int> tipRequested;
+    Signal<bool> shotmodeRequested;
+    Signal<double, double, double, double> radialParamRequested;
+    Signal<> resetviewRequested;
+    Signal<> resetWheelRequested;
+    Signal<const std::string&, bool> simulateKeyRequested;
+    Signal<const std::string&, double, double> keyUIPosRequested;
+    Signal<> keyMapOverlayUpdateRequested;
+    Signal<const std::string&> scriptError;
 
 private:
-    int createSandbox(const QString& scriptOrPath, int keyId, const QPointF& anchorPos,
+    void onSandboxFinished(int sandboxId);
+    void onKeyUIPosRequested(const std::string& keyName, double x, double y);
+
+private:
+    int createSandbox(const std::string& scriptOrPath, int keyId, const PointF& anchorPos,
                       bool isPress, bool isInline);
     void connectSandbox(ScriptSandbox* sandbox);
 
     Controller* m_controller = nullptr;
     SessionContext* m_sessionContext = nullptr;
 
-    QString m_scriptBasePath;
-    QSize m_videoSize = QSize(1920, 1080);
+    std::string m_scriptBasePath;
+    Size m_videoSize = Size(1920, 1080);
     FrameGrabCallback m_frameGrabCallback;
 
     static FrameGrabCallback s_frameGrabCallback;
-    static QMutex s_frameGrabMutex;  // 保护静态回调的互斥锁
+    static GrayFrameGrabCallback s_grayFrameGrabCallback;
+    static std::mutex s_frameGrabMutex;  // 保护静态回调的互斥锁
     static ScriptEngine* s_activeEngine;  // 当前活跃的引擎（用于防止旧引擎清除新回调）
     static std::atomic<int> s_callInProgress;  // 正在进行的回调调用计数
 
     // 沙箱管理
-    QHash<int, ScriptSandbox*> m_sandboxes;
-    mutable QMutex m_sandboxMutex;
+    std::unordered_map<int, ScriptSandbox*> m_sandboxes;
+    mutable std::mutex m_sandboxMutex;
     std::atomic<int> m_nextSandboxId{1};
 
     // 自动启动脚本的 keyId 计数器（从 -1000 开始递减）

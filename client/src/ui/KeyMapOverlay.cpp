@@ -45,6 +45,19 @@ KeyMapOverlay::KeyMapOverlay(QWidget *parent)
     setAttribute(Qt::WA_TransparentForMouseEvents);  // 鼠标事件穿透
     setAttribute(Qt::WA_TranslucentBackground);
     setStyleSheet("background: transparent;");
+
+    // 合并重绘定时器：16ms 内的多次 scheduleUpdate() 只触发一次 update()
+    m_coalescingTimer.setSingleShot(true);
+    m_coalescingTimer.setInterval(16);
+    connect(&m_coalescingTimer, &QTimer::timeout, this, QOverload<>::of(&QWidget::update));
+}
+
+void KeyMapOverlay::scheduleUpdate()
+{
+    // 如果定时器正在运行，新的请求自动被合并
+    if (!m_coalescingTimer.isActive()) {
+        m_coalescingTimer.start();
+    }
 }
 
 void KeyMapOverlay::setKeyInfos(const QList<KeyInfo>& infos)
@@ -62,6 +75,17 @@ void KeyMapOverlay::clear()
 void KeyMapOverlay::setOpacity(qreal opacity)
 {
     m_opacity = qBound(0.0, opacity, 1.0);
+    update();
+}
+
+void KeyMapOverlay::setColorKeyBackground(const QColor& color)
+{
+    m_colorKeyBg = color;
+    if (color.isValid()) {
+        setAttribute(Qt::WA_TranslucentBackground, false);
+        setAutoFillBackground(false);  // 我们自己在 paintEvent 里填充
+        setStyleSheet(QString());      // 清除样式表背景
+    }
     update();
 }
 

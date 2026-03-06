@@ -1,4 +1,5 @@
 #include "StreamManager.h"
+#include "ThreadDispatcher.h"
 #include "demuxer.h"
 #include "decoder.h"
 #include "interfaces/IVideoChannel.h"
@@ -8,9 +9,10 @@
 namespace qsc {
 namespace core {
 
-StreamManager::StreamManager(QObject* parent)
-    : QObject(parent)
+StreamManager::StreamManager()
 {
+    m_fpsTimer.setInterval(1000);
+    m_fpsTimer.setCallback([this]() { pollDecoderFps(); });
 }
 
 StreamManager::~StreamManager()
@@ -26,11 +28,6 @@ void StreamManager::setVideoChannel(IVideoChannel* channel)
 void StreamManager::setDecoder(Decoder* decoder)
 {
     m_decoder = decoder;
-
-    if (m_decoder) {
-        // 连接 FPS 更新信号
-        connect(m_decoder, &Decoder::updateFPS, this, &StreamManager::onDecoderFpsUpdated);
-    }
 }
 
 void StreamManager::setFrameCallback(FrameCallback callback)
@@ -38,7 +35,7 @@ void StreamManager::setFrameCallback(FrameCallback callback)
     m_frameCallback = std::move(callback);
 }
 
-bool StreamManager::start(const QSize& frameSize)
+bool StreamManager::start(const Size& frameSize)
 {
     if (m_running) {
         return true;
@@ -64,8 +61,12 @@ bool StreamManager::start(const QSize& frameSize)
     }
 
     // 连接信号
-    connect(m_demuxer.get(), &Demuxer::onStreamStop, this, &StreamManager::onDemuxerStopped);
-    connect(m_demuxer.get(), &Demuxer::getFrame, this, &StreamManager::onGetFrame);
+    m_demuxer->onStreamStop.connect([this]() {
+        dispatch::postToMain([this]() { onDemuxerStopped(); });
+    });
+    m_demuxer->getFrame.connect([this](AVPacket* packet) {
+        onGetFrame(packet);
+    });
 
     // 启动解码
     if (!m_demuxer->startDecode()) {
@@ -75,8 +76,11 @@ bool StreamManager::start(const QSize& frameSize)
 
     m_running = true;
 
+    // 启动 FPS 轮询定时器
+    m_fpsTimer.start();
+
     // 发送解码器信息
-    emit decoderInfo(m_decoder->isHardwareAccelerated(), m_decoder->hwDecoderName());
+    decoderInfo.fire(m_decoder->isHardwareAccelerated(), m_decoder->hwDecoderName());
 
     return true;
 }
@@ -88,10 +92,10 @@ void StreamManager::stop()
     }
 
     m_running = false;
+    m_fpsTimer.stop();
 
     if (m_demuxer) {
         m_demuxer->stopDecode();
-        m_demuxer->wait();
         m_demuxer.reset();
     }
 }
@@ -111,7 +115,7 @@ void StreamManager::screenshot(ScreenshotCallback callback)
 void StreamManager::onDemuxerStopped()
 {
     m_running = false;
-    emit streamStopped();
+    streamStopped.fire();
 }
 
 void StreamManager::onGetFrame(AVPacket* packet)
@@ -121,10 +125,12 @@ void StreamManager::onGetFrame(AVPacket* packet)
     }
 }
 
-void StreamManager::onDecoderFpsUpdated(quint32 fps)
+void StreamManager::pollDecoderFps()
 {
+    if (!m_decoder) return;
+    uint32_t fps = m_decoder->pollFps();
     m_currentFps = fps;
-    emit fpsUpdated(fps);
+    fpsUpdated.fire(fps);
 }
 
 } // namespace core

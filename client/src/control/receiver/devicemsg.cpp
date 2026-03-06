@@ -1,8 +1,9 @@
-#include <QDebug>
+#define LOG_TAG "DeviceMsg"
+#include "Logger.h"
 
 #include "devicemsg.h"
 
-DeviceMsg::DeviceMsg(QObject *parent) : QObject(parent) {}
+DeviceMsg::DeviceMsg() {}
 
 DeviceMsg::~DeviceMsg() {}
 
@@ -11,9 +12,9 @@ DeviceMsg::DeviceMsgType DeviceMsg::type()
     return m_data.type;
 }
 
-qint32 DeviceMsg::deserialize(QByteArray &byteArray)
+int32_t DeviceMsg::deserialize(std::vector<uint8_t> &data)
 {
-    Q_UNUSED(byteArray);
+    (void)data;
     // 暂无需要反序列化的设备消息
     return -1;
 }

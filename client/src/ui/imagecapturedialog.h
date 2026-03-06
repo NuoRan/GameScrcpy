@@ -14,7 +14,6 @@
 #include <QMessageBox>
 #include <QFileDialog>
 #include <QLineEdit>
-#include <QDir>
 #include <QPainter>
 #include <QScrollArea>
 #include <QScrollBar>
@@ -22,6 +21,10 @@
 #include <QClipboard>
 #include <QApplication>
 #include "imagematcher.h"
+#include "StringUtils.h"
+#include "ThemeManager.h"
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
 
 #ifdef Q_OS_WIN
 #include "winutils.h"
@@ -213,13 +216,15 @@ public:
             return;
         }
 
+        auto &tm = Fluent::ThemeManager::instance();
+
         setWindowTitle(mode == CaptureMode::CaptureTemplate ? "截取模板图片" : "选择搜索区域");
         setWindowFlags(windowFlags() | Qt::WindowMaximizeButtonHint);
         resize(1024, 700);
 
         // 设置 Windows 深色标题栏
 #ifdef Q_OS_WIN
-        WinUtils::setDarkBorderToWindow(reinterpret_cast<HWND>(winId()), true);
+        WinUtils::setDarkBorderToWindow(reinterpret_cast<HWND>(winId()), tm.isDarkMode());
 #endif
 
         // 主布局
@@ -229,36 +234,36 @@ public:
 
         // 顶部工具栏
         QWidget* toolbar = new QWidget(this);
-        toolbar->setStyleSheet("background-color: #18181b;");
+        toolbar->setStyleSheet(QString("background-color: %1;").arg(tm.base()));
         QHBoxLayout* toolbarLayout = new QHBoxLayout(toolbar);
         toolbarLayout->setContentsMargins(10, 5, 10, 5);
 
         m_hintLabel = new QLabel(this);
-        m_hintLabel->setStyleSheet("color: #a1a1aa; font-size: 12px;");
+        m_hintLabel->setStyleSheet(QString("color: %1; font-size: 12px;").arg(tm.textTertiary()));
         updateHint();
         toolbarLayout->addWidget(m_hintLabel);
 
         toolbarLayout->addStretch();
 
         m_scaleLabel = new QLabel("100%", this);
-        m_scaleLabel->setStyleSheet("color: #a1a1aa; font-size: 12px;");
+        m_scaleLabel->setStyleSheet(QString("color: %1; font-size: 12px;").arg(tm.textTertiary()));
         toolbarLayout->addWidget(m_scaleLabel);
 
         QPushButton* btnZoomIn = new QPushButton("+", this);
         btnZoomIn->setFixedSize(28, 28);
-        btnZoomIn->setStyleSheet("QPushButton { background: #27272a; color: #fafafa; border: 1px solid #3f3f46; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: #3f3f46; border-color: #6366f1; }");
+        btnZoomIn->setStyleSheet(QString("QPushButton { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: %3; border-color: %4; }").arg(tm.surface(), tm.textPrimary(), tm.border(), tm.accentPrimary()));
         connect(btnZoomIn, &QPushButton::clicked, [this]() { zoom(0.25); });
         toolbarLayout->addWidget(btnZoomIn);
 
         QPushButton* btnZoomOut = new QPushButton("-", this);
         btnZoomOut->setFixedSize(28, 28);
-        btnZoomOut->setStyleSheet("QPushButton { background: #27272a; color: #fafafa; border: 1px solid #3f3f46; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: #3f3f46; border-color: #6366f1; }");
+        btnZoomOut->setStyleSheet(QString("QPushButton { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: %3; border-color: %4; }").arg(tm.surface(), tm.textPrimary(), tm.border(), tm.accentPrimary()));
         connect(btnZoomOut, &QPushButton::clicked, [this]() { zoom(-0.25); });
         toolbarLayout->addWidget(btnZoomOut);
 
         QPushButton* btnFit = new QPushButton("适应", this);
         btnFit->setFixedSize(50, 28);
-        btnFit->setStyleSheet("QPushButton { background: #27272a; color: #fafafa; border: 1px solid #3f3f46; border-radius: 6px; } QPushButton:hover { background: #3f3f46; border-color: #6366f1; }");
+        btnFit->setStyleSheet(QString("QPushButton { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; } QPushButton:hover { background: %3; border-color: %4; }").arg(tm.surface(), tm.textPrimary(), tm.border(), tm.accentPrimary()));
         connect(btnFit, &QPushButton::clicked, [this]() { fitToWindow(); });
         toolbarLayout->addWidget(btnFit);
 
@@ -266,7 +271,7 @@ public:
 
         // 滚动区域
         m_scrollArea = new QScrollArea(this);
-        m_scrollArea->setStyleSheet("QScrollArea { background-color: #09090b; border: none; }");
+        m_scrollArea->setStyleSheet(QString("QScrollArea { background-color: %1; border: none; }").arg(tm.base()));
         m_scrollArea->setWidgetResizable(false);
         m_scrollArea->setAlignment(Qt::AlignCenter);
 
@@ -285,7 +290,7 @@ public:
 
         // 底部按钮栏
         QWidget* bottomBar = new QWidget(this);
-        bottomBar->setStyleSheet("background-color: #18181b;");
+        bottomBar->setStyleSheet(QString("background-color: %1;").arg(tm.base()));
         QHBoxLayout* bottomLayout = new QHBoxLayout(bottomBar);
         bottomLayout->setContentsMargins(10, 8, 10, 8);
 
@@ -294,7 +299,7 @@ public:
         m_btnConfirm = new QPushButton("确定", this);
         m_btnConfirm->setFixedSize(80, 30);
         m_btnConfirm->setEnabled(false);
-        m_btnConfirm->setStyleSheet("QPushButton { background: #6366f1; color: white; border: none; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: #818cf8; } QPushButton:disabled { background: #27272a; color: #71717a; }");
+        m_btnConfirm->setStyleSheet(QString("QPushButton { background: %1; color: white; border: none; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: %2; } QPushButton:disabled { background: %3; color: %4; }").arg(tm.accentPrimary(), tm.accentHover(), tm.surface(), tm.textSecondary()));
         connect(m_btnConfirm, &QPushButton::clicked, [this]() {
             m_selectedRect = m_imageWidget->selectionRect();
             emit selectionComplete(m_selectedRect);
@@ -303,7 +308,7 @@ public:
 
         QPushButton* btnCancel = new QPushButton("取消", this);
         btnCancel->setFixedSize(80, 30);
-        btnCancel->setStyleSheet("QPushButton { background: #27272a; color: #fafafa; border: 1px solid #3f3f46; border-radius: 6px; } QPushButton:hover { background: #3f3f46; }");
+        btnCancel->setStyleSheet(QString("QPushButton { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; } QPushButton:hover { background: %3; }").arg(tm.surface(), tm.textPrimary(), tm.border()));
         connect(btnCancel, &QPushButton::clicked, [this]() {
             emit selectionCanceled();
         });
@@ -675,9 +680,11 @@ public:
         setFixedSize(280, 150);
         setWindowFlags(windowFlags() & ~Qt::WindowContextHelpButtonHint);
 
+        auto &tm = Fluent::ThemeManager::instance();
+
         // 设置 Windows 深色标题栏
 #ifdef Q_OS_WIN
-        WinUtils::setDarkBorderToWindow(reinterpret_cast<HWND>(winId()), true);
+        WinUtils::setDarkBorderToWindow(reinterpret_cast<HWND>(winId()), tm.isDarkMode());
 #endif
 
         QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -686,7 +693,7 @@ public:
 
         // 坐标显示
         QLabel* titleLabel = new QLabel("获取的位置坐标 (比例值)", this);
-        titleLabel->setStyleSheet("font-size: 13px; font-weight: bold; color: #fafafa;");
+        titleLabel->setStyleSheet(QString("font-size: 13px; font-weight: bold; color: %1;").arg(tm.textPrimary()));
         titleLabel->setAlignment(Qt::AlignCenter);
         mainLayout->addWidget(titleLabel);
 
@@ -696,11 +703,11 @@ public:
         m_coordText = QString("x: %1,  y: %2").arg(xStr, yStr);
 
         QLabel* coordLabel = new QLabel(m_coordText, this);
-        coordLabel->setStyleSheet(
+        coordLabel->setStyleSheet(QString(
             "font-size: 16px; font-family: 'Consolas', 'Monaco', monospace; "
-            "color: #6366f1; background-color: #27272a; padding: 12px; "
-            "border-radius: 6px; border: 1px solid #3f3f46;"
-        );
+            "color: %1; background-color: %2; padding: 12px; "
+            "border-radius: 6px; border: 1px solid %3;"
+        ).arg(tm.accentPrimary(), tm.surface(), tm.border()));
         coordLabel->setAlignment(Qt::AlignCenter);
         coordLabel->setTextInteractionFlags(Qt::TextSelectableByMouse);
         mainLayout->addWidget(coordLabel);
@@ -715,28 +722,28 @@ public:
 
         QPushButton* btnCopy = new QPushButton("复制", this);
         btnCopy->setFixedSize(80, 32);
-        btnCopy->setStyleSheet(
-            "QPushButton { background-color: #6366f1; color: white; border: none; "
+        btnCopy->setStyleSheet(QString(
+            "QPushButton { background-color: %1; color: white; border: none; "
             "border-radius: 6px; font-weight: bold; font-size: 13px; }"
-            "QPushButton:hover { background-color: #818cf8; }"
-        );
+            "QPushButton:hover { background-color: %2; }"
+        ).arg(tm.accentPrimary(), tm.accentHover()));
         connect(btnCopy, &QPushButton::clicked, this, &PositionResultDialog::onCopy);
         btnLayout->addWidget(btnCopy);
 
         QPushButton* btnCancel = new QPushButton("关闭", this);
         btnCancel->setFixedSize(80, 32);
-        btnCancel->setStyleSheet(
-            "QPushButton { background-color: #27272a; color: #fafafa; "
-            "border: 1px solid #3f3f46; border-radius: 6px; font-size: 13px; }"
-            "QPushButton:hover { background-color: #3f3f46; }"
-        );
+        btnCancel->setStyleSheet(QString(
+            "QPushButton { background-color: %1; color: %2; "
+            "border: 1px solid %3; border-radius: 6px; font-size: 13px; }"
+            "QPushButton:hover { background-color: %3; }"
+        ).arg(tm.surface(), tm.textPrimary(), tm.border()));
         connect(btnCancel, &QPushButton::clicked, this, &QDialog::reject);
         btnLayout->addWidget(btnCancel);
 
         mainLayout->addLayout(btnLayout);
 
         // 对话框样式
-        setStyleSheet("QDialog { background-color: #18181b; }");
+        setStyleSheet(QString("QDialog { background-color: %1; }").arg(tm.base()));
     }
 
     double xRatio() const { return m_xRatio; }
@@ -775,13 +782,15 @@ public:
             return;
         }
 
+        auto &tm = Fluent::ThemeManager::instance();
+
         setWindowTitle("获取位置 - 点击选择位置");
         setWindowFlags(windowFlags() | Qt::WindowMaximizeButtonHint);
         resize(1024, 700);
 
         // 设置 Windows 深色标题栏
 #ifdef Q_OS_WIN
-        WinUtils::setDarkBorderToWindow(reinterpret_cast<HWND>(winId()), true);
+        WinUtils::setDarkBorderToWindow(reinterpret_cast<HWND>(winId()), tm.isDarkMode());
 #endif
 
         QVBoxLayout* mainLayout = new QVBoxLayout(this);
@@ -790,35 +799,35 @@ public:
 
         // 顶部工具栏
         QWidget* toolbar = new QWidget(this);
-        toolbar->setStyleSheet("background-color: #18181b;");
+        toolbar->setStyleSheet(QString("background-color: %1;").arg(tm.base()));
         QHBoxLayout* toolbarLayout = new QHBoxLayout(toolbar);
         toolbarLayout->setContentsMargins(10, 5, 10, 5);
 
         m_hintLabel = new QLabel("点击图像选择位置 | 滚轮缩放 | ESC取消", this);
-        m_hintLabel->setStyleSheet("color: #a1a1aa; font-size: 12px;");
+        m_hintLabel->setStyleSheet(QString("color: %1; font-size: 12px;").arg(tm.textTertiary()));
         toolbarLayout->addWidget(m_hintLabel);
 
         toolbarLayout->addStretch();
 
         m_scaleLabel = new QLabel("100%", this);
-        m_scaleLabel->setStyleSheet("color: #a1a1aa; font-size: 12px;");
+        m_scaleLabel->setStyleSheet(QString("color: %1; font-size: 12px;").arg(tm.textTertiary()));
         toolbarLayout->addWidget(m_scaleLabel);
 
         QPushButton* btnZoomIn = new QPushButton("+", this);
         btnZoomIn->setFixedSize(28, 28);
-        btnZoomIn->setStyleSheet("QPushButton { background: #27272a; color: #fafafa; border: 1px solid #3f3f46; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: #3f3f46; border-color: #6366f1; }");
+        btnZoomIn->setStyleSheet(QString("QPushButton { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: %3; border-color: %4; }").arg(tm.surface(), tm.textPrimary(), tm.border(), tm.accentPrimary()));
         connect(btnZoomIn, &QPushButton::clicked, [this]() { zoom(0.25); });
         toolbarLayout->addWidget(btnZoomIn);
 
         QPushButton* btnZoomOut = new QPushButton("-", this);
         btnZoomOut->setFixedSize(28, 28);
-        btnZoomOut->setStyleSheet("QPushButton { background: #27272a; color: #fafafa; border: 1px solid #3f3f46; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: #3f3f46; border-color: #6366f1; }");
+        btnZoomOut->setStyleSheet(QString("QPushButton { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: %3; border-color: %4; }").arg(tm.surface(), tm.textPrimary(), tm.border(), tm.accentPrimary()));
         connect(btnZoomOut, &QPushButton::clicked, [this]() { zoom(-0.25); });
         toolbarLayout->addWidget(btnZoomOut);
 
         QPushButton* btnFit = new QPushButton("适应", this);
         btnFit->setFixedSize(50, 28);
-        btnFit->setStyleSheet("QPushButton { background: #27272a; color: #fafafa; border: 1px solid #3f3f46; border-radius: 6px; } QPushButton:hover { background: #3f3f46; border-color: #6366f1; }");
+        btnFit->setStyleSheet(QString("QPushButton { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; } QPushButton:hover { background: %3; border-color: %4; }").arg(tm.surface(), tm.textPrimary(), tm.border(), tm.accentPrimary()));
         connect(btnFit, &QPushButton::clicked, [this]() { fitToWindow(); });
         toolbarLayout->addWidget(btnFit);
 
@@ -826,7 +835,7 @@ public:
 
         // 滚动区域
         m_scrollArea = new QScrollArea(this);
-        m_scrollArea->setStyleSheet("QScrollArea { background-color: #09090b; border: none; }");
+        m_scrollArea->setStyleSheet(QString("QScrollArea { background-color: %1; border: none; }").arg(tm.base()));
         m_scrollArea->setWidgetResizable(false);
         m_scrollArea->setAlignment(Qt::AlignCenter);
 
@@ -844,12 +853,12 @@ public:
 
         // 底部按钮栏
         QWidget* bottomBar = new QWidget(this);
-        bottomBar->setStyleSheet("background-color: #18181b;");
+        bottomBar->setStyleSheet(QString("background-color: %1;").arg(tm.base()));
         QHBoxLayout* bottomLayout = new QHBoxLayout(bottomBar);
         bottomLayout->setContentsMargins(10, 8, 10, 8);
 
         m_coordLabel = new QLabel("未选择位置", this);
-        m_coordLabel->setStyleSheet("color: #a1a1aa; font-size: 12px;");
+        m_coordLabel->setStyleSheet(QString("color: %1; font-size: 12px;").arg(tm.textTertiary()));
         bottomLayout->addWidget(m_coordLabel);
 
         bottomLayout->addStretch();
@@ -857,7 +866,7 @@ public:
         m_btnConfirm = new QPushButton("确定", this);
         m_btnConfirm->setFixedSize(80, 30);
         m_btnConfirm->setEnabled(false);
-        m_btnConfirm->setStyleSheet("QPushButton { background: #6366f1; color: white; border: none; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: #818cf8; } QPushButton:disabled { background: #27272a; color: #71717a; }");
+        m_btnConfirm->setStyleSheet(QString("QPushButton { background: %1; color: white; border: none; border-radius: 6px; font-weight: bold; } QPushButton:hover { background: %2; } QPushButton:disabled { background: %3; color: %4; }").arg(tm.accentPrimary(), tm.accentHover(), tm.surface(), tm.textSecondary()));
         connect(m_btnConfirm, &QPushButton::clicked, [this]() {
             emit positionSelected(m_selectedPos);
         });
@@ -865,7 +874,7 @@ public:
 
         QPushButton* btnCancel = new QPushButton("取消", this);
         btnCancel->setFixedSize(80, 30);
-        btnCancel->setStyleSheet("QPushButton { background: #27272a; color: #fafafa; border: 1px solid #3f3f46; border-radius: 6px; } QPushButton:hover { background: #3f3f46; }");
+        btnCancel->setStyleSheet(QString("QPushButton { background: %1; color: %2; border: 1px solid %3; border-radius: 6px; } QPushButton:hover { background: %3; }").arg(tm.surface(), tm.textPrimary(), tm.border()));
         connect(btnCancel, &QPushButton::clicked, [this]() {
             emit selectionCanceled();
         });
@@ -922,7 +931,7 @@ protected:
                     m_coordLabel->setText(QString("位置: x=%1, y=%2")
                         .arg(QString::number(m_selectedPos.x(), 'f', 4))
                         .arg(QString::number(m_selectedPos.y(), 'f', 4)));
-                    m_coordLabel->setStyleSheet("color: #6366f1; font-size: 12px; font-weight: bold;");
+                    m_coordLabel->setStyleSheet(QString("color: %1; font-size: 12px; font-weight: bold;").arg(Fluent::ThemeManager::instance().accentPrimary()));
 
                     return true;
                 }
@@ -1228,7 +1237,7 @@ private:
         }
 
         // 检查是否存在
-        if (ImageMatcher::templateExists(name)) {
+        if (ImageMatcher::templateExists(strutil::fromQ(name))) {
             QMessageBox::StandardButton btn = QMessageBox::question(
                 m_parentWidget, "文件已存在",
                 QString("图片 '%1' 已存在，是否覆盖？").arg(name),
@@ -1245,8 +1254,15 @@ private:
             // Yes: 继续覆盖
         }
 
-        // 保存图片
-        if (ImageMatcher::saveTemplateImage(image, name)) {
+        // 保存图片 (QImage→cv::Mat 转换, UI 边界)
+        cv::Mat mat;
+        {
+            QImage converted = image.convertToFormat(QImage::Format_RGB888);
+            cv::Mat tmp(converted.height(), converted.width(), CV_8UC3,
+                        const_cast<uchar*>(converted.bits()), converted.bytesPerLine());
+            cv::cvtColor(tmp, mat, cv::COLOR_RGB2BGR);
+        }
+        if (ImageMatcher::saveTemplateImage(mat, strutil::fromQ(name))) {
             QMessageBox::information(m_parentWidget, "成功",
                 QString("模板图片已保存: %1").arg(name));
         } else {
@@ -1267,7 +1283,7 @@ private:
 
         if (msgBox.clickedButton() == btnSelectImage) {
             // 选择已有图片
-            QString imagesPath = ImageMatcher::getImagesPath();
+            QString imagesPath = strutil::toQ(ImageMatcher::getImagesPath());
             QString fileName = QFileDialog::getOpenFileName(
                 m_parentWidget, "选择模板图片", imagesPath,
                 "Images (*.png *.jpg *.bmp);;All Files (*)"

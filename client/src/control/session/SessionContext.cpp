@@ -12,22 +12,24 @@
 #include "CursorHandler.h"
 #include "KeyboardHandler.h"
 
-#include <QDebug>
-#include <QKeyEvent>
-#include <QDir>
+#include "InputEvent.h"
 
-SessionContext::SessionContext(const QString& deviceId, Controller* controller, QObject* parent)
-    : QObject(parent)
-    , m_deviceId(deviceId)
+#include "StringUtils.h"
+
+#define LOG_TAG "SessionCtx"
+#include "Logger.h"
+
+SessionContext::SessionContext(const std::string& deviceId, Controller* controller)
+    : m_deviceId(deviceId)
     , m_controller(controller)
 {
-    qDebug() << "[SessionContext] Created for device:" << deviceId;
+    LOGD() << "[SessionContext] Created for device:" << deviceId;
     initComponents();
 }
 
 SessionContext::~SessionContext()
 {
-    qDebug() << "[SessionContext] Destroying for device:" << m_deviceId;
+    LOGD() << "[SessionContext] Destroying for device:" << m_deviceId;
 
     // 首先停止脚本引擎并同步等待
     // 必须在任何其他清理之前完成，防止脚本线程访问已销毁的对象
@@ -44,20 +46,31 @@ SessionContext::~SessionContext()
         m_steerWheelHandler->reset();
     }
 
-    qDebug() << "[SessionContext] Destroyed for device:" << m_deviceId;
+    LOGD() << "[SessionContext] Destroyed for device:" << m_deviceId;
+
+    // 手动清理子组件（不再依赖 QObject 父子关系）
+    delete m_inputDispatcher;
+    delete m_handlerChain;
+    delete m_steerWheelHandler;
+    delete m_viewportHandler;
+    delete m_freeLookHandler;
+    delete m_cursorHandler;
+    delete m_keyboardHandler;
+    delete m_scriptBridge;
+    delete m_vars;
 }
 
 void SessionContext::initComponents()
 {
     // 1. 创建会话变量存储
-    m_vars = new SessionVars(this);
+    m_vars = new SessionVars();
 
     // 2. 创建脚本桥接器（先传 nullptr，稍后设置 SessionContext）
-    m_scriptBridge = new ScriptBridge(m_controller, m_vars, this);
+    m_scriptBridge = new ScriptBridge(m_controller, m_vars);
     m_scriptBridge->setSessionContext(this);
 
     // 3. 创建 HandlerChain 和 Handler
-    m_handlerChain = new HandlerChain(this);
+    m_handlerChain = new HandlerChain();
 
     m_steerWheelHandler = new SteerWheelHandler();
     m_steerWheelHandler->setKeyMap(&m_keyMap);
@@ -78,14 +91,14 @@ void SessionContext::initComponents()
     m_keyboardHandler->setKeyMap(&m_keyMap);
     m_handlerChain->addHandler(m_keyboardHandler);
 
-    m_handlerChain->init(m_controller.data(), this);
+    m_handlerChain->init(m_controller, this);
 
     // 4. 设置 ScriptBridge 的 Handler 引用
     m_scriptBridge->setHandlers(m_steerWheelHandler, m_viewportHandler,
                                  m_freeLookHandler, m_cursorHandler, m_keyboardHandler);
 
     // 5. 创建输入分发器
-    m_inputDispatcher = new InputDispatcher(m_controller, &m_keyMap, this);
+    m_inputDispatcher = new InputDispatcher(m_controller, &m_keyMap);
     m_inputDispatcher->setHandlerChain(m_handlerChain);
     m_inputDispatcher->setSteerWheelHandler(m_steerWheelHandler);
     m_inputDispatcher->setViewportHandler(m_viewportHandler);
@@ -95,14 +108,14 @@ void SessionContext::initComponents()
     m_inputDispatcher->setScriptBridge(m_scriptBridge);
 
     // 连接信号
-    connect(m_inputDispatcher, &InputDispatcher::grabCursor, this, &SessionContext::grabCursor);
+    m_inputDispatcher->grabCursor.connect([this](bool g) { grabCursor.fire(g); });
 
     // 连接脚本桥接器的模式切换信号
     if (ScriptEngine* engine = m_scriptBridge->scriptEngine()) {
-        connect(engine, &ScriptEngine::shotmodeRequested, this, [this](bool gameMode) {
+        engine->shotmodeRequested.connect([this](bool gameMode) {
             script_setGameMapMode(gameMode);
         });
-        connect(engine, &ScriptEngine::simulateKeyRequested, this, [this](const QString& keyName, bool press) {
+        engine->simulateKeyRequested.connect([this](const std::string& keyName, bool press) {
             script_simulateKey(keyName, press);
         });
     }
@@ -120,21 +133,21 @@ ScriptEngine* SessionContext::scriptEngine() const
 
 // ========== 事件处理 ==========
 
-void SessionContext::mouseEvent(const QMouseEvent* from, const QSize& frameSize, const QSize& showSize)
+void SessionContext::mouseEvent(const InputEvent& from, const Size& frameSize, const Size& showSize)
 {
     if (m_inputDispatcher) {
         m_inputDispatcher->mouseEvent(from, frameSize, showSize);
     }
 }
 
-void SessionContext::wheelEvent(const QWheelEvent* from, const QSize& frameSize, const QSize& showSize)
+void SessionContext::wheelEvent(const InputEvent& from, const Size& frameSize, const Size& showSize)
 {
     if (m_inputDispatcher) {
         m_inputDispatcher->wheelEvent(from, frameSize, showSize);
     }
 }
 
-void SessionContext::keyEvent(const QKeyEvent* from, const QSize& frameSize, const QSize& showSize)
+void SessionContext::keyEvent(const InputEvent& from, const Size& frameSize, const Size& showSize)
 {
     if (m_inputDispatcher) {
         m_inputDispatcher->keyEvent(from, frameSize, showSize);
@@ -166,7 +179,7 @@ void SessionContext::runAutoStartScripts()
 
 // ========== KeyMap 管理 ==========
 
-void SessionContext::loadKeyMap(const QString& json, bool runAutoStartScripts)
+void SessionContext::loadKeyMap(const std::string& json, bool runAutoStartScripts)
 {
     if (m_scriptBridge) {
         m_scriptBridge->reset();
@@ -181,21 +194,28 @@ void SessionContext::loadKeyMap(const QString& json, bool runAutoStartScripts)
 
 // ========== 帧获取回调 ==========
 
-void SessionContext::setFrameGrabCallback(std::function<QImage()> callback)
+void SessionContext::setFrameGrabCallback(std::function<cv::Mat()> callback)
 {
     if (m_scriptBridge) {
         m_scriptBridge->setFrameGrabCallback(callback);
     }
 }
 
-QImage SessionContext::grabFrame() const
+void SessionContext::setGrayFrameGrabCallback(GrayFrameGrabCallback callback)
 {
-    return m_scriptBridge ? m_scriptBridge->grabFrame() : QImage();
+    if (m_scriptBridge) {
+        m_scriptBridge->setGrayFrameGrabCallback(std::move(callback));
+    }
+}
+
+cv::Mat SessionContext::grabFrame() const
+{
+    return m_scriptBridge ? m_scriptBridge->grabFrame() : cv::Mat();
 }
 
 // ========== 信号连接 ==========
 
-void SessionContext::connectScriptTipSignal(std::function<void(const QString&, int, int)> callback)
+void SessionContext::connectScriptTipSignal(std::function<void(const std::string&, int, int)> callback)
 {
     if (m_scriptBridge) {
         m_scriptBridge->connectScriptTipSignal(callback);
@@ -211,40 +231,47 @@ void SessionContext::connectKeyMapOverlayUpdateSignal(std::function<void()> call
 
 // ========== 尺寸信息 ==========
 
-void SessionContext::setFrameSize(const QSize& size)
+void SessionContext::setFrameSize(const Size& size)
 {
     if (m_inputDispatcher) {
         m_inputDispatcher->setFrameSize(size);
     }
 }
 
-void SessionContext::setShowSize(const QSize& size)
+void SessionContext::setShowSize(const Size& size)
 {
     if (m_inputDispatcher) {
         m_inputDispatcher->setShowSize(size);
     }
 }
 
-void SessionContext::setMobileSize(const QSize& size)
+void SessionContext::setMobileSize(const Size& size)
 {
     if (m_inputDispatcher) {
         m_inputDispatcher->setMobileSize(size);
     }
 }
 
-QSize SessionContext::frameSize() const
+void SessionContext::setDevicePixelRatio(double dpr)
 {
-    return m_inputDispatcher ? m_inputDispatcher->frameSize() : QSize();
+    if (m_inputDispatcher) {
+        m_inputDispatcher->setDevicePixelRatio(dpr);
+    }
 }
 
-QSize SessionContext::showSize() const
+Size SessionContext::frameSize() const
 {
-    return m_inputDispatcher ? m_inputDispatcher->showSize() : QSize();
+    return m_inputDispatcher ? m_inputDispatcher->frameSize() : Size();
 }
 
-QSize SessionContext::mobileSize() const
+Size SessionContext::showSize() const
 {
-    return m_inputDispatcher ? m_inputDispatcher->mobileSize() : QSize();
+    return m_inputDispatcher ? m_inputDispatcher->showSize() : Size();
+}
+
+Size SessionContext::mobileSize() const
+{
+    return m_inputDispatcher ? m_inputDispatcher->mobileSize() : Size();
 }
 
 // ========== 光标状态 ==========
@@ -296,12 +323,12 @@ void SessionContext::script_resetWheel()
     }
 }
 
-QPointF SessionContext::script_getMousePos()
+PointF SessionContext::script_getMousePos()
 {
     if (m_scriptBridge && m_inputDispatcher) {
         return m_scriptBridge->script_getMousePos(m_inputDispatcher->isCursorCaptured());
     }
-    return QPointF();
+    return PointF();
 }
 
 void SessionContext::script_setGameMapMode(bool enter)
@@ -319,7 +346,7 @@ int SessionContext::script_getKeyState(int qtKey)
     return 0;
 }
 
-int SessionContext::script_getKeyStateByName(const QString& displayName)
+int SessionContext::script_getKeyStateByName(const std::string& displayName)
 {
     if (m_scriptBridge && m_inputDispatcher) {
         return m_scriptBridge->script_getKeyStateByName(displayName, &m_keyMap, m_inputDispatcher->keyStates());
@@ -327,80 +354,86 @@ int SessionContext::script_getKeyStateByName(const QString& displayName)
     return 0;
 }
 
-QVariantMap SessionContext::script_getKeyPos(int qtKey)
+KeyPosResult SessionContext::script_getKeyPos(int qtKey)
 {
     if (m_scriptBridge) {
         return m_scriptBridge->script_getKeyPos(qtKey, &m_keyMap);
     }
-    return QVariantMap();
+    return KeyPosResult();
 }
 
-QVariantMap SessionContext::script_getKeyPosByName(const QString& displayName)
+KeyPosResult SessionContext::script_getKeyPosByName(const std::string& displayName)
 {
     if (m_scriptBridge) {
         return m_scriptBridge->script_getKeyPosByName(displayName, &m_keyMap);
     }
-    return QVariantMap();
+    return KeyPosResult();
 }
 
-void SessionContext::script_simulateKey(const QString& keyName, bool press)
+void SessionContext::script_simulateKey(const std::string& keyName, bool press)
 {
     int qtKey = keyNameToQtKey(keyName);
     if (qtKey == 0) {
-        qWarning() << "[script_simulateKey] Unknown key:" << keyName;
+        LOGW() << "[script_simulateKey] Unknown key:" << keyName;
         return;
     }
 
-    QKeyEvent event(press ? QEvent::KeyPress : QEvent::KeyRelease,
-                    qtKey, Qt::NoModifier);
+    InputEvent event{};
+    event.type = press ? InputEventType::KeyPress : InputEventType::KeyRelease;
+    event.key = qtKey;
+    event.modifiers = InputModifier::None;
+    event.isAutoRepeat = false;
 
-    keyEvent(&event, frameSize(), showSize());
+    keyEvent(event, frameSize(), showSize());
 }
 
-int SessionContext::keyNameToQtKey(const QString& keyName)
+int SessionContext::keyNameToQtKey(const std::string& keyName)
 {
-    QString k = keyName.toUpper();
+    // Convert to uppercase for comparison
+    std::string k = keyName;
+    for (auto& c : k) c = static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
 
-    if (k == "SPACE" || k == " ") return Qt::Key_Space;
-    if (k == "ENTER" || k == "RETURN") return Qt::Key_Return;
-    if (k == "ESC" || k == "ESCAPE") return Qt::Key_Escape;
-    if (k == "TAB") return Qt::Key_Tab;
-    if (k == "BACKSPACE") return Qt::Key_Backspace;
-    if (k == "SHIFT") return Qt::Key_Shift;
-    if (k == "CTRL" || k == "CONTROL") return Qt::Key_Control;
-    if (k == "ALT") return Qt::Key_Alt;
-    if (k == "UP") return Qt::Key_Up;
-    if (k == "DOWN") return Qt::Key_Down;
-    if (k == "LEFT") return Qt::Key_Left;
-    if (k == "RIGHT") return Qt::Key_Right;
-    if (k == "TILDE" || k == "`") return Qt::Key_QuoteLeft;
+    if (k == "SPACE" || k == " ") return GameKey::Key_Space;
+    if (k == "ENTER" || k == "RETURN") return GameKey::Key_Return;
+    if (k == "ESC" || k == "ESCAPE") return GameKey::Key_Escape;
+    if (k == "TAB") return GameKey::Key_Tab;
+    if (k == "BACKSPACE") return GameKey::Key_Backspace;
+    if (k == "SHIFT") return GameKey::Key_Shift;
+    if (k == "CTRL" || k == "CONTROL") return GameKey::Key_Control;
+    if (k == "ALT") return GameKey::Key_Alt;
+    if (k == "UP") return GameKey::Key_Up;
+    if (k == "DOWN") return GameKey::Key_Down;
+    if (k == "LEFT") return GameKey::Key_Left;
+    if (k == "RIGHT") return GameKey::Key_Right;
+    if (k == "TILDE" || k == "`") return GameKey::Key_QuoteLeft;
 
-    if (k.startsWith("F") && k.length() <= 3) {
-        bool ok;
-        int num = k.mid(1).toInt(&ok);
-        if (ok && num >= 1 && num <= 12) {
-            return Qt::Key_F1 + num - 1;
-        }
+    if (k.size() >= 2 && k.size() <= 3 && k[0] == 'F') {
+        try {
+            int num = std::stoi(k.substr(1));
+            if (num >= 1 && num <= 12) {
+                return GameKey::Key_F1 + num - 1;
+            }
+        } catch (...) {}
     }
 
-    if (k.length() == 1) {
-        QChar c = k.at(0);
-        if (c >= 'A' && c <= 'Z') return Qt::Key_A + (c.toLatin1() - 'A');
-        if (c >= '0' && c <= '9') return Qt::Key_0 + (c.toLatin1() - '0');
+    if (k.size() == 1) {
+        char c = k[0];
+        if (c >= 'A' && c <= 'Z') return GameKey::Key_A + (c - 'A');
+        if (c >= '0' && c <= '9') return GameKey::Key_0 + (c - '0');
 
-        switch (c.toLatin1()) {
-            case '`': return Qt::Key_QuoteLeft;
-            case '~': return Qt::Key_AsciiTilde;
-            case '-': return Qt::Key_Minus;
-            case '=': return Qt::Key_Equal;
-            case '[': return Qt::Key_BracketLeft;
-            case ']': return Qt::Key_BracketRight;
-            case '\\': return Qt::Key_Backslash;
-            case ';': return Qt::Key_Semicolon;
-            case '\'': return Qt::Key_Apostrophe;
-            case ',': return Qt::Key_Comma;
-            case '.': return Qt::Key_Period;
-            case '/': return Qt::Key_Slash;
+        switch (c) {
+            case '`': return GameKey::Key_QuoteLeft;
+            case '~': return GameKey::Key_AsciiTilde;
+            case '-': return GameKey::Key_Minus;
+            case '=': return GameKey::Key_Equal;
+            case '[': return GameKey::Key_BracketLeft;
+            case ']': return GameKey::Key_BracketRight;
+            case '\\': return GameKey::Key_Backslash;
+            case ';': return GameKey::Key_Semicolon;
+            case '\'': return GameKey::Key_Apostrophe;
+            case ',': return GameKey::Key_Comma;
+            case '.': return GameKey::Key_Period;
+            case '/': return GameKey::Key_Slash;
         }
     }
 
@@ -409,24 +442,24 @@ int SessionContext::keyNameToQtKey(const QString& keyName)
 
 // ========== 会话变量 ==========
 
-QVariant SessionContext::getVar(const QString& key, const QVariant& defaultValue) const
+ScriptValue SessionContext::getVar(const std::string& key, const ScriptValue& defaultValue) const
 {
     return m_vars ? m_vars->getVar(key, defaultValue) : defaultValue;
 }
 
-void SessionContext::setVar(const QString& key, const QVariant& value)
+void SessionContext::setVar(const std::string& key, const ScriptValue& value)
 {
     if (m_vars) {
         m_vars->setVar(key, value);
     }
 }
 
-bool SessionContext::hasVar(const QString& key) const
+bool SessionContext::hasVar(const std::string& key) const
 {
     return m_vars ? m_vars->hasVar(key) : false;
 }
 
-void SessionContext::removeVar(const QString& key)
+void SessionContext::removeVar(const std::string& key)
 {
     if (m_vars) {
         m_vars->removeVar(key);
@@ -442,16 +475,16 @@ void SessionContext::clearVars()
 
 // ========== 触摸序列 ID ==========
 
-void SessionContext::addTouchSeq(int keyId, quint32 seqId)
+void SessionContext::addTouchSeq(int keyId, uint32_t seqId)
 {
     if (m_vars) {
         m_vars->addTouchSeq(keyId, seqId);
     }
 }
 
-QList<quint32> SessionContext::takeTouchSeqs(int keyId)
+std::vector<uint32_t> SessionContext::takeTouchSeqs(int keyId)
 {
-    return m_vars ? m_vars->takeTouchSeqs(keyId) : QList<quint32>();
+    return m_vars ? m_vars->takeTouchSeqs(keyId) : std::vector<uint32_t>();
 }
 
 int SessionContext::touchSeqCount(int keyId) const
@@ -473,34 +506,34 @@ void SessionContext::clearTouchSeqs()
 
 // ========== 轮盘参数 ==========
 
-void SessionContext::setRadialParamKeyId(const QString& keyId)
+void SessionContext::setRadialParamKeyId(const std::string& keyId)
 {
     if (m_vars) {
         m_vars->setRadialParamKeyId(keyId);
     }
 }
 
-QString SessionContext::radialParamKeyId() const
+std::string SessionContext::radialParamKeyId() const
 {
-    return m_vars ? m_vars->radialParamKeyId() : QString();
+    return m_vars ? m_vars->radialParamKeyId() : std::string();
 }
 
 // ========== 工具函数 ==========
 
-QPointF SessionContext::calcFrameAbsolutePos(QPointF relativePos) const
+PointF SessionContext::calcFrameAbsolutePos(PointF relativePos) const
 {
-    return m_inputDispatcher ? m_inputDispatcher->calcFrameAbsolutePos(relativePos) : QPointF();
+    return m_inputDispatcher ? m_inputDispatcher->calcFrameAbsolutePos(relativePos) : PointF();
 }
 
-QPointF SessionContext::calcScreenAbsolutePos(QPointF relativePos) const
+PointF SessionContext::calcScreenAbsolutePos(PointF relativePos) const
 {
-    return m_inputDispatcher ? m_inputDispatcher->calcScreenAbsolutePos(relativePos) : QPointF();
+    return m_inputDispatcher ? m_inputDispatcher->calcScreenAbsolutePos(relativePos) : PointF();
 }
 
 void SessionContext::sendKeyEvent(int action, int keyCode)
 {
-    if (m_controller.isNull()) return;
+    if (!m_controller) return;
 
     m_controller->postFastMsg(FastMsg::serializeKey(
-        FastKeyEvent(action == 0 ? FKA_DOWN : FKA_UP, static_cast<quint16>(keyCode))));
+        FastKeyEvent(action == 0 ? FKA_DOWN : FKA_UP, static_cast<uint16_t>(keyCode))));
 }

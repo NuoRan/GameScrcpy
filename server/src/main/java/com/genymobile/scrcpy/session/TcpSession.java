@@ -3,10 +3,12 @@ package com.genymobile.scrcpy.session;
 import com.genymobile.scrcpy.Options;
 import com.genymobile.scrcpy.control.ControlChannel;
 import com.genymobile.scrcpy.control.IControlChannel;
+import com.genymobile.scrcpy.auxiliary.IAuxChannel;
 import com.genymobile.scrcpy.device.ConfigurationException;
 import com.genymobile.scrcpy.device.DesktopConnection;
 import com.genymobile.scrcpy.device.Device;
 import com.genymobile.scrcpy.device.IStreamer;
+import com.genymobile.scrcpy.device.Streamer;
 import com.genymobile.scrcpy.device.Streamer;
 import com.genymobile.scrcpy.util.Ln;
 
@@ -43,11 +45,31 @@ public class TcpSession extends ScrcpySession {
     }
 
     @Override
+    protected Streamer createAudioStreamer() throws IOException {
+        if (connection.getAudioFd() == null) {
+            return null;
+        }
+        Ln.i("Starting TCP audio streaming");
+        return new Streamer(
+                connection.getAudioFd(),
+                options.getAudioCodec(),
+                options.getSendCodecMeta(),
+                options.getSendFrameMeta()
+        );
+    }
+
+    @Override
     protected IControlChannel createControlChannel() throws IOException {
         Ln.i("Starting TCP control channel");
 
         ControlChannel controlChannel = connection.getControlChannel();
         return controlChannel;
+    }
+
+    @Override
+    protected IAuxChannel createAuxChannel() throws IOException {
+        Ln.i("Starting TCP auxiliary channel");
+        return connection.getAuxChannel();
     }
 
     @Override
@@ -67,7 +89,7 @@ public class TcpSession extends ScrcpySession {
         boolean video = options.getVideo();
         boolean sendDummyByte = options.getSendDummyByte();
 
-        connection = DesktopConnection.open(scid, tunnelForward, video, false, control, sendDummyByte);
+        connection = DesktopConnection.open(scid, tunnelForward, video, options.getAudio(), control, sendDummyByte);
     }
 
     @Override

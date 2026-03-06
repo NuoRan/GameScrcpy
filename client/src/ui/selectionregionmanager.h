@@ -1,49 +1,48 @@
 #ifndef SELECTIONREGIONMANAGER_H
 #define SELECTIONREGIONMANAGER_H
 
-#include <QObject>
 #include <QString>
 #include <QVector>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QFile>
-#include <QDir>
-#include <QCoreApplication>
 #include <QRectF>
-#include <QReadWriteLock>
+#include <filesystem>
+#include <fstream>
+#include <shared_mutex>
+
+#include "StringUtils.h"
+
+#include <nlohmann/json.hpp>
 
 // ---------------------------------------------------------
-// 选区数据结构 / Selection Region Data Structure
+// 闁灏弫鐗堝祦缂佹挻鐎?/ Selection Region Data Structure
 // ---------------------------------------------------------
 struct SelectionRegion
 {
-    int id = 0;             // 选区编号 (唯一) / Region ID (unique)
-    QString name;           // 备注名字 / Label name
-    double x0 = 0.0;       // 左上角 x (0.0~1.0) / Top-left x
-    double y0 = 0.0;       // 左上角 y (0.0~1.0) / Top-left y
-    double x1 = 1.0;       // 右下角 x (0.0~1.0) / Bottom-right x
-    double y1 = 1.0;       // 右下角 y (0.0~1.0) / Bottom-right y
+    int id = 0;             // 闁灏紓鏍у娇 (閸烆垯绔? / Region ID (unique)
+    QString name;           // 婢跺洦鏁為崥宥呯摟 / Label name
+    double x0 = 0.0;       // 瀹革缚绗傜憴?x (0.0~1.0) / Top-left x
+    double y0 = 0.0;       // 瀹革缚绗傜憴?y (0.0~1.0) / Top-left y
+    double x1 = 1.0;       // 閸欏厖绗呯憴?x (0.0~1.0) / Bottom-right x
+    double y1 = 1.0;       // 閸欏厖绗呯憴?y (0.0~1.0) / Bottom-right y
 
-    QJsonObject toJson() const {
-        QJsonObject obj;
-        obj["id"] = id;
-        obj["name"] = name;
-        obj["x0"] = x0;
-        obj["y0"] = y0;
-        obj["x1"] = x1;
-        obj["y1"] = y1;
-        return obj;
+    nlohmann::json toJson() const {
+        return {
+            {"id", id},
+            {"name", name.toStdString()},
+            {"x0", x0},
+            {"y0", y0},
+            {"x1", x1},
+            {"y1", y1}
+        };
     }
 
-    static SelectionRegion fromJson(const QJsonObject& obj) {
+    static SelectionRegion fromJson(const nlohmann::json& j) {
         SelectionRegion r;
-        r.id = obj["id"].toInt();
-        r.name = obj["name"].toString();
-        r.x0 = obj["x0"].toDouble();
-        r.y0 = obj["y0"].toDouble();
-        r.x1 = obj["x1"].toDouble(1.0);
-        r.y1 = obj["y1"].toDouble(1.0);
+        r.id = j.value("id", 0);
+        r.name = QString::fromStdString(j.value("name", std::string()));
+        r.x0 = j.value("x0", 0.0);
+        r.y0 = j.value("y0", 0.0);
+        r.x1 = j.value("x1", 1.0);
+        r.y1 = j.value("y1", 1.0);
         return r;
     }
 
@@ -57,92 +56,91 @@ struct SelectionRegion
 };
 
 // ---------------------------------------------------------
-// 选区管理器 - 管理自定义选区的增删改查和持久化
-// 线程安全：所有公共方法均通过 QReadWriteLock 保护
+// 闁灏粻锛勬倞閸?- 缁狅紕鎮婇懛顏勭暰娑斿鈧灏惃鍕杻閸掔姵鏁奸弻銉ユ嫲閹镐椒绠欓崠?
+// 缁捐法鈻肩€瑰鍙忛敍姘閺堝鍙曢崗杈ㄦ煙濞夋洖娼庨柅姘崇箖 std::shared_mutex 娣囨繃濮?
 // ---------------------------------------------------------
-class SelectionRegionManager : public QObject
+class SelectionRegionManager
 {
-    Q_OBJECT
 public:
     static SelectionRegionManager& instance() {
         static SelectionRegionManager s_instance;
         return s_instance;
     }
 
-    // 获取配置文件路径
-    static QString configPath() {
-        return QCoreApplication::applicationDirPath() + "/keymap/regions.json";
+    // 閼惧嘲褰囬柊宥囩枂閺傚洣娆㈢捄顖氱窞
+    static std::string configPath() {
+        return strutil::appDirPath() + "/keymap/regions.json";
     }
 
-    // 获取配置文件所在目录
-    static QString configDir() {
-        return QCoreApplication::applicationDirPath() + "/keymap";
+    // 閼惧嘲褰囬柊宥囩枂閺傚洣娆㈤幍鈧崷銊ф窗瑜?
+    static std::string configDir() {
+        return strutil::appDirPath() + "/keymap";
     }
 
-    // 加载
+    // 閸旂姾娴?
     void load() {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         loadInternal();
     }
 
-    // 保存
+    // 娣囨繂鐡?
     bool save() const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         return saveInternal();
     }
 
-    // 获取所有选区（拷贝，线程安全）
+    // 閼惧嘲褰囬幍鈧張澶愨偓澶婂隘閿涘牊瀚圭拹婵撶礉缁捐法鈻肩€瑰鍙忛敍?
     QVector<SelectionRegion> regions() const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         return m_regions;
     }
 
-    // 按 ID 查找选区，返回拷贝以避免指针悬挂
+    // 閹?ID 閺屻儲澹橀柅澶婂隘閿涘矁绻戦崶鐐村鐠愭繀浜掗柆鍨帳閹稿洭鎷￠幃顒佸瘯
     bool findById(int id, SelectionRegion& out) const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         const SelectionRegion* r = findByIdInternal(id);
         if (r) { out = *r; return true; }
         return false;
     }
 
-    // 按名字查找选区
+    // 閹稿鎮曠€涙鐓￠幍楣冣偓澶婂隘
     bool findByName(const QString& name, SelectionRegion& out) const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         const SelectionRegion* r = findByNameInternal(name);
         if (r) { out = *r; return true; }
         return false;
     }
 
-    // 生成下一个可用 ID
+    // 閻㈢喐鍨氭稉瀣╃娑擃亜褰查悽?ID
     int nextId() const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         return nextIdInternal();
     }
 
-    // 检查名字是否已存在
+    // 濡偓閺屻儱鎮曠€涙妲搁崥锕€鍑＄€涙ê婀?
     bool nameExists(const QString& name, int excludeId = -1) const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         return nameExistsInternal(name, excludeId);
     }
 
-    // 检查 ID 是否已存在
+    // 濡偓閺?ID 閺勵垰鎯佸鎻掔摠閸?
     bool idExists(int id) const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         return findByIdInternal(id) != nullptr;
     }
 
-    // 添加选区
+    // 濞ｈ濮為柅澶婂隘
     bool add(const SelectionRegion& region) {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         if (findByIdInternal(region.id) || nameExistsInternal(region.name)) return false;
         m_regions.append(region);
         saveInternal();
         return true;
     }
 
-    // 删除选区
+    // 閸掔娀娅庨柅澶婂隘
     bool remove(int id) {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         for (int i = 0; i < m_regions.size(); ++i) {
             if (m_regions[i].id == id) {
                 m_regions.removeAt(i);
@@ -153,9 +151,9 @@ public:
         return false;
     }
 
-    // 重命名选区
+    // 闁插秴鎳￠崥宥夆偓澶婂隘
     bool rename(int id, const QString& newName) {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         if (nameExistsInternal(newName, id)) return false;
         for (auto& r : m_regions) {
             if (r.id == id) {
@@ -167,9 +165,9 @@ public:
         return false;
     }
 
-    // 更新选区坐标
+    // 閺囧瓨鏌婇柅澶婂隘閸ф劖鐖?
     bool updateCoords(int id, double x0, double y0, double x1, double y1) {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         for (auto& r : m_regions) {
             if (r.id == id) {
                 r.x0 = x0;
@@ -183,34 +181,38 @@ public:
         return false;
     }
 
-    // 导入选区 (从 JSON 文件)
+    // 鐎电厧鍙嗛柅澶婂隘 (娴?JSON 閺傚洣娆?
     int importFromFile(const QString& filePath) {
-        QWriteLocker locker(&m_lock);
-        QFile file(filePath);
-        if (!file.open(QIODevice::ReadOnly)) return 0;
-        QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        std::unique_lock<std::shared_mutex> locker(m_lock);
+        std::ifstream file(filePath.toStdString());
+        if (!file.is_open()) return 0;
+        std::string data((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         file.close();
-        if (!doc.isArray()) return 0;
-        int count = 0;
-        const QJsonArray arr = doc.array();
-        for (const QJsonValue& v : arr) {
-            SelectionRegion r = SelectionRegion::fromJson(v.toObject());
-            r.id = nextIdInternal();
-            QString baseName = r.name;
-            int suffix = 1;
-            while (nameExistsInternal(r.name)) {
-                r.name = QString("%1_%2").arg(baseName).arg(suffix++);
+        try {
+            auto arr = nlohmann::json::parse(data);
+            if (!arr.is_array()) return 0;
+            int count = 0;
+            for (const auto& v : arr) {
+                SelectionRegion r = SelectionRegion::fromJson(v);
+                r.id = nextIdInternal();
+                QString baseName = r.name;
+                int suffix = 1;
+                while (nameExistsInternal(r.name)) {
+                    r.name = QString("%1_%2").arg(baseName).arg(suffix++);
+                }
+                m_regions.append(r);
+                ++count;
             }
-            m_regions.append(r);
-            ++count;
+            if (count > 0) saveInternal();
+            return count;
+        } catch (...) {
+            return 0;
         }
-        if (count > 0) saveInternal();
-        return count;
     }
 
-    // 反转排序
+    // 閸欏秷娴嗛幒鎺戠碍
     void reverseOrder() {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         std::reverse(m_regions.begin(), m_regions.end());
         saveInternal();
     }
@@ -221,31 +223,33 @@ private:
     SelectionRegionManager(const SelectionRegionManager&) = delete;
     SelectionRegionManager& operator=(const SelectionRegionManager&) = delete;
 
-    // ---- 内部无锁方法（调用方必须已持有锁）----
+    // ---- 閸愬懘鍎撮弮鐘绘敚閺傝纭堕敍鍫ｇ殶閻劍鏌熻箛鍛淬€忓鍙夊瘮閺堝鏀ｉ敍?---
 
     void loadInternal() {
         m_regions.clear();
-        QFile file(configPath());
-        if (!file.open(QIODevice::ReadOnly)) return;
-        QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        std::ifstream file(configPath());
+        if (!file.is_open()) return;
+        std::string data((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         file.close();
-        if (!doc.isArray()) return;
-        const QJsonArray arr = doc.array();
-        for (const QJsonValue& v : arr) {
-            m_regions.append(SelectionRegion::fromJson(v.toObject()));
-        }
+        try {
+            auto arr = nlohmann::json::parse(data);
+            if (!arr.is_array()) return;
+            for (const auto& v : arr) {
+                m_regions.append(SelectionRegion::fromJson(v));
+            }
+        } catch (...) {}
     }
 
     bool saveInternal() const {
-        QDir dir;
-        dir.mkpath(configDir());
-        QFile file(configPath());
-        if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
-        QJsonArray arr;
+        std::filesystem::create_directories(configDir());
+        std::ofstream file(configPath());
+        if (!file.is_open()) return false;
+        nlohmann::json arr = nlohmann::json::array();
         for (const SelectionRegion& r : m_regions) {
-            arr.append(r.toJson());
+            arr.push_back(r.toJson());
         }
-        file.write(QJsonDocument(arr).toJson(QJsonDocument::Indented));
+        std::string out = arr.dump(4);
+        file << out;
         file.close();
         return true;
     }
@@ -280,7 +284,7 @@ private:
     }
 
     QVector<SelectionRegion> m_regions;
-    mutable QReadWriteLock m_lock;
+    mutable std::shared_mutex m_lock;
 };
 
 #endif // SELECTIONREGIONMANAGER_H

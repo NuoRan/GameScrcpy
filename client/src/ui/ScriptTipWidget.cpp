@@ -1,6 +1,7 @@
 #include "ScriptTipWidget.h"
+#include "ConfigCenter.h"
 #include <QPainter>
-#include <QDateTime>
+#include <chrono>
 #include <QApplication>
 #include <QScreen>
 #include <QDebug>
@@ -8,6 +9,11 @@
 #ifdef Q_OS_WIN
 #include <windows.h>
 #endif
+
+static inline int64_t currentMSecsSinceEpoch() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 
 // 单例实例
 ScriptTipWidget* ScriptTipWidget::s_instance = nullptr;
@@ -85,7 +91,7 @@ void ScriptTipWidget::addMessage(const QString& message, int durationMs, int key
                 existingMsg->text = message;
                 existingMsg->label->setText(message);
                 existingMsg->durationMs = durationMs;
-                existingMsg->createTime = QDateTime::currentMSecsSinceEpoch();
+                existingMsg->createTime = currentMSecsSinceEpoch();
 
                 // 更新倒计时显示
                 if (durationMs > 0) {
@@ -122,7 +128,7 @@ void ScriptTipWidget::addMessage(const QString& message, int durationMs, int key
                     existingMsg->countdownTimer = new QTimer(this);
                     existingMsg->countdownTimer->setInterval(1000);
                     connect(existingMsg->countdownTimer, &QTimer::timeout, this, [existingMsg]() {
-                        qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - existingMsg->createTime;
+                        qint64 elapsed = currentMSecsSinceEpoch() - existingMsg->createTime;
                         int remaining = qMax(0, (existingMsg->durationMs - static_cast<int>(elapsed)) / 1000);
                         existingMsg->countdownLabel->setText(QString("%1s").arg(remaining));
                     });
@@ -144,7 +150,7 @@ void ScriptTipWidget::addMessage(const QString& message, int durationMs, int key
     TipMessage* msg = new TipMessage();
     msg->text = message;
     msg->durationMs = durationMs;
-    msg->createTime = QDateTime::currentMSecsSinceEpoch();
+    msg->createTime = currentMSecsSinceEpoch();
     msg->keyId = keyId;
 
     // 创建容器
@@ -241,7 +247,7 @@ void ScriptTipWidget::addMessage(const QString& message, int durationMs, int key
         msg->countdownTimer = new QTimer(this);
         msg->countdownTimer->setInterval(1000);
         connect(msg->countdownTimer, &QTimer::timeout, this, [msg]() {
-            qint64 elapsed = QDateTime::currentMSecsSinceEpoch() - msg->createTime;
+            qint64 elapsed = currentMSecsSinceEpoch() - msg->createTime;
             int remaining = qMax(0, (msg->durationMs - static_cast<int>(elapsed)) / 1000);
             msg->countdownLabel->setText(QString("%1s").arg(remaining));
         });
@@ -512,17 +518,19 @@ bool ScriptTipWidget::eventFilter(QObject* watched, QEvent* event)
 // ---------------------------------------------------------
 void ScriptTipWidget::savePosition()
 {
-    QSettings settings("QtScrcpy", "ScriptTip");
-    settings.setValue("pos", pos());
-    settings.setValue("opacity", m_opacityLevel);
+    auto& cfg = qsc::ConfigCenter::instance();
+    cfg.set("ScriptTip/posX", ConfigValue(pos().x()));
+    cfg.set("ScriptTip/posY", ConfigValue(pos().y()));
+    cfg.set("ScriptTip/opacity", ConfigValue(m_opacityLevel));
 }
 
 void ScriptTipWidget::restorePosition()
 {
-    QSettings settings("QtScrcpy", "ScriptTip");
-    QPoint savedPos = settings.value("pos", QPoint(100, 100)).toPoint();
-    m_opacityLevel = settings.value("opacity", 70).toInt();
-    move(savedPos);
+    auto& cfg = qsc::ConfigCenter::instance();
+    int x = cfg.get<int>("ScriptTip/posX", 100);
+    int y = cfg.get<int>("ScriptTip/posY", 100);
+    m_opacityLevel = cfg.get<int>("ScriptTip/opacity", 70);
+    move(x, y);
 }
 
 // ---------------------------------------------------------

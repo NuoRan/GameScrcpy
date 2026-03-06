@@ -7,6 +7,7 @@ import android.media.MediaCodec;
 
 import java.io.FileDescriptor;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
 public final class Streamer implements IStreamer {
@@ -14,15 +15,31 @@ public final class Streamer implements IStreamer {
     private static final long PACKET_FLAG_CONFIG = 1L << 63;
     private static final long PACKET_FLAG_KEY_FRAME = 1L << 62;
 
-    private final FileDescriptor fd;
+    private final FileDescriptor fd;       // 用于 LocalSocket/adb forward 模式
+    private final OutputStream outputStream; // 用于 WiFi TCP Socket 模式
     private final Codec codec;
     private final boolean sendCodecMeta;
     private final boolean sendFrameMeta;
 
     private final ByteBuffer headerBuffer = ByteBuffer.allocate(12);
 
+    /**
+     * FileDescriptor 模式（USB/adb forward）
+     */
     public Streamer(FileDescriptor fd, Codec codec, boolean sendCodecMeta, boolean sendFrameMeta) {
         this.fd = fd;
+        this.outputStream = null;
+        this.codec = codec;
+        this.sendCodecMeta = sendCodecMeta;
+        this.sendFrameMeta = sendFrameMeta;
+    }
+
+    /**
+     * OutputStream 模式（WiFi TCP Socket）
+     */
+    public Streamer(OutputStream outputStream, Codec codec, boolean sendCodecMeta, boolean sendFrameMeta) {
+        this.fd = null;
+        this.outputStream = outputStream;
         this.codec = codec;
         this.sendCodecMeta = sendCodecMeta;
         this.sendFrameMeta = sendFrameMeta;
@@ -32,12 +49,42 @@ public final class Streamer implements IStreamer {
         return codec;
     }
 
+    /**
+     * 统一的写 ByteBuffer 方法，支持 fd 和 OutputStream 两种底层
+     */
+    private void writeBuffer(ByteBuffer buffer) throws IOException {
+        if (fd != null) {
+            IO.writeFully(fd, buffer);
+        } else if (outputStream != null) {
+            byte[] data;
+            if (buffer.hasArray()) {
+                data = buffer.array();
+                outputStream.write(data, buffer.arrayOffset() + buffer.position(), buffer.remaining());
+                buffer.position(buffer.limit());
+            } else {
+                data = new byte[buffer.remaining()];
+                buffer.get(data);
+                outputStream.write(data);
+            }
+            outputStream.flush();
+        }
+    }
+
+    private void writeByteArray(byte[] data, int offset, int len) throws IOException {
+        if (fd != null) {
+            IO.writeFully(fd, data, offset, len);
+        } else if (outputStream != null) {
+            outputStream.write(data, offset, len);
+            outputStream.flush();
+        }
+    }
+
     public void writeAudioHeader() throws IOException {
         if (sendCodecMeta) {
             ByteBuffer buffer = ByteBuffer.allocate(4);
             buffer.putInt(codec.getId());
             buffer.flip();
-            IO.writeFully(fd, buffer);
+            writeBuffer(buffer);
         }
     }
 
@@ -48,30 +95,24 @@ public final class Streamer implements IStreamer {
             buffer.putInt(videoSize.getWidth());
             buffer.putInt(videoSize.getHeight());
             buffer.flip();
-            IO.writeFully(fd, buffer);
+            writeBuffer(buffer);
         }
     }
 
     public void writeDisableStream(boolean error) throws IOException {
-        // Writing a specific code as codec-id means that the device disables the stream
-        // code 0: it explicitly disables the stream (because it could not capture
-        // audio), scrcpy should continue mirroring video only
-        // code 1: a configuration error occurred, scrcpy must be stopped
         byte[] code = new byte[4];
         if (error) {
             code[3] = 1;
         }
-        IO.writeFully(fd, code, 0, code.length);
+        writeByteArray(code, 0, code.length);
     }
 
     public void writePacket(ByteBuffer buffer, long pts, boolean config, boolean keyFrame) throws IOException {
-        // Audio codec config packet handling removed (audio disabled)
-
         if (sendFrameMeta) {
-            writeFrameMeta(fd, buffer.remaining(), pts, config, keyFrame);
+            writeFrameMeta(buffer.remaining(), pts, config, keyFrame);
         }
 
-        IO.writeFully(fd, buffer);
+        writeBuffer(buffer);
     }
 
     public void writePacket(ByteBuffer codecBuffer, MediaCodec.BufferInfo bufferInfo) throws IOException {
@@ -81,7 +122,7 @@ public final class Streamer implements IStreamer {
         writePacket(codecBuffer, pts, config, keyFrame);
     }
 
-    private void writeFrameMeta(FileDescriptor fd, int packetSize, long pts, boolean config, boolean keyFrame)
+    private void writeFrameMeta(int packetSize, long pts, boolean config, boolean keyFrame)
             throws IOException {
         headerBuffer.clear();
 
@@ -98,6 +139,6 @@ public final class Streamer implements IStreamer {
         headerBuffer.putLong(ptsAndFlags);
         headerBuffer.putInt(packetSize);
         headerBuffer.flip();
-        IO.writeFully(fd, headerBuffer);
+        writeBuffer(headerBuffer);
     }
 }

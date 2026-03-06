@@ -17,11 +17,7 @@
 
 #include <QWidget>
 #include <QPointer>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QJsonArray>
-#include <QFile>
-#include <QMutex>
+#include "third_party/nlohmann/json.hpp"
 #include <QVariant>
 #include <QPointF>
 #include <atomic>
@@ -29,11 +25,14 @@
 #include "KeyMapEditView.h"
 #include "KeyMapOverlay.h"
 
+namespace Fluent { class OnboardingOverlay; }
+
 // 前向声明
 namespace qsc { namespace core { class DeviceSession; } }
 
 namespace Ui { class videoForm; }
-class ToolForm; class QYUVOpenGLWidget; class QLabel;
+class ToolForm; class D3D11VideoWidget; class QLabel;
+class VideoBottomBar; class KeyMapSidePanel; class VideoSettingsPopup;
 
 /**
  * @brief 视频显示窗口 / Video Display Window
@@ -124,6 +123,7 @@ protected:
     void moveEvent(QMoveEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
     void changeEvent(QEvent *event) override;  // 处理窗口激活状态变化
+    bool eventFilter(QObject *watched, QEvent *event) override;  // v21: 跟踪 videoWidget 位置
 
 public:
     void saveWindowGeometry();
@@ -137,13 +137,19 @@ private:
     Ui::videoForm *ui;
     QPointer<ToolForm> m_toolForm;
     QPointer<QWidget> m_loadingWidget;
-    QPointer<QYUVOpenGLWidget> m_videoWidget;
+    QPointer<D3D11VideoWidget> m_videoWidget;
     QPointer<QLabel> m_fpsLabel;
     KeyMapEditView* m_keyMapEditView = nullptr;
     KeyMapOverlay* m_keyMapOverlay = nullptr;
     void updateKeyMapOverlay();  // 从当前配置更新覆盖层
+    void syncOverlaysToVideo();  // v21: 同步 overlay/FPS 到 videoWidget 位置
 
-    QJsonObject m_currentConfigBase;
+    // Fluent UI: 底部操作栏 + 侧边键位面板 + 设置弹窗
+    VideoBottomBar* m_bottomBar = nullptr;
+    KeyMapSidePanel* m_sidePanel = nullptr;
+    VideoSettingsPopup* m_settingsPopup = nullptr;
+
+    nlohmann::json m_currentConfigBase;
     QString m_currentKeyMapFile;
 
     QSize m_frameSize; QSize m_normalSize; QPoint m_dragPosition;
@@ -162,12 +168,25 @@ private:
     // 渲染更新节流（防止队列堆积导致UI卡死）
     std::atomic<bool> m_renderQueued{false};
 
+    // Demuxer 线程帧通知合并标志
+    // 避免从 Demuxer 线程直接调用 Qt widget 方法（非线程安全）
+    std::atomic<bool> m_frameNotifyPending{false};
+
     // 防止 closeEvent 重复处理
     bool m_closing = false;
 
     // === UI 解耦 ===
     // 持有 DeviceSession 指针，通过信号槽交互
     qsc::core::DeviceSession* m_session = nullptr;
+
+    // === 场景引导 ===
+    Fluent::OnboardingOverlay* m_onboarding = nullptr;
+    void startVideoFormOnboarding();
+    void startEditModeOnboarding();
+
+public:
+    /// 重置引导状态后调用，重新启动投屏窗口引导
+    void restartOnboarding();
 };
 
 #endif // VIDEOFORM_H

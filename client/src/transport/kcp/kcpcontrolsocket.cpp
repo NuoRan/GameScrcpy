@@ -1,41 +1,54 @@
 /**
  * @file kcpcontrolsocket.cpp
- * @brief KCP控制Socket实现
+ * @brief KCP Control Socket Implementation
  */
 
 #include "kcpcontrolsocket.h"
 #include "KcpClient.h"
+#include "ThreadDispatcher.h"
 
-KcpControlSocket::KcpControlSocket(QObject *parent)
-    : QObject(parent)
+KcpControlSocket::KcpControlSocket()
 {
-    m_client = new KcpControlClient(this);
-    connect(m_client, &KcpControlClient::connected, this, &KcpControlSocket::connected);
-    connect(m_client, &KcpControlClient::disconnected, this, &KcpControlSocket::disconnected);
-    connect(m_client, &KcpControlClient::errorOccurred, this, &KcpControlSocket::errorOccurred);
-    connect(m_client, &KcpControlClient::dataReady, this, &KcpControlSocket::onDataReady);
+    m_client = new KcpControlClient();
+
+    // Callbacks fire from IO thread -> marshal to main thread
+    m_client->setConnectedCallback([this]() {
+        dispatch::postToMain([this]() { connected.fire(); });
+    });
+    m_client->setDisconnectedCallback([this]() {
+        dispatch::postToMain([this]() { disconnected.fire(); });
+    });
+    m_client->setErrorCallback([this](const std::string &err) {
+        dispatch::postToMain([this, err]() { errorOccurred.fire(err); });
+    });
+    m_client->setDataReadyCallback([this]() {
+        dispatch::postToMain([this]() { onDataReady(); });
+    });
 }
 
 KcpControlSocket::~KcpControlSocket()
 {
+    close();
+    delete m_client;
+    m_client = nullptr;
 }
 
-bool KcpControlSocket::bind(quint16 port)
+bool KcpControlSocket::bind(uint16_t port)
 {
     return m_client ? m_client->bind(port) : false;
 }
 
-quint16 KcpControlSocket::localPort() const
+uint16_t KcpControlSocket::localPort() const
 {
     return m_client ? m_client->localPort() : 0;
 }
 
-QHostAddress KcpControlSocket::localAddress() const
+std::string KcpControlSocket::localAddress() const
 {
-    return QHostAddress::Any;
+    return "0.0.0.0";
 }
 
-void KcpControlSocket::connectToHost(const QHostAddress &host, quint16 port)
+void KcpControlSocket::connectToHost(const std::string &host, uint16_t port)
 {
     if (m_client) {
         m_client->connectTo(host, port);
@@ -47,31 +60,23 @@ bool KcpControlSocket::isValid() const
     return m_client && m_client->isActive();
 }
 
-qint64 KcpControlSocket::write(const char *data, qint64 len)
+int64_t KcpControlSocket::write(const char *data, int64_t len)
 {
-    if (!m_client || len <= 0) {
-        return -1;
-    }
+    if (!m_client || len <= 0) return -1;
     int ret = m_client->send(data, static_cast<int>(len));
     return (ret >= 0) ? len : -1;
 }
 
-qint64 KcpControlSocket::write(const QByteArray &data)
+std::vector<uint8_t> KcpControlSocket::readAll()
 {
-    return write(data.constData(), data.size());
-}
-
-QByteArray KcpControlSocket::readAll()
-{
-    // P-KCP: move 语义避免 COW detach 拷贝
-    QByteArray result;
+    std::vector<uint8_t> result;
     result.swap(m_readBuffer);
     return result;
 }
 
-qint64 KcpControlSocket::bytesAvailable() const
+int64_t KcpControlSocket::bytesAvailable() const
 {
-    return m_readBuffer.size();
+    return static_cast<int64_t>(m_readBuffer.size());
 }
 
 void KcpControlSocket::close()
@@ -79,17 +84,16 @@ void KcpControlSocket::close()
     if (m_client) {
         m_client->close();
     }
-    emit disconnected();
+    disconnected.fire();
 }
 
 void KcpControlSocket::onDataReady()
 {
     if (!m_client) return;
 
-    // 从客户端接收数据并缓存
-    QByteArray data = m_client->recv();
-    if (!data.isEmpty()) {
-        m_readBuffer.append(data);
-        emit readyRead();
+    std::vector<uint8_t> data = m_client->recv();
+    if (!data.empty()) {
+        m_readBuffer.insert(m_readBuffer.end(), data.begin(), data.end());
+        readyRead.fire();
     }
 }

@@ -23,6 +23,10 @@ public final class ControlMessage {
     public static final int TYPE_BATCH       = 16;  // 2+6N: count(1)+[seqId(1)+action(1)+x(2)+y(2)]*N
     public static final int TYPE_DISCONNECT  = 0xFF; // 1B
 
+    // 运行时参数调整消息
+    public static final int TYPE_SET_VIDEO_BITRATE = 20;  // 4B: bitrate(4)
+    public static final int TYPE_SET_DISPLAY_POWER = 21;  // 1B: mode(1) 0=off,1=on
+
     // 核心字段
     private int type;
     private int metaState;     // KeyEvent.META_*
@@ -41,6 +45,10 @@ public final class ControlMessage {
     private int touchX;
     private int touchY;
     private int batchCount;
+
+    // 运行时参数字段
+    private int videoBitRate;
+    private boolean displayPowerOn;
 
     private ControlMessage() {
     }
@@ -112,6 +120,22 @@ public final class ControlMessage {
         return msg;
     }
 
+    public static ControlMessage createSetVideoBitRate(int bitRate) {
+        ControlMessage msg = new ControlMessage();
+        msg.type = TYPE_SET_VIDEO_BITRATE;
+        msg.videoBitRate = bitRate;
+        return msg;
+    }
+
+    public static ControlMessage createSetDisplayPower(boolean on) {
+        ControlMessage msg = new ControlMessage();
+        msg.type = TYPE_SET_DISPLAY_POWER;
+        msg.displayPowerOn = on;
+        return msg;
+    }
+
+
+
     // ========== Getters ==========
 
     public int getType() {
@@ -173,4 +197,14 @@ public final class ControlMessage {
     public int getBatchCount() {
         return batchCount;
     }
+
+    public int getVideoBitRate() {
+        return videoBitRate;
+    }
+
+    public boolean isDisplayPowerOn() {
+        return displayPowerOn;
+    }
+
+
 }

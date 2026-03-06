@@ -3,33 +3,35 @@
 #include "videosocket.h"
 #include "kcpvideosocket.h"
 #include "kcpcontrolsocket.h"
+#include "StringUtils.h"
+#include <algorithm>
 
-#include <QDebug>
+#define LOG_TAG "ConnectionMgr"
+#include "Logger.h"
 
 namespace qsc {
 namespace core {
 
-ConnectionManager::ConnectionManager(QObject* parent)
-    : QObject(parent)
+ConnectionManager::ConnectionManager()
 {
-    qInfo("[ConnectionManager] Created");
+    LOG_I("[ConnectionManager] Created");
 }
 
 ConnectionManager::~ConnectionManager()
 {
     disconnectDevice();
-    qInfo("[ConnectionManager] Destroyed");
+    LOG_I("[ConnectionManager] Destroyed");
 }
 
-bool ConnectionManager::connectDevice(const QString& serial,
-                                      quint16 localPort,
+bool ConnectionManager::connectDevice(const std::string& serial,
+                                      uint16_t localPort,
                                       int maxWidth,
                                       int maxHeight,
-                                      quint32 bitRate,
-                                      quint32 maxFps)
+                                      uint32_t bitRate,
+                                      uint32_t maxFps)
 {
     if (m_state == ConnectionState::Connecting || m_state == ConnectionState::Connected) {
-        qWarning("[ConnectionManager] Already connecting or connected");
+        LOG_W("[ConnectionManager] Already connecting or connected");
         return false;
     }
 
@@ -38,21 +40,26 @@ bool ConnectionManager::connectDevice(const QString& serial,
 
     // 创建 Server
     if (m_server) {
-        m_server->deleteLater();
+        m_server->stop();
+        delete m_server;
     }
-    m_server = new Server(this);
+    m_server = new Server();
 
-    // 连接 Server 信号
-    connect(m_server, &Server::serverStarted,
-            this, &ConnectionManager::onServerStarted);
-    connect(m_server, &Server::serverStoped,
-            this, &ConnectionManager::onServerStopped);
+    // 连接 Server 信号 (Signal<>)
+    m_server->serverStarted.connect(
+        [this](bool ok, const std::string& name, const Size& sz) {
+            onServerStarted(ok, name, sz);
+        });
+    m_server->serverStoped.connect(
+        [this]() {
+            onServerStopped();
+        });
 
     // 设置 Server 参数
     Server::ServerParams params;
     params.serial = serial;
     params.localPort = localPort;
-    params.maxSize = static_cast<quint16>(qMax(maxWidth, maxHeight));
+    params.maxSize = static_cast<uint16_t>(std::max(maxWidth, maxHeight));
     params.bitRate = bitRate;
     params.maxFps = maxFps;
     params.codecOptions = "";
@@ -60,13 +67,13 @@ bool ConnectionManager::connectDevice(const QString& serial,
 
     // 启动 Server
     if (!m_server->start(params)) {
-        qWarning("[ConnectionManager] Failed to start server for %s", qPrintable(serial));
+        LOG_W("[ConnectionManager] Failed to start server for %s", serial.c_str());
         setState(ConnectionState::Error);
-        emit error(tr("Failed to start server"));
+        error.fire(std::string("Failed to start server"));
         return false;
     }
 
-    qInfo("[ConnectionManager] Connecting to %s", qPrintable(serial));
+    LOG_I("[ConnectionManager] Connecting to %s", serial.c_str());
     return true;
 }
 
@@ -76,18 +83,18 @@ void ConnectionManager::disconnectDevice()
         return;
     }
 
-    qInfo("[ConnectionManager] Disconnecting from %s", qPrintable(m_serial));
+    LOG_I("[ConnectionManager] Disconnecting from %s", m_serial.c_str());
 
     cleanup();
     setState(ConnectionState::Disconnected);
-    emit disconnected();
+    disconnected.fire();
 }
 
 void ConnectionManager::setState(ConnectionState state)
 {
     if (m_state != state) {
         m_state = state;
-        emit stateChanged(state);
+        stateChanged.fire(state);
     }
 }
 
@@ -95,32 +102,32 @@ void ConnectionManager::cleanup()
 {
     if (m_server) {
         m_server->stop();
-        m_server->deleteLater();
+        delete m_server;
         m_server = nullptr;
     }
 
     m_videoSocket = nullptr;
     m_kcpVideoSocket = nullptr;
     m_kcpControlSocket = nullptr;
-    m_frameSize = QSize();
+    m_frameSize = Size();
 }
 
-void ConnectionManager::onServerStarted(bool success, const QString& deviceName, const QSize& size)
+void ConnectionManager::onServerStarted(bool success, const std::string& deviceName, const Size& size)
 {
-    Q_UNUSED(deviceName);
+    (void)deviceName;
 
     if (!success) {
-        qWarning("[ConnectionManager] Server start failed");
+        LOG_W("[ConnectionManager] Server start failed");
         setState(ConnectionState::Error);
-        emit error(tr("Server start failed"));
+        error.fire(std::string("Server start failed"));
         return;
     }
 
     m_frameSize = size;
     m_useKcp = m_server->isWiFiMode();
 
-    qInfo("[ConnectionManager] Server started, size: %dx%d, KCP: %s",
-          size.width(), size.height(), m_useKcp ? "yes" : "no");
+    LOG_I("[ConnectionManager] Server started, size: %dx%d, KCP: %s",
+          size.width, size.height, m_useKcp ? "yes" : "no");
 
     // 获取 Sockets
     if (m_useKcp) {
@@ -130,15 +137,15 @@ void ConnectionManager::onServerStarted(bool success, const QString& deviceName,
 
         if (m_kcpVideoSocket) {
             setState(ConnectionState::Connected);
-            emit kcpVideoSocketReady(m_kcpVideoSocket);
+            kcpVideoSocketReady.fire(m_kcpVideoSocket);
             if (m_kcpControlSocket) {
-                emit kcpControlSocketReady(m_kcpControlSocket);
+                kcpControlSocketReady.fire(m_kcpControlSocket);
             }
-            emit connected(m_frameSize);
+            connected.fire(m_frameSize);
         } else {
-            qWarning("[ConnectionManager] Failed to get KCP video socket");
+            LOG_W("[ConnectionManager] Failed to get KCP video socket");
             setState(ConnectionState::Error);
-            emit error(tr("Failed to get video socket"));
+            error.fire(std::string("Failed to get video socket"));
         }
     } else {
         // TCP 模式
@@ -146,24 +153,24 @@ void ConnectionManager::onServerStarted(bool success, const QString& deviceName,
 
         if (m_videoSocket) {
             setState(ConnectionState::Connected);
-            emit videoSocketReady(m_videoSocket);
-            emit connected(m_frameSize);
+            videoSocketReady.fire(m_videoSocket);
+            connected.fire(m_frameSize);
         } else {
-            qWarning("[ConnectionManager] Failed to get TCP video socket");
+            LOG_W("[ConnectionManager] Failed to get TCP video socket");
             setState(ConnectionState::Error);
-            emit error(tr("Failed to get video socket"));
+            error.fire(std::string("Failed to get video socket"));
         }
     }
 }
 
 void ConnectionManager::onServerStopped()
 {
-    qInfo("[ConnectionManager] Server stopped");
+    LOG_I("[ConnectionManager] Server stopped");
 
     if (m_state != ConnectionState::Disconnected) {
         cleanup();
         setState(ConnectionState::Disconnected);
-        emit disconnected();
+        disconnected.fire();
     }
 }
 

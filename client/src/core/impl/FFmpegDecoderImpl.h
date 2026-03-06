@@ -3,7 +3,7 @@
 
 #include "interfaces/IDecoder.h"
 #include <memory>
-#include <QString>
+#include <string>
 
 class Decoder;
 struct AVPacket;
@@ -43,7 +43,7 @@ private:
     std::unique_ptr<Decoder> m_decoder;
     FrameCallback m_frameCallback;
     bool m_isOpen = false;
-    mutable QString m_hwName;
+    mutable std::string m_hwName;
     AVPacket* m_packet = nullptr;  // 复用 AVPacket，避免每帧 alloc/free
 };
 

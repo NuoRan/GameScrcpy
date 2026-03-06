@@ -1,43 +1,42 @@
 #ifndef SCRIPTBUTTONMANAGER_H
 #define SCRIPTBUTTONMANAGER_H
 
-#include <QObject>
 #include <QString>
 #include <QVector>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QFile>
-#include <QDir>
-#include <QCoreApplication>
-#include <QReadWriteLock>
+#include <filesystem>
+#include <fstream>
+#include <shared_mutex>
+
+#include "StringUtils.h"
+
+#include <nlohmann/json.hpp>
 
 // ---------------------------------------------------------
-// 虚拟按钮数据结构 / Script Button Data Structure
-// 表示画面上的一个固定位置点
+// 閾忔碍瀚欓幐澶愭尦閺佺増宓佺紒鎾寸€?/ Script Button Data Structure
+// 鐞涖劎銇氶悽濠氭桨娑撳﹦娈戞稉鈧稉顏勬祼鐎规矮缍呯純顔惧仯
 // ---------------------------------------------------------
 struct ScriptButton
 {
-    int id = 0;             // 按钮编号 (唯一) / Button ID (unique)
-    QString name;           // 备注名字 / Label name
-    double x = 0.5;         // x 坐标 (0.0~1.0) / Normalized x
-    double y = 0.5;         // y 坐标 (0.0~1.0) / Normalized y
+    int id = 0;             // 閹稿鎸崇紓鏍у娇 (閸烆垯绔? / Button ID (unique)
+    QString name;           // 婢跺洦鏁為崥宥呯摟 / Label name
+    double x = 0.5;         // x 閸ф劖鐖?(0.0~1.0) / Normalized x
+    double y = 0.5;         // y 閸ф劖鐖?(0.0~1.0) / Normalized y
 
-    QJsonObject toJson() const {
-        QJsonObject obj;
-        obj["id"] = id;
-        obj["name"] = name;
-        obj["x"] = x;
-        obj["y"] = y;
-        return obj;
+    nlohmann::json toJson() const {
+        return {
+            {"id", id},
+            {"name", name.toStdString()},
+            {"x", x},
+            {"y", y}
+        };
     }
 
-    static ScriptButton fromJson(const QJsonObject& obj) {
+    static ScriptButton fromJson(const nlohmann::json& j) {
         ScriptButton b;
-        b.id = obj["id"].toInt();
-        b.name = obj["name"].toString();
-        b.x = obj["x"].toDouble(0.5);
-        b.y = obj["y"].toDouble(0.5);
+        b.id = j.value("id", 0);
+        b.name = QString::fromStdString(j.value("name", std::string()));
+        b.x = j.value("x", 0.5);
+        b.y = j.value("y", 0.5);
         return b;
     }
 
@@ -49,60 +48,59 @@ struct ScriptButton
 };
 
 // ---------------------------------------------------------
-// 虚拟按钮管理器 - 管理脚本虚拟按钮的增删改查和持久化
-// 线程安全：所有公共方法均通过 QReadWriteLock 保护
+// 閾忔碍瀚欓幐澶愭尦缁狅紕鎮婇崳?- 缁狅紕鎮婇懘姘拱閾忔碍瀚欓幐澶愭尦閻ㄥ嫬顤冮崚鐘虫暭閺屻儱鎷伴幐浣风畽閸?
+// 缁捐法鈻肩€瑰鍙忛敍姘閺堝鍙曢崗杈ㄦ煙濞夋洖娼庨柅姘崇箖 std::shared_mutex 娣囨繃濮?
 // ---------------------------------------------------------
-class ScriptButtonManager : public QObject
+class ScriptButtonManager
 {
-    Q_OBJECT
 public:
     static ScriptButtonManager& instance() {
         static ScriptButtonManager s_instance;
         return s_instance;
     }
 
-    static QString configPath() {
-        return QCoreApplication::applicationDirPath() + "/keymap/buttons.json";
+    static std::string configPath() {
+        return strutil::appDirPath() + "/keymap/buttons.json";
     }
 
-    static QString configDir() {
-        return QCoreApplication::applicationDirPath() + "/keymap";
+    static std::string configDir() {
+        return strutil::appDirPath() + "/keymap";
     }
 
     void load() {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         loadInternal();
     }
 
     bool save() const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         return saveInternal();
     }
 
     QVector<ScriptButton> buttons() const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         return m_buttons;
     }
 
     bool findById(int id, ScriptButton& out) const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         const ScriptButton* b = findByIdInternal(id);
         if (b) { out = *b; return true; }
         return false;
     }
 
     int nextId() const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         return nextIdInternal();
     }
 
     bool nameExists(const QString& name, int excludeId = -1) const {
-        QReadLocker locker(&m_lock);
+        std::shared_lock<std::shared_mutex> locker(m_lock);
         return nameExistsInternal(name, excludeId);
     }
 
     bool add(const ScriptButton& button) {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         if (findByIdInternal(button.id)) return false;
         m_buttons.append(button);
         saveInternal();
@@ -110,7 +108,7 @@ public:
     }
 
     bool remove(int id) {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         for (int i = 0; i < m_buttons.size(); ++i) {
             if (m_buttons[i].id == id) {
                 m_buttons.removeAt(i);
@@ -122,7 +120,7 @@ public:
     }
 
     bool rename(int id, const QString& newName) {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         if (nameExistsInternal(newName, id)) return false;
         for (auto& b : m_buttons) {
             if (b.id == id) {
@@ -135,7 +133,7 @@ public:
     }
 
     bool updateCoords(int id, double x, double y) {
-        QWriteLocker locker(&m_lock);
+        std::unique_lock<std::shared_mutex> locker(m_lock);
         for (auto& b : m_buttons) {
             if (b.id == id) {
                 b.x = x;
@@ -155,27 +153,29 @@ private:
 
     void loadInternal() {
         m_buttons.clear();
-        QFile file(configPath());
-        if (!file.open(QIODevice::ReadOnly)) return;
-        QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+        std::ifstream file(configPath());
+        if (!file.is_open()) return;
+        std::string data((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
         file.close();
-        if (!doc.isArray()) return;
-        const QJsonArray arr = doc.array();
-        for (const QJsonValue& v : arr) {
-            m_buttons.append(ScriptButton::fromJson(v.toObject()));
-        }
+        try {
+            auto arr = nlohmann::json::parse(data);
+            if (!arr.is_array()) return;
+            for (const auto& v : arr) {
+                m_buttons.append(ScriptButton::fromJson(v));
+            }
+        } catch (...) {}
     }
 
     bool saveInternal() const {
-        QDir dir;
-        dir.mkpath(configDir());
-        QFile file(configPath());
-        if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) return false;
-        QJsonArray arr;
+        std::filesystem::create_directories(configDir());
+        std::ofstream file(configPath());
+        if (!file.is_open()) return false;
+        nlohmann::json arr = nlohmann::json::array();
         for (const ScriptButton& b : m_buttons) {
-            arr.append(b.toJson());
+            arr.push_back(b.toJson());
         }
-        file.write(QJsonDocument(arr).toJson(QJsonDocument::Indented));
+        std::string out = arr.dump(4);
+        file << out;
         file.close();
         return true;
     }
@@ -203,7 +203,7 @@ private:
     }
 
     QVector<ScriptButton> m_buttons;
-    mutable QReadWriteLock m_lock;
+    mutable std::shared_mutex m_lock;
 };
 
 #endif // SCRIPTBUTTONMANAGER_H

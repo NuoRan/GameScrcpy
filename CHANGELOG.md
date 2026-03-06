@@ -1,5 +1,120 @@
 # 更新日志 / Changelog
 
+## v1.3 (2026-03-06)
+
+> 183 files changed, +12,615 / -7,877 lines
+
+### 🏗️ 脚本引擎迁移：QJSEngine → QuickJS
+
+- **QuickJS 嵌入式 C 引擎**：完全移除 Qt QJSEngine 依赖，改用 QuickJS（ES2023 标准），编译为独立静态库
+- **JsEngine C++ 包装层**：新增 `JsEngine.h` 封装 QuickJS C API，提供类型安全的 JS↔C++ 交互
+- **JsBindings 绑定层**：新增 `JsBindings.h/.cpp`，28 个 `mapi` API 全部适配 QuickJS
+- **零 Qt 脚本运行时**：ScriptSandbox 使用 `std::mt19937` 替代 QRandomGenerator，`std::chrono` 替代 QDateTime
+
+### 🖥️ D3D11 原生渲染引擎
+
+- **D3D11Renderer**：纯 D3D11 视频渲染器，支持 YUV420P / NV12 / D3D11VA 硬解纹理直通
+- **D3D11VideoWidget**：QWidget 封装的 D3D11 渲染窗口，无锁原子帧邮箱（`submitFrameDirect` 零拷贝帧提交）
+- **替代 OpenGL**：主渲染路径从 QOpenGLWidget (PBO + D3D11-GL interop) 切换为 D3D11 原生，减少一层互操作开销
+- **链接 d3d11 / dxgi / d3dcompiler**：CMakeLists 新增 DirectX 依赖
+
+### ⚡ 零拷贝视频管线
+
+- **ZeroCopyDecoder**：FFmpeg 硬件加速解码（D3D11VA），GPU 帧直接传递渲染器，跳过 `av_hwframe_transfer_data`
+- **ZeroCopyStreamManager**：端到端零拷贝管线：VideoSocket → Demuxer → Decoder → FrameQueue → Renderer，无运行时 malloc
+- **FramePool 预分配帧池**：无锁 atomic CAS 扫描，运行时零内存分配
+- **FrameQueue 自适应抖动管理**：SPSC 队列 + RFC 3550 自适应抖动算法
+- **SPSCQueue 无锁队列**：自研单生产者单消费者队列，cache line padding 避免 false sharing
+
+### 🔊 音频系统重构
+
+- **WasapiPlayer**：纯 WASAPI 共享模式播放器替代 `QAudioSink`，独立 feed 线程，零 Qt 依赖
+- **AudioStreamManager**：scrcpy 官方 `audio_regulator` 架构，独立接收线程 + SPSC 环形缓冲
+- **音频通道**：TCP 4 通道架构新增专用音频端口 (27186)，OPUS 编解码实时转发
+- **WASAPI 缓冲 10ms**：播放缓冲从 50ms 降至 10ms，环形缓冲目标 30ms
+- **动态重采样补偿**：`swr_set_compensation()` 微调重采样率维持缓冲水位
+
+### 🎨 Fluent Design UI 全面重构
+
+- **MainWindow 导航式主窗口**：替代旧 Dialog，NavigationView + QStackedWidget 分页架构
+- **NavigationView**：Windows 11 风格可折叠侧边导航栏，活动指示条动画
+- **ThemeManager 主题管理器**：深色/浅色/跟随系统 + 6 种强调色 + QSS 模板编译
+- **设计 Token 系统**：DesignTokens + MotionTokens，统一的颜色/间距/动效规范
+- **分页架构**：HomePage、SettingsPage、TerminalPage、DeviceDetailPage
+- **20+ Fluent 组件**：FluentCard、FluentButton、FluentToggle、FluentDialog、FluentInfoBar、FluentSlider、FluentProgressRing、FluentBadge、FluentToolWindow、FluentComboBox、FluentInput、SettingRow、DeviceCard、ActivityLog 等
+- **VideoBottomBar**：视频窗口底部工具栏重构
+- **VideoSettingsPopup**：视频参数设置弹窗
+- **KeyMapSidePanel**：键位配置侧边栏
+- **OnboardingOverlay**：首次使用分步引导覆盖层（4 步引导流程）
+- **HelpDialog**：帮助弹窗
+
+### 🏗️ 核心层架构重构 (core/)
+
+- **接口抽象层 (interfaces/)**：`IDecoder`、`IVideoChannel`、`IControlChannel`、`IRenderer`、`IInputProcessor`，依赖反转设计
+- **基础设施层 (infra/)**：`FramePool`、`FrameQueue`、`FrameData`、`SessionParams`
+- **实现层 (impl/)**：`TcpVideoChannel`、`KcpVideoChannel`、`TcpControlChannel`、`KcpControlChannel`、`FFmpegDecoderImpl`、`ZeroCopyDecoder`、`GameInputProcessor`
+- **服务层 (service/)**：`DeviceSession`（门面）、`StreamManager`、`ZeroCopyStreamManager`、`InputManager`、`ConnectionManager`、`SessionFactory`
+- **DeviceSession 门面模式**：UI 层与核心层唯一接口，VideoForm 通过 `bindSession()` 绑定
+
+### 📡 自研 Signal\<\> 信号系统
+
+- **GameSignal.h**：轻量级类型安全信号槽系统，header-only C++17，支持 `connect`/`disconnect`/`ScopedConnection`/`weak_ptr` guard
+- **全面替代 Qt signals/slots/emit**：非 UI 层完全脱离 Qt 元对象系统，无需 MOC 编译
+- ScriptSandbox 11 个信号、StreamManager/ConnectionManager/DeviceSession 等全部使用自研 Signal
+
+### 🔌 网络传输层去 Qt 化
+
+- **NativeTcpSocket**：原生 Winsock2 TCP 封装替代 `QTcpSocket`，阻塞式 send/recv
+- **NativeTcpServer**：原生 Winsock2 TCP 服务器替代 `QTcpServer`
+- **KcpClient 无 Qt 依赖**：`CircularBuffer` O(1) 环形缓冲替代 `QByteArray` append/remove
+- **NativeTimer**：Win32 Timer 替代 `QTimer`
+- **ThreadDispatcher**：原生线程调度替代 Qt 线程间通信
+
+### 📡 辅助通道 (Auxiliary Channel)
+
+- **AuxChannelClient**：独立于控制通道的第三条 TCP 通道 (端口 27185)
+- 支持运行时动态调整：视频码率/帧率/分辨率、视频流暂停/恢复
+- **TCP 4 通道架构**：video (27183) + ctrl (27184) + aux (27185) + audio (27186)
+
+### ⚙️ 控制层架构升级
+
+- **HandlerChain 处理器链**：责任链模式输入分发
+- **独立处理器**：SteerWheelHandler、ViewportHandler、FreeLookHandler、CursorHandler、KeyboardHandler
+- **SessionContext + SessionVars + ScriptBridge + InputDispatcher**：会话状态三层管理
+- **ScriptWatchdog**：脚本看门狗超时保护
+- **KeyMapPropertyPanel**：键位属性编辑面板
+- **KeyConflictIndicator**：键位冲突可视化指示
+
+### ⚙️ 配置系统重构
+
+- **ConfigCenter 单例**：分层配置（默认 → 全局 → 用户 → 运行时覆盖），`std::variant` ConfigValue
+- **IniConfig**：C++17 原生 INI 解析替代 Qt QSettings
+- 配置变更监听、依赖注入
+
+### 🔄 scrcpy 服务端升级
+
+- **服务端升级至 v3.3.4**：跟进上游 scrcpy 最新版本
+- **H.265 编码支持**：新增 H.265 (HEVC) 视频编码选项
+- **自定义服务端构建**：`build_without_gradle.bat` 无 Gradle 编译脚本
+
+### 🧹 精简瘦身
+
+- **移除系统托盘**：点击标题栏 X 直接退出程序，不再最小化到托盘
+- **移除崩溃转储 (.dmp)**：禁用 MiniDump 生成，移除 DbgHelp 依赖，保留文本崩溃日志
+- **全面日志清理**：移除/节流 8+ 文件中的逐帧、逐包、启动诊断日志，减少 I/O 开销
+
+### 🐛 Bug 修复
+
+- **WiFi 视口漂移**：添加 DPR 补偿，解决高 DPI 下视角持续偏移
+- **编辑模式删除按钮**：修复双层 Bug（scene 缓存 + fallback 逻辑）导致 Camera/FreeLook 项无法删除
+- **\~ 键误触发**：添加 `isValidMouseMoveMap` 守卫，防止非视角模式下误触发
+- **编辑覆盖层卡顿**：改用 `SetParent` 原生子窗口，消除跨窗口坐标转换延迟
+- **引导黑屏**：修复 VideoForm 引导遮罩在无视频帧时显示黑屏
+- **按键格式错误**：修复键位映射按键名称格式化 Bug
+- **引导 z-order**：修复编辑模式引导层级遮挡问题
+
+---
+
 ## v1.2 (2026-02-16)
 
 ### ⚡ 控制延迟优化

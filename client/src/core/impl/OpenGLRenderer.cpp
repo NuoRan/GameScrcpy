@@ -23,9 +23,9 @@ bool OpenGLRenderer::initialize()
 
 void OpenGLRenderer::setFrameSize(int width, int height)
 {
-    m_frameSize = QSize(width, height);
+    m_frameSize = Size(width, height);
     if (m_widget) {
-        m_widget->setFrameSize(m_frameSize);
+        m_widget->setFrameSize(typeconv::toQ(m_frameSize));
     }
 }
 
@@ -36,7 +36,7 @@ void OpenGLRenderer::renderFrame(const FrameData& frame)
     }
 
     // 更新帧尺寸（如果变化）
-    if (frame.width != m_frameSize.width() || frame.height != m_frameSize.height()) {
+    if (frame.width != m_frameSize.width || frame.height != m_frameSize.height) {
         setFrameSize(frame.width, frame.height);
     }
 

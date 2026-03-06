@@ -6,8 +6,8 @@
 #include <QOpenGLShaderProgram>
 #include <QOpenGLWidget>
 #include <QImage>
-#include <QMutex>
-#include <QElapsedTimer>
+#include <mutex>
+#include "ElapsedTimer.h"
 #include <QTimer>
 #include <QShowEvent>
 #include <QHideEvent>
@@ -15,17 +15,19 @@
 #include <vector>
 #include <array>
 #include <atomic>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <QCoreApplication>
+#include "GrayFrame.h"
 
 /**
  * @brief 渲染统计信息 / Render Statistics
  */
 struct RenderStatistics
 {
-    quint64 totalFrames = 0;        // 总帧数 / Total frames
-    quint64 droppedFrames = 0;      // 丢帧数 / Dropped frames
+    uint64_t totalFrames = 0;       // 总帧数 / Total frames
+    uint64_t droppedFrames = 0;     // 丢帧数 / Dropped frames
     double avgUploadTimeMs = 0;     // 平均上传时间(毫秒) / Average upload time (ms)
     double avgRenderTimeMs = 0;     // 平均渲染时间(毫秒) / Average render time (ms)
     bool pboEnabled = false;        // PBO 是否启用 / Whether PBO is enabled
@@ -86,7 +88,7 @@ public:
     const QSize &frameSize();
 
     // YUV420P 格式更新 (默认)
-    void updateTextures(quint8 *dataY, quint8 *dataU, quint8 *dataV, quint32 linesizeY, quint32 linesizeU, quint32 linesizeV);
+    void updateTextures(uint8_t *dataY, uint8_t *dataU, uint8_t *dataV, uint32_t linesizeY, uint32_t linesizeU, uint32_t linesizeV);
 
     /**
      * @brief 零拷贝帧提交 (优化跨线程渲染)
@@ -125,7 +127,7 @@ public:
                           std::function<void()> releaseCallback);
 
     // NV12: 直接 NV12 格式更新 (避免格式转换)
-    void updateTexturesNV12(quint8 *dataY, quint8 *dataUV, quint32 linesizeY, quint32 linesizeUV);
+    void updateTexturesNV12(uint8_t *dataY, uint8_t *dataUV, uint32_t linesizeY, uint32_t linesizeUV);
 
     // NV12: 设置 YUV 格式
     void setYUVFormat(YUVFormat format);
@@ -136,6 +138,9 @@ public:
 
     // 获取当前帧的灰度数据 (直接使用 Y 分量，更高效)
     std::vector<uint8_t> grabCurrentFrameGrayscale();
+
+    // 获取当前帧的灰度帧 (触发懒拷贝，带宽高信息，用于图像匹配)
+    GrayFrame grabGrayFrame();
 
     // === PBO 优化相关 ===
 
@@ -188,23 +193,24 @@ protected:
     bool event(QEvent *e) override;
 
 private:
+    void refreshYuvCache();  // 从渲染帧/直接帧刷新 YUV 缓存 (需持 m_yuvMutex)
     void initShader();
     void initShaderNV12();                                  // NV12: NV12 专用着色器
     void initTextures();
     void initTexturesNV12();                                // NV12: NV12 纹理初始化
     void deInitTextures();
-    void updateTexture(GLuint texture, quint32 textureType, quint8 *pixels, quint32 stride);
-    void updateTextureNoContext(GLuint texture, quint32 textureType, quint8 *pixels, quint32 stride);
+    void updateTexture(GLuint texture, uint32_t textureType, uint8_t *pixels, uint32_t stride);
+    void updateTextureNoContext(GLuint texture, uint32_t textureType, uint8_t *pixels, uint32_t stride);
 
     // === PBO 相关方法 ===
     void initPBO();
     void deInitPBO();
-    void updateTextureWithPBO(GLuint texture, quint32 textureType, quint8 *pixels, quint32 stride);
-    void updateTextureWithPBONoContext(GLuint texture, quint32 textureType, quint8 *pixels, quint32 stride);
+    void updateTextureWithPBO(GLuint texture, uint32_t textureType, uint8_t *pixels, uint32_t stride);
+    void updateTextureWithPBONoContext(GLuint texture, uint32_t textureType, uint8_t *pixels, uint32_t stride);
     bool checkPBOSupport();
 
     // === 脏区域检测 ===
-    bool isRegionDirty(const quint8* newData, const quint8* oldData, size_t size, int sampleStep = 64);
+    bool isRegionDirty(const uint8_t* newData, const uint8_t* oldData, size_t size, int sampleStep = 64);
 
 private:
     QSize m_frameSize = { -1, -1 };
@@ -218,15 +224,15 @@ private:
     YUVFormat m_yuvFormat = YUVFormat::YUV420P;             // NV12: 当前格式
 
     // YUV 数据缓存 (用于帧获取)
-    QMutex m_yuvMutex;
+    std::mutex m_yuvMutex;
     std::vector<uint8_t> m_yuvDataY;
     std::vector<uint8_t> m_yuvDataU;
     std::vector<uint8_t> m_yuvDataV;
     std::vector<uint8_t> m_yuvDataUV;                       // NV12: UV 交织数据
-    quint32 m_linesizeY = 0;
-    quint32 m_linesizeU = 0;
-    quint32 m_linesizeV = 0;
-    quint32 m_linesizeUV = 0;                               // NV12: UV stride
+    uint32_t m_linesizeY = 0;
+    uint32_t m_linesizeU = 0;
+    uint32_t m_linesizeV = 0;
+    uint32_t m_linesizeUV = 0;                              // NV12: UV stride
     bool m_grabDataStale = false;                           // 截图缓存是否过期（懒拷贝标志）
 
     // === 零拷贝帧存储 ===
@@ -273,13 +279,13 @@ private:
     bool m_dirtyCheckEnabled = false;                       // 脏区域检测开关
 
     // === 统计信息 ===
-    std::atomic<quint64> m_totalFrames{0};
-    std::atomic<quint64> m_droppedFrames{0};
-    QElapsedTimer m_uploadTimer;
-    QElapsedTimer m_renderTimer;
+    std::atomic<uint64_t> m_totalFrames{0};
+    std::atomic<uint64_t> m_droppedFrames{0};
+    ElapsedTimer m_uploadTimer;
+    ElapsedTimer m_renderTimer;
     double m_totalUploadTime = 0;
     double m_totalRenderTime = 0;
-    QElapsedTimer m_statsTimer;
+    ElapsedTimer m_statsTimer;
 
     // === 帧上传节流 ===
     std::atomic<bool> m_hasPendingFrame{false};

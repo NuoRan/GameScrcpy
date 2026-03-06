@@ -1,43 +1,61 @@
 #ifndef VIDEOSOCKET_H
 #define VIDEOSOCKET_H
 
-#include <QTcpSocket>
-#include <atomic>
+#include "NativeTcpSocket.h"
+#include <cstdint>
 
 /**
  * @brief TCP 视频接收 Socket / TCP Video Receive Socket
  *
- * 用于 USB 模式下通过 adb forward 接收视频数据。
- * Receives video data via adb forward in USB mode.
- *
- * 使用 waitForReadyRead() 进行 OS 级 socket 阻塞等待，
- * 不依赖 Qt 事件循环（Demuxer 线程无事件循环），
- * 数据到达时立即返回（微秒级延迟）。
+ * 内部使用 NativeTcpSocket (Winsock2)，零 Qt 网络依赖。
+ * 用于 USB/TCP 模式下传输视频数据。
  */
-class VideoSocket : public QTcpSocket
+class VideoSocket
 {
-    Q_OBJECT
 public:
-    explicit VideoSocket(QObject *parent = nullptr);
-    virtual ~VideoSocket();
+    VideoSocket();
+    ~VideoSocket();
+
+    // 禁止拷贝
+    VideoSocket(const VideoSocket&) = delete;
+    VideoSocket& operator=(const VideoSocket&) = delete;
+
+    /**
+     * @brief 接管已有 SOCKET（来自 NativeTcpServer accept）
+     */
+    void adoptSocket(SOCKET handle);
+
+    /**
+     * @brief 连接到远程主机（forward 模式使用）
+     */
+    bool connectToHost(const char* host, uint16_t port, int timeoutMs = 1000);
+
+    /**
+     * @brief 阻塞读取初始握手数据（readInfo 调用）
+     * @return 实际读取字节数，0=超时/失败
+     */
+    int readInfoData(unsigned char* buf, int bufSize, int timeoutMs = 3000);
 
     /**
      * @brief 子线程阻塞接收数据 / Block-receive data in sub-thread
-     * @param buf 接收缓冲区 / Receive buffer
-     * @param bufSize 需要接收的字节数 / Bytes to receive
-     * @return 实际接收的字节数 / Actual bytes received
+     * @param buf 接收缓冲区
+     * @param bufSize 需要接收的字节数
+     * @return 实际接收的字节数，0=失败或停止
      */
-    qint32 subThreadRecvData(quint8 *buf, qint32 bufSize);
+    int32_t subThreadRecvData(uint8_t *buf, int32_t bufSize);
 
     /**
-     * @brief 请求停止接收（线程安全）/ Request stop (thread-safe)
-     * 设置停止标志，让 subThreadRecvData 返回。
-     * Sets stop flag, causing subThreadRecvData to return.
+     * @brief 请求停止接收（线程安全）
      */
     void requestStop();
 
+    bool isValid() const { return m_socket.isValid(); }
+
+    /// 获取底层 NativeTcpSocket（用于 readInfo 等）
+    NativeTcpSocket& nativeSocket() { return m_socket; }
+
 private:
-    std::atomic<bool> m_stopRequested{false};
+    NativeTcpSocket m_socket;
 };
 
 #endif // VIDEOSOCKET_H

@@ -1,19 +1,20 @@
 #ifndef CONFIGCENTER_H
 #define CONFIGCENTER_H
 
-#include <QObject>
-#include <QSettings>
-#include <QRecursiveMutex>
-#include <QVariant>
-#include <QMap>
-#include <QRect>
-#include <QString>
+#include <mutex>
+#include <string>
+#include <map>
+#include <vector>
+#include <cstdint>
 #include <functional>
+#include "GameTypes.h"
+
+class IniConfig;
 
 namespace qsc {
 
 // 配置变更回调函数类型 / Configuration change callback function type
-using ConfigChangeListener = std::function<void(const QString& key, const QVariant& oldValue, const QVariant& newValue)>;
+using ConfigChangeListener = std::function<void(const std::string& key, const ConfigValue& oldValue, const ConfigValue& newValue)>;
 
 /**
  * @brief 配置中心 - 单例模式 / Configuration Center - Singleton Pattern
@@ -24,10 +25,8 @@ using ConfigChangeListener = std::function<void(const QString& key, const QVaria
  * - 配置变更监听 / Config change listeners
  * - 依赖注入（用于测试）/ Dependency injection (for testing)
  */
-class ConfigCenter : public QObject
+class ConfigCenter
 {
-    Q_OBJECT
-
 public:
     static ConfigCenter& instance();
 
@@ -38,42 +37,61 @@ public:
     virtual ~ConfigCenter();
 
     // 初始化
-    bool initialize(const QString& configPath = QString(), const QString& userDataPath = QString());
+    bool initialize(const std::string& configPath = std::string(), const std::string& userDataPath = std::string());
     bool isInitialized() const;
 
     // 通用配置访问
-    QVariant get(const QString& key, const QVariant& defaultValue = QVariant()) const;
-    void set(const QString& key, const QVariant& value, bool persistent = true);
-    void setOverride(const QString& key, const QVariant& value);
-    void removeOverride(const QString& key);
-    bool contains(const QString& key) const;
-    void remove(const QString& key);
+    ConfigValue get(const std::string& key, const ConfigValue& defaultValue = ConfigValue()) const;
+    void set(const std::string& key, const ConfigValue& value, bool persistent = true);
+    void setOverride(const std::string& key, const ConfigValue& value);
+    void removeOverride(const std::string& key);
+    bool contains(const std::string& key) const;
+    void remove(const std::string& key);
 
-    // 模板方法
+    // 模板方法 — uses configval helpers / std::get_if
     template<typename T>
-    T get(const QString& key, const T& defaultValue = T()) const {
-        return get(key, QVariant::fromValue(defaultValue)).template value<T>();
+    T get(const std::string& key, const T& defaultValue = T()) const {
+        ConfigValue v = get(key, ConfigValue(defaultValue));
+        if (auto* p = std::get_if<T>(&v)) return *p;
+        return defaultValue;
     }
 
+    // Specializations for type-converting access
+    template<> bool get<bool>(const std::string& key, const bool& defaultValue) const {
+        return configval::toBool(get(key, ConfigValue(defaultValue)), defaultValue);
+    }
+    template<> int get<int>(const std::string& key, const int& defaultValue) const {
+        return configval::toInt(get(key, ConfigValue(defaultValue)), defaultValue);
+    }
+    template<> uint32_t get<uint32_t>(const std::string& key, const uint32_t& defaultValue) const {
+        return configval::toUInt(get(key, ConfigValue(defaultValue)), defaultValue);
+    }
+    template<> double get<double>(const std::string& key, const double& defaultValue) const {
+        return configval::toDouble(get(key, ConfigValue(defaultValue)), defaultValue);
+    }
+
+    // String accessor helper (std::string specialization)
+    std::string getString(const std::string& key, const std::string& defaultValue = "") const;
+
     // --- 全局配置快捷方法 ---
-    QString language() const;
-    QString title() const;
+    std::string language() const;
+    std::string title() const;
     int maxFps() const;
     int desktopOpenGL() const;
     bool useSkin() const;
     bool renderExpiredFrames() const;
-    QString serverPath() const;
-    QString adbPath() const;
-    QString logLevel() const;
-    QString codecOptions() const;
-    QString codecName() const;
+    std::string serverPath() const;
+    std::string adbPath() const;
+    std::string logLevel() const;
+    std::string codecOptions() const;
+    std::string codecName() const;
 
     // --- 用户配置快捷方法 ---
-    QString recordPath() const;
-    void setRecordPath(const QString& path);
+    std::string recordPath() const;
+    void setRecordPath(const std::string& path);
 
-    quint32 bitRate() const;
-    void setBitRate(quint32 rate);
+    uint32_t bitRate() const;
+    void setBitRate(uint32_t rate);
 
     int maxSizeIndex() const;
     void setMaxSizeIndex(int index);
@@ -130,54 +148,59 @@ public:
     int scriptTipOpacity() const;
     void setScriptTipOpacity(int value);
 
+    // 视频传输状态 (true=正在传输, false=暂停)
+    bool videoStreaming() const;
+    void setVideoStreaming(bool streaming);
+
+    // 息屏状态
+    bool screenOff() const;
+    void setScreenOff(bool off);
+
     // --- 设备专属配置 ---
-    QString nickName(const QString& serial) const;
-    void setNickName(const QString& serial, const QString& name);
+    std::string nickName(const std::string& serial) const;
+    void setNickName(const std::string& serial, const std::string& name);
 
-    QRect windowRect(const QString& serial) const;
-    void setWindowRect(const QString& serial, const QRect& rect);
+    Rect windowRect(const std::string& serial) const;
+    void setWindowRect(const std::string& serial, const Rect& rect);
 
-    QString keyMap(const QString& serial) const;
-    void setKeyMap(const QString& serial, const QString& keyMapFile);
+    std::string keyMap(const std::string& serial) const;
+    void setKeyMap(const std::string& serial, const std::string& keyMapFile);
 
     // --- 配置变更监听 ---
-    int addChangeListener(const QString& key, ConfigChangeListener listener);
+    int addChangeListener(const std::string& key, ConfigChangeListener listener);
     void removeChangeListener(int listenerId);
 
     // --- 配置导入导出 ---
-    QVariantMap exportUserConfig() const;
-    void importUserConfig(const QVariantMap& config);
+    std::map<std::string, ConfigValue> exportUserConfig() const;
+    void importUserConfig(const std::map<std::string, ConfigValue>& config);
     void resetToDefaults();
 
-signals:
-    void configChanged(const QString& key, const QVariant& oldValue, const QVariant& newValue);
-
 protected:
-    explicit ConfigCenter(QObject* parent = nullptr);
+    ConfigCenter();
 
 private:
     void registerDefaults();
-    QString deviceKey(const QString& serial, const QString& key) const;
-    void notifyChange(const QString& key, const QVariant& oldValue, const QVariant& newValue);
+    std::string deviceKey(const std::string& serial, const std::string& key) const;
+    void notifyChange(const std::string& key, const ConfigValue& oldValue, const ConfigValue& newValue);
 
 private:
     static ConfigCenter* s_instance;
     static ConfigCenter* s_injectedInstance;
 
-    QSettings* m_globalConfig = nullptr;
-    QSettings* m_userConfig = nullptr;
-    mutable QRecursiveMutex m_mutex;
+    IniConfig* m_globalConfig = nullptr;
+    IniConfig* m_userConfig = nullptr;
+    mutable std::recursive_mutex m_mutex;
     bool m_initialized = false;
 
-    QMap<QString, QVariant> m_defaults;
-    QMap<QString, QVariant> m_overrides;
+    std::map<std::string, ConfigValue> m_defaults;
+    std::map<std::string, ConfigValue> m_overrides;
 
     struct ListenerEntry {
         int id;
-        QString pattern;
+        std::string pattern;
         ConfigChangeListener listener;
     };
-    QList<ListenerEntry> m_listeners;
+    std::vector<ListenerEntry> m_listeners;
     int m_nextListenerId = 1;
 };
 

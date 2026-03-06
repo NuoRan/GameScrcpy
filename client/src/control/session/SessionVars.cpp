@@ -1,8 +1,7 @@
 #include "SessionVars.h"
-#include <QMutexLocker>
+#include <mutex>
 
-SessionVars::SessionVars(QObject* parent)
-    : QObject(parent)
+SessionVars::SessionVars()
 {
 }
 
@@ -10,82 +9,89 @@ SessionVars::~SessionVars()
 {
 }
 
-QVariant SessionVars::getVar(const QString& key, const QVariant& defaultValue) const
+ScriptValue SessionVars::getVar(const std::string& key, const ScriptValue& defaultValue) const
 {
-    QMutexLocker locker(&m_varsMutex);
-    return m_vars.value(key, defaultValue);
+    std::lock_guard<std::mutex> locker(m_varsMutex);
+    auto it = m_vars.find(key);
+    return (it != m_vars.end()) ? it->second : defaultValue;
 }
 
-void SessionVars::setVar(const QString& key, const QVariant& value)
+void SessionVars::setVar(const std::string& key, const ScriptValue& value)
 {
-    QMutexLocker locker(&m_varsMutex);
+    std::lock_guard<std::mutex> locker(m_varsMutex);
     m_vars[key] = value;
 }
 
-bool SessionVars::hasVar(const QString& key) const
+bool SessionVars::hasVar(const std::string& key) const
 {
-    QMutexLocker locker(&m_varsMutex);
-    return m_vars.contains(key);
+    std::lock_guard<std::mutex> locker(m_varsMutex);
+    return m_vars.count(key) > 0;
 }
 
-void SessionVars::removeVar(const QString& key)
+void SessionVars::removeVar(const std::string& key)
 {
-    QMutexLocker locker(&m_varsMutex);
-    m_vars.remove(key);
+    std::lock_guard<std::mutex> locker(m_varsMutex);
+    m_vars.erase(key);
 }
 
 void SessionVars::clearVars()
 {
-    QMutexLocker locker(&m_varsMutex);
+    std::lock_guard<std::mutex> locker(m_varsMutex);
     m_vars.clear();
 }
 
-void SessionVars::addTouchSeq(int keyId, quint32 seqId)
+void SessionVars::addTouchSeq(int keyId, uint32_t seqId)
 {
-    QMutexLocker locker(&m_touchSeqMutex);
-    m_touchSeqIds[keyId].append(seqId);
+    std::lock_guard<std::mutex> locker(m_touchSeqMutex);
+    m_touchSeqIds[keyId].push_back(seqId);
 }
 
-QList<quint32> SessionVars::takeTouchSeqs(int keyId)
+std::vector<uint32_t> SessionVars::takeTouchSeqs(int keyId)
 {
-    QMutexLocker locker(&m_touchSeqMutex);
-    return m_touchSeqIds.take(keyId);
+    std::lock_guard<std::mutex> locker(m_touchSeqMutex);
+    auto it = m_touchSeqIds.find(keyId);
+    if (it != m_touchSeqIds.end()) {
+        std::vector<uint32_t> result = std::move(it->second);
+        m_touchSeqIds.erase(it);
+        return result;
+    }
+    return {};
 }
 
 int SessionVars::touchSeqCount(int keyId) const
 {
-    QMutexLocker locker(&m_touchSeqMutex);
-    return m_touchSeqIds.value(keyId).size();
+    std::lock_guard<std::mutex> locker(m_touchSeqMutex);
+    return static_cast<int>(m_touchSeqIds.count(keyId) ? m_touchSeqIds.at(keyId).size() : 0);
 }
 
 bool SessionVars::hasTouchSeqs(int keyId) const
 {
-    QMutexLocker locker(&m_touchSeqMutex);
-    return m_touchSeqIds.contains(keyId);
+    std::lock_guard<std::mutex> locker(m_touchSeqMutex);
+    return m_touchSeqIds.count(keyId) > 0;
 }
 
-QHash<int, QList<quint32>> SessionVars::takeAllTouchSeqs()
+std::unordered_map<int, std::vector<uint32_t>> SessionVars::takeAllTouchSeqs()
 {
-    QMutexLocker locker(&m_touchSeqMutex);
-    QHash<int, QList<quint32>> result;
+    std::lock_guard<std::mutex> locker(m_touchSeqMutex);
+    std::unordered_map<int, std::vector<uint32_t>> result;
     result.swap(m_touchSeqIds);
     return result;
 }
 
 void SessionVars::clearTouchSeqs()
 {
-    QMutexLocker locker(&m_touchSeqMutex);
+    std::lock_guard<std::mutex> locker(m_touchSeqMutex);
     m_touchSeqIds.clear();
 }
 
-void SessionVars::setRadialParamKeyId(const QString& keyId)
+void SessionVars::setRadialParamKeyId(const std::string& keyId)
 {
-    QMutexLocker locker(&m_radialParamMutex);
+    std::lock_guard<std::mutex> locker(m_radialParamMutex);
     m_radialParamKeyId = keyId;
 }
 
-QString SessionVars::radialParamKeyId() const
+std::string SessionVars::radialParamKeyId() const
 {
-    QMutexLocker locker(&m_radialParamMutex);
+    std::lock_guard<std::mutex> locker(m_radialParamMutex);
     return m_radialParamKeyId;
 }

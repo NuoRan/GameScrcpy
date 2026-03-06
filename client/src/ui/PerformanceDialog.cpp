@@ -4,8 +4,13 @@
 #include <QGridLayout>
 #include <QGroupBox>
 #include <QPushButton>
-#include <QDateTime>
+#include <chrono>
 #include <QEvent>
+
+static inline int64_t currentMSecsSinceEpoch() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
 
 namespace qsc {
 
@@ -19,16 +24,20 @@ PerformanceDialog::PerformanceDialog(QWidget* parent)
     applyStyle();
     retranslateUi();
 
-    // 连接性能监控信号
-    connect(&PerformanceMonitor::instance(), &PerformanceMonitor::metricsUpdated,
-            this, &PerformanceDialog::updateMetrics);
+    // 轮询性能指标 (替代原 PerformanceMonitor signal)
+    m_pollTimer = new QTimer(this);
+    connect(m_pollTimer, &QTimer::timeout, this, [this]() {
+        updateMetrics(PerformanceMonitor::instance().currentMetrics());
+    });
 
     // 启用性能监控
     PerformanceMonitor::instance().setEnabled(true);
+    m_pollTimer->start(1000);
 }
 
 PerformanceDialog::~PerformanceDialog()
 {
+    m_pollTimer->stop();
     PerformanceMonitor::instance().setEnabled(false);
 }
 
@@ -247,8 +256,8 @@ void PerformanceDialog::updateMetrics(const PerformanceMetrics& m)
 
         // 输入（计算每秒事件数）
     static quint64 lastProcessed = 0;
-    static qint64 lastTime = 0;
-    qint64 now = QDateTime::currentMSecsSinceEpoch();
+    static int64_t lastTime = 0;
+    int64_t now = currentMSecsSinceEpoch();
 
     if (lastTime > 0 && now > lastTime) {
         double eventsPerSec = (m.inputEventsProcessed - lastProcessed) * 1000.0 / (now - lastTime);

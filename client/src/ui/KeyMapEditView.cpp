@@ -104,12 +104,17 @@ void RemoveItemCommand::redo()
 // ---------------------------------------------------------
 KeyMapEditView::KeyMapEditView(QWidget *parent) : QGraphicsView(parent)
 {
-    setStyleSheet("background: rgba(0, 0, 0, 150); border: none;");
+    setStyleSheet("background: transparent; border: none;");
     setRenderHint(QPainter::Antialiasing);
     setViewportUpdateMode(QGraphicsView::FullViewportUpdate);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     setAcceptDrops(true);
+
+    // v28: viewport 也必须透明，否则会填充不透明黑色
+    viewport()->setAttribute(Qt::WA_TranslucentBackground);
+    viewport()->setAutoFillBackground(false);
+
     m_scene = new QGraphicsScene(this);
     m_scene->setBackgroundBrush(Qt::NoBrush);
     setScene(m_scene);
@@ -269,6 +274,12 @@ void KeyMapEditView::resizeEvent(QResizeEvent *event) {
 
 void KeyMapEditView::showEvent(QShowEvent *event) { Q_UNUSED(event); raise(); }
 
+void KeyMapEditView::drawBackground(QPainter *painter, const QRectF &rect)
+{
+    // v28: 只画半透明黑色遮罩，底下的 D3D11 实时视频透过窗口透明区域可见
+    painter->fillRect(rect, QColor(0, 0, 0, 160));
+}
+
 // ---------------------------------------------------------
 // 拖拽事件处理
 // 处理从工具栏拖入的新键位（轮盘、脚本、视角等）
@@ -300,11 +311,11 @@ void KeyMapEditView::dropEvent(QDropEvent *event) {
             if (type == KMT_SCRIPT && event->mimeData()->hasFormat("application/x-keymap-preset")) {
                 QString preset = QString::fromUtf8(event->mimeData()->data("application/x-keymap-preset"));
                 if (auto* scriptItem = dynamic_cast<KeyMapItemScript*>(item)) {
-                    QJsonObject initJson;
+                    nlohmann::json initJson;
                     if (preset == "click") {
-                        initJson["script"] = QString("mapi.click();");
+                        initJson["script"] = "mapi.click();";
                     } else if (preset == "hold") {
-                        initJson["script"] = QString("mapi.holdpress();");
+                        initJson["script"] = "mapi.holdpress();";
                     }
                     scriptItem->fromJson(initJson);
                 }
@@ -364,6 +375,18 @@ void KeyMapEditView::mousePressEvent(QMouseEvent *event)
         if (m_editingItem != clickedItem) {
             clearEditingState();
         } else {
+            // 先检查关闭按钮：关闭按钮在 boundingRect 右上角，x > 20 区域内，
+            // 必须优先判断，否则会被误识别为 XY 编辑区域
+            if (auto* base = dynamic_cast<KeyMapItemBase*>(m_editingItem.data())) {
+                QPointF localPos = base->mapFromScene(scenePos);
+                QRectF cr = KeyMapItemBase::closeButtonRect(base->boundingRect());
+                if (cr.contains(localPos)) {
+                    // 清除编辑状态后交给 QGraphicsView 分发到 item 的 mousePressEvent
+                    clearEditingState();
+                    QGraphicsView::mousePressEvent(event);
+                    return;
+                }
+            }
             // 特殊处理视角控制键位的点击（判断是点击了XY编辑区还是按键区）
             if (auto* cam = dynamic_cast<KeyMapItemCamera*>(m_editingItem.data())) {
                 QPointF localPos = cam->mapFromScene(scenePos);
@@ -391,6 +414,15 @@ void KeyMapEditView::mousePressEvent(QMouseEvent *event)
 
     // 点击新元素触发编辑（主要是视角控制的XY值区域）
     if (clickedItem && !m_editingItem) {
+        // 先检查关闭按钮，避免将其误判为 XY 编辑区域
+        if (auto* base = dynamic_cast<KeyMapItemBase*>(clickedItem)) {
+            QPointF localPos = base->mapFromScene(scenePos);
+            QRectF cr = KeyMapItemBase::closeButtonRect(base->boundingRect());
+            if (cr.contains(localPos)) {
+                QGraphicsView::mousePressEvent(event);
+                return;
+            }
+        }
         if (auto* cam = dynamic_cast<KeyMapItemCamera*>(clickedItem)) {
             QPointF localPos = cam->mapFromScene(scenePos);
             if (localPos.x() < -20 || localPos.x() > 20) {
@@ -496,8 +528,10 @@ void KeyMapEditView::keyPressEvent(QKeyEvent *event) {
         else if (auto* freeLook = dynamic_cast<KeyMapItemFreeLook*>(m_editingItem.data())) editing = freeLook->isEditing();
 
         if (editing) {
-            if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Escape) clearEditingState();
-            else {
+            // 仅 Enter 确认退出编辑；ESC 作为可绑定按键，不再用于退出编辑
+            if (event->key() == Qt::Key_Return) {
+                clearEditingState();
+            } else {
                 if (auto* sub = dynamic_cast<SteerWheelSubItem*>(m_editingItem.data())) sub->inputKey(event);
                 else if (auto* script = dynamic_cast<KeyMapItemScript*>(m_editingItem.data())) script->inputKey(event);
                 else if (auto* cam = dynamic_cast<KeyMapItemCamera*>(m_editingItem.data())) cam->inputKey(event);

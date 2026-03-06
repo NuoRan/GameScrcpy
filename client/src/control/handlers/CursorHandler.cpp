@@ -2,10 +2,10 @@
 #include "controller.h"
 #include "SessionContext.h"
 #include "fastmsg.h"
-#include <QDebug>
+#define LOG_TAG "CursorHandler"
+#include "Logger.h"
 
-CursorHandler::CursorHandler(QObject* parent)
-    : IInputHandler(parent)
+CursorHandler::CursorHandler()
 {
 }
 
@@ -19,29 +19,29 @@ void CursorHandler::init(Controller* controller, SessionContext* context)
     IInputHandler::init(controller, context);
 }
 
-bool CursorHandler::handleKeyEvent(const QKeyEvent* event, const QSize& frameSize, const QSize& showSize)
+bool CursorHandler::handleKeyEvent(const InputEvent& event, const Size& frameSize, const Size& showSize)
 {
-    Q_UNUSED(event)
-    Q_UNUSED(frameSize)
-    Q_UNUSED(showSize)
+    (void)event;
+    (void)frameSize;
+    (void)showSize;
     // 光标模式不处理键盘事件
     return false;
 }
 
-bool CursorHandler::handleMouseEvent(const QMouseEvent* event, const QSize& frameSize, const QSize& showSize)
+bool CursorHandler::handleMouseEvent(const InputEvent& event, const Size& frameSize, const Size& showSize)
 {
-    Q_UNUSED(frameSize)
+    (void)frameSize;
     // 责任链调用：不通过责任链，由 SessionContext 直接调用 processMouseEvent
-    Q_UNUSED(event)
-    Q_UNUSED(showSize)
+    (void)event;
+    (void)showSize;
     return false;
 }
 
-bool CursorHandler::handleWheelEvent(const QWheelEvent* event, const QSize& frameSize, const QSize& showSize)
+bool CursorHandler::handleWheelEvent(const InputEvent& event, const Size& frameSize, const Size& showSize)
 {
-    Q_UNUSED(event)
-    Q_UNUSED(frameSize)
-    Q_UNUSED(showSize)
+    (void)event;
+    (void)frameSize;
+    (void)showSize;
     return false;
 }
 
@@ -61,21 +61,16 @@ void CursorHandler::reset()
     m_state.fastTouchSeqId = 0;
 }
 
-void CursorHandler::processMouseEvent(const QMouseEvent* event, const QSize& showSize)
+void CursorHandler::processMouseEvent(const InputEvent& event, const Size& showSize)
 {
-    if (!event) return;
-    if (showSize.width() <= 0 || showSize.height() <= 0) return;
+    if (showSize.width <= 0 || showSize.height <= 0) return;
 
     m_showSize = showSize;
 
-#if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
-    QPointF localPos = event->localPos();
-#else
-    QPointF localPos = event->position();
-#endif
+    PointF localPos(event.localX, event.localY);
 
     // 计算归一化坐标 (0.0 - 1.0)
-    QPointF normalizedPos(localPos.x() / m_showSize.width(), localPos.y() / m_showSize.height());
+    PointF normalizedPos(localPos.x / m_showSize.width, localPos.y / m_showSize.height);
 
     // 始终更新光标位置（用于 getmousepos API）
     m_state.lastPos = normalizedPos;
@@ -83,26 +78,26 @@ void CursorHandler::processMouseEvent(const QMouseEvent* event, const QSize& sho
     // 光标显示模式：使用 FastMsg 协议发送触摸，只响应左键的实际触摸
 
     // 过滤：只处理左键事件
-    if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonRelease) {
-        if (event->button() != Qt::LeftButton) {
+    if (event.type == InputEventType::MousePress || event.type == InputEventType::MouseRelease) {
+        if (event.button != InputButton::Left) {
             return;  // 只处理左键按下/释放
         }
     }
-    if (event->type() == QEvent::MouseMove) {
-        if (!(event->buttons() & Qt::LeftButton)) {
+    if (event.type == InputEventType::MouseMove) {
+        if (!(event.buttons & InputButton::Left)) {
             return;  // 只处理左键按住时的移动
         }
     }
 
-    switch (event->type()) {
-    case QEvent::MouseButtonPress:
+    switch (event.type) {
+    case InputEventType::MousePress:
         // 按下：生成新序列 ID 并发送 DOWN
         m_state.fastTouchSeqId = FastTouchSeq::next();
         m_state.touching = true;
         sendFastTouch(FTA_DOWN, normalizedPos);
         break;
 
-    case QEvent::MouseButtonRelease:
+    case InputEventType::MouseRelease:
         // 释放：发送 UP 并重置状态
         if (m_state.touching) {
             sendFastTouch(FTA_UP, normalizedPos);
@@ -111,7 +106,7 @@ void CursorHandler::processMouseEvent(const QMouseEvent* event, const QSize& sho
         }
         break;
 
-    case QEvent::MouseMove:
+    case InputEventType::MouseMove:
         // 移动：发送 MOVE（仅在按下时）
         if (m_state.touching) {
             sendFastTouch(FTA_MOVE, normalizedPos);
@@ -123,12 +118,12 @@ void CursorHandler::processMouseEvent(const QMouseEvent* event, const QSize& sho
     }
 }
 
-void CursorHandler::sendFastTouch(quint8 action, const QPointF& pos)
+void CursorHandler::sendFastTouch(uint8_t action, const PointF& pos)
 {
     if (!m_controller) return;
 
-    quint16 nx = static_cast<quint16>(qBound(0.0, pos.x(), 1.0) * 65535);
-    quint16 ny = static_cast<quint16>(qBound(0.0, pos.y(), 1.0) * 65535);
+    uint16_t nx = static_cast<uint16_t>(std::clamp(pos.x, 0.0, 1.0) * 65535);
+    uint16_t ny = static_cast<uint16_t>(std::clamp(pos.y, 0.0, 1.0) * 65535);
 
     char buf[10];
     FastTouchEvent evt(m_state.fastTouchSeqId, action, nx, ny);

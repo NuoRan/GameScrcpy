@@ -1,10 +1,11 @@
 #ifndef CORE_CONNECTIONMANAGER_H
 #define CORE_CONNECTIONMANAGER_H
 
-#include <QObject>
-#include <QString>
-#include <QSize>
+#include <string>
+#include <cstdint>
 #include <memory>
+#include "GameSignal.h"
+#include "GameTypes.h"
 
 class Server;
 class VideoSocket;
@@ -38,13 +39,11 @@ enum class ConnectionState {
  * 单一职责 - 只负责连接管理，不涉及解码/渲染/输入
  * Single responsibility - connection management only, no decoding/rendering/input
  */
-class ConnectionManager : public QObject
+class ConnectionManager
 {
-    Q_OBJECT
-
 public:
-    explicit ConnectionManager(QObject* parent = nullptr);
-    ~ConnectionManager() override;
+    ConnectionManager();
+    ~ConnectionManager();
 
     // 禁止拷贝
     ConnectionManager(const ConnectionManager&) = delete;
@@ -60,12 +59,12 @@ public:
      * @param maxFps 最大帧率
      * @return 成功启动返回 true
      */
-    bool connectDevice(const QString& serial,
-                      quint16 localPort = 27183,
+    bool connectDevice(const std::string& serial,
+                      uint16_t localPort = 27183,
                       int maxWidth = 720,
                       int maxHeight = 1280,
-                      quint32 bitRate = 8000000,
-                      quint32 maxFps = 60);
+                      uint32_t bitRate = 8000000,
+                      uint32_t maxFps = 60);
 
     /**
      * @brief 断开连接
@@ -105,47 +104,19 @@ public:
     /**
      * @brief 获取帧尺寸（连接成功后有效）
      */
-    QSize frameSize() const { return m_frameSize; }
+    Size frameSize() const { return m_frameSize; }
 
-signals:
-    /**
-     * @brief 连接状态变化
-     */
-    void stateChanged(ConnectionState state);
+    // Signals (Signal<>)
+    Signal<ConnectionState> stateChanged;
+    Signal<const Size&> connected;
+    Signal<> disconnected;
+    Signal<VideoSocket*> videoSocketReady;
+    Signal<KcpVideoSocket*> kcpVideoSocketReady;
+    Signal<KcpControlSocket*> kcpControlSocketReady;
+    Signal<const std::string&> error;
 
-    /**
-     * @brief 连接成功
-     * @param size 视频帧尺寸
-     */
-    void connected(const QSize& size);
-
-    /**
-     * @brief 断开连接
-     */
-    void disconnected();
-
-    /**
-     * @brief 视频 Socket 就绪（TCP 模式）
-     */
-    void videoSocketReady(VideoSocket* socket);
-
-    /**
-     * @brief KCP 视频 Socket 就绪
-     */
-    void kcpVideoSocketReady(KcpVideoSocket* socket);
-
-    /**
-     * @brief KCP 控制 Socket 就绪
-     */
-    void kcpControlSocketReady(KcpControlSocket* socket);
-
-    /**
-     * @brief 连接错误
-     */
-    void error(const QString& message);
-
-private slots:
-    void onServerStarted(bool success, const QString& deviceName, const QSize& size);
+private:
+    void onServerStarted(bool success, const std::string& deviceName, const Size& size);
     void onServerStopped();
 
 private:
@@ -154,7 +125,7 @@ private:
 
 private:
     Server* m_server = nullptr;
-    QString m_serial;
+    std::string m_serial;
     ConnectionState m_state = ConnectionState::Disconnected;
     bool m_useKcp = false;
 
@@ -163,7 +134,7 @@ private:
     KcpVideoSocket* m_kcpVideoSocket = nullptr;
     KcpControlSocket* m_kcpControlSocket = nullptr;
 
-    QSize m_frameSize;
+    Size m_frameSize;
 };
 
 } // namespace core

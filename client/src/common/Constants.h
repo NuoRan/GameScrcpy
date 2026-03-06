@@ -83,7 +83,6 @@ namespace video {
 // =============================================================================
 namespace control {
     // 触摸点
-    constexpr int MAX_TOUCH_POINTS = 10;
     constexpr int FAST_TOUCH_MAX_SEQ_ID = 256;
 
     // 消息大小
@@ -94,7 +93,7 @@ namespace control {
     constexpr int CONTROL_FLUSH_INTERVAL_MS = 2;            // 2ms 刷新间隔
 
     // 鼠标移动
-    constexpr int MOUSE_MOVE_SEND_INTERVAL_MS = 1;          // 8ms (约125fps)
+    constexpr int MOUSE_MOVE_SEND_INTERVAL_MS = 1;          // 1ms 鼠标移动发送间隔
     constexpr int CURSOR_POS_CHECK_INTERVAL = 50;
 }
 

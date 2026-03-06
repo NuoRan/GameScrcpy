@@ -1,63 +1,142 @@
-#include <QCoreApplication>
-#include <QDebug>
-#include <QElapsedTimer>
-#include <QFileInfo>
-#include <QThread>
-#include <QTimer>
-#include <QTimerEvent>
+#define LOG_TAG "TcpServer"
+#include "Logger.h"
+#include "ElapsedTimer.h"
+#include "StringUtils.h"
+#include "ThreadDispatcher.h"
 
 #include "tcpserverhandler.h"
+#include "videosocket.h"
+#include "NativeTcpSocket.h"
 
 #define DEVICE_NAME_FIELD_LENGTH 64
 #define SOCKET_NAME_PREFIX "scrcpy"
 #define MAX_CONNECT_COUNT 30
 #define MAX_RESTART_COUNT 1
 
-static quint32 bufferRead32be(quint8 *buf)
+static uint32_t bufferRead32be(uint8_t *buf)
 {
-    return static_cast<quint32>((buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3]);
+    return static_cast<uint32_t>((buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3]);
 }
 
-TcpServerHandler::TcpServerHandler(QObject *parent) : QObject(parent)
+// Helper: build socket base name with optional scid suffix
+static std::string makeBaseName(int scid)
 {
-    connect(&m_workProcess, &qsc::AdbProcess::adbProcessResult, this, &TcpServerHandler::onWorkProcessResult);
-    connect(&m_serverProcess, &qsc::AdbProcess::adbProcessResult, this, &TcpServerHandler::onWorkProcessResult);
+    if (scid == -1) {
+        return SOCKET_NAME_PREFIX;
+    }
+    return strutil::format(SOCKET_NAME_PREFIX "_%08x", scid);
+}
 
-    // 处理 video socket 连接
-    connect(&m_serverSocket, &QTcpServer::newConnection, this, [this]() {
-        QTcpSocket *tmp = m_serverSocket.nextPendingConnection();
-        VideoSocket *vs = dynamic_cast<VideoSocket *>(tmp);
-        if (vs) {
-            // reverse 模式设置 TCP_NODELAY
-            vs->setSocketOption(QAbstractSocket::LowDelayOption, 1);
-            m_videoSocket = vs;
-            if (!m_videoSocket->isValid() || !readInfo(m_videoSocket, m_deviceName, m_deviceSize)) {
-                stop();
-                emit serverStarted(false);
-                return;
-            }
-            m_serverSocket.close();
-            checkBothConnected();
-        }
+TcpServerHandler::TcpServerHandler()
+{
+    // 桥接 AdbProcess Signal<> 到本类回调
+    m_workProcess.adbProcessResult.connect(
+        [this](qsc::AdbProcess::ADB_EXEC_RESULT processResult) {
+            onWorkProcessResult(processResult);
+        });
+    m_serverProcess.adbProcessResult.connect(
+        [this](qsc::AdbProcess::ADB_EXEC_RESULT processResult) {
+            onServerProcessResult(processResult);
+        });
+
+    // 设置 NativeTimer 回调
+    m_acceptTimeoutTimer.setCallback([this]() {
+        stopAcceptTimeoutTimer();
+        stopAcceptPollTimer();
+        serverStarted.fire(false, std::string(), Size());
+        onConnectTimer();
+    });
+    m_acceptPollTimer.setCallback([this]() {
+        onAcceptPollTimer();
     });
 
-    // 处理 control socket 连接
-    connect(&m_serverSocketCtrl, &QTcpServer::newConnection, this, [this]() {
-        QTcpSocket *tmp = m_serverSocketCtrl.nextPendingConnection();
-        if (tmp && tmp->isValid()) {
-            // reverse 模式设置 TCP_NODELAY
-            tmp->setSocketOption(QAbstractSocket::LowDelayOption, 1);
-            m_controlSocket = tmp;
-            m_serverSocketCtrl.close();
-            checkBothConnected();
-        } else {
-            stop();
-            emit serverStarted(false);
-        }
-    });
+    // Reverse 模式的连接接受在 onAcceptPollTimer() 中轮询处理
 }
 
 TcpServerHandler::~TcpServerHandler() {}
+
+// 确定 reverse 模式下，当前步骤完成后的下一个步骤（跳过禁用通道）
+TcpServerHandler::SERVER_START_STEP TcpServerHandler::nextStepAfterReverse(SERVER_START_STEP completed)
+{
+    if (completed == SSS_ENABLE_TUNNEL_REVERSE) {
+        if (m_params.audioEnabled) return SSS_ENABLE_TUNNEL_REVERSE_AUDIO;
+        completed = SSS_ENABLE_TUNNEL_REVERSE_AUDIO;
+    }
+    if (completed == SSS_ENABLE_TUNNEL_REVERSE_AUDIO) {
+        if (m_params.control) return SSS_ENABLE_TUNNEL_REVERSE_CTRL;
+        completed = SSS_ENABLE_TUNNEL_REVERSE_CTRL;
+    }
+    if (completed == SSS_ENABLE_TUNNEL_REVERSE_CTRL) {
+        if (m_params.auxEnabled) return SSS_ENABLE_TUNNEL_REVERSE_AUX;
+        completed = SSS_ENABLE_TUNNEL_REVERSE_AUX;
+    }
+    return SSS_EXECUTE_SERVER;
+}
+
+// 确定 forward 模式下，当前步骤完成后的下一个步骤（跳过禁用通道）
+TcpServerHandler::SERVER_START_STEP TcpServerHandler::nextStepAfterForward(SERVER_START_STEP completed)
+{
+    if (completed == SSS_ENABLE_TUNNEL_FORWARD) {
+        if (m_params.audioEnabled) return SSS_ENABLE_TUNNEL_FORWARD_AUDIO;
+        completed = SSS_ENABLE_TUNNEL_FORWARD_AUDIO;
+    }
+    if (completed == SSS_ENABLE_TUNNEL_FORWARD_AUDIO) {
+        if (m_params.control) return SSS_ENABLE_TUNNEL_FORWARD_CTRL;
+        completed = SSS_ENABLE_TUNNEL_FORWARD_CTRL;
+    }
+    if (completed == SSS_ENABLE_TUNNEL_FORWARD_CTRL) {
+        if (m_params.auxEnabled) return SSS_ENABLE_TUNNEL_FORWARD_AUX;
+        completed = SSS_ENABLE_TUNNEL_FORWARD_AUX;
+    }
+    return SSS_EXECUTE_SERVER;
+}
+
+// Reverse 模式：在所有启用的通道上开始监听
+bool TcpServerHandler::listenOnEnabledPorts()
+{
+    // Video 始终监听
+    if (!m_serverSocket.listen("127.0.0.1", m_params.localPort)) {
+        LOG_E("Could not listen on video port %u", m_params.localPort);
+        m_serverStartStep = SSS_NULL;
+        disableTunnelReverse();
+        serverStarted.fire(false, std::string(), Size());
+        return false;
+    }
+    if (m_params.audioEnabled) {
+        if (!m_serverSocketAudio.listen("127.0.0.1", m_params.localPortAudio)) {
+            LOG_E("Could not listen on audio port %u", m_params.localPortAudio);
+            m_serverSocket.close();
+            m_serverStartStep = SSS_NULL;
+            disableTunnelReverse();
+            serverStarted.fire(false, std::string(), Size());
+            return false;
+        }
+    }
+    if (m_params.control) {
+        if (!m_serverSocketCtrl.listen("127.0.0.1", m_params.localPortCtrl)) {
+            LOG_E("Could not listen on control port %u", m_params.localPortCtrl);
+            m_serverSocket.close();
+            if (m_params.audioEnabled) m_serverSocketAudio.close();
+            m_serverStartStep = SSS_NULL;
+            disableTunnelReverse();
+            serverStarted.fire(false, std::string(), Size());
+            return false;
+        }
+    }
+    if (m_params.auxEnabled) {
+        if (!m_serverSocketAux.listen("127.0.0.1", m_params.localPortAux)) {
+            LOG_E("Could not listen on aux port %u", m_params.localPortAux);
+            m_serverSocket.close();
+            if (m_params.audioEnabled) m_serverSocketAudio.close();
+            if (m_params.control) m_serverSocketCtrl.close();
+            m_serverStartStep = SSS_NULL;
+            disableTunnelReverse();
+            serverStarted.fire(false, std::string(), Size());
+            return false;
+        }
+    }
+    return true;
+}
 
 bool TcpServerHandler::pushServer()
 {
@@ -73,10 +152,18 @@ bool TcpServerHandler::enableTunnelReverse()
     if (m_workProcess.isRuning()) {
         m_workProcess.kill();
     }
-    QString baseName = (m_params.scid == -1)
-        ? QString(SOCKET_NAME_PREFIX)
-        : QString(SOCKET_NAME_PREFIX "_%1").arg(m_params.scid, 8, 16, QChar('0'));
+    std::string baseName = makeBaseName(m_params.scid);
     m_workProcess.reverse(m_params.serial, baseName + "_video", m_params.localPort);
+    return true;
+}
+
+bool TcpServerHandler::enableTunnelReverseAudio()
+{
+    if (m_workProcess.isRuning()) {
+        m_workProcess.kill();
+    }
+    std::string baseName = makeBaseName(m_params.scid);
+    m_workProcess.reverse(m_params.serial, baseName + "_audio", m_params.localPortAudio);
     return true;
 }
 
@@ -85,38 +172,56 @@ bool TcpServerHandler::enableTunnelReverseCtrl()
     if (m_workProcess.isRuning()) {
         m_workProcess.kill();
     }
-    QString baseName = (m_params.scid == -1)
-        ? QString(SOCKET_NAME_PREFIX)
-        : QString(SOCKET_NAME_PREFIX "_%1").arg(m_params.scid, 8, 16, QChar('0'));
+    std::string baseName = makeBaseName(m_params.scid);
     m_workProcess.reverse(m_params.serial, baseName + "_control", m_params.localPortCtrl);
+    return true;
+}
+
+bool TcpServerHandler::enableTunnelReverseAux()
+{
+    if (m_workProcess.isRuning()) {
+        m_workProcess.kill();
+    }
+    std::string baseName = makeBaseName(m_params.scid);
+    m_workProcess.reverse(m_params.serial, baseName + "_aux", m_params.localPortAux);
     return true;
 }
 
 bool TcpServerHandler::disableTunnelReverse()
 {
-    QString baseName = (m_params.scid == -1)
-        ? QString(SOCKET_NAME_PREFIX)
-        : QString(SOCKET_NAME_PREFIX "_%1").arg(m_params.scid, 8, 16, QChar('0'));
+    std::string baseName = makeBaseName(m_params.scid);
 
     qsc::AdbProcess *adb1 = new qsc::AdbProcess();
-    if (adb1) {
-        connect(adb1, &qsc::AdbProcess::adbProcessResult, adb1, [adb1](qsc::AdbProcess::ADB_EXEC_RESULT processResult) {
-            if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
-                adb1->deleteLater();
-            }
-        });
-        adb1->reverseRemove(m_params.serial, baseName + "_video");
-    }
+    adb1->adbProcessResult.connect([adb1](qsc::AdbProcess::ADB_EXEC_RESULT processResult) {
+        if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
+            dispatch::postToMain([adb1]() { delete adb1; });
+        }
+    });
+    adb1->reverseRemove(m_params.serial, baseName + "_video");
 
     qsc::AdbProcess *adb2 = new qsc::AdbProcess();
-    if (adb2) {
-        connect(adb2, &qsc::AdbProcess::adbProcessResult, adb2, [adb2](qsc::AdbProcess::ADB_EXEC_RESULT processResult) {
-            if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
-                adb2->deleteLater();
-            }
-        });
-        adb2->reverseRemove(m_params.serial, baseName + "_control");
-    }
+    adb2->adbProcessResult.connect([adb2](qsc::AdbProcess::ADB_EXEC_RESULT processResult) {
+        if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
+            dispatch::postToMain([adb2]() { delete adb2; });
+        }
+    });
+    adb2->reverseRemove(m_params.serial, baseName + "_control");
+
+    qsc::AdbProcess *adb3 = new qsc::AdbProcess();
+    adb3->adbProcessResult.connect([adb3](qsc::AdbProcess::ADB_EXEC_RESULT processResult) {
+        if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
+            dispatch::postToMain([adb3]() { delete adb3; });
+        }
+    });
+    adb3->reverseRemove(m_params.serial, baseName + "_aux");
+
+    qsc::AdbProcess *adb4 = new qsc::AdbProcess();
+    adb4->adbProcessResult.connect([adb4](qsc::AdbProcess::ADB_EXEC_RESULT processResult) {
+        if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
+            dispatch::postToMain([adb4]() { delete adb4; });
+        }
+    });
+    adb4->reverseRemove(m_params.serial, baseName + "_audio");
     return true;
 }
 
@@ -125,10 +230,18 @@ bool TcpServerHandler::enableTunnelForward()
     if (m_workProcess.isRuning()) {
         m_workProcess.kill();
     }
-    QString baseName = (m_params.scid == -1)
-        ? QString(SOCKET_NAME_PREFIX)
-        : QString(SOCKET_NAME_PREFIX "_%1").arg(m_params.scid, 8, 16, QChar('0'));
+    std::string baseName = makeBaseName(m_params.scid);
     m_workProcess.forward(m_params.serial, m_params.localPort, baseName + "_video");
+    return true;
+}
+
+bool TcpServerHandler::enableTunnelForwardAudio()
+{
+    if (m_workProcess.isRuning()) {
+        m_workProcess.kill();
+    }
+    std::string baseName = makeBaseName(m_params.scid);
+    m_workProcess.forward(m_params.serial, m_params.localPortAudio, baseName + "_audio");
     return true;
 }
 
@@ -137,34 +250,54 @@ bool TcpServerHandler::enableTunnelForwardCtrl()
     if (m_workProcess.isRuning()) {
         m_workProcess.kill();
     }
-    QString baseName = (m_params.scid == -1)
-        ? QString(SOCKET_NAME_PREFIX)
-        : QString(SOCKET_NAME_PREFIX "_%1").arg(m_params.scid, 8, 16, QChar('0'));
+    std::string baseName = makeBaseName(m_params.scid);
     m_workProcess.forward(m_params.serial, m_params.localPortCtrl, baseName + "_control");
+    return true;
+}
+
+bool TcpServerHandler::enableTunnelForwardAux()
+{
+    if (m_workProcess.isRuning()) {
+        m_workProcess.kill();
+    }
+    std::string baseName = makeBaseName(m_params.scid);
+    m_workProcess.forward(m_params.serial, m_params.localPortAux, baseName + "_aux");
     return true;
 }
 
 bool TcpServerHandler::disableTunnelForward()
 {
     qsc::AdbProcess *adb1 = new qsc::AdbProcess();
-    if (adb1) {
-        connect(adb1, &qsc::AdbProcess::adbProcessResult, adb1, [adb1](qsc::AdbProcess::ADB_EXEC_RESULT processResult) {
-            if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
-                adb1->deleteLater();
-            }
-        });
-        adb1->forwardRemove(m_params.serial, m_params.localPort);
-    }
+    adb1->adbProcessResult.connect([adb1](qsc::AdbProcess::ADB_EXEC_RESULT processResult) {
+        if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
+            dispatch::postToMain([adb1]() { delete adb1; });
+        }
+    });
+    adb1->forwardRemove(m_params.serial, m_params.localPort);
 
     qsc::AdbProcess *adb2 = new qsc::AdbProcess();
-    if (adb2) {
-        connect(adb2, &qsc::AdbProcess::adbProcessResult, adb2, [adb2](qsc::AdbProcess::ADB_EXEC_RESULT processResult) {
-            if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
-                adb2->deleteLater();
-            }
-        });
-        adb2->forwardRemove(m_params.serial, m_params.localPortCtrl);
-    }
+    adb2->adbProcessResult.connect([adb2](qsc::AdbProcess::ADB_EXEC_RESULT processResult) {
+        if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
+            dispatch::postToMain([adb2]() { delete adb2; });
+        }
+    });
+    adb2->forwardRemove(m_params.serial, m_params.localPortCtrl);
+
+    qsc::AdbProcess *adb3 = new qsc::AdbProcess();
+    adb3->adbProcessResult.connect([adb3](qsc::AdbProcess::ADB_EXEC_RESULT processResult) {
+        if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
+            dispatch::postToMain([adb3]() { delete adb3; });
+        }
+    });
+    adb3->forwardRemove(m_params.serial, m_params.localPortAux);
+
+    qsc::AdbProcess *adb4 = new qsc::AdbProcess();
+    adb4->adbProcessResult.connect([adb4](qsc::AdbProcess::ADB_EXEC_RESULT processResult) {
+        if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
+            dispatch::postToMain([adb4]() { delete adb4; });
+        }
+    });
+    adb4->forwardRemove(m_params.serial, m_params.localPortAudio);
     return true;
 }
 
@@ -173,72 +306,77 @@ bool TcpServerHandler::execute()
     if (m_serverProcess.isRuning()) {
         m_serverProcess.kill();
     }
-    QStringList args;
-    args << "shell";
-    args << QString("CLASSPATH=%1").arg(m_params.serverRemotePath);
-    args << "app_process";
+    std::vector<std::string> args;
+    args.push_back("shell");
+    args.push_back("CLASSPATH=" + m_params.serverRemotePath);
+    args.push_back("app_process");
 
 #ifdef SERVER_DEBUGGER
 #define SERVER_DEBUGGER_PORT "5005"
-    args <<
+    args.push_back(
 #ifdef SERVER_DEBUGGER_METHOD_NEW
         "-XjdwpProvider:internal -XjdwpOptions:transport=dt_socket,suspend=y,server=y,address="
 #else
         "-agentlib:jdwp=transport=dt_socket,suspend=y,server=y,address="
 #endif
-        SERVER_DEBUGGER_PORT,
+        SERVER_DEBUGGER_PORT);
 #endif
 
-    args << "/";
-    args << "com.genymobile.scrcpy.Server";
-    args << m_params.serverVersion;
+    args.push_back("/");
+    args.push_back("com.genymobile.scrcpy.Server");
+    args.push_back(m_params.serverVersion);
 
-    args << QString("video_bit_rate=%1").arg(QString::number(m_params.bitRate));
-    if (!m_params.logLevel.isEmpty()) {
-        args << QString("log_level=%1").arg(m_params.logLevel);
+    args.push_back("video_bit_rate=" + std::to_string(m_params.bitRate));
+    if (!m_params.logLevel.empty()) {
+        args.push_back("log_level=" + m_params.logLevel);
     }
     if (m_params.maxSize > 0) {
-        args << QString("max_size=%1").arg(QString::number(m_params.maxSize));
+        args.push_back("max_size=" + std::to_string(m_params.maxSize));
     }
     if (m_params.maxFps > 0) {
-        args << QString("max_fps=%1").arg(QString::number(m_params.maxFps));
+        args.push_back("max_fps=" + std::to_string(m_params.maxFps));
     }
 
     if (1 == m_params.captureOrientationLock) {
-        args << QString("capture_orientation=@%1").arg(m_params.captureOrientation);
+        args.push_back("capture_orientation=@" + std::to_string(m_params.captureOrientation));
     } else if (2 == m_params.captureOrientationLock) {
-        args << QString("capture_orientation=@");
+        args.push_back("capture_orientation=@");
     } else {
-        args << QString("capture_orientation=%1").arg(m_params.captureOrientation);
+        args.push_back("capture_orientation=" + std::to_string(m_params.captureOrientation));
     }
     if (m_tunnelForward) {
-        args << QString("tunnel_forward=true");
+        args.push_back("tunnel_forward=true");
     }
-    if (!m_params.crop.isEmpty()) {
-        args << QString("crop=%1").arg(m_params.crop);
+    if (!m_params.crop.empty()) {
+        args.push_back("crop=" + m_params.crop);
     }
     if (!m_params.control) {
-        args << QString("control=false");
+        args.push_back("control=false");
     }
     if (m_params.stayAwake) {
-        args << QString("stay_awake=true");
+        args.push_back("stay_awake=true");
     }
-    if (!m_params.codecOptions.isEmpty()) {
-        args << QString("codec_options=%1").arg(m_params.codecOptions);
+    if (!m_params.codecOptions.empty()) {
+        args.push_back("video_codec_options=" + m_params.codecOptions);
     }
-    if (!m_params.codecName.isEmpty()) {
-        args << QString("encoder_name=%1").arg(m_params.codecName);
+    if (!m_params.codecName.empty()) {
+        args.push_back("video_encoder=" + m_params.codecName);
     }
     if (m_params.videoCodec != "h264") {
-        args << QString("video_codec=%1").arg(m_params.videoCodec);
+        args.push_back("video_codec=" + m_params.videoCodec);
     }
-    args << "audio=false";
+    args.push_back("audio=true");
+    if (!m_params.audioEnabled) {
+        // 覆盖: 通知服务端不要捕获音频
+        args.pop_back();
+        args.push_back("audio=false");
+    }
     if (-1 != m_params.scid) {
-        args << QString("scid=%1").arg(m_params.scid, 8, 16, QChar('0'));
+        args.push_back(strutil::format("scid=%08x", m_params.scid));
     }
 
 #ifdef SERVER_DEBUGGER
-    qInfo("Server debugger waiting for a client on device port " SERVER_DEBUGGER_PORT "...");
+    LOG_I("Server debugger waiting for a client on device port " SERVER_DEBUGGER_PORT "...");
 #endif
 
     m_serverProcess.execute(m_params.serial, args);
@@ -248,7 +386,7 @@ bool TcpServerHandler::execute()
 bool TcpServerHandler::start(TcpServerHandler::ServerParams params)
 {
     m_params = params;
-    qInfo() << "TcpServerHandler: Starting USB/TCP mode for" << m_params.serial;
+    LOGI() << "TcpServerHandler: Starting USB/TCP mode for" << m_params.serial;
     m_serverStartStep = SSS_PUSH;
     return startServerByStep();
 }
@@ -256,12 +394,13 @@ bool TcpServerHandler::start(TcpServerHandler::ServerParams params)
 bool TcpServerHandler::connectTo()
 {
     if (SSS_RUNNING != m_serverStartStep) {
-        qWarning("server not run");
+        LOG_W("server not run");
         return false;
     }
 
     if (!m_tunnelForward && !m_videoSocket) {
         startAcceptTimeoutTimer();
+        startAcceptPollTimer();
         return true;
     }
 
@@ -279,26 +418,26 @@ TcpServerHandler::ServerParams TcpServerHandler::getParams()
     return m_params;
 }
 
-void TcpServerHandler::timerEvent(QTimerEvent *event)
-{
-    if (event && m_acceptTimeoutTimer == event->timerId()) {
-        stopAcceptTimeoutTimer();
-        emit serverStarted(false);
-    } else if (event && m_connectTimeoutTimer == event->timerId()) {
-        onConnectTimer();
-    }
-}
-
 VideoSocket* TcpServerHandler::removeVideoSocket()
 {
     VideoSocket* socket = m_videoSocket;
-    m_videoSocket = Q_NULLPTR;
+    m_videoSocket = nullptr;
     return socket;
 }
 
-QTcpSocket *TcpServerHandler::getControlSocket()
+NativeTcpSocket *TcpServerHandler::getControlSocket()
 {
     return m_controlSocket;
+}
+
+NativeTcpSocket *TcpServerHandler::getAudioSocket()
+{
+    return m_audioSocket;
+}
+
+NativeTcpSocket *TcpServerHandler::getAuxSocket()
+{
+    return m_auxSocket;
 }
 
 void TcpServerHandler::stop()
@@ -307,11 +446,27 @@ void TcpServerHandler::stop()
         stopConnectTimeoutTimer();
     } else {
         stopAcceptTimeoutTimer();
+        stopAcceptPollTimer();
     }
 
+    if (m_videoSocket) {
+        delete m_videoSocket;
+        m_videoSocket = nullptr;
+    }
     if (m_controlSocket) {
         m_controlSocket->close();
-        m_controlSocket->deleteLater();
+        delete m_controlSocket;
+        m_controlSocket = nullptr;
+    }
+    if (m_audioSocket) {
+        m_audioSocket->close();
+        delete m_audioSocket;
+        m_audioSocket = nullptr;
+    }
+    if (m_auxSocket) {
+        m_auxSocket->close();
+        delete m_auxSocket;
+        m_auxSocket = nullptr;
     }
     m_serverProcess.kill();
     if (m_tunnelEnabled) {
@@ -324,7 +479,9 @@ void TcpServerHandler::stop()
         m_tunnelEnabled = false;
     }
     m_serverSocket.close();
+    m_serverSocketAudio.close();
     m_serverSocketCtrl.close();
+    m_serverSocketAux.close();
 }
 
 bool TcpServerHandler::startServerByStep()
@@ -338,14 +495,26 @@ bool TcpServerHandler::startServerByStep()
         case SSS_ENABLE_TUNNEL_REVERSE:
             stepSuccess = enableTunnelReverse();
             break;
+        case SSS_ENABLE_TUNNEL_REVERSE_AUDIO:
+            stepSuccess = enableTunnelReverseAudio();
+            break;
         case SSS_ENABLE_TUNNEL_REVERSE_CTRL:
             stepSuccess = enableTunnelReverseCtrl();
+            break;
+        case SSS_ENABLE_TUNNEL_REVERSE_AUX:
+            stepSuccess = enableTunnelReverseAux();
             break;
         case SSS_ENABLE_TUNNEL_FORWARD:
             stepSuccess = enableTunnelForward();
             break;
+        case SSS_ENABLE_TUNNEL_FORWARD_AUDIO:
+            stepSuccess = enableTunnelForwardAudio();
+            break;
         case SSS_ENABLE_TUNNEL_FORWARD_CTRL:
             stepSuccess = enableTunnelForwardCtrl();
+            break;
+        case SSS_ENABLE_TUNNEL_FORWARD_AUX:
+            stepSuccess = enableTunnelForwardAux();
             break;
         case SSS_EXECUTE_SERVER:
             stepSuccess = execute();
@@ -356,158 +525,234 @@ bool TcpServerHandler::startServerByStep()
     }
 
     if (!stepSuccess) {
-        emit serverStarted(false);
+        serverStarted.fire(false, std::string(), Size());
     }
     return stepSuccess;
 }
 
-bool TcpServerHandler::readInfo(VideoSocket *videoSocket, QString &deviceName, QSize &size)
+bool TcpServerHandler::readInfo(VideoSocket *videoSocket, std::string &deviceName, Size &size)
 {
-    QElapsedTimer timer;
-    timer.start();
     unsigned char buf[DEVICE_NAME_FIELD_LENGTH + 12];
-    while (videoSocket->bytesAvailable() <= (DEVICE_NAME_FIELD_LENGTH + 12)) {
-        videoSocket->waitForReadyRead(300);
-        if (timer.elapsed() > 3000) {
-            qInfo("readInfo timeout");
-            return false;
-        }
-    }
-
-    qint64 len = videoSocket->read((char *)buf, sizeof(buf));
+    int len = videoSocket->readInfoData(buf, sizeof(buf), 3000);
     if (len < DEVICE_NAME_FIELD_LENGTH + 12) {
-        qInfo("Could not retrieve device information");
+        LOG_I("Could not retrieve device information");
         return false;
     }
     buf[DEVICE_NAME_FIELD_LENGTH - 1] = '\0';
-    deviceName = QString::fromUtf8((const char *)buf);
+    deviceName = std::string(reinterpret_cast<const char *>(buf));
 
-    size.setWidth(bufferRead32be(&buf[DEVICE_NAME_FIELD_LENGTH + 4]));
-    size.setHeight(bufferRead32be(&buf[DEVICE_NAME_FIELD_LENGTH + 8]));
+    size.width = bufferRead32be(&buf[DEVICE_NAME_FIELD_LENGTH + 4]);
+    size.height = bufferRead32be(&buf[DEVICE_NAME_FIELD_LENGTH + 8]);
 
     return true;
 }
 
-void TcpServerHandler::checkBothConnected()
+void TcpServerHandler::checkAllConnected()
 {
-    if (m_videoSocket && m_videoSocket->isValid() &&
-        m_controlSocket && m_controlSocket->isValid()) {
-        stopAcceptTimeoutTimer();
-        disableTunnelReverse();
-        m_tunnelEnabled = false;
-        emit serverStarted(true, m_deviceName, m_deviceSize);
-    }
+    // Video 始终必需
+    if (!m_videoSocket || !m_videoSocket->isValid()) return;
+    // 仅检查已启用的通道
+    if (m_params.audioEnabled && (!m_audioSocket || !m_audioSocket->isValid())) return;
+    if (m_params.control && (!m_controlSocket || !m_controlSocket->isValid())) return;
+    if (m_params.auxEnabled && (!m_auxSocket || !m_auxSocket->isValid())) return;
+
+    stopAcceptTimeoutTimer();
+    stopAcceptPollTimer();
+    disableTunnelReverse();
+    m_tunnelEnabled = false;
+    serverStarted.fire(true, m_deviceName, m_deviceSize);
 }
 
 void TcpServerHandler::startAcceptTimeoutTimer()
 {
-    stopAcceptTimeoutTimer();
-    m_acceptTimeoutTimer = startTimer(1000);
+    m_acceptTimeoutTimer.stop();
+    m_acceptTimeoutTimer.start(5000);  // 5s — 首次启动 scrcpy-server 需更长时间
 }
 
 void TcpServerHandler::stopAcceptTimeoutTimer()
 {
-    if (m_acceptTimeoutTimer) {
-        killTimer(m_acceptTimeoutTimer);
-        m_acceptTimeoutTimer = 0;
-    }
+    m_acceptTimeoutTimer.stop();
 }
 
 void TcpServerHandler::startConnectTimeoutTimer()
 {
-    stopConnectTimeoutTimer();
-    m_connectTimeoutTimer = startTimer(300);
+    m_connectTimeoutTimer.stop();
+    m_connectTimeoutTimer.start(300);
 }
 
 void TcpServerHandler::stopConnectTimeoutTimer()
 {
-    if (m_connectTimeoutTimer) {
-        killTimer(m_connectTimeoutTimer);
-        m_connectTimeoutTimer = 0;
-    }
+    m_connectTimeoutTimer.stop();
     m_connectCount = 0;
+}
+
+void TcpServerHandler::startAcceptPollTimer()
+{
+    m_acceptPollTimer.stop();
+    m_acceptPollTimer.start(50);  // 每 50ms 轮询一次
+}
+
+void TcpServerHandler::stopAcceptPollTimer()
+{
+    m_acceptPollTimer.stop();
+}
+
+void TcpServerHandler::onAcceptPollTimer()
+{
+    // 尝试接受 video socket
+    if (!m_videoSocket) {
+        NativeTcpSocket *ns = m_serverSocket.tryAccept();
+        if (ns) {
+            VideoSocket *vs = new VideoSocket();
+            vs->adoptSocket(ns->release());
+            delete ns;
+            if (!vs->isValid() || !readInfo(vs, m_deviceName, m_deviceSize)) {
+                delete vs;
+                stop();
+                serverStarted.fire(false, std::string(), Size());
+                return;
+            }
+            m_videoSocket = vs;
+            m_serverSocket.close();
+            checkAllConnected();
+        }
+    }
+
+    // 尝试接受 audio socket (仅在启用时)
+    if (m_params.audioEnabled && !m_audioSocket) {
+        NativeTcpSocket *ns = m_serverSocketAudio.tryAccept();
+        if (ns) {
+            ns->setNoDelay(true);
+            m_audioSocket = ns;
+            m_serverSocketAudio.close();
+            checkAllConnected();
+        }
+    }
+
+    // 尝试接受 control socket (仅在启用时)
+    if (m_params.control && !m_controlSocket) {
+        NativeTcpSocket *ns = m_serverSocketCtrl.tryAccept();
+        if (ns) {
+            ns->setNoDelay(true);
+            m_controlSocket = ns;
+            m_serverSocketCtrl.close();
+            checkAllConnected();
+        }
+    }
+
+    // 尝试接受 auxiliary socket (仅在启用时)
+    if (m_params.auxEnabled && !m_auxSocket) {
+        NativeTcpSocket *ns = m_serverSocketAux.tryAccept();
+        if (ns) {
+            ns->setNoDelay(true);
+            m_auxSocket = ns;
+            m_serverSocketAux.close();
+            checkAllConnected();
+        }
+    }
 }
 
 void TcpServerHandler::onConnectTimer()
 {
-    QString deviceName;
-    QSize deviceSize;
+    std::string deviceName;
+    Size deviceSize;
     bool success = false;
 
     VideoSocket *videoSocket = new VideoSocket();
-    QTcpSocket *controlSocket = new QTcpSocket();
+    NativeTcpSocket *audioSocket = nullptr;
+    NativeTcpSocket *controlSocket = nullptr;
+    NativeTcpSocket *auxSocket = nullptr;
 
-    videoSocket->connectToHost(QHostAddress::LocalHost, m_params.localPort);
-    if (!videoSocket->waitForConnected(1000)) {
+    // Video: 使用原生 socket 连接
+    if (!videoSocket->connectToHost("127.0.0.1", m_params.localPort, 1000)) {
         m_connectCount = MAX_CONNECT_COUNT;
-        qWarning("video socket connect to server failed");
+        LOG_W("video socket connect to server failed");
         goto result;
     }
-    videoSocket->setSocketOption(QAbstractSocket::LowDelayOption, 1);  // TCP_NODELAY
 
-    controlSocket->connectToHost(QHostAddress::LocalHost, m_params.localPortCtrl);
-    if (!controlSocket->waitForConnected(1000)) {
-        m_connectCount = MAX_CONNECT_COUNT;
-        qWarning("control socket connect to server failed");
-        goto result;
+    if (m_params.audioEnabled) {
+        audioSocket = new NativeTcpSocket();
+        if (!audioSocket->connectToHost("127.0.0.1", m_params.localPortAudio, 1000)) {
+            m_connectCount = MAX_CONNECT_COUNT;
+            LOG_W("audio socket connect to server failed");
+            goto result;
+        }
+        audioSocket->setNoDelay(true);
     }
-    controlSocket->setSocketOption(QAbstractSocket::LowDelayOption, 1);  // TCP_NODELAY
 
-    if (QTcpSocket::ConnectedState == videoSocket->state()) {
-        videoSocket->waitForReadyRead(1000);
-        QByteArray data = videoSocket->read(1);
-        if (!data.isEmpty() && readInfo(videoSocket, deviceName, deviceSize)) {
+    if (m_params.control) {
+        controlSocket = new NativeTcpSocket();
+        if (!controlSocket->connectToHost("127.0.0.1", m_params.localPortCtrl, 1000)) {
+            m_connectCount = MAX_CONNECT_COUNT;
+            LOG_W("control socket connect to server failed");
+            goto result;
+        }
+        controlSocket->setNoDelay(true);
+    }
+
+    if (m_params.auxEnabled) {
+        auxSocket = new NativeTcpSocket();
+        if (!auxSocket->connectToHost("127.0.0.1", m_params.localPortAux, 1000)) {
+            m_connectCount = MAX_CONNECT_COUNT;
+            LOG_W("aux socket connect to server failed");
+            goto result;
+        }
+        auxSocket->setNoDelay(true);
+    }
+
+    // 读取 1 字节连接响应 + 设备信息
+    {
+        char connectByte = 0;
+        if (!videoSocket->nativeSocket().recvAll(&connectByte, 1)) {
+            LOG_W("video socket read connect byte failed, try again");
+            goto result;
+        }
+        if (readInfo(videoSocket, deviceName, deviceSize)) {
             success = true;
             goto result;
         } else {
-            qWarning("video socket connect to server read device info failed, try again");
+            LOG_W("video socket connect to server read device info failed, try again");
             goto result;
         }
-    } else {
-        qWarning("connect to server failed");
-        m_connectCount = MAX_CONNECT_COUNT;
-        goto result;
     }
 
 result:
     if (success) {
         stopConnectTimeoutTimer();
         m_videoSocket = videoSocket;
-        controlSocket->read(1);
-        m_controlSocket = controlSocket;
+        if (audioSocket) { char dummy; audioSocket->recv(&dummy, 1); m_audioSocket = audioSocket; }
+        if (controlSocket) { char dummy; controlSocket->recv(&dummy, 1); m_controlSocket = controlSocket; }
+        if (auxSocket) { char dummy; auxSocket->recv(&dummy, 1); m_auxSocket = auxSocket; }
         disableTunnelForward();
         m_tunnelEnabled = false;
         m_restartCount = 0;
-        emit serverStarted(success, deviceName, deviceSize);
+        serverStarted.fire(success, deviceName, deviceSize);
         return;
     }
 
-    if (videoSocket) {
-        videoSocket->deleteLater();
-    }
-    if (controlSocket) {
-        controlSocket->deleteLater();
-    }
+    delete videoSocket;
+    delete audioSocket;
+    delete controlSocket;
+    delete auxSocket;
 
     if (MAX_CONNECT_COUNT <= m_connectCount++) {
         stopConnectTimeoutTimer();
         stop();
         if (MAX_RESTART_COUNT > m_restartCount++) {
-            qWarning("restart server auto");
+            LOG_W("restart server auto");
             start(m_params);
         } else {
             m_restartCount = 0;
-            emit serverStarted(false);
+            serverStarted.fire(false, std::string(), Size());
         }
     }
 }
 
 void TcpServerHandler::onWorkProcessResult(qsc::AdbProcess::ADB_EXEC_RESULT processResult)
 {
-    if (sender() == &m_workProcess) {
-        if (SSS_NULL != m_serverStartStep) {
-            switch (m_serverStartStep) {
-            case SSS_PUSH:
+    if (SSS_NULL != m_serverStartStep) {
+        switch (m_serverStartStep) {
+        case SSS_PUSH:
                 if (qsc::AdbProcess::AER_SUCCESS_EXEC == processResult) {
                     if (m_params.useReverse) {
                         m_serverStartStep = SSS_ENABLE_TUNNEL_REVERSE;
@@ -517,17 +762,37 @@ void TcpServerHandler::onWorkProcessResult(qsc::AdbProcess::ADB_EXEC_RESULT proc
                     }
                     startServerByStep();
                 } else if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
-                    qCritical("adb push failed");
+                    LOG_E("adb push failed");
                     m_serverStartStep = SSS_NULL;
-                    emit serverStarted(false);
+                    serverStarted.fire(false, std::string(), Size());
                 }
                 break;
+
+            // ─── Reverse 模式: 依次建立启用的通道 ───
             case SSS_ENABLE_TUNNEL_REVERSE:
                 if (qsc::AdbProcess::AER_SUCCESS_EXEC == processResult) {
-                    m_serverStartStep = SSS_ENABLE_TUNNEL_REVERSE_CTRL;
+                    m_serverStartStep = nextStepAfterReverse(SSS_ENABLE_TUNNEL_REVERSE);
+                    if (m_serverStartStep == SSS_EXECUTE_SERVER) {
+                        if (!listenOnEnabledPorts()) break;
+                    }
                     startServerByStep();
                 } else if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
-                    qCritical("adb reverse (video) failed, try forward");
+                    LOG_E("adb reverse (video) failed, try forward");
+                    m_tunnelForward = true;
+                    m_serverStartStep = SSS_ENABLE_TUNNEL_FORWARD;
+                    startServerByStep();
+                }
+                break;
+            case SSS_ENABLE_TUNNEL_REVERSE_AUDIO:
+                if (qsc::AdbProcess::AER_SUCCESS_EXEC == processResult) {
+                    m_serverStartStep = nextStepAfterReverse(SSS_ENABLE_TUNNEL_REVERSE_AUDIO);
+                    if (m_serverStartStep == SSS_EXECUTE_SERVER) {
+                        if (!listenOnEnabledPorts()) break;
+                    }
+                    startServerByStep();
+                } else if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
+                    LOG_E("adb reverse (audio) failed, try forward");
+                    disableTunnelReverse();
                     m_tunnelForward = true;
                     m_serverStartStep = SSS_ENABLE_TUNNEL_FORWARD;
                     startServerByStep();
@@ -535,80 +800,107 @@ void TcpServerHandler::onWorkProcessResult(qsc::AdbProcess::ADB_EXEC_RESULT proc
                 break;
             case SSS_ENABLE_TUNNEL_REVERSE_CTRL:
                 if (qsc::AdbProcess::AER_SUCCESS_EXEC == processResult) {
-                    m_serverSocket.setMaxPendingConnections(1);
-                    if (!m_serverSocket.listen(QHostAddress::LocalHost, m_params.localPort)) {
-                        qCritical() << QString("Could not listen on video port %1").arg(m_params.localPort).toStdString().c_str();
-                        m_serverStartStep = SSS_NULL;
-                        disableTunnelReverse();
-                        emit serverStarted(false);
-                        break;
+                    m_serverStartStep = nextStepAfterReverse(SSS_ENABLE_TUNNEL_REVERSE_CTRL);
+                    if (m_serverStartStep == SSS_EXECUTE_SERVER) {
+                        if (!listenOnEnabledPorts()) break;
                     }
-                    m_serverSocketCtrl.setMaxPendingConnections(1);
-                    if (!m_serverSocketCtrl.listen(QHostAddress::LocalHost, m_params.localPortCtrl)) {
-                        qCritical() << QString("Could not listen on control port %1").arg(m_params.localPortCtrl).toStdString().c_str();
-                        m_serverSocket.close();
-                        m_serverStartStep = SSS_NULL;
-                        disableTunnelReverse();
-                        emit serverStarted(false);
-                        break;
-                    }
-
-                    m_serverStartStep = SSS_EXECUTE_SERVER;
                     startServerByStep();
                 } else if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
-                    qCritical("adb reverse (control) failed, try forward");
+                    LOG_E("adb reverse (control) failed, try forward");
                     disableTunnelReverse();
                     m_tunnelForward = true;
                     m_serverStartStep = SSS_ENABLE_TUNNEL_FORWARD;
                     startServerByStep();
                 }
                 break;
-            case SSS_ENABLE_TUNNEL_FORWARD:
+            case SSS_ENABLE_TUNNEL_REVERSE_AUX:
                 if (qsc::AdbProcess::AER_SUCCESS_EXEC == processResult) {
-                    m_serverStartStep = SSS_ENABLE_TUNNEL_FORWARD_CTRL;
+                    // AUX 是最后可能的 reverse 步骤，直接进入 listen + execute
+                    if (!listenOnEnabledPorts()) break;
+                    m_serverStartStep = SSS_EXECUTE_SERVER;
                     startServerByStep();
                 } else if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
-                    qCritical("adb forward (video) failed");
+                    LOG_E("adb reverse (aux) failed, try forward");
+                    disableTunnelReverse();
+                    m_tunnelForward = true;
+                    m_serverStartStep = SSS_ENABLE_TUNNEL_FORWARD;
+                    startServerByStep();
+                }
+                break;
+
+            // ─── Forward 模式: 依次建立启用的通道 ───
+            case SSS_ENABLE_TUNNEL_FORWARD:
+                if (qsc::AdbProcess::AER_SUCCESS_EXEC == processResult) {
+                    m_serverStartStep = nextStepAfterForward(SSS_ENABLE_TUNNEL_FORWARD);
+                    startServerByStep();
+                } else if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
+                    LOG_E("adb forward (video) failed");
                     m_serverStartStep = SSS_NULL;
-                    emit serverStarted(false);
+                    serverStarted.fire(false, std::string(), Size());
+                }
+                break;
+            case SSS_ENABLE_TUNNEL_FORWARD_AUDIO:
+                if (qsc::AdbProcess::AER_SUCCESS_EXEC == processResult) {
+                    m_serverStartStep = nextStepAfterForward(SSS_ENABLE_TUNNEL_FORWARD_AUDIO);
+                    startServerByStep();
+                } else if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
+                    LOG_E("adb forward (audio) failed");
+                    disableTunnelForward();
+                    m_serverStartStep = SSS_NULL;
+                    serverStarted.fire(false, std::string(), Size());
                 }
                 break;
             case SSS_ENABLE_TUNNEL_FORWARD_CTRL:
                 if (qsc::AdbProcess::AER_SUCCESS_EXEC == processResult) {
+                    m_serverStartStep = nextStepAfterForward(SSS_ENABLE_TUNNEL_FORWARD_CTRL);
+                    startServerByStep();
+                } else if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
+                    LOG_E("adb forward (control) failed");
+                    disableTunnelForward();
+                    m_serverStartStep = SSS_NULL;
+                    serverStarted.fire(false, std::string(), Size());
+                }
+                break;
+            case SSS_ENABLE_TUNNEL_FORWARD_AUX:
+                if (qsc::AdbProcess::AER_SUCCESS_EXEC == processResult) {
                     m_serverStartStep = SSS_EXECUTE_SERVER;
                     startServerByStep();
                 } else if (qsc::AdbProcess::AER_SUCCESS_START != processResult) {
-                    qCritical("adb forward (control) failed");
+                    LOG_E("adb forward (aux) failed");
                     disableTunnelForward();
                     m_serverStartStep = SSS_NULL;
-                    emit serverStarted(false);
+                    serverStarted.fire(false, std::string(), Size());
                 }
                 break;
             default:
                 break;
             }
         }
-    }
-    if (sender() == &m_serverProcess) {
-        if (SSS_EXECUTE_SERVER == m_serverStartStep) {
-            if (qsc::AdbProcess::AER_SUCCESS_START == processResult) {
-                m_serverStartStep = SSS_RUNNING;
-                m_tunnelEnabled = true;
-                connectTo();
-            } else if (qsc::AdbProcess::AER_ERROR_START == processResult) {
-                if (!m_tunnelForward) {
-                    m_serverSocket.close();
-                    disableTunnelReverse();
-                } else {
-                    disableTunnelForward();
-                }
-                qCritical("adb shell start server failed");
-                m_serverStartStep = SSS_NULL;
-                emit serverStarted(false);
+}
+
+void TcpServerHandler::onServerProcessResult(qsc::AdbProcess::ADB_EXEC_RESULT processResult)
+{
+    if (SSS_EXECUTE_SERVER == m_serverStartStep) {
+        if (qsc::AdbProcess::AER_SUCCESS_START == processResult) {
+            m_serverStartStep = SSS_RUNNING;
+            m_tunnelEnabled = true;
+            connectTo();
+        } else if (qsc::AdbProcess::AER_ERROR_START == processResult) {
+            if (!m_tunnelForward) {
+                m_serverSocket.close();
+                if (m_params.audioEnabled) m_serverSocketAudio.close();
+                if (m_params.control) m_serverSocketCtrl.close();
+                if (m_params.auxEnabled) m_serverSocketAux.close();
+                disableTunnelReverse();
+            } else {
+                disableTunnelForward();
             }
-        } else if (SSS_RUNNING == m_serverStartStep) {
+            LOG_E("adb shell start server failed");
             m_serverStartStep = SSS_NULL;
-            emit serverStoped();
+            serverStarted.fire(false, std::string(), Size());
         }
+    } else if (SSS_RUNNING == m_serverStartStep) {
+        m_serverStartStep = SSS_NULL;
+        serverStoped.fire();
     }
 }

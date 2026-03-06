@@ -1,6 +1,8 @@
+#define LOG_TAG "VideoBuffer"
+#include "Logger.h"
+
 #include "videobuffer.h"
 #include "avframeconvert.h"
-#include <QDebug>
 
 extern "C"
 {
@@ -9,8 +11,7 @@ extern "C"
 #include "libavutil/imgutils.h"
 }
 
-VideoBuffer::VideoBuffer(QObject *parent) : QObject(parent) {
-    connect(&m_fpsCounter, &FpsCounter::updateFPS, this, &VideoBuffer::updateFPS);
+VideoBuffer::VideoBuffer() {
 }
 
 VideoBuffer::~VideoBuffer() {}
@@ -67,11 +68,11 @@ void VideoBuffer::deInit()
     } else {
         if (m_decodingFrame) {
             av_frame_free(&m_decodingFrame);
-            m_decodingFrame = Q_NULLPTR;
+            m_decodingFrame = nullptr;
         }
         if (m_renderingframe) {
             av_frame_free(&m_renderingframe);
-            m_renderingframe = Q_NULLPTR;
+            m_renderingframe = nullptr;
         }
     }
     m_fpsCounter.stop();
@@ -118,13 +119,13 @@ void VideoBuffer::offerDecodedFrame(bool &previousFrameSkipped)
     }
 
     // 原双缓冲逻辑
-    m_mutex.lock();
+    std::unique_lock<std::mutex> lock(m_mutex);
 
     if (m_renderExpiredFrames) {
         // if m_renderExpiredFrames is enable, then the decoder must wait for the current
         // frame to be consumed
         while (!m_renderingFrameConsumed && !m_interrupted) {
-            m_renderingFrameConsumedCond.wait(&m_mutex);
+            m_renderingFrameConsumedCond.wait(lock);
         }
     } else {
         if (m_fpsCounter.isStarted() && !m_renderingFrameConsumed) {
@@ -136,7 +137,7 @@ void VideoBuffer::offerDecodedFrame(bool &previousFrameSkipped)
     swap();
     previousFrameSkipped = !m_renderingFrameConsumed;
     m_renderingFrameConsumed = false;
-    m_mutex.unlock();
+    lock.unlock();
 }
 
 void VideoBuffer::tripleBufferOffer(bool &previousFrameSkipped)
@@ -207,7 +208,7 @@ const AVFrame *VideoBuffer::consumeRenderedFrame()
     }
 
     // 原双缓冲逻辑
-    Q_ASSERT(!m_renderingFrameConsumed);
+    // assert(!m_renderingFrameConsumed);
     m_renderingFrameConsumed = true;
     if (m_fpsCounter.isStarted()) {
         m_fpsCounter.addRenderedFrame();
@@ -217,7 +218,7 @@ const AVFrame *VideoBuffer::consumeRenderedFrame()
     if (m_renderExpiredFrames) {
         // if m_renderExpiredFrames is enable, then notify the decoder the current frame is
         // consumed, so that it may push a new one
-        m_renderingFrameConsumedCond.wakeOne();
+        m_renderingFrameConsumedCond.notify_one();
     }
     return m_renderingframe;
 }
@@ -263,25 +264,29 @@ void VideoBuffer::peekRenderedFrame(std::function<void(int width, int height, ui
 
     // convert
     AVFrameConvert convert;
-    convert.setSrcFrameInfo(width, height, AV_PIX_FMT_YUV420P);
+    // 使用帧实际格式，而非硬编码 YUV420P（硬解可能产生 NV12 等格式）
+    AVPixelFormat srcFmt = (frame->format != AV_PIX_FMT_NONE)
+                         ? static_cast<AVPixelFormat>(frame->format)
+                         : AV_PIX_FMT_YUV420P;
+    convert.setSrcFrameInfo(width, height, srcFmt);
     convert.setDstFrameInfo(width, height, AV_PIX_FMT_RGB32);
     bool ret = false;
     ret = convert.init();
     if (!ret) {
         delete [] rgbBuffer;
-        av_free(rgbFrame);
+        av_frame_free(&rgbFrame);
         unLock();
         return;
     }
     ret = convert.convert(frame, rgbFrame);
     if (!ret) {
         delete [] rgbBuffer;
-        av_free(rgbFrame);
+        av_frame_free(&rgbFrame);
         unLock();
         return;
     }
     convert.deInit();
-    av_free(rgbFrame);
+    av_frame_free(&rgbFrame);
     unLock();
 
     onFrame(width, height, rgbBuffer);
@@ -291,11 +296,12 @@ void VideoBuffer::peekRenderedFrame(std::function<void(int width, int height, ui
 void VideoBuffer::interrupt()
 {
     if (m_renderExpiredFrames) {
-        m_mutex.lock();
-        m_interrupted = true;
-        m_mutex.unlock();
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_interrupted = true;
+        }
         // wake up blocking wait
-        m_renderingFrameConsumedCond.wakeOne();
+        m_renderingFrameConsumedCond.notify_one();
     }
 }
 

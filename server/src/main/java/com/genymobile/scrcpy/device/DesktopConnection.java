@@ -1,6 +1,8 @@
 package com.genymobile.scrcpy.device;
 
 import com.genymobile.scrcpy.control.ControlChannel;
+import com.genymobile.scrcpy.auxiliary.TcpAuxChannel;
+import com.genymobile.scrcpy.auxiliary.IAuxChannel;
 import com.genymobile.scrcpy.util.IO;
 import com.genymobile.scrcpy.util.StringUtils;
 
@@ -22,15 +24,25 @@ public final class DesktopConnection implements Closeable {
     private final LocalSocket videoSocket;
     private final FileDescriptor videoFd;
 
+    private final LocalSocket audioSocket;
+    private final FileDescriptor audioFd;
+
     private final LocalSocket controlSocket;
     private final ControlChannel controlChannel;
 
-    private DesktopConnection(LocalSocket videoSocket, LocalSocket controlSocket) throws IOException {
+    private final LocalSocket auxSocket;
+    private final IAuxChannel auxChannel;
+
+    private DesktopConnection(LocalSocket videoSocket, LocalSocket audioSocket, LocalSocket controlSocket, LocalSocket auxSocket) throws IOException {
         this.videoSocket = videoSocket;
+        this.audioSocket = audioSocket;
         this.controlSocket = controlSocket;
+        this.auxSocket = auxSocket;
 
         videoFd = videoSocket != null ? videoSocket.getFileDescriptor() : null;
+        audioFd = audioSocket != null ? audioSocket.getFileDescriptor() : null;
         controlChannel = controlSocket != null ? new ControlChannel(controlSocket) : null;
+        auxChannel = auxSocket != null ? new TcpAuxChannel(auxSocket) : null;
     }
 
     private static LocalSocket connect(String abstractName) throws IOException {
@@ -50,10 +62,14 @@ public final class DesktopConnection implements Closeable {
             throws IOException {
         String baseSocketName = getSocketName(scid);
         String videoSocketName = baseSocketName + "_video";
+        String audioSocketName = baseSocketName + "_audio";
         String controlSocketName = baseSocketName + "_control";
+        String auxSocketName = baseSocketName + "_aux";
 
         LocalSocket videoSocket = null;
+        LocalSocket audioSocket = null;
         LocalSocket controlSocket = null;
+        LocalSocket auxSocket = null;
 
         try {
             if (tunnelForward) {
@@ -66,6 +82,15 @@ public final class DesktopConnection implements Closeable {
                     }
                 }
 
+                if (audio) {
+                    try (LocalServerSocket audioServerSocket = new LocalServerSocket(audioSocketName)) {
+                        audioSocket = audioServerSocket.accept();
+                        if (sendDummyByte) {
+                            audioSocket.getOutputStream().write(0);
+                        }
+                    }
+                }
+
                 if (control) {
                     try (LocalServerSocket controlServerSocket = new LocalServerSocket(controlSocketName)) {
                         controlSocket = controlServerSocket.accept();
@@ -74,30 +99,52 @@ public final class DesktopConnection implements Closeable {
                         }
                     }
                 }
+
+                // 辅助通道（始终创建）
+                try (LocalServerSocket auxServerSocket = new LocalServerSocket(auxSocketName)) {
+                    auxSocket = auxServerSocket.accept();
+                    if (sendDummyByte) {
+                        auxSocket.getOutputStream().write(0);
+                    }
+                }
             } else {
                 if (video) {
                     videoSocket = connect(videoSocketName);
                 }
+                if (audio) {
+                    audioSocket = connect(audioSocketName);
+                }
                 if (control) {
                     controlSocket = connect(controlSocketName);
                 }
+                // 辅助通道
+                auxSocket = connect(auxSocketName);
             }
         } catch (IOException | RuntimeException e) {
             if (videoSocket != null) {
                 videoSocket.close();
             }
+            if (audioSocket != null) {
+                audioSocket.close();
+            }
             if (controlSocket != null) {
                 controlSocket.close();
+            }
+            if (auxSocket != null) {
+                auxSocket.close();
             }
             throw e;
         }
 
-        return new DesktopConnection(videoSocket, controlSocket);
+        return new DesktopConnection(videoSocket, audioSocket, controlSocket, auxSocket);
     }
 
     private LocalSocket getFirstSocket() {
         if (videoSocket != null) {
             return videoSocket;
+        }
+        if (audioSocket != null) {
+            return audioSocket;
         }
         return controlSocket;
     }
@@ -107,9 +154,17 @@ public final class DesktopConnection implements Closeable {
             videoSocket.shutdownInput();
             videoSocket.shutdownOutput();
         }
+        if (audioSocket != null) {
+            audioSocket.shutdownInput();
+            audioSocket.shutdownOutput();
+        }
         if (controlSocket != null) {
             controlSocket.shutdownInput();
             controlSocket.shutdownOutput();
+        }
+        if (auxSocket != null) {
+            auxSocket.shutdownInput();
+            auxSocket.shutdownOutput();
         }
     }
 
@@ -117,8 +172,14 @@ public final class DesktopConnection implements Closeable {
         if (videoSocket != null) {
             videoSocket.close();
         }
+        if (audioSocket != null) {
+            audioSocket.close();
+        }
         if (controlSocket != null) {
             controlSocket.close();
+        }
+        if (auxSocket != null) {
+            auxSocket.close();
         }
     }
 
@@ -137,7 +198,15 @@ public final class DesktopConnection implements Closeable {
         return videoFd;
     }
 
+    public FileDescriptor getAudioFd() {
+        return audioFd;
+    }
+
     public ControlChannel getControlChannel() {
         return controlChannel;
+    }
+
+    public IAuxChannel getAuxChannel() {
+        return auxChannel;
     }
 }

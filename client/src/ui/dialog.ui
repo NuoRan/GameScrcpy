@@ -260,6 +260,21 @@
     </widget>
    </item>
 
+   <!-- 底部状态栏 -->
+   <item>
+    <widget class="QFrame" name="statusBarFrame">
+     <property name="frameShape">
+      <enum>QFrame::NoFrame</enum>
+     </property>
+     <property name="maximumHeight">
+      <number>0</number>
+     </property>
+     <property name="visible">
+      <bool>false</bool>
+     </property>
+    </widget>
+   </item>
+
    <!-- 底部工具栏 -->
    <item>
     <widget class="QFrame" name="toolbarFrame">

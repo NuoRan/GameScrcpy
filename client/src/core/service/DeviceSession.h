@@ -1,21 +1,22 @@
 #ifndef CORE_DEVICESESSION_H
 #define CORE_DEVICESESSION_H
 
-#include <QObject>
-#include <QSize>
-#include <QString>
-#include <QImage>
-#include <QKeyEvent>
-#include <QMouseEvent>
-#include <QWheelEvent>
+#include <string>
+#include <cstdint>
+#include <opencv2/core.hpp>
 #include <memory>
 #include <functional>
+#include "GameTypes.h"
 
 #include "infra/SessionParams.h"
+#include "GrayFrame.h"
+#include "GameSignal.h"
 
 // 前向声明
 class Decoder;
-class QYUVOpenGLWidget;
+class AuxChannelClient;
+class AudioStreamManager;
+struct InputEvent;
 
 namespace qsc {
 namespace core {
@@ -40,19 +41,11 @@ struct FrameData;
  * - StreamManager: 管理视频流（接收 -> 解码 -> 渲染）/ Manages video stream (receive -> decode -> render)
  * - InputManager: 管理输入（事件处理 -> 控制发送）/ Manages input (event processing -> control sending)
  */
-class DeviceSession : public QObject
+class DeviceSession
 {
-    Q_OBJECT
-
 public:
-    /**
-     * @brief 构造函数
-     * @param params 会话参数
-     * @param parent 父对象
-     */
-    explicit DeviceSession(const SessionParams& params, QObject* parent = nullptr);
-
-    ~DeviceSession() override;
+    DeviceSession(const SessionParams& params);
+    ~DeviceSession();
 
     // 禁止拷贝
     DeviceSession(const DeviceSession&) = delete;
@@ -89,23 +82,28 @@ public:
     /**
      * @brief 获取设备序列号
      */
-    QString serial() const { return m_params.serial; }
+    const std::string& serial() const { return m_params.serial; }
 
     /**
      * @brief 获取手机屏幕尺寸
      */
-    QSize getMobileSize() const { return m_mobileSize; }
+    Size getMobileSize() const { return m_mobileSize; }
 
     /**
      * @brief 获取当前 FPS
      */
-    quint32 fps() const;
+    uint32_t fps() const;
 
     // === 输入事件 ===
 
-    void keyEvent(const QKeyEvent* event, const QSize& frameSize, const QSize& showSize);
-    void mouseEvent(const QMouseEvent* event, const QSize& frameSize, const QSize& showSize);
-    void wheelEvent(const QWheelEvent* event, const QSize& frameSize, const QSize& showSize);
+    void keyEvent(const InputEvent& event, const Size& frameSize, const Size& showSize);
+    void mouseEvent(const InputEvent& event, const Size& frameSize, const Size& showSize);
+    void wheelEvent(const InputEvent& event, const Size& frameSize, const Size& showSize);
+
+    /**
+     * @brief 设置设备像素比（用于 DPI 感知的光标定位）
+     */
+    void setDevicePixelRatio(double dpr);
 
     // === 系统按键 ===
 
@@ -128,7 +126,7 @@ public:
     /**
      * @brief 更新键位脚本
      */
-    void updateScript(const QString& json, bool runAutoStart = true);
+    void updateScript(const std::string& json, bool runAutoStart = true);
 
     /**
      * @brief 是否处于游戏模式
@@ -142,9 +140,32 @@ public:
     void runAutoStartScripts();
     void resetAllTouchPoints();
 
+    // === 运行时参数调整 ===
+
+    void setVideoBitRate(uint32_t bitrate);
+    void setDisplayPower(bool on);
+    void setVideoParams(uint32_t bitrate, uint16_t maxFps, uint16_t maxSize);
+    void setVideoStreaming(bool on);
+
+    // === 辅助通道 ===
+
+    /**
+     * @brief 设置辅助通道客户端（独立于控制通道）
+     * @param client 由 DeviceController 创建并传入，DeviceSession 不拥有所有权
+     */
+    void setAuxChannel(AuxChannelClient* client);
+
+    /**
+     * @brief 设置音频流管理器
+     * @param mgr 由 DeviceController 创建并传入，DeviceSession 不拥有所有权
+     */
+    void setAudioManager(AudioStreamManager* mgr);
+    AudioStreamManager* audioManager() const { return m_audioManager; }
+
     // === 回调设置 ===
 
-    void setFrameGrabCallback(std::function<QImage()> callback);
+    void setFrameGrabCallback(std::function<cv::Mat()> callback);
+    void setGrayFrameGrabCallback(GrayFrameGrabCallback callback);
 
     // === 获取内部管理器 ===
 
@@ -175,44 +196,27 @@ public:
      */
     void releaseFrame(FrameData* frame);
 
-signals:
-    // === 状态信号 ===
+    // === Signals (Signal<>) ===
 
-    void stateChanged(SessionState state);
-    void started(const QString& serial, const QSize& size);
-    void stopped(const QString& serial);
-    void error(const QString& message);
+    // 状态信号
+    Signal<SessionState> stateChanged;
+    Signal<const std::string&, const Size&> started;
+    Signal<const std::string&> stopped;
+    Signal<const std::string&> error;
 
-    // === 视频信号 ===
+    // 视频信号
+    Signal<> frameAvailable;
+    Signal<int, int, uint8_t*, uint8_t*, uint8_t*, int, int, int> frameReady;
+    Signal<uint32_t> fpsUpdated;
+    Signal<const Size&> frameSizeChanged;
+    Signal<bool, const std::string&> decoderInfo;
 
-    /**
-     * @brief 新帧可用（零拷贝模式）
-     *
-     * 信号发出时，帧数据在 FrameQueue 中。
-     * 消费者通过 consumeFrame() 获取，用完后调用 releaseFrame()。
-     */
-    void frameAvailable();
+    // 输入信号
+    Signal<bool> cursorGrabChanged;
 
-    /**
-     * @brief 新帧可用（兼容旧接口）
-     * @deprecated 使用 frameAvailable() + consumeFrame() 替代
-     */
-    void frameReady(int width, int height,
-                    uint8_t* y, uint8_t* u, uint8_t* v,
-                    int linesizeY, int linesizeU, int linesizeV);
-
-    void fpsUpdated(quint32 fps);
-    void frameSizeChanged(const QSize& size);
-    void decoderInfo(bool hardwareAccelerated, const QString& decoderName);
-
-    // === 输入信号 ===
-
-    void cursorGrabChanged(bool grabbed);
-
-    // === 脚本信号 ===
-
-    void scriptTip(const QString& msg, int keyId, int durationMs);
-    void keyMapOverlayUpdated();
+    // 脚本信号
+    Signal<const std::string&, int, int> scriptTip;
+    Signal<> keyMapOverlayUpdated;
 
 private:
     void setState(SessionState state);
@@ -221,7 +225,7 @@ private:
 private:
     SessionParams m_params;
     SessionState m_state = SessionState::Disconnected;
-    QSize m_mobileSize;
+    Size m_mobileSize;
 
     // 服务管理器
     std::unique_ptr<StreamManager> m_streamManager;
@@ -234,8 +238,15 @@ private:
     // 零拷贝帧队列（由 DeviceController 设置）
     FrameQueue* m_frameQueue = nullptr;
 
+    // 辅助通道（由 DeviceController 创建，不拥有所有权）
+    AuxChannelClient* m_auxChannel = nullptr;
+
+    // 音频流管理器（由 DeviceController 创建，不拥有所有权）
+    AudioStreamManager* m_audioManager = nullptr;
+
     // 帧获取回调
-    std::function<QImage()> m_frameGrabCallback;
+    std::function<cv::Mat()> m_frameGrabCallback;
+    GrayFrameGrabCallback m_grayFrameGrabCallback;
 };
 
 } // namespace core

@@ -2,8 +2,7 @@
 #define CORE_OPENGLRENDERER_H
 
 #include "interfaces/IRenderer.h"
-#include <QSize>
-#include <QImage>
+#include "GameTypes.h"
 
 class QYUVOpenGLWidget;
 
@@ -46,7 +45,7 @@ public:
 
 private:
     QYUVOpenGLWidget* m_widget;
-    QSize m_frameSize;
+    Size m_frameSize;
     bool m_initialized = false;
 };
 

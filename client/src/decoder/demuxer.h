@@ -1,12 +1,15 @@
-#ifndef STREAM_H
-#define STREAM_H
+#ifndef DEMUXER_H
+#define DEMUXER_H
 
-#include <QPointer>
-#include <QSize>
-#include <QThread>
-#include <QElapsedTimer>
+
+#include <cstdint>
+#include <string>
 #include <functional>
 #include <atomic>
+#include <thread>
+
+#include "GameSignal.h"
+#include "GameTypes.h"
 
 extern "C"
 {
@@ -28,12 +31,11 @@ namespace qsc { namespace core { class IVideoChannel; } }
 // - KCP (KcpVideoSocket) - WiFi 模式，低延迟 / WiFi mode, low latency
 // - TCP (VideoSocket) - USB 模式 / USB mode via adb forward
 // ---------------------------------------------------------
-class Demuxer : public QThread
+class Demuxer
 {
-    Q_OBJECT
 public:
-    Demuxer(QObject *parent = Q_NULLPTR);
-    virtual ~Demuxer();
+    Demuxer();
+    ~Demuxer();
 
 public:
     static bool init();
@@ -48,41 +50,43 @@ public:
     // 通过 IVideoChannel 接口安装视频通道
     void installVideoChannel(qsc::core::IVideoChannel* channel);
 
-    void setFrameSize(const QSize &frameSize);
-    void setVideoCodec(const QString &codec);
+    void setFrameSize(const Size &frameSize);
+    void setVideoCodec(const std::string &codec);
     bool startDecode();
     void stopDecode();
 
-signals:
-    void onStreamStop();
-    // 发出完整的数据包给 Decoder
-    void getFrame(AVPacket* packet);
-    void getConfigFrame(AVPacket* packet);
+    // 信号 / Signals
+    Signal<> onStreamStop;
+    Signal<AVPacket*> getFrame;
+    Signal<AVPacket*> getConfigFrame;
 
-protected:
+private:
     void run();
     bool recvPacket(AVPacket *packet);
     bool pushPacket(AVPacket *packet);
     bool processConfigPacket(AVPacket *packet);
     bool parse(AVPacket *packet);
     bool processFrame(AVPacket *packet);
-    qint32 recvData(quint8 *buf, qint32 bufSize);
+    int32_t recvData(uint8_t *buf, int32_t bufSize);
 
 private:
-    QPointer<KcpVideoSocket> m_kcpVideoSocket;
-    QPointer<VideoSocket> m_videoSocket;
+    KcpVideoSocket* m_kcpVideoSocket = nullptr;
+    VideoSocket* m_videoSocket = nullptr;
     qsc::core::IVideoChannel* m_videoChannel = nullptr;  // 新架构接口
 
-    QSize m_frameSize;
-    QString m_videoCodec = "h264";
-    QElapsedTimer m_debugTimer;
+    Size m_frameSize;
+    std::string m_videoCodec = "h264";
 
-    AVCodecContext* m_codecCtx = Q_NULLPTR;
-    AVCodecParserContext* m_parser = Q_NULLPTR;
-    AVPacket* m_pending = Q_NULLPTR; // 暂存包，用于处理 Config 包拼接
+    AVCodecContext* m_codecCtx = nullptr;
+    AVCodecParserContext* m_parser = nullptr;
+    AVPacket* m_pending = nullptr; // 暂存包，用于处理 Config 包拼接
+    bool m_mustMergeConfig = true;   // H.264/H.265 需要合并 config
 
     // 停止标志 - 用于线程安全地通知停止
     std::atomic<bool> m_stopRequested{false};
+
+    // 工作线程 (替代 QThread 继承)
+    std::thread m_thread;
 };
 
-#endif // STREAM_H
+#endif // DEMUXER_H

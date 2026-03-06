@@ -1,10 +1,12 @@
 #ifndef CORE_ZEROCOPYSTREAMMANAGER_H
 #define CORE_ZEROCOPYSTREAMMANAGER_H
 
-#include <QObject>
-#include <QSize>
+#include <string>
 #include <memory>
 #include <functional>
+#include <cstdint>
+#include "GameSignal.h"
+#include "GameTypes.h"
 
 class Demuxer;
 class VideoSocket;
@@ -15,7 +17,6 @@ namespace qsc {
 namespace core {
 
 class ZeroCopyDecoder;
-class ZeroCopyRenderer;
 class FrameQueue;
 struct FrameData;
 class IVideoChannel;
@@ -32,12 +33,10 @@ class IVideoChannel;
  * - 无锁帧传递 / Lock-free frame passing
  * - 支持硬件加速和解码器依赖注入 / HW accel + decoder DI
  */
-class ZeroCopyStreamManager : public QObject {
-    Q_OBJECT
-
+class ZeroCopyStreamManager {
 public:
-    explicit ZeroCopyStreamManager(QObject* parent = nullptr);
-    ~ZeroCopyStreamManager() override;
+    ZeroCopyStreamManager();
+    ~ZeroCopyStreamManager();
 
     /**
      * @brief 依赖注入：设置自定义解码器
@@ -66,19 +65,15 @@ public:
     /**
      * @brief 设置帧尺寸
      */
-    void setFrameSize(const QSize& size);
+    void setFrameSize(const Size& size);
 
     /**
      * @brief 设置视频编解码器
      * @param codec "h264"
      */
-    void setVideoCodec(const QString& codec);
+    void setVideoCodec(const std::string& codec);
 
-    /**
-     * @brief 获取渲染器控件
-     * @return 渲染器指针（用于嵌入到 UI）
-     */
-    ZeroCopyRenderer* renderer() const { return m_renderer.get(); }
+
 
     /**
      * @brief 启动流处理
@@ -99,7 +94,7 @@ public:
     /**
      * @brief 获取当前 FPS
      */
-    quint32 fps() const { return m_currentFps; }
+    uint32_t fps() const { return m_currentFps; }
 
     /**
      * @brief 是否使用硬件加速
@@ -109,7 +104,7 @@ public:
     /**
      * @brief 获取解码器名称
      */
-    QString decoderName() const;
+    std::string decoderName() const;
 
     /**
      * @brief 截图
@@ -135,46 +130,18 @@ public:
      */
     void releaseFrame(FrameData* frame);
 
-signals:
-    /**
-     * @brief FPS 更新信号
-     */
-    void fpsUpdated(quint32 fps);
+    // Signals (Signal<>)
+    Signal<uint32_t> fpsUpdated;
+    Signal<> streamStopped;
+    Signal<const Size&> frameSizeChanged;
+    Signal<bool, const std::string&> decoderInfo;
+    Signal<> frameReady;
+    Signal<int, int, uint8_t*, uint8_t*, uint8_t*, int, int, int> frameReadyWithData;
 
-    /**
-     * @brief 流停止信号
-     */
-    void streamStopped();
-
-    /**
-     * @brief 帧尺寸变化信号
-     */
-    void frameSizeChanged(const QSize& size);
-
-    /**
-     * @brief 解码器信息信号
-     */
-    void decoderInfo(bool hardwareAccelerated, const QString& decoderName);
-
-    /**
-     * @brief 新帧可用信号（事件驱动通知）
-     *
-     * 信号发出时，帧已在 FrameQueue 中，消费者调用 consumeFrame() 获取。
-     */
-    void frameReady();
-
-    /**
-     * @brief 新帧可用信号（带数据，兼容旧接口）
-     * @deprecated 使用 frameReady() + consumeFrame() 替代
-     */
-    void frameReadyWithData(int width, int height,
-                           uint8_t* dataY, uint8_t* dataU, uint8_t* dataV,
-                           int linesizeY, int linesizeU, int linesizeV);
-
-private slots:
+private:
     void onDemuxerStopped();
     void onDemuxerGetFrame(AVPacket* packet);
-    void onDecoderFpsUpdated(quint32 fps);
+    void onDecoderFpsUpdated(uint32_t fps);
 
 private:
     bool openDecoder();
@@ -183,15 +150,15 @@ private:
     std::unique_ptr<Demuxer> m_demuxer;
     std::unique_ptr<ZeroCopyDecoder> m_decoder;
     std::unique_ptr<FrameQueue> m_frameQueue;
-    std::unique_ptr<ZeroCopyRenderer> m_renderer;
+
 
     VideoSocket* m_videoSocket = nullptr;
     KcpVideoSocket* m_kcpVideoSocket = nullptr;
     IVideoChannel* m_videoChannel = nullptr;  // 新架构接口
 
-    QSize m_frameSize;
-    QString m_videoCodec = "h264";
-    quint32 m_currentFps = 0;
+    Size m_frameSize;
+    std::string m_videoCodec = "h264";
+    uint32_t m_currentFps = 0;
     bool m_running = false;
     bool m_decoderOpened = false;
     bool m_decoderInjected = false;  // 是否使用注入的解码器

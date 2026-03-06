@@ -1,5 +1,4 @@
 // winmousetap.cpp
-#include <QDebug>
 #include <QWidget>
 #include <Windows.h>
 
@@ -30,6 +29,6 @@ void WinMouseTap::enableMouseEventTap(QRect rc, bool enabled)
         mainRect.bottom = (LONG)rc.bottom();
         ClipCursor(&mainRect); // 限制光标
     } else {
-        ClipCursor(Q_NULLPTR); // 释放光标
+        ClipCursor(nullptr); // 释放光标
     }
 }

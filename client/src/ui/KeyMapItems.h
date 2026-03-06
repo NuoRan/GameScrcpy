@@ -4,6 +4,8 @@
 #include "KeyMapBase.h"
 #include "scripteditordialog.h"
 #include "videoform.h"
+#include "ThemeManager.h"
+#include "DesignTokens.h"
 #include <QPainter>
 #include <QCursor>
 #include <QGraphicsScene>
@@ -13,6 +15,7 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QtMath>
 #include <QDebug>
+#include <cmath>
 #include <QMetaEnum>
 #include <QDialog>
 #include <QVBoxLayout>
@@ -22,11 +25,6 @@
 #include <QComboBox>
 #include <QTextEdit>
 #include <QPushButton>
-#include <QDir>
-#include <QFile>
-#include <QDesktopServices>
-#include <QUrl>
-#include <QTextStream>
 #include <QInputDialog>
 #include <QCheckBox>
 #include <QPointer>
@@ -67,9 +65,14 @@ public:
         if (modifiers != Qt::NoModifier) {
             return QKeySequence(key | modifiers).toString(QKeySequence::PortableText);
         }
+        // 优先使用 QKeySequence 短名格式（"K", "Tab", "Up"），
+        // 保持与现有 JSON 配置一致，避免混入 "Key_K" 格式
+        QString ks = QKeySequence(key).toString();
+        if (!ks.isEmpty()) return ks;
+        // Fallback: 使用 QMetaEnum（特殊键如 QuoteLeft 等）
         QMetaEnum m = QMetaEnum::fromType<Qt::Key>();
         const char* s = m.valueToKey(key);
-        return s ? QString(s) : QKeySequence(key).toString();
+        return s ? QString(s) : QString::number(key);
     }
 
     // 将按键字符串转换为显示用的字符串（符号化）
@@ -186,7 +189,7 @@ public:
     }
 
     // 序列化支持
-    QJsonObject toJson() const override; void fromJson(const QJsonObject& json) override;
+    nlohmann::json toJson() const override; void fromJson(const nlohmann::json& json) override;
     void resize(qreal w, qreal h);
 protected:
     QRectF boundingRect() const override { return m_rect; }
@@ -281,22 +284,19 @@ public:
     }
 
     // JSON序列化
-    QJsonObject toJson() const override {
-        QJsonObject json;
+    nlohmann::json toJson() const override {
+        nlohmann::json json;
         json["type"] = "KMT_SCRIPT";
         QPointF r = getNormalizedPos(scene()?scene()->sceneRect().size():QSizeF(1,1));
-        QJsonObject pos;
-        pos["x"]=QString::number(r.x(),'f',4).toDouble();
-        pos["y"]=QString::number(r.y(),'f',4).toDouble();
-        json["pos"] = pos;
-        json["key"] = m_key;
-        json["script"] = m_script;
+        json["pos"] = {{"x", std::round(r.x()*10000.0)/10000.0}, {"y", std::round(r.y()*10000.0)/10000.0}};
+        json["key"] = m_key.toStdString();
+        json["script"] = m_script.toStdString();
         return json;
     }
 
-    void fromJson(const QJsonObject& json) override {
-        if (json.contains("key")) m_key = json["key"].toString();
-        if (json.contains("script")) m_script = json["script"].toString();
+    void fromJson(const nlohmann::json& json) override {
+        if (json.contains("key")) m_key = QString::fromStdString(json["key"].get<std::string>());
+        if (json.contains("script")) m_script = QString::fromStdString(json["script"].get<std::string>());
     }
 
 protected:
@@ -306,22 +306,27 @@ protected:
         Q_UNUSED(option); Q_UNUSED(widget);
         painter->setRenderHint(QPainter::Antialiasing);
 
-        // 背景颜色：冲突显示红，编辑显示灰，选中显示橙，普通显示黑半透明
-        QColor bg = m_isConflicted ? QColor(255, 50, 50, 200) :
-                        (m_isEditing ? QColor(40,40,40,230) :
-                             (isSelected() ? QColor(255, 170, 0, 200) : QColor(0, 0, 0, 150)));
+        auto& tm = Fluent::ThemeManager::instance();
+        // Fluent Focus 风格配色
+        QColor bg = m_isConflicted ? QColor(Fluent::Accent::Error).darker(110) :
+                        (m_isEditing ? QColor(tm.card()) :
+                             (isSelected() ? QColor(tm.accentPrimary()) : QColor(tm.surface())));
+        bg.setAlpha(220);
 
         painter->setPen(Qt::NoPen);
         painter->setBrush(bg);
         painter->drawEllipse(boundingRect());
 
-        // 边框绘制
-        painter->setPen(m_isEditing ? QPen(Qt::white, 1) : QPen(Qt::white, 2));
+        // 边框：accent 光晕
+        QColor borderColor = m_isConflicted ? QColor(Fluent::Accent::Error) :
+                             (m_isEditing ? QColor(tm.accentPrimary()) :
+                                  (isSelected() ? QColor(Qt::white) : QColor(tm.border())));
+        painter->setPen(QPen(borderColor, m_isEditing ? 2 : 1.5));
         painter->setBrush(Qt::NoBrush);
         painter->drawEllipse(boundingRect());
 
-        // 文字绘制
-        painter->setPen(Qt::white);
+        // 文字
+        painter->setPen(QColor(tm.textPrimary()));
         QFont font = painter->font();
         font.setBold(true);
 
@@ -358,12 +363,13 @@ protected:
 private:
     // 绘制设置齿轮图标
     void drawGear(QPainter* painter) {
+        auto& tm = Fluent::ThemeManager::instance();
         painter->save();
         painter->translate(14, 14);
-        painter->setPen(QPen(Qt::lightGray, 1.5));
-        painter->setBrush(Qt::darkGray);
+        painter->setPen(QPen(QColor(tm.textSecondary()), 1.5));
+        painter->setBrush(QColor(tm.surface()));
         painter->drawEllipse(QPoint(0,0), 6, 6);
-        painter->setBrush(Qt::lightGray);
+        painter->setBrush(QColor(tm.textSecondary()));
         painter->drawEllipse(QPoint(0,0), 2, 2);
         for(int i=0; i<8; ++i) { painter->rotate(45); painter->drawLine(0, 6, 0, 8); }
         painter->restore();
@@ -523,24 +529,21 @@ public:
         update();
     }
 
-    QJsonObject toJson() const override {
-        QJsonObject json;
+    nlohmann::json toJson() const override {
+        nlohmann::json json;
         json["type"] = "KMT_CAMERA_MOVE";
         QPointF r = getNormalizedPos(scene()?scene()->sceneRect().size():QSizeF(1,1));
-        QJsonObject pos;
-        pos["x"]=QString::number(r.x(),'f',4).toDouble();
-        pos["y"]=QString::number(r.y(),'f',4).toDouble();
-        json["pos"] = pos;
-        json["key"] = m_key;
+        json["pos"] = {{"x", std::round(r.x()*10000.0)/10000.0}, {"y", std::round(r.y()*10000.0)/10000.0}};
+        json["key"] = m_key.toStdString();
         json["speedRatioX"] = m_speedX;
         json["speedRatioY"] = m_speedY;
         return json;
     }
 
-    void fromJson(const QJsonObject& json) override {
-        if (json.contains("key")) m_key = json["key"].toString();
-        if (json.contains("speedRatioX")) m_speedX = json["speedRatioX"].toDouble();
-        if (json.contains("speedRatioY")) m_speedY = json["speedRatioY"].toDouble();
+    void fromJson(const nlohmann::json& json) override {
+        if (json.contains("key")) m_key = QString::fromStdString(json["key"].get<std::string>());
+        if (json.contains("speedRatioX")) m_speedX = json["speedRatioX"].get<double>();
+        if (json.contains("speedRatioY")) m_speedY = json["speedRatioY"].get<double>();
     }
 
     QString getKey() const override { return m_key; }
@@ -552,27 +555,32 @@ protected:
         Q_UNUSED(option); Q_UNUSED(widget);
         painter->setRenderHint(QPainter::Antialiasing);
 
-        QColor bg = m_isConflicted ? QColor(255, 50, 50, 200) :
-                        (m_isEditing ? QColor(40,40,40,230) :
-                             (isSelected() ? QColor(0, 150, 136, 200) : QColor(0, 0, 0, 150)));
+        auto& tm = Fluent::ThemeManager::instance();
+        QColor bg = m_isConflicted ? QColor(Fluent::Accent::Error).darker(110) :
+                        (m_isEditing ? QColor(tm.card()) :
+                             (isSelected() ? QColor(tm.accentPrimary()).darker(130) : QColor(tm.surface())));
+        bg.setAlpha(220);
 
         painter->setPen(Qt::NoPen);
         painter->setBrush(bg);
-        painter->drawRoundedRect(boundingRect(), 5, 5);
+        painter->drawRoundedRect(boundingRect(), 8, 8);
 
-        painter->setPen(m_isEditing ? QPen(Qt::white, 1) : QPen(Qt::white, 2));
+        QColor borderColor = m_isConflicted ? QColor(Fluent::Accent::Error) :
+                             (m_isEditing ? QColor(tm.accentPrimary()) :
+                                  (isSelected() ? QColor(Qt::white) : QColor(tm.borderSoft())));
+        painter->setPen(QPen(borderColor, m_isEditing ? 2 : 1));
         painter->setBrush(Qt::NoBrush);
-        painter->drawRoundedRect(boundingRect(), 5, 5);
+        painter->drawRoundedRect(boundingRect(), 8, 8);
 
         // 分隔线
-        painter->setPen(QPen(Qt::lightGray, 1));
+        painter->setPen(QPen(QColor(tm.borderSoft()), 1));
         painter->drawLine(-20, -25, -20, 25);
         painter->drawLine(20, -25, 20, 25);
 
         // 绘制文字信息
         QFont font = painter->font();
         font.setBold(true);
-        painter->setPen(Qt::white);
+        painter->setPen(QColor(tm.textPrimary()));
 
         // X轴灵敏度
         font.setPointSize(8);
@@ -593,12 +601,13 @@ protected:
     }
 
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override {
+        // 关闭按钮优先于编辑状态检查，确保编辑中也能删除
+        if (event->button() == Qt::LeftButton && handleCloseButtonClick(event->pos())) {
+            event->accept(); return;
+        }
         if (m_isEditing) {
             event->ignore();
             return;
-        }
-        if (event->button() == Qt::LeftButton && handleCloseButtonClick(event->pos())) {
-            event->accept(); return;
         }
         KeyMapItemBase::mousePressEvent(event);
     }
@@ -729,27 +738,25 @@ public:
     bool resetViewOnRelease() const { return m_resetViewOnRelease; }
     void setResetViewOnRelease(bool reset) { m_resetViewOnRelease = reset; }
 
-    QJsonObject toJson() const override {
-        QJsonObject json;
+    nlohmann::json toJson() const override {
+        nlohmann::json json;
         json["type"] = "KMT_FREE_LOOK";
         QPointF r = getNormalizedPos(scene()?scene()->sceneRect().size():QSizeF(1,1));
-        QJsonObject pos;
-        pos["x"]=QString::number(r.x(),'f',4).toDouble();
-        pos["y"]=QString::number(r.y(),'f',4).toDouble();
+        nlohmann::json pos = {{"x", std::round(r.x()*10000.0)/10000.0}, {"y", std::round(r.y()*10000.0)/10000.0}};
         json["startPos"] = pos;  // 用于游戏逻辑解析
         json["pos"] = pos;       // 用于 UI 加载位置
-        json["key"] = m_key;
+        json["key"] = m_key.toStdString();
         json["speedRatioX"] = m_speedX;
         json["speedRatioY"] = m_speedY;
         json["resetViewOnRelease"] = m_resetViewOnRelease;
         return json;
     }
 
-    void fromJson(const QJsonObject& json) override {
-        if (json.contains("key")) m_key = json["key"].toString();
-        if (json.contains("speedRatioX")) m_speedX = json["speedRatioX"].toDouble();
-        if (json.contains("speedRatioY")) m_speedY = json["speedRatioY"].toDouble();
-        if (json.contains("resetViewOnRelease")) m_resetViewOnRelease = json["resetViewOnRelease"].toBool();
+    void fromJson(const nlohmann::json& json) override {
+        if (json.contains("key")) m_key = QString::fromStdString(json["key"].get<std::string>());
+        if (json.contains("speedRatioX")) m_speedX = json["speedRatioX"].get<double>();
+        if (json.contains("speedRatioY")) m_speedY = json["speedRatioY"].get<double>();
+        if (json.contains("resetViewOnRelease")) m_resetViewOnRelease = json["resetViewOnRelease"].get<bool>();
     }
 
     QString getKey() const override { return m_key; }
@@ -762,22 +769,27 @@ protected:
         Q_UNUSED(option); Q_UNUSED(widget);
         painter->setRenderHint(QPainter::Antialiasing);
 
-        // 使用不同的颜色与Camera区分：紫色调
-        QColor bg = m_isConflicted ? QColor(255, 50, 50, 200) :
-                        (m_isEditing ? QColor(40,40,40,230) :
-                             (isSelected() ? QColor(156, 39, 176, 200) : QColor(0, 0, 0, 150)));
+        auto& tm = Fluent::ThemeManager::instance();
+        // Fluent Focus: accent 色椭圆
+        QColor bg = m_isConflicted ? QColor(Fluent::Accent::Error).darker(110) :
+                        (m_isEditing ? QColor(tm.card()) :
+                             (isSelected() ? QColor(tm.accentHover()) : QColor(tm.surface())));
+        bg.setAlpha(220);
 
         painter->setPen(Qt::NoPen);
         painter->setBrush(bg);
-        painter->drawEllipse(boundingRect());  // 椭圆形
+        painter->drawEllipse(boundingRect());
 
-        painter->setPen(m_isEditing ? QPen(Qt::white, 1) : QPen(Qt::white, 2));
+        QColor borderColor = m_isConflicted ? QColor(Fluent::Accent::Error) :
+                             (m_isEditing ? QColor(tm.accentPrimary()) :
+                                  (isSelected() ? QColor(Qt::white) : QColor(tm.borderSoft())));
+        painter->setPen(QPen(borderColor, m_isEditing ? 2 : 1));
         painter->setBrush(Qt::NoBrush);
         painter->drawEllipse(boundingRect());
 
         QFont font = painter->font();
         font.setBold(true);
-        painter->setPen(Qt::white);
+        painter->setPen(QColor(tm.textPrimary()));
 
         // X轴灵敏度（左侧）
         font.setPointSize(7);
@@ -800,12 +812,13 @@ protected:
 
     // 绘制设置齿轮图标（中间顶部）
     void drawGear(QPainter* painter) {
+        auto& tm = Fluent::ThemeManager::instance();
         painter->save();
         painter->translate(0, -14);  // 中间顶部位置
-        painter->setPen(QPen(Qt::lightGray, 1.2));
-        painter->setBrush(Qt::darkGray);
+        painter->setPen(QPen(QColor(tm.textSecondary()), 1.2));
+        painter->setBrush(QColor(tm.surface()));
         painter->drawEllipse(QPoint(0,0), 5, 5);
-        painter->setBrush(Qt::lightGray);
+        painter->setBrush(QColor(tm.textSecondary()));
         painter->drawEllipse(QPoint(0,0), 2, 2);
         for(int i=0; i<8; ++i) { painter->rotate(45); painter->drawLine(0, 5, 0, 7); }
         painter->restore();
@@ -850,13 +863,13 @@ protected:
     }
 
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override {
+        // 关闭按钮优先于编辑状态检查，确保编辑中也能删除
+        if (event->button() == Qt::LeftButton && handleCloseButtonClick(event->pos())) {
+            event->accept(); return;
+        }
         if (m_isEditing) {
             event->ignore();
             return;
-        }
-        // 关闭按钮
-        if (event->button() == Qt::LeftButton && handleCloseButtonClick(event->pos())) {
-            event->accept(); return;
         }
         // 单击齿轮区域打开设置对话框
         if (event->button() == Qt::LeftButton) {
@@ -920,10 +933,15 @@ inline void SteerWheelSubItem::inputWheel(int delta) {
 }
 inline void SteerWheelSubItem::paint(QPainter *p, const QStyleOptionGraphicsItem *, QWidget *) {
     p->setRenderHint(QPainter::Antialiasing);
-    QColor bg = m_isConflicted ? QColor(255,0,0,100) : (m_isEditing ? QColor(40,40,40,230) : QColor(0, 153, 255, 200));
-    p->setBrush(bg); p->setPen(m_isConflicted?QPen(Qt::red,3):(m_isEditing?QPen(Qt::white,1):QPen(Qt::black,1)));
+    auto& tm = Fluent::ThemeManager::instance();
+    QColor bg = m_isConflicted ? QColor(Fluent::Accent::Error) :
+                    (m_isEditing ? QColor(tm.card()) : QColor(tm.accentPrimary()));
+    bg.setAlpha(m_isEditing ? 230 : 200);
+    p->setBrush(bg);
+    p->setPen(m_isConflicted ? QPen(QColor(Fluent::Accent::Error), 2) :
+              (m_isEditing ? QPen(QColor(tm.accentPrimary()), 2) : QPen(QColor(tm.border()), 1)));
     p->drawEllipse(boundingRect());
-    p->setPen(Qt::white); QFont f = p->font(); f.setBold(true);
+    p->setPen(QColor(tm.textPrimary())); QFont f = p->font(); f.setBold(true);
     QString t = m_isEditing ? (KeyMapHelper::keyToDisplay(m_displayKey) + (m_showCursor?"|":"")) : KeyMapHelper::keyToDisplay(m_key);
     // 根据文字长度自适应字体大小
     int fontSize = 9;
@@ -976,40 +994,48 @@ inline QPainterPath KeyMapItemSteerWheel::shape() const {
     QPainterPathStroker s; s.setWidth(10); p.addPath(s.createStroke(l)); return p;
 }
 inline void KeyMapItemSteerWheel::paint(QPainter *p, const QStyleOptionGraphicsItem *, QWidget *) {
-    p->setRenderHint(QPainter::Antialiasing); p->setPen(QPen(isSelected()?QColor(255,100,0,150):QColor(0,255,100,80), 4));
+    p->setRenderHint(QPainter::Antialiasing);
+    auto& tm = Fluent::ThemeManager::instance();
+    QColor lineColor = isSelected() ? QColor(tm.accentPrimary()) : QColor(tm.accentPrimary());
+    lineColor.setAlpha(isSelected() ? 180 : 100);
+    p->setPen(QPen(lineColor, 3));
     p->drawLine(QPointF(0,0), m_subUp->pos()); p->drawLine(QPointF(0,0), m_subDown->pos());
     p->drawLine(QPointF(0,0), m_subLeft->pos()); p->drawLine(QPointF(0,0), m_subRight->pos());
-    p->setBrush(isSelected()?QColor(255,100,0,150):QColor(0,255,100,80)); p->setPen(Qt::NoPen); p->drawEllipse(QPointF(0,0), 10, 10);
+    QColor centerColor(tm.accentPrimary());
+    centerColor.setAlpha(isSelected() ? 200 : 120);
+    p->setBrush(centerColor); p->setPen(Qt::NoPen); p->drawEllipse(QPointF(0,0), 10, 10);
     // 关闭按钮（中心点右上方）
     QRectF closeRect(-4, -18, 12, 12);
     p->save();
     p->setPen(Qt::NoPen);
-    p->setBrush(QColor(220, 38, 38, 200));
-    p->drawEllipse(closeRect);
+    p->setBrush(QColor(Fluent::Accent::Error));
+    p->drawRoundedRect(closeRect, 3, 3);
     p->setPen(QPen(Qt::white, 1.5));
     double cx = closeRect.center().x(), cy = closeRect.center().y(), r = 3;
     p->drawLine(QPointF(cx - r, cy - r), QPointF(cx + r, cy + r));
     p->drawLine(QPointF(cx + r, cy - r), QPointF(cx - r, cy + r));
     p->restore();
 }
-inline QJsonObject KeyMapItemSteerWheel::toJson() const {
-    QJsonObject json; json["type"]="KMT_STEER_WHEEL"; json["comment"]=m_comment;
+inline nlohmann::json KeyMapItemSteerWheel::toJson() const {
+    nlohmann::json json;
+    json["type"]="KMT_STEER_WHEEL"; json["comment"]=m_comment.toStdString();
     QPointF r = getNormalizedPos(scene()?scene()->sceneRect().size():QSizeF(1,1));
-    QJsonObject cp; cp["x"]=QString::number(r.x(),'f',4).toDouble(); cp["y"]=QString::number(r.y(),'f',4).toDouble(); json["centerPos"]=cp;
+    json["centerPos"]={{"x", std::round(r.x()*10000.0)/10000.0}, {"y", std::round(r.y()*10000.0)/10000.0}};
     json["leftOffset"]=m_leftOffset; json["rightOffset"]=m_rightOffset; json["upOffset"]=m_upOffset; json["downOffset"]=m_downOffset;
-    json["leftKey"]=m_subLeft->getKey(); json["rightKey"]=m_subRight->getKey(); json["upKey"]=m_subUp->getKey(); json["downKey"]=m_subDown->getKey();
+    json["leftKey"]=m_subLeft->getKey().toStdString(); json["rightKey"]=m_subRight->getKey().toStdString();
+    json["upKey"]=m_subUp->getKey().toStdString(); json["downKey"]=m_subDown->getKey().toStdString();
     return json;
 }
-inline void KeyMapItemSteerWheel::fromJson(const QJsonObject& json) {
-    if(json.contains("leftOffset")) m_leftOffset = json["leftOffset"].toDouble();
-    if(json.contains("rightOffset")) m_rightOffset = json["rightOffset"].toDouble();
-    if(json.contains("upOffset")) m_upOffset = json["upOffset"].toDouble();
-    if(json.contains("downOffset")) m_downOffset = json["downOffset"].toDouble();
+inline void KeyMapItemSteerWheel::fromJson(const nlohmann::json& json) {
+    if(json.contains("leftOffset")) m_leftOffset = json["leftOffset"].get<double>();
+    if(json.contains("rightOffset")) m_rightOffset = json["rightOffset"].get<double>();
+    if(json.contains("upOffset")) m_upOffset = json["upOffset"].get<double>();
+    if(json.contains("downOffset")) m_downOffset = json["downOffset"].get<double>();
 
-    if(json.contains("leftKey")) m_subLeft->setKey(json["leftKey"].toString());
-    if(json.contains("rightKey")) m_subRight->setKey(json["rightKey"].toString());
-    if(json.contains("upKey")) m_subUp->setKey(json["upKey"].toString());
-    if(json.contains("downKey")) m_subDown->setKey(json["downKey"].toString());
+    if(json.contains("leftKey")) m_subLeft->setKey(QString::fromStdString(json["leftKey"].get<std::string>()));
+    if(json.contains("rightKey")) m_subRight->setKey(QString::fromStdString(json["rightKey"].get<std::string>()));
+    if(json.contains("upKey")) m_subUp->setKey(QString::fromStdString(json["upKey"].get<std::string>()));
+    if(json.contains("downKey")) m_subDown->setKey(QString::fromStdString(json["downKey"].get<std::string>()));
     updateSubItemsPos();
 }
 inline SteerWheelSubItem* KeyMapItemSteerWheel::getSubItemAt(const QPointF& pos) {

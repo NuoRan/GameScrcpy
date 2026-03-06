@@ -1,32 +1,25 @@
 /**
  * @file KcpClient.h
- * @brief KCP 客户端统一接口 / KCP Client Unified Interface
- *
- * 提供视频接收和控制通道的简化 API。
- * Provides simplified API for video reception and control channel.
+ * @brief KCP Client Unified Interface (no Qt dependency)
  */
 
 #ifndef KCP_CLIENT_H
 #define KCP_CLIENT_H
 
-#include <QObject>
-#include <QMutex>
-#include <QWaitCondition>
-#include <QByteArray>
-#include <QHostAddress>
-#include <QThread>
+#include <mutex>
+#include <condition_variable>
 #include <atomic>
 #include <vector>
+#include <cstdint>
+#include <functional>
+#include <string>
+#include <algorithm>
+#include <cstring>
 
-#include "KcpTransport.h"  // C-K05: 直接使用 KcpTransport 中定义的常量
+#include "KcpTransport.h"
 
 /**
- * @brief 环形缓冲区 (避免 QByteArray::remove(0,n) 的 O(n) 内存搬移)
- *
- * 替代 QByteArray 的 append/remove 模式。
- * QByteArray::remove(0, n) 需要将剩余数据向前搬移 O(n)，
- * 在高码率视频流（10Mbps+）下每次搬移可达数百KB，耗时数毫秒。
- * 环形缓冲区的读写都是 O(1)，且预分配零 malloc。
+ * @brief CircularBuffer - O(1) ring buffer (replaces QByteArray append/remove)
  */
 class CircularBuffer {
 public:
@@ -53,7 +46,7 @@ public:
         if (len > space) len = space;
         if (len <= 0) return 0;
 
-        int firstChunk = qMin(len, m_capacity - m_writePos);
+        int firstChunk = std::min(len, m_capacity - m_writePos);
         memcpy(m_buffer.data() + m_writePos, data, firstChunk);
         if (len > firstChunk) {
             memcpy(m_buffer.data(), data + firstChunk, len - firstChunk);
@@ -68,7 +61,7 @@ public:
         if (len > avail) len = avail;
         if (len <= 0) return 0;
 
-        int firstChunk = qMin(len, m_capacity - m_readPos);
+        int firstChunk = std::min(len, m_capacity - m_readPos);
         memcpy(data, m_buffer.data() + m_readPos, firstChunk);
         if (len > firstChunk) {
             memcpy(data + firstChunk, m_buffer.data(), len - firstChunk);
@@ -83,7 +76,7 @@ public:
         if (len > avail) len = avail;
         if (len <= 0) return 0;
 
-        int firstChunk = qMin(len, m_capacity - m_readPos);
+        int firstChunk = std::min(len, m_capacity - m_readPos);
         memcpy(data, m_buffer.data() + m_readPos, firstChunk);
         if (len > firstChunk) {
             memcpy(data + firstChunk, m_buffer.data(), len - firstChunk);
@@ -101,7 +94,6 @@ public:
     int available() const { return m_size; }
     int freeSpace() const { return m_capacity - m_size; }
     int capacity() const { return m_capacity; }
-
     void clear() { m_readPos = 0; m_writePos = 0; m_size = 0; }
 
 private:
@@ -113,191 +105,101 @@ private:
 };
 
 /**
- * @brief KCP 视频接收器 / KCP Video Receiver
+ * @brief KCP Video Receiver (pure C++)
  *
- * 基于重构的 KcpTransport，提供阻塞式接收接口（用于解码线程）。
- * Based on refactored KcpTransport, provides blocking receive API for decode thread.
+ * Based on KcpTransport, provides blocking receive API for decode thread.
  */
-class KcpVideoClient : public QObject
+class KcpVideoClient
 {
-    Q_OBJECT
-
 public:
-    // C-K05: 使用 KcpTransport 中定义的常量
     static constexpr uint32_t CONV_VIDEO = KcpTransport::CONV_VIDEO;
-    static constexpr int DEFAULT_BUFFER_SIZE = 4 * 1024 * 1024;  // 4MB
+    static constexpr int DEFAULT_BUFFER_SIZE = 4 * 1024 * 1024;
 
-    explicit KcpVideoClient(QObject *parent = nullptr);
-    ~KcpVideoClient() override;
+    using ConnectedCallback = std::function<void()>;
+    using DisconnectedCallback = std::function<void()>;
+    using ErrorCallback = std::function<void(const std::string &)>;
 
-    /**
-     * @brief 根据码率配置参数
-     * @param bitrateBps 码率（bps）
-     */
+    KcpVideoClient();
+    ~KcpVideoClient();
+
     void configureBitrate(int bitrateBps);
-
-    /**
-     * @brief 绑定本地端口
-     */
-    bool bind(quint16 port = 0);
-
-    /**
-     * @brief 获取本地端口
-     */
-    quint16 localPort() const;
-
-    /**
-     * @brief 连接到远端
-     */
-    void connectTo(const QHostAddress &host, quint16 port);
-
-    /**
-     * @brief 是否活动
-     */
+    bool bind(uint16_t port = 0);
+    uint16_t localPort() const;
+    void connectTo(const std::string &host, uint16_t port);
     bool isActive() const;
-
-    /**
-     * @brief 阻塞式接收数据（用于解码线程）
-     * @param buf 接收缓冲区
-     * @param bufSize 期望接收的字节数
-     * @param timeoutMs 超时时间（毫秒），-1表示无限等待
-     * @return 实际接收的字节数，0表示超时或关闭
-     */
     int recvBlocking(char *buf, int bufSize, int timeoutMs = -1);
-
-    /**
-     * @brief 非阻塞接收
-     */
-    QByteArray recv();
-
-    /**
-     * @brief 可用字节数
-     */
+    std::vector<uint8_t> recv();
     int available() const;
-
-    /**
-     * @brief 关闭
-     */
     void close();
+    std::string stats() const;
 
-    /**
-     * @brief 获取统计信息
-     */
-    QString stats() const;
+    void setConnectedCallback(ConnectedCallback cb) { m_connectedCb = std::move(cb); }
+    void setDisconnectedCallback(DisconnectedCallback cb) { m_disconnectedCb = std::move(cb); }
+    void setErrorCallback(ErrorCallback cb) { m_errorCb = std::move(cb); }
 
-signals:
-    void connected();
-    void disconnected();
-    void errorOccurred(const QString &error);
-
-private slots:
+private:
     void onDataReady();
 
-private:
-    int calculateWindowSize(int bitrateBps) const;
-
-    /**
-     * @brief 确保 IO 线程已启动，transport 已移到 IO 线程
-     *
-     * 在 bind()/connectTo() 时调用，延迟启动以确保
-     * 构造阶段的配置（setVideoStreamMode/setMtu/setWindowSize）
-     * 可在主线程安全完成。
-     */
-    void ensureIoThread();
-
-private:
     KcpTransport *m_transport = nullptr;
-
-    // 独立 IO 线程：视频 UDP 收发和 KCP 更新在此线程运行
-    // 避免高码率视频流阻塞主线程事件循环，影响控制通道响应
-    QThread *m_ioThread = nullptr;
-
-    // 环形缓冲区
     CircularBuffer m_ringBuffer;
-    mutable QMutex m_mutex;
-    QWaitCondition m_dataAvailable;
+    mutable std::mutex m_mutex;
+    std::condition_variable m_dataAvailable;
 
     int m_maxBufferSize = DEFAULT_BUFFER_SIZE;
     std::atomic<bool> m_closed{false};
     std::atomic<uint64_t> m_totalRecv{0};
+
+    ConnectedCallback m_connectedCb;
+    DisconnectedCallback m_disconnectedCb;
+    ErrorCallback m_errorCb;
 };
 
 /**
- * @brief KCP控制通道客户端
+ * @brief KCP Control Channel Client (pure C++)
  *
- * 特点:
- * - 双向通信
- * - 消息模式（保留消息边界）
+ * Bidirectional, message-mode (preserves message boundaries).
  */
-class KcpControlClient : public QObject
+class KcpControlClient
 {
-    Q_OBJECT
-
 public:
-    // C-K05: 使用 KcpTransport 中定义的常量
     static constexpr uint32_t CONV_CONTROL = KcpTransport::CONV_CONTROL;
 
-    explicit KcpControlClient(QObject *parent = nullptr);
-    ~KcpControlClient() override;
+    using ConnectedCallback = std::function<void()>;
+    using DisconnectedCallback = std::function<void()>;
+    using DataReadyCallback = std::function<void()>;
+    using ErrorCallback = std::function<void(const std::string &)>;
 
-    /**
-     * @brief 绑定本地端口
-     */
-    bool bind(quint16 port = 0);
+    KcpControlClient();
+    ~KcpControlClient();
 
-    /**
-     * @brief 获取本地端口
-     */
-    quint16 localPort() const;
-
-    /**
-     * @brief 连接到远端
-     */
-    void connectTo(const QHostAddress &host, quint16 port);
-
-    /**
-     * @brief 是否活动
-     */
+    bool bind(uint16_t port = 0);
+    uint16_t localPort() const;
+    void connectTo(const std::string &host, uint16_t port);
     bool isActive() const;
-
-    /**
-     * @brief 发送数据
-     */
-    int send(const QByteArray &data);
     int send(const char *data, int len);
-
-    /**
-     * @brief 阻塞式接收（用于控制线程）
-     */
     int recvBlocking(char *buf, int bufSize, int timeoutMs = -1);
-
-    /**
-     * @brief 非阻塞接收
-     */
-    QByteArray recv();
-
-    /**
-     * @brief 关闭
-     */
+    std::vector<uint8_t> recv();
     void close();
 
-signals:
-    void connected();
-    void disconnected();
-    void dataReady();
-    void errorOccurred(const QString &error);
-
-private slots:
-    void onDataReady();
+    void setConnectedCallback(ConnectedCallback cb) { m_connectedCb = std::move(cb); }
+    void setDisconnectedCallback(DisconnectedCallback cb) { m_disconnectedCb = std::move(cb); }
+    void setDataReadyCallback(DataReadyCallback cb) { m_dataReadyCb = std::move(cb); }
+    void setErrorCallback(ErrorCallback cb) { m_errorCb = std::move(cb); }
 
 private:
-    KcpTransport *m_transport = nullptr;
+    void onDataReady();
 
-    QByteArray m_buffer;
-    mutable QMutex m_mutex;
-    QWaitCondition m_dataAvailable;
+    KcpTransport *m_transport = nullptr;
+    std::vector<uint8_t> m_buffer;
+    mutable std::mutex m_mutex;
+    std::condition_variable m_dataAvailable;
 
     std::atomic<bool> m_closed{false};
+
+    ConnectedCallback m_connectedCb;
+    DisconnectedCallback m_disconnectedCb;
+    DataReadyCallback m_dataReadyCb;
+    ErrorCallback m_errorCb;
 };
 
 #endif // KCP_CLIENT_H

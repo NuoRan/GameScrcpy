@@ -2,10 +2,9 @@
 #define STEERWHEELHANDLER_H
 
 #include "IInputHandler.h"
+#include "NativeTimer.h"
 #include "keymap.h"
-#include <QTimer>
-#include <QQueue>
-#include <QPointF>
+#include <deque>
 
 /**
  * @brief 方向盘（WASD轮盘）处理器 / Steer Wheel (WASD) Handler
@@ -19,18 +18,17 @@
  */
 class SteerWheelHandler : public IInputHandler
 {
-    Q_OBJECT
 public:
-    explicit SteerWheelHandler(QObject* parent = nullptr);
+    explicit SteerWheelHandler();
     ~SteerWheelHandler() override;
 
     void init(Controller* controller, SessionContext* context) override;
-    bool handleKeyEvent(const QKeyEvent* event,
-                        const QSize& frameSize,
-                        const QSize& showSize) override;
+    bool handleKeyEvent(const InputEvent& event,
+                        const Size& frameSize,
+                        const Size& showSize) override;
     void onFocusLost() override;
     void reset() override;
-    QString name() const override { return "SteerWheelHandler"; }
+    std::string name() const override { return "SteerWheelHandler"; }
     int priority() const override { return 20; }  // 高优先级
 
     // ========== 配置方法 ==========
@@ -55,34 +53,34 @@ public:
      */
     void resetWheel();
 
-private slots:
+private:
     void onSteerWheelTimer();
     void onFirstPressTimer();
     void onHumanizeTimer();
 
 private:
-    void processSteerWheel(const KeyMap::KeyMapNode& node, const QKeyEvent* event);
+    void processSteerWheel(const KeyMap::KeyMapNode& node, const InputEvent& event);
     void executeMove(const KeyMap::KeyMapNode& node);
-    void sendFastTouch(quint8 action, const QPointF& pos);
-    void getDelayQueue(const QPointF& start, const QPointF& end,
+    void sendFastTouch(uint8_t action, const PointF& pos);
+    void getDelayQueue(const PointF& start, const PointF& end,
                        double distanceStep, double posStep,
-                       quint32 lowestTimer, quint32 highestTimer,
-                       QQueue<QPointF>& queuePos, QQueue<quint32>& queueTimer);
+                       uint32_t lowestTimer, uint32_t highestTimer,
+                       std::deque<PointF>& queuePos, std::deque<uint32_t>& queueTimer);
 
     KeyMap* m_keyMap = nullptr;
-    QSize m_frameSize;
-    QSize m_showSize;
+    Size m_frameSize;
+    Size m_showSize;
 
     // 轮盘状态
     struct {
-        int touchKey = Qt::Key_unknown;
+        int touchKey = GameKey::Key_unknown;
         bool pressedUp = false;
         bool pressedDown = false;
         bool pressedLeft = false;
         bool pressedRight = false;
-        quint32 fastTouchSeqId = 0;
+        uint32_t fastTouchSeqId = 0;
         bool isFirstPress = true;
-        QTimer* firstPressTimer = nullptr;
+        NativeTimer firstPressTimer;
         const KeyMap::KeyMapNode* pendingNode = nullptr;
 
         // 拟人化参数
@@ -90,15 +88,15 @@ private:
         double currentLengthFactor = 1.0;
         double targetAngleOffset = 0.0;
         double targetLengthFactor = 1.0;
-        QTimer* humanizeTimer = nullptr;
+        NativeTimer humanizeTimer;
         int lastPressedState = 0;
 
         // 延迟数据
         struct {
-            QPointF currentPos;
-            QTimer* timer = nullptr;
-            QQueue<QPointF> queuePos;
-            QQueue<quint32> queueTimer;
+            PointF currentPos;
+            NativeTimer timer;
+            std::deque<PointF> queuePos;
+            std::deque<uint32_t> queueTimer;
             int pressedNum = 0;
         } delayData;
     } m_state;

@@ -12,9 +12,9 @@ TcpVideoChannel::TcpVideoChannel(VideoSocket* socket)
 bool TcpVideoChannel::connect(const char* host, uint16_t port)
 {
     // TCP 连接由外部 Server 管理，这里不处理连接
-    Q_UNUSED(host);
-    Q_UNUSED(port);
-    return m_socket && m_socket->state() == QAbstractSocket::ConnectedState;
+    (void)host;
+    (void)port;
+    return m_socket && m_socket->isValid();
 }
 
 void TcpVideoChannel::disconnect()
@@ -26,7 +26,7 @@ void TcpVideoChannel::disconnect()
 
 bool TcpVideoChannel::isConnected() const
 {
-    return m_socket && m_socket->state() == QAbstractSocket::ConnectedState;
+    return m_socket && m_socket->isValid();
 }
 
 int32_t TcpVideoChannel::recv(uint8_t* buf, int32_t size)

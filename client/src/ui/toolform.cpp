@@ -8,17 +8,18 @@
 #include <QApplication>
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QDir>
+#include <filesystem>
+#include <fstream>
 #include <QInputDialog>
-#include <QFile>
 #include <QDebug>
 #include <QDialog>
 #include <QSlider>
 #include <QLabel>
 #include <QMessageBox>
-#include <QDesktopServices>
-#include <QUrl>
+#include <windows.h>
+#include <shellapi.h>
 #include "ConfigCenter.h"
+#include "ThemeManager.h"
 
 // ---------------------------------------------------------
 // 可拖拽的标签 (DraggableLabel)
@@ -28,21 +29,23 @@ DraggableLabel::DraggableLabel(KeyMapType type, const QString& text, QWidget* pa
     setAlignment(Qt::AlignCenter);
     setMinimumSize(70, 34);
     setCursor(Qt::OpenHandCursor);
+    auto& tm = Fluent::ThemeManager::instance();
     setStyleSheet(
-        "QLabel{"
-        "  border:1px solid #3f3f46;"
+        QString("QLabel{"
+        "  border:1px solid %1;"
         "  border-radius:6px;"
-        "  color:#a1a1aa;"
-        "  background-color:#27272a;"
+        "  color:%2;"
+        "  background-color:%3;"
         "  font-size:11px;"
         "  font-weight:500;"
         "  padding:4px 8px;"
         "}"
         "QLabel:hover{"
-        "  background-color:#3f3f46;"
-        "  border-color:#6366f1;"
-        "  color:#fafafa;"
-        "}"
+        "  background-color:%4;"
+        "  border-color:%5;"
+        "  color:%6;"
+        "}").arg(tm.border(), tm.textSecondary(), tm.surface(),
+                tm.navHover(), tm.accentPrimary(), tm.textPrimary())
     );
 }
 void DraggableLabel::mousePressEvent(QMouseEvent *event) {
@@ -234,8 +237,15 @@ void ToolForm::refreshKeyMapList() {
     if (!m_configComboBox) return;
     QString current = m_configComboBox->currentText();
     m_configComboBox->blockSignals(true); m_configComboBox->clear();
-    QDir dir("keymap"); if (!dir.exists()) dir.mkpath(".");
-    QStringList files = dir.entryList(QStringList() << "*.json", QDir::Files);
+    namespace fs = std::filesystem;
+    fs::path dirPath("keymap");
+    if (!fs::exists(dirPath)) fs::create_directories(dirPath);
+    QStringList files;
+    for (const auto& entry : fs::directory_iterator(dirPath)) {
+        if (entry.is_regular_file() && entry.path().extension() == ".json")
+            files << QString::fromStdString(entry.path().filename().string());
+    }
+    files.sort();
     if (files.isEmpty()) m_configComboBox->addItem("default.json");
     else m_configComboBox->addItems(files);
     int idx = m_configComboBox->findText(current);
@@ -274,11 +284,13 @@ void ToolForm::createNewConfig() {
     QString text = QInputDialog::getText(this, tr("新建配置"), tr("文件名:"), QLineEdit::Normal, "new_config", &ok);
     if(ok && !text.isEmpty()) {
         if(!text.endsWith(".json")) text+=".json";
-        QDir dir("keymap"); if(!dir.exists()) dir.mkpath(".");
-        QString filePath = dir.filePath(text);
+        namespace fs = std::filesystem;
+        fs::path dirPath("keymap");
+        if (!fs::exists(dirPath)) fs::create_directories(dirPath);
+        std::string filePath = (dirPath / text.toStdString()).string();
 
         // 检查文件是否已存在
-        if (QFile::exists(filePath)) {
+        if (fs::exists(filePath)) {
             QMessageBox::StandardButton reply = QMessageBox::question(
                 this,
                 tr("文件已存在"),
@@ -291,9 +303,9 @@ void ToolForm::createNewConfig() {
             }
         }
 
-        QFile file(filePath);
-        if(file.open(QIODevice::WriteOnly)) {
-            file.write("{}"); file.close();
+        std::ofstream file(filePath);
+        if(file) {
+            file << "{}"; file.close();
             refreshKeyMapList();
             m_configComboBox->setCurrentText(text);
         }
@@ -301,11 +313,10 @@ void ToolForm::createNewConfig() {
 }
 
 void ToolForm::openKeyMapFolder() {
-    QDir dir("keymap");
-    if (!dir.exists()) {
-        dir.mkpath(".");
-    }
-    QDesktopServices::openUrl(QUrl::fromLocalFile(dir.absolutePath()));
+    namespace fs = std::filesystem;
+    fs::path dirPath("keymap");
+    if (!fs::exists(dirPath)) fs::create_directories(dirPath);
+    ShellExecuteW(nullptr, L"open", fs::absolute(dirPath).wstring().c_str(), nullptr, nullptr, SW_SHOW);
 }
 
 

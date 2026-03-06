@@ -84,18 +84,32 @@ void KeepRatioWidget::adjustSubWidget()
         pos.setY((curSize.height() - height) / 2);
     } else {
         // Fit模式：保持比例，完整显示（可能有黑边）
-        if (m_widthHeightRatio > 1.0f) {
-            // 以宽为基准
-            width = curSize.width();
-            height = static_cast<int>(curSize.width() / m_widthHeightRatio);
-            pos.setY((curSize.height() - height) / 2);
-        } else {
-            // 以高为基准
+        float containerRatio = (curSize.height() > 0)
+            ? static_cast<float>(curSize.width()) / curSize.height()
+            : 1.0f;
+
+        if (containerRatio > m_widthHeightRatio) {
+            // 容器更宽: 以高为基准，宽自适应
             height = curSize.height();
             width = static_cast<int>(curSize.height() * m_widthHeightRatio);
-            pos.setX((curSize.width() - width) / 2);
+        } else {
+            // 容器更窄或等比: 以宽为基准，高自适应
+            width = curSize.width();
+            height = (m_widthHeightRatio > 0.0f)
+                ? static_cast<int>(curSize.width() / m_widthHeightRatio)
+                : curSize.height();
         }
+        // 居中
+        pos.setX((curSize.width() - width) / 2);
+        pos.setY((curSize.height() - height) / 2);
     }
 
     m_subWidget->setGeometry(pos.x(), pos.y(), width, height);
+
+    static int adjustCount = 0;
+    if (++adjustCount <= 3) {
+        qInfo("[KeepRatio] adjustSubWidget #%d: container=%dx%d, ratio=%.3f, sub=(%d,%d %dx%d), mode=%d",
+              adjustCount, curSize.width(), curSize.height(), m_widthHeightRatio,
+              pos.x(), pos.y(), width, height, (int)m_scaleMode);
+    }
 }

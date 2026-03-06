@@ -1,48 +1,58 @@
 /**
  * @file kcpvideosocket.cpp
- * @brief UDP视频Socket实现
+ * @brief UDP Video Socket Implementation
  */
 
 #include "kcpvideosocket.h"
 #include "UdpVideoClient.h"
+#include "ThreadDispatcher.h"
 
-KcpVideoSocket::KcpVideoSocket(QObject *parent)
-    : QObject(parent)
+KcpVideoSocket::KcpVideoSocket()
 {
-    m_client = new UdpVideoClient(this);
-    connect(m_client, &UdpVideoClient::connected, this, &KcpVideoSocket::connected);
-    connect(m_client, &UdpVideoClient::disconnected, this, &KcpVideoSocket::disconnected);
-    connect(m_client, &UdpVideoClient::errorOccurred, this, &KcpVideoSocket::errorOccurred);
+    m_client = new UdpVideoClient();
+
+    // Callbacks fire from IO thread -> marshal to main thread via dispatch::postToMain
+    m_client->setConnectedCallback([this]() {
+        dispatch::postToMain([this]() { connected.fire(); });
+    });
+    m_client->setDisconnectedCallback([this]() {
+        dispatch::postToMain([this]() { disconnected.fire(); });
+    });
+    m_client->setErrorCallback([this](const std::string &err) {
+        dispatch::postToMain([this, err]() { errorOccurred.fire(err); });
+    });
 }
 
 KcpVideoSocket::~KcpVideoSocket()
 {
     close();
+    delete m_client;
+    m_client = nullptr;
 }
 
-void KcpVideoSocket::setBitrate(quint32 bitrateBps, quint32 maxFps)
+void KcpVideoSocket::setBitrate(uint32_t bitrateBps, uint32_t maxFps)
 {
     if (m_client) {
         m_client->configure(bitrateBps, maxFps);
     }
 }
 
-bool KcpVideoSocket::bind(quint16 port)
+bool KcpVideoSocket::bind(uint16_t port)
 {
     return m_client ? m_client->bind(port) : false;
 }
 
-quint16 KcpVideoSocket::localPort() const
+uint16_t KcpVideoSocket::localPort() const
 {
     return m_client ? m_client->localPort() : 0;
 }
 
-QHostAddress KcpVideoSocket::localAddress() const
+std::string KcpVideoSocket::localAddress() const
 {
-    return QHostAddress::Any;
+    return "0.0.0.0";
 }
 
-void KcpVideoSocket::connectToHost(const QHostAddress &host, quint16 port)
+void KcpVideoSocket::connectToHost(const std::string &host, uint16_t port)
 {
     if (m_client) {
         m_client->connectTo(host, port);
@@ -54,11 +64,9 @@ bool KcpVideoSocket::isValid() const
     return m_client && m_client->isActive();
 }
 
-qint32 KcpVideoSocket::subThreadRecvData(quint8 *buf, qint32 bufSize)
+int32_t KcpVideoSocket::subThreadRecvData(uint8_t *buf, int32_t bufSize)
 {
-    if (!m_client) {
-        return 0;
-    }
+    if (!m_client) return 0;
     return m_client->recvBlocking(reinterpret_cast<char *>(buf), bufSize);
 }
 
@@ -67,15 +75,15 @@ void KcpVideoSocket::close()
     if (m_client) {
         m_client->close();
     }
-    emit disconnected();
+    disconnected.fire();
 }
 
-qint64 KcpVideoSocket::bytesAvailable() const
+int64_t KcpVideoSocket::bytesAvailable() const
 {
     return m_client ? m_client->available() : 0;
 }
 
-QString KcpVideoSocket::getStats() const
+std::string KcpVideoSocket::getStats() const
 {
-    return m_client ? m_client->stats() : QString();
+    return m_client ? m_client->stats() : std::string();
 }

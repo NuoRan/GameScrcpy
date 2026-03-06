@@ -1,7 +1,8 @@
 #include "ZeroCopyStreamManager.h"
+#include "ThreadDispatcher.h"
 #include "infra/FrameQueue.h"
 #include "impl/ZeroCopyDecoder.h"
-#include "impl/ZeroCopyRenderer.h"
+
 #include "interfaces/IVideoChannel.h"
 #include "demuxer.h"
 #include "videosocket.h"
@@ -11,34 +12,33 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 }
 
-#include <QDebug>
+#define LOG_TAG "StreamManager"
+#include "Logger.h"
 
 namespace qsc {
 namespace core {
 
-ZeroCopyStreamManager::ZeroCopyStreamManager(QObject* parent)
-    : QObject(parent)
-    , m_frameQueue(std::make_unique<FrameQueue>())
-    , m_renderer(std::make_unique<ZeroCopyRenderer>())
+ZeroCopyStreamManager::ZeroCopyStreamManager()
+    : m_frameQueue(std::make_unique<FrameQueue>())
 {
-    qInfo("[ZeroCopyStreamManager] Created (zero-copy pipeline)");
+    LOG_I("[ZeroCopyStreamManager] Created (zero-copy pipeline)");
 }
 
 ZeroCopyStreamManager::~ZeroCopyStreamManager()
 {
     stop();
-    qInfo("[ZeroCopyStreamManager] Destroyed");
+    LOG_I("[ZeroCopyStreamManager] Destroyed");
 }
 
 void ZeroCopyStreamManager::setDecoder(std::unique_ptr<ZeroCopyDecoder> decoder)
 {
     if (m_running) {
-        qWarning("[ZeroCopyStreamManager] Cannot set decoder while running");
+        LOG_W("[ZeroCopyStreamManager] Cannot set decoder while running");
         return;
     }
     m_decoder = std::move(decoder);
     m_decoderInjected = true;
-    qInfo("[ZeroCopyStreamManager] Custom decoder injected");
+    LOG_I("[ZeroCopyStreamManager] Custom decoder injected");
 }
 
 void ZeroCopyStreamManager::installVideoSocket(VideoSocket* socket)
@@ -56,15 +56,15 @@ void ZeroCopyStreamManager::installVideoChannel(IVideoChannel* channel)
     m_videoChannel = channel;
 }
 
-void ZeroCopyStreamManager::setFrameSize(const QSize& size)
+void ZeroCopyStreamManager::setFrameSize(const Size& size)
 {
     m_frameSize = size;
 }
 
-void ZeroCopyStreamManager::setVideoCodec(const QString& codec)
+void ZeroCopyStreamManager::setVideoCodec(const std::string& codec)
 {
     m_videoCodec = codec;
-    qInfo("[ZeroCopyStreamManager] Video codec set to: %s", qPrintable(codec));
+    LOG_I("[ZeroCopyStreamManager] Video codec set to: %s", codec.c_str());
 }
 
 bool ZeroCopyStreamManager::start()
@@ -82,7 +82,7 @@ bool ZeroCopyStreamManager::start()
     } else if (m_videoSocket) {
         m_demuxer->installVideoSocket(m_videoSocket);
     } else {
-        qWarning("[ZeroCopyStreamManager] No video socket installed");
+        LOG_W("[ZeroCopyStreamManager] No video socket installed");
         return false;
     }
 
@@ -91,24 +91,24 @@ bool ZeroCopyStreamManager::start()
     m_demuxer->setVideoCodec(m_videoCodec);
 
     // 连接信号
-    // 必须使用 DirectConnection，因为 Demuxer 在子线程运行
-    // 如果用 QueuedConnection，slot 执行时 packet 已经被 unref 了
-    connect(m_demuxer.get(), &Demuxer::onStreamStop,
-            this, &ZeroCopyStreamManager::onDemuxerStopped,
-            Qt::QueuedConnection);
-    connect(m_demuxer.get(), &Demuxer::getFrame,
-            this, &ZeroCopyStreamManager::onDemuxerGetFrame,
-            Qt::DirectConnection);
+    // onStreamStop 从工作线程发出，需要投递到主线程
+    m_demuxer->onStreamStop.connect([this]() {
+        dispatch::postToMain([this]() { onDemuxerStopped(); });
+    });
+    // getFrame 必须同步调用（类似 DirectConnection），因为 packet 在下一帧时会被重用
+    m_demuxer->getFrame.connect([this](AVPacket* packet) {
+        onDemuxerGetFrame(packet);
+    });
 
     // 启动 Demuxer（必须用 startDecode 而不是 start，否则停止标志不会重置）
     if (!m_demuxer->startDecode()) {
-        qWarning("[ZeroCopyStreamManager] Failed to start demuxer");
+        LOG_W("[ZeroCopyStreamManager] Failed to start demuxer");
         m_demuxer.reset();
         return false;
     }
     m_running = true;
 
-    qInfo("[ZeroCopyStreamManager] Started");
+    LOG_I("[ZeroCopyStreamManager] Started");
 
     return true;
 }
@@ -121,15 +121,9 @@ void ZeroCopyStreamManager::stop()
 
     m_running = false;
 
-    // 停止 Demuxer（必须等待线程结束再删除！）
+    // 停止 Demuxer（stopDecode 内部已等待线程结束）
     if (m_demuxer) {
         m_demuxer->stopDecode();
-        // 等待 Demuxer 线程完全结束，最多等待 3 秒
-        if (!m_demuxer->wait(3000)) {
-            qWarning("[ZeroCopyStreamManager] Demuxer thread did not stop in time, terminating");
-            m_demuxer->terminate();
-            m_demuxer->wait(1000);
-        }
         m_demuxer.reset();
     }
 
@@ -141,7 +135,7 @@ void ZeroCopyStreamManager::stop()
 
     m_decoderOpened = false;
 
-    qInfo("[ZeroCopyStreamManager] Stopped");
+    LOG_I("[ZeroCopyStreamManager] Stopped");
 }
 
 bool ZeroCopyStreamManager::isHardwareAccelerated() const
@@ -149,9 +143,9 @@ bool ZeroCopyStreamManager::isHardwareAccelerated() const
     return m_decoder ? m_decoder->isHardwareAccelerated() : false;
 }
 
-QString ZeroCopyStreamManager::decoderName() const
+std::string ZeroCopyStreamManager::decoderName() const
 {
-    return m_decoder ? m_decoder->hwDecoderName() : QString();
+    return m_decoder ? m_decoder->hwDecoderName() : std::string();
 }
 
 void ZeroCopyStreamManager::screenshot(ScreenshotCallback callback)
@@ -183,46 +177,47 @@ bool ZeroCopyStreamManager::openDecoder()
     // 如果没有注入解码器，创建默认的零拷贝解码器
     if (!m_decoder) {
         m_decoder = std::make_unique<ZeroCopyDecoder>();
-        qInfo("[ZeroCopyStreamManager] Using default ZeroCopyDecoder");
+        LOG_I("[ZeroCopyStreamManager] Using default ZeroCopyDecoder");
     }
 
     // 设置帧队列
     m_decoder->setFrameQueue(m_frameQueue.get());
 
-    // 连接信号
-    connect(m_decoder.get(), &ZeroCopyDecoder::frameReady,
-            this, &ZeroCopyStreamManager::frameReady);
-    connect(m_decoder.get(), &ZeroCopyDecoder::fpsUpdated,
-            this, &ZeroCopyStreamManager::onDecoderFpsUpdated);
+    // 连接信号 (ZeroCopyDecoder uses Signal<>, not Qt signals)
+    m_decoder->frameReady.connect([this]() { frameReady.fire(); });
+    m_decoder->fpsUpdated.connect([this](uint32_t fps) { onDecoderFpsUpdated(fps); });
 
     // 根据配置确定解码器 codec ID
     AVCodecID codecId = AV_CODEC_ID_H264;
     const char* codecLabel = "H.264";
-    // 仅支持 H.264
+    if (m_videoCodec == "h265") {
+        codecId = AV_CODEC_ID_HEVC;
+        codecLabel = "H.265";
+    }
 
     // 打开解码器
     if (!m_decoder->open(codecId)) {
-        qWarning("[ZeroCopyStreamManager] Failed to open decoder");
+        LOG_W("[ZeroCopyStreamManager] Failed to open decoder");
         return false;
     }
 
     m_decoderOpened = true;
 
-    qInfo("[ZeroCopyStreamManager] Decoder opened: %s (%s)%s",
-          m_decoder->isHardwareAccelerated() ? qPrintable(m_decoder->hwDecoderName()) : "software",
+    LOG_I("[ZeroCopyStreamManager] Decoder opened: %s (%s)%s",
+          m_decoder->isHardwareAccelerated() ? m_decoder->hwDecoderName().c_str() : "software",
           codecLabel,
           m_decoderInjected ? " [injected]" : "");
 
-    emit decoderInfo(m_decoder->isHardwareAccelerated(), m_decoder->hwDecoderName());
+    decoderInfo.fire(m_decoder->isHardwareAccelerated(), m_decoder->hwDecoderName());
 
     return true;
 }
 
 void ZeroCopyStreamManager::onDemuxerStopped()
 {
-    qInfo("[ZeroCopyStreamManager] Demuxer stopped");
+    LOG_I("[ZeroCopyStreamManager] Demuxer stopped");
     stop();
-    emit streamStopped();
+    streamStopped.fire();
 }
 
 void ZeroCopyStreamManager::onDemuxerGetFrame(AVPacket* packet)
@@ -232,17 +227,28 @@ void ZeroCopyStreamManager::onDemuxerGetFrame(AVPacket* packet)
     }
 
     if (!openDecoder()) {
-        qWarning("[ZeroCopyStreamManager] Decoder not initialized");
+        LOG_W("[ZeroCopyStreamManager] Decoder not initialized");
         return;
     }
 
+    static int s_frameCount = 0;
+    if (s_frameCount < 1) {
+        LOG_I("[ZeroCopyStreamManager] onDemuxerGetFrame #%d: size=%d pts=%lld flags=0x%x",
+              s_frameCount, packet->size, (long long)packet->pts, packet->flags);
+    }
+
     m_decoder->decode(packet->data, packet->size, packet->pts, packet->flags);
+
+    if (s_frameCount < 1) {
+        LOG_I("[ZeroCopyStreamManager] decode #%d done", s_frameCount);
+        s_frameCount++;
+    }
 }
 
-void ZeroCopyStreamManager::onDecoderFpsUpdated(quint32 fps)
+void ZeroCopyStreamManager::onDecoderFpsUpdated(uint32_t fps)
 {
     m_currentFps = fps;
-    emit fpsUpdated(fps);
+    fpsUpdated.fire(fps);
 }
 
 } // namespace core

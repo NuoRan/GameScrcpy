@@ -15,7 +15,7 @@ cmake_minimum_required(VERSION 3.19 FATAL_ERROR)
 # 项目配置
 #
 set(QC_PROJECT_NAME "GameScrcpy")
-set(QC_PROJECT_VERSION "1.2.0")
+set(QC_PROJECT_VERSION "1.3.0")
 
 project(${QC_PROJECT_NAME} VERSION ${QC_PROJECT_VERSION} LANGUAGES C CXX)
 message(STATUS "[${PROJECT_NAME}] Project ${PROJECT_NAME} ${PROJECT_VERSION}")
@@ -59,8 +59,8 @@ message(STATUS "[${PROJECT_NAME}] BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 # MSVC 配置
 if(MSVC)
     add_compile_options(/W3 /WX /wd4566 /utf-8)
-    add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN)
-    add_link_options(/SAFESEH:NO)
+    add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN _SILENCE_STDEXT_ARR_ITERS_DEPRECATION_WARNING)
+    add_link_options(/SAFESEH:NO /MAP)
 endif()
 
 # GCC/Clang 配置
@@ -76,11 +76,9 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core)
 set(QT_DESIRED_VERSION ${QT_VERSION_MAJOR})
 message(STATUS "[${PROJECT_NAME}] Qt version: ${QT_DESIRED_VERSION}")
 
-set(qt_required_components Widgets Network Multimedia Qml Quick Gui)
+set(qt_required_components Widgets Gui Svg SvgWidgets)
 
-if(QT_DESIRED_VERSION MATCHES 6)
-    list(APPEND qt_required_components OpenGL OpenGLWidgets)
-else()
+if(NOT QT_DESIRED_VERSION MATCHES 6)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         list(APPEND qt_required_components X11Extras)
     endif()
@@ -90,17 +88,12 @@ find_package(Qt${QT_DESIRED_VERSION} REQUIRED COMPONENTS ${qt_required_component
 
 set(LINK_LIBS
     Qt${QT_DESIRED_VERSION}::Widgets
-    Qt${QT_DESIRED_VERSION}::Network
-    Qt${QT_DESIRED_VERSION}::Multimedia
-    Qt${QT_DESIRED_VERSION}::Qml
-    Qt${QT_DESIRED_VERSION}::Quick
     Qt${QT_DESIRED_VERSION}::Gui
+    Qt${QT_DESIRED_VERSION}::Svg
+    Qt${QT_DESIRED_VERSION}::SvgWidgets
 )
 
-if(QT_DESIRED_VERSION MATCHES 6)
-    list(APPEND LINK_LIBS Qt${QT_DESIRED_VERSION}::OpenGL)
-    list(APPEND LINK_LIBS Qt${QT_DESIRED_VERSION}::OpenGLWidgets)
-else()
+if(NOT QT_DESIRED_VERSION MATCHES 6)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         list(APPEND LINK_LIBS Qt${QT_DESIRED_VERSION}::X11Extras)
     endif()
@@ -193,6 +186,7 @@ endif()
 
 # ui - 用户界面
 set(SRC_UI
+    # 旧文件 (部分保留用于 VideoForm 等)
     src/ui/dialog.cpp
     src/ui/dialog.h
     src/ui/dialog.ui
@@ -229,6 +223,70 @@ set(SRC_UI
     src/ui/widgets/magneticwidget.h
     src/ui/widgets/iconhelper.cpp
     src/ui/widgets/iconhelper.h
+    # ===== Fluent UI 新架构 =====
+    # 主窗口
+    src/ui/MainWindow.h
+    src/ui/MainWindow.cpp
+    # 主题基础设施
+    src/ui/theme/DesignTokens.h
+    src/ui/theme/MotionTokens.h
+    src/ui/theme/ThemeManager.h
+    src/ui/theme/ThemeManager.cpp
+    # 组件库
+    src/ui/components/FluentCard.h
+    src/ui/components/FluentCard.cpp
+    src/ui/components/FluentButton.h
+    src/ui/components/FluentButton.cpp
+    src/ui/components/FluentToggle.h
+    src/ui/components/FluentToggle.cpp
+    src/ui/components/FluentDialog.h
+    src/ui/components/FluentDialog.cpp
+    src/ui/components/FluentInfoBar.h
+    src/ui/components/FluentInfoBar.cpp
+    src/ui/components/SettingRow.h
+    src/ui/components/SettingRow.cpp
+    src/ui/components/NavigationView.h
+    src/ui/components/NavigationView.cpp
+    src/ui/components/FluentSlider.h
+    src/ui/components/FluentSlider.cpp
+    src/ui/components/FluentProgressRing.h
+    src/ui/components/FluentProgressRing.cpp
+    src/ui/components/FluentBadge.h
+    src/ui/components/FluentBadge.cpp
+    src/ui/components/FluentToolWindow.h
+    src/ui/components/FluentToolWindow.cpp
+    src/ui/components/DeviceCard.h
+    src/ui/components/DeviceCard.cpp
+    src/ui/components/ActivityLog.h
+    src/ui/components/ActivityLog.cpp
+    src/ui/components/VideoBottomBar.h
+    src/ui/components/VideoBottomBar.cpp
+    src/ui/components/VideoSettingsPopup.h
+    src/ui/components/VideoSettingsPopup.cpp
+    src/ui/components/KeyMapSidePanel.h
+    src/ui/components/KeyMapSidePanel.cpp
+    src/ui/components/FluentComboBox.h
+    src/ui/components/FluentComboBox.cpp
+    src/ui/components/FluentInput.h
+    src/ui/components/FluentInput.cpp
+    src/ui/components/OnboardingOverlay.h
+    src/ui/components/OnboardingOverlay.cpp
+    src/ui/components/HelpDialog.h
+    src/ui/components/HelpDialog.cpp
+    # 键位编辑
+    src/ui/keymap/KeyMapPropertyPanel.h
+    src/ui/keymap/KeyMapPropertyPanel.cpp
+    src/ui/keymap/KeyConflictIndicator.h
+    src/ui/keymap/KeyConflictIndicator.cpp
+    # 页面
+    src/ui/pages/HomePage.h
+    src/ui/pages/HomePage.cpp
+    src/ui/pages/SettingsPage.h
+    src/ui/pages/SettingsPage.cpp
+    src/ui/pages/TerminalPage.h
+    src/ui/pages/TerminalPage.cpp
+    src/ui/pages/DeviceDetailPage.h
+    src/ui/pages/DeviceDetailPage.cpp
 )
 
 # control - 控制模块
@@ -317,6 +375,14 @@ set(SRC_TRANSPORT
     src/transport/adb/adbprocessimpl.cpp
     src/transport/adb/adbprocessimpl.h
     src/transport/adb/IAdbExecutor.h
+    # auxiliary channel
+    src/transport/auxiliary/AuxChannelClient.cpp
+    src/transport/auxiliary/AuxChannelClient.h
+    # native transport (Winsock2)
+    src/transport/native/NativeTcpSocket.cpp
+    src/transport/native/NativeTcpSocket.h
+    src/transport/native/NativeTcpServer.cpp
+    src/transport/native/NativeTcpServer.h
 )
 
 # 确保 ikcp.c 使用 C 编译器
@@ -335,15 +401,19 @@ set(SRC_DECODER
     src/decoder/avframeconvert.cpp
     src/decoder/avframeconvert.h
     src/decoder/IDecoder.h
+    src/decoder/AudioStreamManager.h
+    src/decoder/AudioStreamManager.cpp
+    src/decoder/WasapiPlayer.h
+    src/decoder/WasapiPlayer.cpp
 )
 
 # render - 渲染模块
 set(SRC_RENDER
-    src/render/qyuvopenglwidget.cpp
-    src/render/qyuvopenglwidget.h
     src/render/IVideoRenderer.h
-    src/render/D3D11GLInterop.h
-    src/render/D3D11GLInterop.cpp
+    src/render/d3d11/D3D11Renderer.h
+    src/render/d3d11/D3D11Renderer.cpp
+    src/render/d3d11/D3D11VideoWidget.h
+    src/render/d3d11/D3D11VideoWidget.cpp
 )
 
 # common - 通用模块
@@ -360,6 +430,61 @@ set(SRC_COMMON
     src/common/ErrorCode.h
     src/common/SPSCQueue.h
     src/common/Logger.h
+    src/common/GameSignal.h
+    src/common/StringUtils.h
+    src/common/ThreadDispatcher.h
+    src/common/ThreadDispatcher.cpp
+    src/common/IniConfig.h
+    src/common/IniConfig.cpp
+    src/common/NativeTimer.h
+    src/common/NativeTimer.cpp
+)
+
+# QuickJS - 嵌入式 JavaScript 引擎 (C 源码)
+# QuickJS C files compiled as a separate static library with relaxed flags
+set(QUICKJS_SOURCES
+    src/common/quickjs/quickjs.c
+    src/common/quickjs/cutils.c
+    src/common/quickjs/libregexp.c
+    src/common/quickjs/libunicode.c
+    src/common/quickjs/dtoa.c
+)
+set(QUICKJS_HEADERS
+    src/common/quickjs/quickjs.h
+    src/common/quickjs/quickjs-libc.h
+    src/common/quickjs/quickjs-atom.h
+    src/common/quickjs/quickjs-opcode.h
+    src/common/quickjs/cutils.h
+    src/common/quickjs/libregexp.h
+    src/common/quickjs/libregexp-opcode.h
+    src/common/quickjs/libunicode.h
+    src/common/quickjs/libunicode-table.h
+    src/common/quickjs/dtoa.h
+    src/common/quickjs/list.h
+)
+
+# Build QuickJS as a static library with its own compile flags
+add_library(quickjs STATIC ${QUICKJS_SOURCES} ${QUICKJS_HEADERS})
+set_target_properties(quickjs PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
+target_include_directories(quickjs PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/quickjs
+)
+target_compile_definitions(quickjs PRIVATE
+    CONFIG_VERSION="2025-09-13"
+    _CRT_SECURE_NO_WARNINGS
+)
+if(MSVC)
+    # Compile as pure C11 with all warnings suppressed (third-party code)
+    # /WX- overrides the parent /WX (warnings-as-errors)
+    target_compile_options(quickjs PRIVATE /TC /W0 /WX- /utf-8 /std:c11)
+endif()
+
+# JsEngine wrapper (C++ code, part of main project)
+set(SRC_QUICKJS
+    src/common/JsEngine.h
+    src/common/JsEngine.cpp
+    src/control/script/JsBindings.h
+    src/control/script/JsBindings.cpp
 )
 
 # core - 核心层 (新架构)
@@ -387,15 +512,11 @@ set(SRC_CORE
     src/core/impl/KcpControlChannel.cpp
     src/core/impl/FFmpegDecoderImpl.h
     src/core/impl/FFmpegDecoderImpl.cpp
-    src/core/impl/OpenGLRenderer.h
-    src/core/impl/OpenGLRenderer.cpp
     src/core/impl/GameInputProcessor.h
     src/core/impl/GameInputProcessor.cpp
     # impl - 零拷贝组件
     src/core/impl/ZeroCopyDecoder.h
     src/core/impl/ZeroCopyDecoder.cpp
-    src/core/impl/ZeroCopyRenderer.h
-    src/core/impl/ZeroCopyRenderer.cpp
     # service - 服务层
     src/core/service/ConnectionManager.h
     src/core/service/ConnectionManager.cpp
@@ -443,6 +564,7 @@ set(ALL_SOURCES
     ${SRC_RENDER}
     ${SRC_COMMON}
     ${SRC_CORE}
+    ${SRC_QUICKJS}
     ${SRC_IMAGEMATCH}
     ${SRC_OPENCV_MATCHING}
     ${SRC_RESOURCES}
@@ -458,6 +580,7 @@ source_group(decoder FILES ${SRC_DECODER})
 source_group(render FILES ${SRC_RENDER})
 source_group(common FILES ${SRC_COMMON})
 source_group(core FILES ${SRC_CORE})
+source_group(quickjs FILES ${SRC_QUICKJS})
 
 #
 # 可执行文件
@@ -471,6 +594,9 @@ endif()
 
 add_executable(${PROJECT_NAME} ${QC_RUNTIME_TYPE} ${ALL_SOURCES})
 
+# Link QuickJS static library
+target_link_libraries(${PROJECT_NAME} PRIVATE quickjs)
+
 #
 # Include 路径
 #
@@ -479,6 +605,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/app/mousetap
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui
     ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/widgets
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/theme
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/components
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/ui/pages
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/session
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/handlers
@@ -489,9 +618,14 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/tcp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/kcp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/adb
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/auxiliary
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/native
     ${CMAKE_CURRENT_SOURCE_DIR}/src/decoder
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/third_party
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/quickjs
     # core - 新架构
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/interfaces
@@ -521,10 +655,10 @@ set(QSC_DEPLOY_PATH ${QSC_BIN_OUTPUT_PATH})
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(FFMPEG_LIB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/ffmpeg/lib")
     target_link_directories(${PROJECT_NAME} PUBLIC ${FFMPEG_LIB_PATH})
-    target_link_libraries(${PROJECT_NAME} PRIVATE avformat avcodec avutil swscale)
+    target_link_libraries(${PROJECT_NAME} PRIVATE avformat avcodec avutil swscale swresample)
 
-    # d3d11/opengl32: D3D11-GL interop, winmm: 高精度定时器, avrt: MMCSS 实时调度
-    target_link_libraries(${PROJECT_NAME} PRIVATE d3d11 opengl32 winmm avrt)
+    # d3d11/dxgi/d3dcompiler: D3D11 渲染, winmm: 高精度定时器, avrt: MMCSS 实时调度
+    target_link_libraries(${PROJECT_NAME} PRIVATE d3d11 dxgi d3dcompiler winmm avrt)
 
     # 复制 DLL 和工具
     set(FFMPEG_BIN_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/ffmpeg/bin")

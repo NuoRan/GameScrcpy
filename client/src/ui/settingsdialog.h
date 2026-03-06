@@ -28,7 +28,6 @@ public:
     quint16 getMaxSize() const;
     int getMaxSizeIndex() const;
     int getMaxFps() const;
-    int getMaxTouchPoints() const;
     int getVideoCodecIndex() const;
     QString getVideoCodecName() const;
     bool isReverseConnect() const;
@@ -46,7 +45,6 @@ public:
     void setBitRate(quint32 bitRate);
     void setMaxSizeIndex(int index);
     void setMaxFps(int fps);
-    void setMaxTouchPoints(int points);
     void setReverseConnect(bool checked);
     void setShowToolbar(bool checked);
     void setFrameless(bool checked);
@@ -77,7 +75,6 @@ private:
     QLabel *m_bitrateLabel;
     QLabel *m_fpsLabel;
     QLabel *m_sizeLabel;
-    QLabel *m_touchLabel;
     QLabel *m_codecLabel;
     QLabel *m_optionsTitle;
     QLabel *m_wifiTitle;
@@ -88,7 +85,6 @@ private:
     QComboBox *m_bitRateUnit;
     QSpinBox *m_fpsSpinBox;
     QComboBox *m_maxSizeBox;
-    QSpinBox *m_touchPointsSpinBox;
     QComboBox *m_codecBox;
 
     // 显示选项

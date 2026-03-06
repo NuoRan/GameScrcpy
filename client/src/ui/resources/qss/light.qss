@@ -623,7 +623,7 @@ QLabel#connectionStatus[state="connecting"] {
 /* ============================================
    特定组件样式 - 视频渲染区域
    ============================================ */
-QYUVOpenGLWidget {
+D3D11VideoWidget {
     background-color: #000000;
     border: 1px solid #E0E0E0;
     border-radius: 4px;

@@ -104,6 +104,7 @@ protected:
     bool eventFilter(QObject *watched, QEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void showEvent(QShowEvent *event) override;
+    void drawBackground(QPainter *painter, const QRectF &rect) override;  // v27: 绘制截帧+半透明覆盖
 
     void dragEnterEvent(QDragEnterEvent *event) override;
     void dragMoveEvent(QDragMoveEvent *event) override;
@@ -118,9 +119,11 @@ protected:
 
 public:
     void clearEditingState();
+    void updateSize(const QSize& size);  // v21: public, called from VideoForm::syncOverlaysToVideo
+    void setSnapshotBackground(const QPixmap& pixmap);  // v27: 编辑模式截帧背景
+    void clearSnapshotBackground();
 
 private:
-    void updateSize(const QSize& size);
     void recordMoveStart(QGraphicsItem* item);
     void recordMoveEnd(QGraphicsItem* item);
 
@@ -134,6 +137,7 @@ private:
     QPointF m_dragStartPos;
     QGraphicsItem* m_draggingItem = nullptr;
     bool m_isDragging = false;
+    QPixmap m_snapshotBg;  // v27: 编辑模式截帧背景
 };
 
 #endif // KEYMAPEDITVIEW_H

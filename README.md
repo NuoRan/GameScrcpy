@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="../../releases"><img src="https://img.shields.io/github/v/release/nicenick14/GameScrcpy?style=flat-square&color=blue" alt="Release"></a>
-  <img src="https://img.shields.io/badge/Version-1.2.0-blue?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.3.0-blue?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11-blue?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/Qt-6.x-41CD52?style=flat-square&logo=qt" alt="Qt Version">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License"></a>
@@ -48,12 +48,13 @@
 
 ### 🖥️ 高清投屏
 
-- **高清低延迟** — H.264 硬件解码，延迟 < 50ms
+- **高清低延迟** — H.264/H.265 硬件解码，延迟 < 50ms
 - **USB / WiFi** — 支持有线和无线两种连接方式
 - **双传输模式** — KCP 可靠传输 + 裸 UDP 极低延迟传输，WiFi 场景自动选择
 - **FEC 前向纠错** — XOR 10:1 冗余编码，组内丢 1 包可恢复，弱网环境更稳定
 - **自适应码率** — 编码器级 ABR + 网络层反馈双层控制，自动调整视频码率
 - **服务端 GPU 滤镜** — OpenGL 仿射变换（旋转/裁剪/缩放），服务端完成画面变换
+- **音频串流** — OPUS 音频实时转发 + WASAPI 低延迟播放
 - **帧率可调** — 0-999 FPS 自由设置，0 = 不限制
 - **性能监控** — 实时 FPS、解码延迟、网络延迟、CPU/内存指标
 ---
@@ -78,7 +79,7 @@
 
 ### 🤖 脚本系统
 
-- **JavaScript 引擎** — 基于 QJSEngine 的沙箱化脚本系统
+- **JavaScript 引擎** — 基于 QuickJS 的沙箱化脚本系统
 - **28 个 API** — 触摸、按键、滑动、缩放、延时、图像识别、虚拟按钮、预定义滑动、全局状态等
 - **脚本编辑器** — 内置编辑器 + 快捷指令面板 + 代码片段插入 + 自动补全
 - **获取工具** — 选区编辑器支持获取位置、新建按钮、新建滑动、截取图片、创建选区，右键生成代码
@@ -234,7 +235,7 @@ GameScrcpy/
 │   │   ├── control/       # 控制、键位映射、脚本引擎 (沙箱化)、责任链输入处理
 │   │   ├── transport/     # 传输 (TCP / KCP / 裸 UDP / ADB)、FEC 前向纠错
 │   │   ├── decoder/       # FFmpeg 视频解码 (零拷贝 SIMD + D3D11VA GPU 直通)
-│   │   ├── render/        # OpenGL 渲染 (PBO 异步 DMA + D3D11-GL 互操作)
+│   │   ├── render/        # D3D11 原生渲染 (零拷贝帧提交)
 │   │   ├── core/          # 核心架构 (接口层/基础设施/实现/服务)
 │   │   └── common/        # 配置中心、无锁性能监控、图像识别
 │   └── env/               # 预编译依赖 (FFmpeg, ADB, OpenCV)
@@ -258,8 +259,9 @@ GameScrcpy/
 
 | 组件 | 说明 |
 |:-----|:-----|
-| Qt 6.x (MSVC 2022) | GUI 框架、多媒体 |
+| Qt 6.x (MSVC 2022) | GUI 框架 |
 | FFmpeg 7.1 | 视频解码 |
+| QuickJS | JavaScript 脚本引擎 |
 | OpenCV 4.12 | 图像识别 (可选) |
 | KCP | 低延迟 UDP 传输 |
 

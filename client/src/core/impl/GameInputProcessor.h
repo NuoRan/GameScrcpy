@@ -3,7 +3,6 @@
 
 #include "interfaces/IInputProcessor.h"
 #include <memory>
-#include <QImage>
 
 class SessionContext;
 class Controller;
@@ -29,16 +28,16 @@ public:
     ~GameInputProcessor() override;
 
     // IInputProcessor 实现
-    void processKeyEvent(const QKeyEvent* event,
-                        const QSize& frameSize,
-                        const QSize& showSize) override;
-    void processMouseEvent(const QMouseEvent* event,
-                          const QSize& frameSize,
-                          const QSize& showSize) override;
-    void processWheelEvent(const QWheelEvent* event,
-                          const QSize& frameSize,
-                          const QSize& showSize) override;
-    void loadKeyMap(const QString& json, bool runAutoStart = true) override;
+    void processKeyEvent(const InputEvent& event,
+                        const Size& frameSize,
+                        const Size& showSize) override;
+    void processMouseEvent(const InputEvent& event,
+                          const Size& frameSize,
+                          const Size& showSize) override;
+    void processWheelEvent(const InputEvent& event,
+                          const Size& frameSize,
+                          const Size& showSize) override;
+    void loadKeyMap(const std::string& json, bool runAutoStart = true) override;
     void onWindowFocusLost() override;
     void resetState() override;
     void releaseAllTouchPoints() override;
@@ -53,12 +52,14 @@ public:
     bool isGameMode() const override;
     const char* name() const override { return "GameInput"; }
 
-    // 获取底层 SessionContext
-    SessionContext* sessionContext() const { return m_sessionContext; }
+    // 获取底层 SessionContext（总是从 Controller 获取最新指针）
+    SessionContext* sessionContext() const;
 
 private:
+    // 安全获取当前 SessionContext（不缓存，防止 updateScript 后悬挂指针）
+    SessionContext* currentContext() const;
+
     Controller* m_controller = nullptr;
-    SessionContext* m_sessionContext = nullptr;  // 由 Controller 持有
     TouchCallback m_touchCallback;
     KeyCallback m_keyCallback;
     CursorGrabCallback m_cursorGrabCallback;

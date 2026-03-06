@@ -40,8 +40,7 @@ public:
      * @param parent 父对象 / Parent QObject
      * @return DeviceSession 实例 / DeviceSession instance
      */
-    static std::unique_ptr<DeviceSession> create(const SessionParams& params,
-                                                  QObject* parent = nullptr);
+    static std::unique_ptr<DeviceSession> create(const SessionParams& params);
 
     /**
      * @brief 创建会话并注入依赖（测试环境）
@@ -60,8 +59,7 @@ public:
         std::unique_ptr<IRenderer> renderer = nullptr,
         std::unique_ptr<IVideoChannel> videoChannel = nullptr,
         std::unique_ptr<IControlChannel> controlChannel = nullptr,
-        std::unique_ptr<IInputProcessor> inputProcessor = nullptr,
-        QObject* parent = nullptr);
+        std::unique_ptr<IInputProcessor> inputProcessor = nullptr);
 };
 
 } // namespace core

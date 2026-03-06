@@ -28,6 +28,7 @@
         <file>i18n/ja_JP.qm</file>
         <file>image/tray/logo.png</file>
         <file>style/modern_dark.qss</file>
+        <file alias="theme/fluent.qss">../theme/fluent.qss</file>
         <file>icons/usb.svg</file>
         <file>icons/wifi.svg</file>
         <file>icons/phone.svg</file>
@@ -43,6 +44,30 @@
         <file>icons/play.svg</file>
         <file>icons/stop.svg</file>
         <file>icons/terminal.svg</file>
+        <file>icons/help-circle.svg</file>
+        <file>icons/compass.svg</file>
+        <file>icons/zoom-in.svg</file>
+        <file>icons/zoom-out.svg</file>
+        <file>icons/maximize.svg</file>
+        <file>icons/layers.svg</file>
+        <file>icons/target.svg</file>
+        <file>icons/image.svg</file>
+        <file>icons/terminal-square.svg</file>
+        <file>icons/plus.svg</file>
+        <file>icons/file-plus.svg</file>
+        <file>icons/save.svg</file>
+        <file>icons/folder.svg</file>
+        <file>icons/download.svg</file>
+        <file>icons/move-diagonal.svg</file>
+        <file>icons/monitor.svg</file>
+        <file>icons/list.svg</file>
+        <file>icons/cpu.svg</file>
+        <file>icons/hash.svg</file>
+        <file>icons/code.svg</file>
+        <file>icons/crosshair.svg</file>
+        <file>icons/gamepad.svg</file>
+        <file>icons/book-open.svg</file>
+        <file>icons/info.svg</file>
         <file alias="scrcpy-server">../../../env/scrcpy-server</file>
     </qresource>
 </RCC>

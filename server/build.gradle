@@ -31,3 +31,21 @@ dependencies {
 }
 
 apply from: "$project.rootDir/config/android-checkstyle.gradle"
+
+// 编译完成后自动复制 APK 到客户端 env 目录 (重命名为 scrcpy-server)
+android.applicationVariants.configureEach { variant ->
+    if (variant.buildType.name == 'release') {
+        variant.assembleProvider.configure {
+            doLast {
+                def src = variant.outputs.first().outputFile
+                def dst = file("${project.rootDir}/client/env/scrcpy-server")
+                copy {
+                    from src
+                    into dst.parentFile
+                    rename { 'scrcpy-server' }
+                }
+                println "[auto-copy] ${src.name} -> ${dst}"
+            }
+        }
+    }
+}

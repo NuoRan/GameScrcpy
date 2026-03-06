@@ -1,12 +1,12 @@
 #ifndef SESSION_VARS_H
 #define SESSION_VARS_H
 
-#include <QObject>
-#include <QHash>
-#include <QMutex>
-#include <QVariant>
-#include <QString>
-#include <QList>
+#include <mutex>
+#include <string>
+#include <unordered_map>
+#include <vector>
+#include <cstdint>
+#include "GameTypes.h"
 
 /**
  * @brief 会话变量存储器 / Session Variables Store
@@ -18,11 +18,10 @@
  *
  * 所有操作都是线程安全的。/ All operations are thread-safe.
  */
-class SessionVars : public QObject
+class SessionVars
 {
-    Q_OBJECT
 public:
-    explicit SessionVars(QObject* parent = nullptr);
+    SessionVars();
     ~SessionVars();
 
     // ========== 通用会话变量 ==========
@@ -33,24 +32,24 @@ public:
      * @param defaultValue 默认值
      * @return 变量值
      */
-    QVariant getVar(const QString& key, const QVariant& defaultValue = QVariant()) const;
+    ScriptValue getVar(const std::string& key, const ScriptValue& defaultValue = ScriptValue()) const;
 
     /**
      * @brief 设置变量
      * @param key 变量名
      * @param value 变量值
      */
-    void setVar(const QString& key, const QVariant& value);
+    void setVar(const std::string& key, const ScriptValue& value);
 
     /**
      * @brief 检查变量是否存在
      */
-    bool hasVar(const QString& key) const;
+    bool hasVar(const std::string& key) const;
 
     /**
      * @brief 移除变量
      */
-    void removeVar(const QString& key);
+    void removeVar(const std::string& key);
 
     /**
      * @brief 清空所有变量
@@ -64,14 +63,14 @@ public:
      * @param keyId 按键 ID
      * @param seqId 序列 ID
      */
-    void addTouchSeq(int keyId, quint32 seqId);
+    void addTouchSeq(int keyId, uint32_t seqId);
 
     /**
      * @brief 获取并移除触摸序列 ID 列表
      * @param keyId 按键 ID
      * @return 序列 ID 列表
      */
-    QList<quint32> takeTouchSeqs(int keyId);
+    std::vector<uint32_t> takeTouchSeqs(int keyId);
 
     /**
      * @brief 获取触摸序列数量
@@ -87,7 +86,7 @@ public:
      * @brief 获取并移除所有触摸序列（原子操作）
      * @return keyId → seqId列表 的映射
      */
-    QHash<int, QList<quint32>> takeAllTouchSeqs();
+    std::unordered_map<int, std::vector<uint32_t>> takeAllTouchSeqs();
 
     /**
      * @brief 清空所有触摸序列
@@ -99,25 +98,25 @@ public:
     /**
      * @brief 设置轮盘参数标识
      */
-    void setRadialParamKeyId(const QString& keyId);
+    void setRadialParamKeyId(const std::string& keyId);
 
     /**
      * @brief 获取轮盘参数标识
      */
-    QString radialParamKeyId() const;
+    std::string radialParamKeyId() const;
 
 private:
     // 通用变量
-    QHash<QString, QVariant> m_vars;
-    mutable QMutex m_varsMutex;
+    std::unordered_map<std::string, ScriptValue> m_vars;
+    mutable std::mutex m_varsMutex;
 
     // 触摸序列
-    QHash<int, QList<quint32>> m_touchSeqIds;
-    mutable QMutex m_touchSeqMutex;
+    std::unordered_map<int, std::vector<uint32_t>> m_touchSeqIds;
+    mutable std::mutex m_touchSeqMutex;
 
     // 轮盘参数
-    QString m_radialParamKeyId;
-    mutable QMutex m_radialParamMutex;
+    std::string m_radialParamKeyId;
+    mutable std::mutex m_radialParamMutex;
 };
 
 #endif // SESSION_VARS_H

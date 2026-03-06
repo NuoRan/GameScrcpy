@@ -1,6 +1,6 @@
 #ifndef AVFRAMECONVERT_H
 #define AVFRAMECONVERT_H
-#include <QtGlobal>
+#include <cstdint>
 
 extern "C"
 {
@@ -40,7 +40,7 @@ private:
     int m_dstHeight = 0;
     AVPixelFormat m_dstFormat = AV_PIX_FMT_NONE;
 
-    struct SwsContext *m_convertCtx = Q_NULLPTR;
+    struct SwsContext *m_convertCtx = nullptr;
 };
 
 #endif // AVFRAMECONVERT_H

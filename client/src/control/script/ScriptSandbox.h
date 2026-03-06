@@ -1,45 +1,45 @@
 #ifndef SCRIPTSANDBOX_H
 #define SCRIPTSANDBOX_H
 
-#include <QObject>
-#include <QThread>
-#include <QJSEngine>
-#include <QJSValue>
-#include <QPointF>
-#include <QMutex>
-#include <QHash>
-#include <QVariantMap>
+#include "GameSignal.h"
+#include "GameTypes.h"
+#include <string>
 #include <atomic>
+#include <thread>
 
 class Controller;
 class SessionContext;
 class ScriptWatchdog;
+class JsEngine;
 
 /**
- * @brief 脚本沙箱 - 单个脚本的独立执行环境 / Script Sandbox - isolated execution environment for a single script
+ * @brief 脚本沙箱 - 单个脚本的独立执行环境
  *
- * 特性 / Features：
- * - 独立线程执行 / Independent thread execution
- * - 独立 QJSEngine / Independent QJSEngine
- * - 超时看门狗保护 / Timeout watchdog protection
- * - 通过 SessionContext 访问共享状态 / Accesses shared state via SessionContext
+ * 特性：
+ * - std::thread 独立线程执行
+ * - QuickJS JsEngine
+ * - 超时看门狗保护
+ * - 通过 SessionContext 访问共享状态
+ * - 11 个 Signal<> 替代 Qt 信号
  */
-class ScriptSandbox : public QObject
+class ScriptSandbox
 {
-    Q_OBJECT
 public:
-    explicit ScriptSandbox(int sandboxId, Controller* controller, SessionContext* ctx,
-                           QObject* parent = nullptr);
+    ScriptSandbox(int sandboxId, Controller* controller, SessionContext* ctx);
     ~ScriptSandbox();
 
+    // 禁止拷贝/移动
+    ScriptSandbox(const ScriptSandbox&) = delete;
+    ScriptSandbox& operator=(const ScriptSandbox&) = delete;
+
     // 设置脚本内容
-    void setScript(const QString& script);
-    void setScriptPath(const QString& path);
-    void setScriptBasePath(const QString& basePath) { m_scriptBasePath = basePath; }
+    void setScript(const std::string& script);
+    void setScriptPath(const std::string& path);
+    void setScriptBasePath(const std::string& basePath) { m_scriptBasePath = basePath; }
 
     // 设置按键参数
     void setKeyId(int keyId) { m_keyId = keyId; }
-    void setAnchorPos(const QPointF& pos) { m_anchorPos = pos; }
+    void setAnchorPos(const PointF& pos) { m_anchorPos = pos; }
     void setIsPress(bool isPress) { m_isPress = isPress; }
 
     // 设置超时时间
@@ -51,77 +51,55 @@ public:
     // 停止执行（优雅停止：设置中断标志）
     void stop();
 
-    // 强制终止（沙箱核心功能：立即终止线程）
+    // 强制终止
     void forceTerminate();
 
-    // 检查状态（真正检查线程是否在运行）
-    bool isRunning() const { return m_thread && m_thread->isRunning(); }
+    // 检查状态
+    bool isRunning() const { return m_running.load(); }
     int sandboxId() const { return m_sandboxId; }
 
-    // 清除 SessionContext 引用（SessionContext 销毁时调用）
+    // 清除 SessionContext 引用
     void clearSessionContext();
 
     // 设置最大触摸点数
     static void setMaxTouchPoints(int max);
     static int maxTouchPoints();
 
-signals:
-    // 请求主线程执行触摸操作
-    void touchRequested(quint32 seqId, quint8 action, quint16 x, quint16 y);
-    void keyRequested(quint8 action, quint16 keycode);
-
-    // 请求显示提示
-    void tipRequested(const QString& msg, int durationMs, int keyId);
-
-    // 请求切换模式
-    void shotmodeRequested(bool gameMode);
-
-    // 请求调整轮盘参数
-    void radialParamRequested(double up, double down, double left, double right);
-
-    // 请求重置视角
-    void resetviewRequested();
-
-    // 请求重置轮盘
-    void resetWheelRequested();
-
-    // 请求模拟按键
-    void simulateKeyRequested(const QString& keyName, bool press);
-
-    // 请求设置按键 UI 位置
-    void keyUIPosRequested(const QString& keyName, double x, double y);
-
-    // 脚本错误
-    void scriptError(const QString& error);
-
-    // 脚本执行完成
-    void finished(int sandboxId);
-
-private slots:
-    void onSoftTimeout();
-    void onHardTimeout();
-    void doRun();
+    // ---- 信号 (Signal<>) ----
+    Signal<uint32_t, uint8_t, uint16_t, uint16_t> touchRequested;
+    Signal<uint8_t, uint16_t> keyRequested;
+    Signal<std::string, int, int> tipRequested;
+    Signal<bool> shotmodeRequested;
+    Signal<double, double, double, double> radialParamRequested;
+    Signal<> resetviewRequested;
+    Signal<> resetWheelRequested;
+    Signal<std::string, bool> simulateKeyRequested;
+    Signal<std::string, double, double> keyUIPosRequested;
+    Signal<std::string> scriptError;
+    Signal<int> finished;
 
 private:
-    friend class SandboxScriptApi;  // 允许 SandboxScriptApi 访问私有成员
+    friend class SandboxScriptApi;
+    void onSoftTimeout();
+    void onHardTimeout();
     void runScript();
-    QString resolveModulePath(const QString& modulePath);
+    std::string resolveModulePath(const std::string& modulePath);
 
     int m_sandboxId;
     Controller* m_controller = nullptr;
     std::atomic<SessionContext*> m_sessionContext{nullptr};
 
-    QThread* m_thread = nullptr;
-    std::atomic<QJSEngine*> m_jsEngine{nullptr};
+    std::thread m_thread;
+    std::atomic<JsEngine*> m_jsEngine{nullptr};
     ScriptWatchdog* m_watchdog = nullptr;
 
-    QString m_script;
-    QString m_scriptPath;
-    QString m_scriptBasePath;
+    std::string m_script;
+    std::string m_scriptPath;
+    std::string m_scriptBasePath;
     bool m_isInlineScript = false;
 
     int m_keyId = -1;
-    QPointF m_anchorPos;
+    PointF m_anchorPos;
     bool m_isPress = true;
 
     std::atomic<bool> m_running{false};
@@ -135,99 +113,80 @@ private:
  *
  * 暴露给 JS 的方法，与原 WorkerScriptApi 功能完全一致
  */
-class SandboxScriptApi : public QObject
+class SandboxScriptApi
 {
-    Q_OBJECT
 public:
-    explicit SandboxScriptApi(ScriptSandbox* sandbox, QObject* parent = nullptr);
+    explicit SandboxScriptApi(ScriptSandbox* sandbox);
+    ~SandboxScriptApi() = default;
 
-    void setJSEngine(QJSEngine* engine) { m_jsEngine = engine; }
-    void setScriptBasePath(const QString& path) { m_scriptBasePath = path; }
+    void setScriptBasePath(const std::string& path) { m_scriptBasePath = path; }
     void setKeyId(int keyId) { m_keyId = keyId; }
-    void setAnchorPos(const QPointF& pos) { m_anchorPos = pos; }
+    void setAnchorPos(const PointF& pos) { m_anchorPos = pos; }
     void setIsPress(bool isPress) { m_isPress = isPress; }
     void setSessionContext(SessionContext* ctx) { m_sessionContext.store(ctx); }
-    void clearSessionContext() { m_sessionContext.store(nullptr); }  // SessionContext 销毁时调用
+    void clearSessionContext() { m_sessionContext.store(nullptr); }
 
-    // 检查轮盘系数是否被修改过
     bool wasRadialParamModified() const { return m_radialParamModified; }
     int keyId() const { return m_keyId; }
 
     // ---------------------------------------------------------
-    // 暴露给 JS 的方法（与 WorkerScriptApi 完全一致）
+    // 28 个 API 方法（由 JsBindings 注册到 QuickJS）
     // ---------------------------------------------------------
 
-    Q_INVOKABLE void click(double x = -1, double y = -1);
-    Q_INVOKABLE void holdpress(double x = -1, double y = -1);
-    Q_INVOKABLE void release();
-    Q_INVOKABLE void slide(double sx, double sy, double ex, double ey, int delayMs, int num);
-    Q_INVOKABLE void pinch(double centerX, double centerY, double scale, int durationMs = 300, int steps = 10);
+    void click(double x = -1, double y = -1);
+    void holdpress(double x = -1, double y = -1);
+    void release();
+    void slide(double sx, double sy, double ex, double ey, int delayMs, int num);
+    void pinch(double centerX, double centerY, double scale, int durationMs = 300, int steps = 10);
 
-    Q_INVOKABLE bool isPress() { return m_isPress; }
-    Q_INVOKABLE void key(const QString& keyName, int durationMs = 50);
-    Q_INVOKABLE void releaseAll();
-    Q_INVOKABLE void sleep(int ms);
-    Q_INVOKABLE bool isInterrupted();
-    Q_INVOKABLE void stop();
-    Q_INVOKABLE void toast(const QString& msg, int durationMs = 3000);
+    bool isPress() { return m_isPress; }
+    void key(const std::string& keyName, int durationMs = 50);
+    void releaseAll();
+    void sleep(int ms);
+    bool isInterrupted();
+    void stop();
+    void toast(const std::string& msg, int durationMs = 3000);
 
-    Q_INVOKABLE void setGlobal(const QString& key, const QJSValue& value);
-    Q_INVOKABLE QJSValue getGlobal(const QString& key);
-    Q_INVOKABLE QJSValue loadModule(const QString& modulePath);
-    Q_INVOKABLE void log(const QString& msg);
+    void setGlobal(const std::string& key, const ScriptValue& value);
+    ScriptValue getGlobal(const std::string& key);
+    void log(const std::string& msg);
 
-    Q_INVOKABLE void shotmode(bool gameMode);
-    Q_INVOKABLE void setRadialParam(double up, double down, double left, double right);
-    Q_INVOKABLE void resetview();
-    Q_INVOKABLE void resetwheel();
-    Q_INVOKABLE QVariantMap getmousepos();
-    Q_INVOKABLE QVariantMap getkeypos(const QString& keyName);
-    Q_INVOKABLE QVariantMap getbuttonpos(int buttonId);
-    Q_INVOKABLE int getKeyState(const QString& keyName);
-    Q_INVOKABLE void setKeyUIPos(const QString& keyName, double x, double y, double xoffset = 0, double yoffset = 0);
-    Q_INVOKABLE QVariantMap findImage(const QString& imageName,
-                                       double x1 = 0, double y1 = 0,
-                                       double x2 = 1, double y2 = 1,
-                                       double threshold = 0.8);
+    void shotmode(bool gameMode);
+    void setRadialParam(double up, double down, double left, double right);
+    void resetview();
+    void resetwheel();
+    PosResult getmousepos();
+    KeyPosResult getkeypos(const std::string& keyName);
+    ButtonPosResult getbuttonpos(int buttonId);
+    int getKeyState(const std::string& keyName);
+    void setKeyUIPos(const std::string& keyName, double x, double y, double xoffset = 0, double yoffset = 0);
+    FindImageResult findImage(const std::string& imageName,
+                           double x1 = 0, double y1 = 0,
+                           double x2 = 1, double y2 = 1,
+                           double threshold = 0.8);
+    FindImageResult findImageByRegion(const std::string& imageName,
+                                  int regionId,
+                                  double threshold = 0.8);
+    void swipeById(int swipeId, int durationMs = 200, int steps = 10);
 
-    // 按选区编号找图的重载
-    Q_INVOKABLE QVariantMap findImageByRegion(const QString& imageName,
-                                              int regionId,
-                                              double threshold = 0.8);
-
-    // 按滑动编号执行滑动
-    Q_INVOKABLE void swipeById(int swipeId, int durationMs = 200, int steps = 10);
-
-signals:
-    void touchRequested(quint32 seqId, quint8 action, quint16 x, quint16 y);
-    void keyRequested(quint8 action, quint16 keycode);
-    void tipRequested(const QString& msg, int durationMs, int keyId);
-    void shotmodeRequested(bool gameMode);
-    void radialParamRequested(double up, double down, double left, double right);
-    void resetviewRequested();
-    void resetWheelRequested();
-    void simulateKeyRequested(const QString& keyName, bool press);
-    void keyUIPosRequested(const QString& keyName, double x, double y);
+    // 公开给 JsBindings 使用
+    std::string resolveModulePath(const std::string& modulePath);
 
 private:
-    void normalizePos(double x, double y, quint16& outX, quint16& outY);
-    int getAndroidKeyCode(const QString& keyName);
-    int getQtKey(const QString& keyName);
-    QString resolveModulePath(const QString& modulePath);
-    QPointF applyRandomOffset(double x, double y);
-    QVector<QPointF> generateSmoothPath(double sx, double sy, double ex, double ey, int steps);
+    void normalizePos(double x, double y, uint16_t& outX, uint16_t& outY);
+    int getAndroidKeyCode(const std::string& keyName);
+    int getQtKey(const std::string& keyName);
+    PointF applyRandomOffset(double x, double y);
+    std::vector<PointF> generateSmoothPath(double sx, double sy, double ex, double ey, int steps);
 
     ScriptSandbox* m_sandbox = nullptr;
     std::atomic<SessionContext*> m_sessionContext{nullptr};
-    QJSEngine* m_jsEngine = nullptr;
-    QString m_scriptBasePath;
+    std::string m_scriptBasePath;
 
     int m_keyId = -1;
-    QPointF m_anchorPos;
+    PointF m_anchorPos;
     bool m_isPress = true;
     bool m_radialParamModified = false;
-
-    QHash<QString, QJSValue> m_moduleCache;
 };
 
 #endif // SCRIPTSANDBOX_H

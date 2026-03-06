@@ -1,12 +1,8 @@
 #ifndef HANDLERCHAIN_H
 #define HANDLERCHAIN_H
 
-#include <QObject>
-#include <QList>
-#include <QKeyEvent>
-#include <QMouseEvent>
-#include <QWheelEvent>
-#include <QSize>
+#include <vector>
+#include "GameTypes.h"
 #include <algorithm>
 
 #include "IInputHandler.h"
@@ -22,11 +18,10 @@ class SessionContext;
  * 事件会依次传递给所有 Handler，直到被消费。
  * Events are passed to each handler in turn until consumed.
  */
-class HandlerChain : public QObject
+class HandlerChain
 {
-    Q_OBJECT
 public:
-    explicit HandlerChain(QObject* parent = nullptr);
+    HandlerChain();
     ~HandlerChain();
 
     /**
@@ -57,25 +52,25 @@ public:
      * @brief 分发键盘事件
      * @return true 表示事件被某个 Handler 消费
      */
-    bool dispatchKeyEvent(const QKeyEvent* event,
-                          const QSize& frameSize,
-                          const QSize& showSize);
+    bool dispatchKeyEvent(const InputEvent& event,
+                          const Size& frameSize,
+                          const Size& showSize);
 
     /**
      * @brief 分发鼠标事件
      * @return true 表示事件被某个 Handler 消费
      */
-    bool dispatchMouseEvent(const QMouseEvent* event,
-                            const QSize& frameSize,
-                            const QSize& showSize);
+    bool dispatchMouseEvent(const InputEvent& event,
+                            const Size& frameSize,
+                            const Size& showSize);
 
     /**
      * @brief 分发滚轮事件
      * @return true 表示事件被某个 Handler 消费
      */
-    bool dispatchWheelEvent(const QWheelEvent* event,
-                            const QSize& frameSize,
-                            const QSize& showSize);
+    bool dispatchWheelEvent(const InputEvent& event,
+                            const Size& frameSize,
+                            const Size& showSize);
 
     /**
      * @brief 通知所有 Handler 窗口失去焦点
@@ -90,12 +85,12 @@ public:
     /**
      * @brief 获取 Handler 数量
      */
-    int count() const { return m_handlers.size(); }
+    int count() const { return static_cast<int>(m_handlers.size()); }
 
 private:
     void sortHandlers();
 
-    QList<IInputHandler*> m_handlers;
+    std::vector<IInputHandler*> m_handlers;
     Controller* m_controller = nullptr;
     SessionContext* m_sessionContext = nullptr;
     bool m_sorted = true;

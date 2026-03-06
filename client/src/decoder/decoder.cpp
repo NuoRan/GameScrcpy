@@ -1,4 +1,5 @@
-#include <QDebug>
+#define LOG_TAG "Decoder"
+#include "Logger.h"
 
 #include "compat.h"
 #include "decoder.h"
@@ -27,14 +28,11 @@ static const AVHWDeviceType hwDeviceTypes[] = {
 // 静态成员：存储当前解码器的硬件像素格式
 static AVPixelFormat s_hwPixFmt = AV_PIX_FMT_NONE;
 
-Decoder::Decoder(std::function<void(int, int, uint8_t*, uint8_t*, uint8_t*, int, int, int)> onFrame, QObject *parent)
-    : QObject(parent)
-    , m_vb(new VideoBuffer())
-    , m_onFrame(onFrame)
+Decoder::Decoder(Decoder::FrameCallback onFrame)
+    : m_vb(new VideoBuffer())
+    , m_onFrame(std::move(onFrame))
 {
     m_vb->init();
-    connect(this, &Decoder::newFrame, this, &Decoder::onNewFrame, Qt::QueuedConnection);
-    connect(m_vb, &VideoBuffer::updateFPS, this, &Decoder::updateFPS);
 }
 
 Decoder::~Decoder() {
@@ -46,13 +44,13 @@ Decoder::~Decoder() {
 // 硬件格式回调
 enum AVPixelFormat Decoder::getHwFormat(AVCodecContext *ctx, const enum AVPixelFormat *pix_fmts)
 {
-    Q_UNUSED(ctx);
+    (void)ctx;
     for (const enum AVPixelFormat *p = pix_fmts; *p != AV_PIX_FMT_NONE; p++) {
         if (*p == s_hwPixFmt) {
             return *p;
         }
     }
-    qWarning("Failed to get HW surface format, falling back to software");
+    LOG_W("Failed to get HW surface format, falling back to software");
     return AV_PIX_FMT_NONE;
 }
 
@@ -76,9 +74,9 @@ bool Decoder::initHardwareDecoder(const AVCodec* codec)
                 if (ret >= 0) {
                     m_hwPixFmt = config->pix_fmt;
                     s_hwPixFmt = m_hwPixFmt;
-                    m_hwDecoderName = QString::fromUtf8(av_hwdevice_get_type_name(type));
-                    qInfo("Hardware decoder initialized: %s (format: %s)",
-                          qPrintable(m_hwDecoderName),
+                    m_hwDecoderName = av_hwdevice_get_type_name(type);
+                    LOG_I("Hardware decoder initialized: %s (format: %s)",
+                          m_hwDecoderName.c_str(),
                           av_get_pix_fmt_name(m_hwPixFmt));
                     return true;
                 }
@@ -102,7 +100,7 @@ bool Decoder::transferHwFrame(AVFrame* hwFrame, AVFrame* swFrame)
     if (ret < 0) {
         char errorbuf[256];
         av_strerror(ret, errorbuf, sizeof(errorbuf));
-        qWarning("Error transferring HW frame: %s", errorbuf);
+        LOG_W("Error transferring HW frame: %s", errorbuf);
         return false;
     }
 
@@ -116,19 +114,20 @@ bool Decoder::transferHwFrame(AVFrame* hwFrame, AVFrame* swFrame)
 // ---------------------------------------------------------
 // 初始化解码器
 // ---------------------------------------------------------
-bool Decoder::open()
+bool Decoder::open(int codecId)
 {
-    // 查找 H.264 解码器
-    const AVCodec* codec = avcodec_find_decoder(AV_CODEC_ID_H264);
+    // 根据传入的 codecId 选择解码器, 默认 H.264
+    AVCodecID avCodecId = (codecId > 0) ? static_cast<AVCodecID>(codecId) : AV_CODEC_ID_H264;
+    const AVCodec* codec = avcodec_find_decoder(avCodecId);
     if (!codec) {
-        qCritical("H.264 decoder not found");
+        LOG_E("Decoder for codec ID %d not found", (int)avCodecId);
         return false;
     }
 
     // 分配上下文
     m_codecCtx = avcodec_alloc_context3(codec);
     if (!m_codecCtx) {
-        qCritical("Could not allocate decoder context");
+        LOG_E("Could not allocate decoder context");
         return false;
     }
 
@@ -142,11 +141,12 @@ bool Decoder::open()
         m_hwFrame = av_frame_alloc();
         m_swFrame = av_frame_alloc();
         if (!m_hwFrame || !m_swFrame) {
-            qCritical("Could not allocate HW/SW frames");
+            LOG_E("Could not allocate HW/SW frames");
+            close();
             return false;
         }
     } else {
-        qInfo("Hardware decoding not available, using software decoder");
+        LOG_I("Hardware decoding not available, using software decoder");
     }
 
     // 低延迟设置
@@ -155,16 +155,17 @@ bool Decoder::open()
 
     // 打开解码器
     if (avcodec_open2(m_codecCtx, codec, nullptr) < 0) {
-        qCritical("Could not open H.264 codec");
+        LOG_E("Could not open codec (id=%d)", (int)avCodecId);
+        close();
         return false;
     }
 
     m_isCodecCtxOpen = true;
 
     if (hwEnabled) {
-        qInfo("Decoder opened with hardware acceleration: %s", qPrintable(m_hwDecoderName));
+        LOG_I("Decoder opened with hardware acceleration: %s", m_hwDecoderName.c_str());
     } else {
-        qInfo("Decoder opened with software decoding");
+        LOG_I("Decoder opened with software decoding");
     }
 
     return true;
@@ -216,7 +217,7 @@ bool Decoder::push(const AVPacket *packet)
     if (ret < 0) {
         char errorbuf[256];
         av_strerror(ret, errorbuf, sizeof(errorbuf));
-        qCritical("Could not send video packet: %s", errorbuf);
+        LOG_E("Could not send video packet: %s", errorbuf);
         return false;
     }
 
@@ -243,7 +244,7 @@ bool Decoder::push(const AVPacket *packet)
     } else if (ret != AVERROR(EAGAIN)) {
         char errorbuf[256];
         av_strerror(ret, errorbuf, sizeof(errorbuf));
-        qCritical("Could not receive video frame: %s", errorbuf);
+        LOG_E("Could not receive video frame: %s", errorbuf);
         return false;
     }
 #else
@@ -255,7 +256,7 @@ bool Decoder::push(const AVPacket *packet)
         len = avcodec_decode_video2(m_codecCtx, decodingFrame, &gotPicture, packet);
     }
     if (len < 0) {
-        qCritical("Could not decode video packet: %d", len);
+        LOG_E("Could not decode video packet: %d", len);
         return false;
     }
     if (gotPicture) {
@@ -286,18 +287,30 @@ void Decoder::pushFrame()
     if (previousFrameSkipped) {
         return;
     }
-    emit newFrame();
+    processFrame();
 }
 
-void Decoder::onNewFrame() {
+void Decoder::processFrame() {
     if (!m_onFrame) {
         return;
     }
 
     m_vb->lock();
     const AVFrame *frame = m_vb->consumeRenderedFrame();
+    if (frame && frame->width > 0 && frame->height > 0) {
         m_onFrame(frame->width, frame->height,
                   frame->data[0], frame->data[1], frame->data[2],
                   frame->linesize[0], frame->linesize[1], frame->linesize[2]);
+    }
     m_vb->unLock();
+}
+
+uint32_t Decoder::pollFps()
+{
+    return m_vb ? m_vb->pollFps() : 0;
+}
+
+uint32_t Decoder::lastFps() const
+{
+    return m_vb ? m_vb->lastFps() : 0;
 }

@@ -11,8 +11,8 @@ KcpVideoChannel::KcpVideoChannel(KcpVideoSocket* socket)
 
 bool KcpVideoChannel::connect(const char* host, uint16_t port)
 {
-    Q_UNUSED(host);
-    Q_UNUSED(port);
+    (void)host;
+    (void)port;
     // KCP 连接由外部 Server 管理
     return m_socket && m_socket->isValid();
 }

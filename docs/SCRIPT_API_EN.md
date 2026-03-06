@@ -2,8 +2,8 @@
 
 [中文](SCRIPT_API.md) | **English**
 
-> **Version**: 1.2.0
-> **Runtime**: QJSEngine (ES6)
+> **Version**: 1.3.0
+> **Runtime**: QuickJS (ES2023)
 > **Built-in Object**: `mapi`
 
 All APIs are called via the global `mapi` object. Scripts run in independent threads, with each key binding having its own sandbox.
@@ -97,7 +97,6 @@ mapi.holdpress(x, y)
 
 - Sends a DOWN event on press and records the touch sequence
 - Automatically releases the corresponding touch point on key release
-- Limited by `maxTouchPoints` (default 10)
 
 ```js
 // Hold press, auto-release on key up

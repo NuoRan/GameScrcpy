@@ -16,7 +16,8 @@
 #ifdef _WIN32
 
 #include "D3D11GLInterop.h"
-#include <QDebug>
+#define LOG_TAG "D3D11GLInterop"
+#include "Logger.h"
 #include <QOpenGLContext>
 
 #include <windows.h>
@@ -51,13 +52,13 @@ bool D3D11GLInterop::checkExtensionSupport()
         wglGetProcAddress("wglGetExtensionsStringARB"));
 
     if (!wglGetExtStr) {
-        qWarning() << "[D3D11GLInterop] wglGetExtensionsStringARB not available";
+        LOGW() << "wglGetExtensionsStringARB not available";
         return false;
     }
 
     HDC hdc = wglGetCurrentDC();
     if (!hdc) {
-        qWarning() << "[D3D11GLInterop] No current DC";
+        LOGW() << "No current DC";
         return false;
     }
 
@@ -67,7 +68,7 @@ bool D3D11GLInterop::checkExtensionSupport()
     }
 
     bool hasInterop = strstr(extensions, "WGL_NV_DX_interop") != nullptr;
-    qInfo() << "[D3D11GLInterop] WGL_NV_DX_interop supported:" << hasInterop;
+    LOGI() << "WGL_NV_DX_interop supported:" << hasInterop;
     return hasInterop;
 }
 
@@ -89,23 +90,23 @@ bool D3D11GLInterop::loadWGLFunctions()
     if (!m_wglDXOpenDeviceNV || !m_wglDXCloseDeviceNV ||
         !m_wglDXRegisterObjectNV || !m_wglDXUnregisterObjectNV ||
         !m_wglDXLockObjectsNV || !m_wglDXUnlockObjectsNV) {
-        qWarning() << "[D3D11GLInterop] Failed to load WGL_NV_DX_interop functions";
+        LOGW() << "Failed to load WGL_NV_DX_interop functions";
         return false;
     }
 
-    qInfo() << "[D3D11GLInterop] WGL_NV_DX_interop functions loaded successfully";
+    LOGI() << "WGL_NV_DX_interop functions loaded successfully";
     return true;
 }
 
 bool D3D11GLInterop::initialize(ID3D11Device* d3d11Device)
 {
     if (m_interopDevice) {
-        qWarning() << "[D3D11GLInterop] Already initialized";
+        LOGW() << "Already initialized";
         return true;
     }
 
     if (!d3d11Device) {
-        qWarning() << "[D3D11GLInterop] Null D3D11 device";
+        LOGW() << "Null D3D11 device";
         return false;
     }
 
@@ -118,11 +119,11 @@ bool D3D11GLInterop::initialize(ID3D11Device* d3d11Device)
     m_interopDevice = m_wglDXOpenDeviceNV(d3d11Device);
     if (!m_interopDevice) {
         DWORD err = GetLastError();
-        qWarning() << "[D3D11GLInterop] wglDXOpenDeviceNV failed, error:" << err;
+        LOGW() << "wglDXOpenDeviceNV failed, error:" << err;
         return false;
     }
 
-    qInfo() << "[D3D11GLInterop] D3D11-GL interop initialized successfully";
+    LOGI() << "D3D11-GL interop initialized successfully";
     return true;
 }
 
@@ -130,7 +131,7 @@ bool D3D11GLInterop::registerTexture(ID3D11Texture2D* d3d11Texture,
                                       GLuint glTextureY, GLuint glTextureUV)
 {
     if (!m_interopDevice) {
-        qWarning() << "[D3D11GLInterop] Not initialized";
+        LOGW() << "Not initialized";
         return false;
     }
 
@@ -149,7 +150,7 @@ bool D3D11GLInterop::registerTexture(ID3D11Texture2D* d3d11Texture,
 
     if (!m_interopObjectY) {
         DWORD err = GetLastError();
-        qWarning() << "[D3D11GLInterop] Failed to register Y texture, error:" << err;
+        LOGW() << "Failed to register Y texture, error:" << err;
         return false;
     }
 
@@ -167,14 +168,14 @@ bool D3D11GLInterop::registerTexture(ID3D11Texture2D* d3d11Texture,
 
     if (!m_interopObjectUV) {
         DWORD err = GetLastError();
-        qWarning() << "[D3D11GLInterop] Failed to register UV texture, error:" << err;
+        LOGW() << "Failed to register UV texture, error:" << err;
         // 清理 Y 对象
         m_wglDXUnregisterObjectNV(m_interopDevice, m_interopObjectY);
         m_interopObjectY = nullptr;
         return false;
     }
 
-    qInfo() << "[D3D11GLInterop] Textures registered: Y=" << glTextureY << " UV=" << glTextureUV;
+    LOGI() << "Textures registered: Y=" << glTextureY << " UV=" << glTextureUV;
     return true;
 }
 
@@ -205,7 +206,7 @@ bool D3D11GLInterop::lock()
     }
 
     if (m_isLocked) {
-        qWarning() << "[D3D11GLInterop] Already locked";
+        LOGW() << "Already locked";
         return true;
     }
 
@@ -215,7 +216,7 @@ bool D3D11GLInterop::lock()
 
     if (!m_wglDXLockObjectsNV(m_interopDevice, count, objects)) {
         DWORD err = GetLastError();
-        qWarning() << "[D3D11GLInterop] wglDXLockObjectsNV failed, error:" << err;
+        LOGW() << "wglDXLockObjectsNV failed, error:" << err;
         return false;
     }
 
@@ -234,7 +235,7 @@ void D3D11GLInterop::unlock()
 
     if (!m_wglDXUnlockObjectsNV(m_interopDevice, count, objects)) {
         DWORD err = GetLastError();
-        qWarning() << "[D3D11GLInterop] wglDXUnlockObjectsNV failed, error:" << err;
+        LOGW() << "wglDXUnlockObjectsNV failed, error:" << err;
     }
 
     m_isLocked = false;
@@ -247,7 +248,7 @@ void D3D11GLInterop::shutdown()
     if (m_interopDevice) {
         m_wglDXCloseDeviceNV(m_interopDevice);
         m_interopDevice = nullptr;
-        qInfo() << "[D3D11GLInterop] Shutdown complete";
+        LOGI() << "Shutdown complete";
     }
 
     // 清零函数指针

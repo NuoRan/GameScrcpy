@@ -17,6 +17,7 @@ import android.view.Surface;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.regex.Matcher;
@@ -147,8 +148,16 @@ public final class DisplayManager {
                 uniqueId = null;
             }
             return new DisplayInfo(displayId, new Size(width, height), rotation, layerStack, flags, dpi, uniqueId);
+        } catch (InvocationTargetException e) {
+            Ln.w("Could not get display info via DisplayManager API, trying dumpsys fallback", e.getCause() != null ? e.getCause() : e);
+            return getDisplayInfoFromDumpsysDisplay(displayId);
         } catch (ReflectiveOperationException e) {
-            throw new AssertionError(e);
+            Ln.w("Could not get display info via reflection, trying dumpsys fallback", e);
+            return getDisplayInfoFromDumpsysDisplay(displayId);
+        } catch (Exception e) {
+            // 最终安全网：捕获所有未预期异常（如三星 CompatSandbox 等厂商定制异常）
+            Ln.w("Unexpected error getting display info, trying dumpsys fallback", e);
+            return getDisplayInfoFromDumpsysDisplay(displayId);
         }
     }
 

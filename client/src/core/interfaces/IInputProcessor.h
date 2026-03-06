@@ -3,13 +3,12 @@
 
 #include <functional>
 #include <cstdint>
-#include <QString>
-#include <QSize>
+#include <string>
+#include <opencv2/core.hpp>
+#include "GameTypes.h"
 
-// 前向声明 Qt 事件类型
-class QKeyEvent;
-class QMouseEvent;
-class QWheelEvent;
+// 前向声明
+struct InputEvent;
 
 namespace qsc {
 namespace core {
@@ -57,23 +56,23 @@ public:
      * @param frameSize 视频帧尺寸
      * @param showSize 显示窗口尺寸
      */
-    virtual void processKeyEvent(const QKeyEvent* event,
-                                 const QSize& frameSize,
-                                 const QSize& showSize) = 0;
+    virtual void processKeyEvent(const InputEvent& event,
+                                 const Size& frameSize,
+                                 const Size& showSize) = 0;
 
     /**
      * @brief 处理鼠标事件
      */
-    virtual void processMouseEvent(const QMouseEvent* event,
-                                   const QSize& frameSize,
-                                   const QSize& showSize) = 0;
+    virtual void processMouseEvent(const InputEvent& event,
+                                   const Size& frameSize,
+                                   const Size& showSize) = 0;
 
     /**
      * @brief 处理滚轮事件
      */
-    virtual void processWheelEvent(const QWheelEvent* event,
-                                   const QSize& frameSize,
-                                   const QSize& showSize) = 0;
+    virtual void processWheelEvent(const InputEvent& event,
+                                   const Size& frameSize,
+                                   const Size& showSize) = 0;
 
     // === 状态控制 ===
 
@@ -82,7 +81,7 @@ public:
      * @param json 键位配置 JSON 字符串
      * @param runAutoStart 是否执行自动启动脚本
      */
-    virtual void loadKeyMap(const QString& json, bool runAutoStart = true) = 0;
+    virtual void loadKeyMap(const std::string& json, bool runAutoStart = true) = 0;
 
     /**
      * @brief 窗口失去焦点时重置状态
@@ -121,7 +120,7 @@ public:
     /**
      * @brief 设置帧获取回调 (用于脚本图像识别)
      */
-    using FrameGrabCallback = std::function<void*(void)>; // 返回 QImage*
+    using FrameGrabCallback = std::function<cv::Mat()>; // 返回 cv::Mat
     virtual void setFrameGrabCallback(FrameGrabCallback callback) = 0;
 
     /**
@@ -130,7 +129,7 @@ public:
      * @param durationMs 显示时间(毫秒)
      * @param keyId 按键 ID (同 keyId 的消息会更新)
      */
-    using ScriptTipCallback = std::function<void(const QString& msg, int durationMs, int keyId)>;
+    using ScriptTipCallback = std::function<void(const std::string& msg, int durationMs, int keyId)>;
     virtual void setScriptTipCallback(ScriptTipCallback callback) = 0;
 
     /**

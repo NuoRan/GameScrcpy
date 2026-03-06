@@ -2,9 +2,7 @@
 #define CURSORHANDLER_H
 
 #include "IInputHandler.h"
-#include <QPointF>
-#include <QSize>
-#include <QMouseEvent>
+#include "GameTypes.h"
 
 class Controller;
 class SessionContext;
@@ -19,43 +17,42 @@ class SessionContext;
  */
 class CursorHandler : public IInputHandler
 {
-    Q_OBJECT
 public:
-    explicit CursorHandler(QObject* parent = nullptr);
+    CursorHandler();
     ~CursorHandler();
 
     void init(Controller* controller, SessionContext* context) override;
 
     // IInputHandler interface
-    bool handleKeyEvent(const QKeyEvent* event, const QSize& frameSize, const QSize& showSize) override;
-    bool handleMouseEvent(const QMouseEvent* event, const QSize& frameSize, const QSize& showSize) override;
-    bool handleWheelEvent(const QWheelEvent* event, const QSize& frameSize, const QSize& showSize) override;
+    bool handleKeyEvent(const InputEvent& event, const Size& frameSize, const Size& showSize) override;
+    bool handleMouseEvent(const InputEvent& event, const Size& frameSize, const Size& showSize) override;
+    bool handleWheelEvent(const InputEvent& event, const Size& frameSize, const Size& showSize) override;
     void onFocusLost() override;
     void reset() override;
     int priority() const override { return 50; }  // 光标模式优先级较低
-    QString name() const override { return QStringLiteral("CursorHandler"); }
+    std::string name() const override { return "CursorHandler"; }
 
     // ========== 光标模式核心接口（由 SessionContext 调用）==========
 
     // 处理鼠标事件（光标显示模式）
-    void processMouseEvent(const QMouseEvent* event, const QSize& showSize);
+    void processMouseEvent(const InputEvent& event, const Size& showSize);
 
     // 获取当前光标位置（供脚本 API 使用）
-    QPointF lastPos() const { return m_state.lastPos; }
+    PointF lastPos() const { return m_state.lastPos; }
 
     // 是否正在触摸
     bool isTouching() const { return m_state.touching; }
 
 private:
-    void sendFastTouch(quint8 action, const QPointF& pos);
+    void sendFastTouch(uint8_t action, const PointF& pos);
 
-    QSize m_showSize;
+    Size m_showSize;
 
     // 光标模式状态（与原版 m_ctrlCursor 完全一致）
     struct {
         bool touching = false;             // 是否正在触摸
-        QPointF lastPos;                   // 最后触摸位置（归一化坐标）
-        quint32 fastTouchSeqId = 0;        // FastMsg 序列 ID
+        PointF lastPos;                   // 最后触摸位置（归一化坐标）
+        uint32_t fastTouchSeqId = 0;        // FastMsg 序列 ID
     } m_state;
 };
 

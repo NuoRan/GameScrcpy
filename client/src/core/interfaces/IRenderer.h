@@ -13,7 +13,7 @@ struct FrameData;
  * @brief 视频渲染器接口 / Video Renderer Interface
  *
  * 定义视频渲染器的通用接口，支持多种实现 / Generic renderer interface, multiple implementations:
- * - OpenGLRenderer: OpenGL 渲染 (当前) / OpenGL rendering (current)
+ * - D3D11Renderer: D3D11 渲染 (当前) / D3D11 rendering (current)
  * - VulkanRenderer: Vulkan 渲染 (未来) / Vulkan rendering (future)
  * - SoftwareRenderer: 软件渲染 (兼容) / Software rendering (compatibility)
  */

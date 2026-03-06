@@ -10,7 +10,6 @@
 #include <QPropertyAnimation>
 #include <QGraphicsOpacityEffect>
 #include <QMouseEvent>
-#include <QSettings>
 #include <QPointer>
 #include <QPushButton>
 

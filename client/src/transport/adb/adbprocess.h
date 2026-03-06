@@ -1,7 +1,11 @@
 #ifndef ADBPROCESS_H
 #define ADBPROCESS_H
 
-#include <QObject>
+#include "GameSignal.h"
+
+#include <string>
+#include <vector>
+#include <cstdint>
 
 class AdbProcessImpl;
 namespace qsc {
@@ -11,10 +15,8 @@ namespace qsc {
 // 封装 ADB 命令执行，提供设备连接、文件推送、端口转发等功能
 // Wraps ADB command execution: device connection, file push, port forwarding, etc.
 // ---------------------------------------------------------
-class AdbProcess : public QObject
+class AdbProcess
 {
-    Q_OBJECT
-
 public:
     enum ADB_EXEC_RESULT
     {
@@ -25,31 +27,31 @@ public:
         AER_ERROR_MISSING_BINARY, // 找不到文件
     };
 
-    explicit AdbProcess(QObject *parent = nullptr);
+    explicit AdbProcess();
     virtual ~AdbProcess();
 
-    static void setAdbPath(const QString& adbPath);
+    static void setAdbPath(const std::string& adbPath);
 
-    void execute(const QString &serial, const QStringList &args);
-    void forward(const QString &serial, quint16 localPort, const QString &deviceSocketName);
-    void forwardRemove(const QString &serial, quint16 localPort);
-    void reverse(const QString &serial, const QString &deviceSocketName, quint16 localPort);
-    void reverseRemove(const QString &serial, const QString &deviceSocketName);
-    void push(const QString &serial, const QString &local, const QString &remote);
-    void install(const QString &serial, const QString &local);
-    void removePath(const QString &serial, const QString &path);
+    void execute(const std::string &serial, const std::vector<std::string> &args);
+    void forward(const std::string &serial, uint16_t localPort, const std::string &deviceSocketName);
+    void forwardRemove(const std::string &serial, uint16_t localPort);
+    void reverse(const std::string &serial, const std::string &deviceSocketName, uint16_t localPort);
+    void reverseRemove(const std::string &serial, const std::string &deviceSocketName);
+    void push(const std::string &serial, const std::string &local, const std::string &remote);
+    void install(const std::string &serial, const std::string &local);
+    void removePath(const std::string &serial, const std::string &path);
     bool isRuning();
-    void setShowTouchesEnabled(const QString &serial, bool enabled);
+    void setShowTouchesEnabled(const std::string &serial, bool enabled);
     void kill();
-    QStringList arguments();
-    QStringList getDevicesSerialFromStdOut();
-    QString getDeviceIPFromStdOut();
-    QString getDeviceIPByIpFromStdOut();
-    QString getStdOut();
-    QString getErrorOut();
+    std::vector<std::string> arguments();
+    std::vector<std::string> getDevicesSerialFromStdOut();
+    std::string getDeviceIPFromStdOut();
+    std::string getDeviceIPByIpFromStdOut();
+    std::string getStdOut();
+    std::string getErrorOut();
 
-signals:
-    void adbProcessResult(ADB_EXEC_RESULT processResult);
+    // 信号 (Signal<>) — 替代 Qt signals
+    Signal<ADB_EXEC_RESULT> adbProcessResult;
 
 private:
     AdbProcessImpl* m_adbImpl = nullptr;

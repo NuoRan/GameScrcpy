@@ -42,6 +42,11 @@ public class ControlMessageReader {
                 return parseBatchV2();
             case ControlMessage.TYPE_DISCONNECT:
                 return ControlMessage.createDisconnect();
+            case ControlMessage.TYPE_SET_VIDEO_BITRATE:
+                return parseSetVideoBitRate();
+            case ControlMessage.TYPE_SET_DISPLAY_POWER:
+                return parseSetDisplayPower();
+
             default:
                 throw new ControlProtocolException("Unknown event type: " + type);
         }
@@ -105,4 +110,16 @@ public class ControlMessageReader {
         int screenHeight = dis.readUnsignedShort();
         return new Position(x, y, screenWidth, screenHeight);
     }
+
+    private ControlMessage parseSetVideoBitRate() throws IOException {
+        int bitRate = dis.readInt();
+        return ControlMessage.createSetVideoBitRate(bitRate);
+    }
+
+    private ControlMessage parseSetDisplayPower() throws IOException {
+        int mode = dis.readUnsignedByte();
+        return ControlMessage.createSetDisplayPower(mode != 0);
+    }
+
+
 }

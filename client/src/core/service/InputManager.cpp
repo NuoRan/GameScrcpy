@@ -1,19 +1,15 @@
 #include "InputManager.h"
 #include "controller.h"
+#include "SessionContext.h"
 #include "interfaces/IControlChannel.h"
 #include "kcpcontrolsocket.h"
 #include "keycodes.h"
-#include <QTcpSocket>
-#include <QKeyEvent>
-#include <QMouseEvent>
-#include <QWheelEvent>
-#include <QPointer>
+#include "StringUtils.h"
 
 namespace qsc {
 namespace core {
 
-InputManager::InputManager(QObject* parent)
-    : QObject(parent)
+InputManager::InputManager()
 {
 }
 
@@ -27,25 +23,21 @@ InputManager::~InputManager()
     stop();
 }
 
-void InputManager::initialize(KcpSendCallback sendCallback, const QString& gameScript)
+void InputManager::initialize(KcpSendCallback sendCallback, const std::string& gameScript)
 {
     m_controller = std::make_unique<Controller>(std::move(sendCallback), gameScript);
 
-    connect(m_controller.get(), &Controller::grabCursor, this, &InputManager::cursorGrabChanged);
-
-    // 使用 QPointer 保护 this，防止 callback 被调用时 InputManager 已销毁
-    QPointer<InputManager> safeThis = this;
-
-    m_controller->connectScriptTipSignal([safeThis](const QString& msg, int durationMs, int keyId) {
-        if (safeThis) {
-            emit safeThis->scriptTip(msg, durationMs, keyId);
-        }
+    // Controller::grabCursor 是 Signal<> — 直接 connect
+    m_controller->grabCursor.connect([this](bool grabbed) {
+        if (m_cursorGrabCb) m_cursorGrabCb(grabbed);
     });
 
-    m_controller->connectKeyMapOverlayUpdateSignal([safeThis]() {
-        if (safeThis) {
-            emit safeThis->keyMapOverlayUpdated();
-        }
+    m_controller->connectScriptTipSignal([this](const std::string& msg, int durationMs, int keyId) {
+        if (m_scriptTipCb) m_scriptTipCb(msg, durationMs, keyId);
+    });
+
+    m_controller->connectKeyMapOverlayUpdateSignal([this]() {
+        if (m_keyMapOverlayCb) m_keyMapOverlayCb();
     });
 }
 
@@ -65,14 +57,14 @@ void InputManager::setKcpControlSocket(KcpControlSocket* socket)
     }
 }
 
-void InputManager::setTcpControlSocket(QTcpSocket* socket)
+void InputManager::setTcpControlSocket(NativeTcpSocket* socket)
 {
     if (m_controller) {
         m_controller->setTcpControlSocket(socket);
     }
 }
 
-void InputManager::setMobileSize(const QSize& size)
+void InputManager::setMobileSize(const Size& size)
 {
     m_mobileSize = size;
     if (m_controller) {
@@ -96,24 +88,31 @@ void InputManager::stop()
 
 // === 事件处理 ===
 
-void InputManager::keyEvent(const QKeyEvent* event, const QSize& frameSize, const QSize& showSize)
+void InputManager::keyEvent(const InputEvent& event, const Size& frameSize, const Size& showSize)
 {
     if (m_controller) {
         m_controller->keyEvent(event, frameSize, showSize);
     }
 }
 
-void InputManager::mouseEvent(const QMouseEvent* event, const QSize& frameSize, const QSize& showSize)
+void InputManager::mouseEvent(const InputEvent& event, const Size& frameSize, const Size& showSize)
 {
     if (m_controller) {
         m_controller->mouseEvent(event, frameSize, showSize);
     }
 }
 
-void InputManager::wheelEvent(const QWheelEvent* event, const QSize& frameSize, const QSize& showSize)
+void InputManager::wheelEvent(const InputEvent& event, const Size& frameSize, const Size& showSize)
 {
     if (m_controller) {
         m_controller->wheelEvent(event, frameSize, showSize);
+    }
+}
+
+void InputManager::setDevicePixelRatio(double dpr)
+{
+    if (m_controller && m_controller->sessionContext()) {
+        m_controller->sessionContext()->setDevicePixelRatio(dpr);
     }
 }
 
@@ -189,6 +188,20 @@ void InputManager::postDisconnect()
     }
 }
 
+void InputManager::postSetVideoBitRate(uint32_t bitrate)
+{
+    if (m_controller) {
+        m_controller->postSetVideoBitRate(bitrate);
+    }
+}
+
+void InputManager::postSetDisplayPower(bool on)
+{
+    if (m_controller) {
+        m_controller->postSetDisplayPower(on);
+    }
+}
+
 // === 状态管理 ===
 
 void InputManager::onWindowFocusLost()
@@ -207,7 +220,7 @@ void InputManager::resetAllTouchPoints()
 
 // === 脚本管理 ===
 
-void InputManager::updateScript(const QString& gameScript, bool runAutoStartScripts)
+void InputManager::updateScript(const std::string& gameScript, bool runAutoStartScripts)
 {
     if (m_controller) {
         m_controller->updateScript(gameScript, runAutoStartScripts);
@@ -235,10 +248,17 @@ bool InputManager::isCurrentCustomKeymap() const
 
 // === 帧获取 ===
 
-void InputManager::setFrameGrabCallback(std::function<QImage()> callback)
+void InputManager::setFrameGrabCallback(std::function<cv::Mat()> callback)
 {
     if (m_controller) {
         m_controller->setFrameGrabCallback(std::move(callback));
+    }
+}
+
+void InputManager::setGrayFrameGrabCallback(GrayFrameGrabCallback callback)
+{
+    if (m_controller) {
+        m_controller->setGrayFrameGrabCallback(std::move(callback));
     }
 }
 

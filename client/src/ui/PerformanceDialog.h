@@ -7,6 +7,7 @@
 #include <QGroupBox>
 #include <QPushButton>
 #include <QEvent>
+#include <QTimer>
 #include "PerformanceMonitor.h"
 
 namespace qsc {
@@ -76,6 +77,8 @@ private:
     QLabel* m_inputRateNameLabel = nullptr;
     QLabel* m_inputProcNameLabel = nullptr;
     QLabel* m_inputDropNameLabel = nullptr;
+
+    QTimer* m_pollTimer = nullptr;  // 轮询性能指标
 };
 
 } // namespace qsc

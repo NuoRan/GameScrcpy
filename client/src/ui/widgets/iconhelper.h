@@ -5,7 +5,7 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QLabel>
-#include <QMutex>
+#include <mutex>
 #include <QObject>
 #include <QPushButton>
 
@@ -25,9 +25,9 @@ private:
 public:
     static IconHelper *Instance()
     {
-        static QMutex mutex;
+        static std::mutex mutex;
         if (!_instance) {
-            QMutexLocker locker(&mutex);
+            std::lock_guard<std::mutex> locker(mutex);
             if (!_instance) {
                 _instance = new IconHelper;
             }

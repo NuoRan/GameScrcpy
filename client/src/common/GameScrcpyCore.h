@@ -1,10 +1,10 @@
 #pragma once
-#include <QPointer>
-#include <QMouseEvent>
-#include <QImage>
 #include <functional>
+#include <vector>
+#include <string>
 
 #include "GameScrcpyCoreDef.h"
+#include "GameTypes.h"
 
 // 前向声明
 namespace qsc {
@@ -18,43 +18,33 @@ namespace qsc {
 /**
  * @brief 设备管理接口 / Device Management Interface
  *
- * 直接管理 DeviceSession，UI 通过 getSession() 获取 DeviceSession，然后用信号槽交互。
- * Directly manages DeviceSession; UI gets session via getSession() and interacts via signals/slots.
+ * 直接管理 DeviceSession，UI 通过 getSession() 获取 DeviceSession，然后用回调交互。
+ * Directly manages DeviceSession; UI gets session via getSession() and interacts via callbacks.
  */
-class IDeviceManage : public QObject {
-    Q_OBJECT
+class IDeviceManage {
 public:
     static IDeviceManage& getInstance();
+    virtual ~IDeviceManage() = default;
 
-    /**
-     * @brief 连接设备
-     * @param params 设备参数
-     * @return 成功返回 true
-     */
+    // === 回调类型 / Callback types ===
+    using DeviceConnectedCb = std::function<void(bool success, const std::string& serial,
+                                                  const std::string& deviceName, const Size& size)>;
+    using DeviceDisconnectedCb = std::function<void(const std::string& serial)>;
+
+    /// 注册设备连接监听器，返回 listener ID / Register listener, returns ID
+    virtual int addDeviceConnectedListener(DeviceConnectedCb cb) = 0;
+    /// 注册设备断开监听器，返回 listener ID / Register listener, returns ID
+    virtual int addDeviceDisconnectedListener(DeviceDisconnectedCb cb) = 0;
+    /// 移除监听器 / Remove listener by ID
+    virtual void removeDeviceListener(int id) = 0;
+
     virtual bool connectDevice(DeviceParams params) = 0;
-
-    /**
-     * @brief 断开设备
-     * @param serial 设备序列号
-     * @return 成功返回 true
-     */
-    virtual bool disconnectDevice(const QString &serial) = 0;
-
-    /**
-     * @brief 断开所有设备
-     */
+    virtual bool disconnectDevice(const std::string &serial) = 0;
     virtual void disconnectAllDevice() = 0;
+    virtual qsc::core::DeviceSession* getSession(const std::string& serial) = 0;
 
-    /**
-     * @brief 获取设备会话
-     * @param serial 设备序列号
-     * @return DeviceSession 指针，不存在返回 nullptr
-     */
-    virtual qsc::core::DeviceSession* getSession(const QString& serial) = 0;
-
-signals:
-    void deviceConnected(bool success, const QString& serial, const QString& deviceName, const QSize& size);
-    void deviceDisconnected(QString serial);
+protected:
+    IDeviceManage() = default;
 };
 
 }

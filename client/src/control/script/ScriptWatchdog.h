@@ -1,9 +1,9 @@
 #ifndef SCRIPTWATCHDOG_H
 #define SCRIPTWATCHDOG_H
 
-#include <QObject>
-#include <QTimer>
 #include <atomic>
+#include "NativeTimer.h"
+#include "GameSignal.h"
 
 /**
  * @brief 脚本超时看门狗 / Script Timeout Watchdog
@@ -13,11 +13,10 @@
  * 1. 首先尝试 QJSEngine::setInterrupted(true) / First try QJSEngine::setInterrupted(true)
  * 2. 如果仍未停止，强制终止线程 / If still running, force terminate thread
  */
-class ScriptWatchdog : public QObject
+class ScriptWatchdog
 {
-    Q_OBJECT
 public:
-    explicit ScriptWatchdog(int timeoutMs = 30000, QObject* parent = nullptr);
+    explicit ScriptWatchdog(int timeoutMs = 30000);
     ~ScriptWatchdog();
 
     // 启动看门狗
@@ -36,20 +35,19 @@ public:
     // 检查是否已超时
     bool isTimedOut() const { return m_timedOut.load(); }
 
-signals:
     // 首次超时信号（应该尝试 setInterrupted）
-    void softTimeout();
+    Signal<> softTimeout;
 
     // 强制终止信号（软超时后仍未停止）
-    void hardTimeout();
+    Signal<> hardTimeout;
 
-private slots:
+private:
     void onTimeout();
     void onHardTimeout();
 
 private:
-    QTimer* m_timer = nullptr;
-    QTimer* m_hardTimer = nullptr;  // 硬超时定时器
+    NativeTimer m_timer;
+    NativeTimer m_hardTimer;
     int m_timeoutMs = 30000;        // 软超时时间（默认 30 秒）
     int m_hardTimeoutMs = 1000;     // 硬超时时间（软超时后 1 秒）
     std::atomic<bool> m_timedOut{false};

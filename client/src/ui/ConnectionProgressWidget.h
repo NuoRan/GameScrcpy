@@ -19,7 +19,7 @@
 #include <QHBoxLayout>
 #include <QTimer>
 #include <QPropertyAnimation>
-#include <QElapsedTimer>
+#include "ElapsedTimer.h"
 
 // 连接阶段枚举
 enum class ConnectionPhase {
@@ -114,7 +114,7 @@ private:
     // 计时器
     QTimer* m_timeoutTimer;
     QTimer* m_updateTimer;
-    QElapsedTimer m_elapsedTimer;
+    ElapsedTimer m_elapsedTimer;
 
     // 动画
     QPropertyAnimation* m_pulseAnimation;

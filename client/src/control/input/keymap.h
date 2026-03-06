@@ -2,21 +2,21 @@
 
 #define KEYMAP_H
 
-#include <QJsonObject>
+#include <nlohmann/json.hpp>
 
-#include <QMetaEnum>
 
-#include <QMultiHash>
 
-#include <QObject>
+#include <string>
+#include <unordered_map>
 
-#include <QPair>
+#include <utility>
 
-#include <QPointF>
+#include <cstdint>
 
-#include <QRectF>
+#include "GameTypes.h"
+#include "GameKeys.h"
 
-#include <QVector>
+#include <vector>
 
 
 
@@ -32,11 +32,11 @@ constexpr int WHEEL_DOWN = 0x10000002;
  * 解析脚本中的按键绑定配置，将键盘/鼠标事件映射为 Android 触摸/按键操作。
  * Parses key binding configs from scripts, maps keyboard/mouse events to Android touch/key actions.
  */
-class KeyMap : public QObject
+class KeyMap
 
 {
 
-    Q_OBJECT
+
 
 public:
 
@@ -62,7 +62,8 @@ public:
 
     };
 
-    Q_ENUM(KeyMapType)
+    // String-to-enum conversion for KeyMapType (replaces Q_ENUM + QMetaEnum)
+    static KeyMapType keyMapTypeFromString(const char* name);
 
 
 
@@ -78,7 +79,6 @@ public:
 
     };
 
-    Q_ENUM(ActionType)
 
 
 
@@ -86,9 +86,9 @@ public:
 
         ActionType type = AT_INVALID;
 
-        int key = Qt::Key_unknown;
+        int key = GameKey::Key_unknown;
 
-        Qt::KeyboardModifiers modifiers = Qt::NoModifier;
+        uint32_t modifiers = GameMod::NoModifier;
 
     };
 
@@ -100,13 +100,13 @@ public:
 
         ActionType type = AT_INVALID;
 
-        int key = Qt::Key_unknown;
+        int key = GameKey::Key_unknown;
 
-        Qt::KeyboardModifiers modifiers = Qt::NoModifier;
+        uint32_t modifiers = GameMod::NoModifier;
 
-        QPointF pos = QPointF(0, 0);
+        PointF pos = PointF(0, 0);
 
-        QPointF extendPos = QPointF(0, 0);
+        PointF extendPos = PointF(0, 0);
 
         double extendOffset = 0.0;
 
@@ -118,13 +118,13 @@ public:
 
             ActionType type = AT_INVALID,
 
-            int key = Qt::Key_unknown,
+            int key = GameKey::Key_unknown,
 
-            Qt::KeyboardModifiers modifiers = Qt::NoModifier,
+            uint32_t modifiers = GameMod::NoModifier,
 
-            QPointF pos = QPointF(0, 0),
+            PointF pos = PointF(0, 0),
 
-            QPointF extendPos = QPointF(0, 0),
+            PointF extendPos = PointF(0, 0),
 
             double extendOffset = 0.0,
 
@@ -146,7 +146,7 @@ public:
 
         KeyMapType type = KMT_INVALID;
 
-        QString script;
+        std::string script;
 
 
 
@@ -158,7 +158,7 @@ public:
 
             {
 
-                QPointF centerPos = { 0.0, 0.0 };
+                PointF centerPos = { 0.0, 0.0 };
 
                 KeyNode left, right, up, down;
 
@@ -170,9 +170,9 @@ public:
 
             {
 
-                QPointF startPos   = { 0.0, 0.0 };
+                PointF startPos   = { 0.0, 0.0 };
 
-                QPointF speedRatio = { 1.0, 1.0 };
+                PointF speedRatio = { 1.0, 1.0 };
 
             } mouseMove;
 
@@ -202,9 +202,9 @@ public:
 
                 KeyNode keyNode;        // 触发热键
 
-                QPointF startPos = { 0.0, 0.0 };  // 起始位置
+                PointF startPos = { 0.0, 0.0 };  // 起始位置
 
-                QPointF speedRatio = { 1.0, 1.0 };  // 灵敏度
+                PointF speedRatio = { 1.0, 1.0 };  // 灵敏度
 
                 bool resetViewOnRelease = false;  // 松开时是否重置视角
 
@@ -226,25 +226,25 @@ public:
 
 
 
-    KeyMap(QObject *parent = Q_NULLPTR);
+    KeyMap();
 
-    virtual ~KeyMap();
+    ~KeyMap();
 
 
 
-    void loadKeyMap(const QString &json);
+    void loadKeyMap(const std::string &json);
 
     const KeyMap::KeyMapNode &getKeyMapNode(int key);
 
-    const KeyMap::KeyMapNode &getKeyMapNodeKey(int key, Qt::KeyboardModifiers modifiers = Qt::NoModifier);
+    const KeyMap::KeyMapNode &getKeyMapNodeKey(int key, uint32_t modifiers = GameMod::NoModifier);
 
     const KeyMap::KeyMapNode &getKeyMapNodeMouse(int key);
 
     // 根据显示名称查找按键（支持 "LMB", "Tab", "=" 等）
-    const KeyMap::KeyMapNode &getKeyMapNodeByDisplayName(const QString& displayName);
+    const KeyMap::KeyMapNode &getKeyMapNodeByDisplayName(const std::string& displayName);
 
     // 获取所有键位节点（供自动启动脚本检测使用）
-    const QVector<KeyMapNode>& getKeyMapNodes() const { return m_keyMapNodes; }
+    const std::vector<KeyMapNode>& getKeyMapNodes() const { return m_keyMapNodes; }
 
     bool isSwitchOnKeyboard();
 
@@ -291,55 +291,55 @@ private:
 
 
 
-    bool checkItemString(const QJsonObject &node, const QString &name);
+    bool checkItemString(const nlohmann::json &node, const std::string &name);
 
-    bool checkItemDouble(const QJsonObject &node, const QString &name);
+    bool checkItemDouble(const nlohmann::json &node, const std::string &name);
 
-    bool checkItemBool(const QJsonObject &node, const QString &name);
+    bool checkItemBool(const nlohmann::json &node, const std::string &name);
 
-    bool checkItemObject(const QJsonObject &node, const QString &name);
+    bool checkItemObject(const nlohmann::json &node, const std::string &name);
 
-    bool checkItemPos(const QJsonObject &node, const QString &name);
-
-
-
-    bool checkForSteerWhell(const QJsonObject &node);
-
-    bool checkForAndroidKey(const QJsonObject &node);
-
-    bool checkForScript(const QJsonObject &node);
-
-    bool checkForCamera(const QJsonObject &node);
-
-    bool checkForFreeLook(const QJsonObject &node); // 小眼睛
+    bool checkItemPos(const nlohmann::json &node, const std::string &name);
 
 
 
-    QString getItemString(const QJsonObject &node, const QString &name);
+    bool checkForSteerWheel(const nlohmann::json &node);
 
-    double getItemDouble(const QJsonObject &node, const QString &name);
+    bool checkForAndroidKey(const nlohmann::json &node);
 
-    bool getItemBool(const QJsonObject &node, const QString &name);
+    bool checkForScript(const nlohmann::json &node);
 
-    QJsonObject getItemObject(const QJsonObject &node, const QString &name);
+    bool checkForCamera(const nlohmann::json &node);
 
-    QPointF getItemPos(const QJsonObject &node, const QString &name);
+    bool checkForFreeLook(const nlohmann::json &node); // 小眼睛
 
-    ParsedKey getItemKey(const QJsonObject &node, const QString &name);
 
-    KeyMapType getItemKeyMapType(const QJsonObject &node, const QString &name);
+
+    std::string getItemString(const nlohmann::json &node, const std::string &name);
+
+    double getItemDouble(const nlohmann::json &node, const std::string &name);
+
+    bool getItemBool(const nlohmann::json &node, const std::string &name);
+
+    nlohmann::json getItemObject(const nlohmann::json &node, const std::string &name);
+
+    PointF getItemPos(const nlohmann::json &node, const std::string &name);
+
+    ParsedKey getItemKey(const nlohmann::json &node, const std::string &name);
+
+    KeyMapType getItemKeyMapType(const nlohmann::json &node, const std::string &name);
 
 
 
 private:
 
-    static QString s_keyMapPath;
+    static std::string s_keyMapPath;
 
 
 
-    QVector<KeyMapNode> m_keyMapNodes;
+    std::vector<KeyMapNode> m_keyMapNodes;
 
-    KeyNode m_switchKey = { AT_KEY, Qt::Key_QuoteLeft };
+    KeyNode m_switchKey = { AT_KEY, GameKey::Key_QuoteLeft };
 
 
 
@@ -357,27 +357,19 @@ private:
 
 
 
-    QMetaEnum m_metaEnumKey = QMetaEnum::fromType<Qt::Key>();
+    // 使用 int64_t 作为键，低32位存储 key，高32位存储 modifiers
 
-    QMetaEnum m_metaEnumMouseButtons = QMetaEnum::fromType<Qt::MouseButtons>();
+    std::unordered_multimap<int64_t, KeyMapNode *> m_rmapKey;
 
-    QMetaEnum m_metaEnumKeyMapType = QMetaEnum::fromType<KeyMap::KeyMapType>();
-
-
-
-    // 使用 qint64 作为键，低32位存储 key，高32位存储 modifiers
-
-    QMultiHash<qint64, KeyMapNode *> m_rmapKey;
-
-    QMultiHash<int, KeyMapNode *> m_rmapMouse;
+    std::unordered_multimap<int, KeyMapNode *> m_rmapMouse;
 
 
 
     // 辅助函数：组合 key 和 modifiers 为查找键
 
-    static qint64 makeKeyHash(int key, Qt::KeyboardModifiers modifiers) {
+    static int64_t makeKeyHash(int key, uint32_t modifiers) {
 
-        return (static_cast<qint64>(modifiers) << 32) | static_cast<qint64>(key);
+        return (static_cast<int64_t>(modifiers) << 32) | static_cast<int64_t>(key);
 
     }
 

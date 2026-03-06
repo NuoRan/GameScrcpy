@@ -3,13 +3,15 @@
 
 #include "../interfaces/IDecoder.h"
 #include "../infra/FrameQueue.h"
+#include "GameSignal.h"
 #include <memory>
-#include <QString>
-#include <QObject>
-#include <QMutex>
-#include <QElapsedTimer>
-#include <QSet>
+#include <string>
+#include <cstdint>
+#include <mutex>
+#include "ElapsedTimer.h"
+#include <unordered_set>
 #include <atomic>
+#include <vector>
 
 // FFmpeg 前向声明（必须在 namespace 外部）
 struct AVCodecContext;
@@ -33,11 +35,10 @@ namespace core {
  * - H.264 编码支持 / H.264 codec support
  * - 线程安全 / Thread-safe
  */
-class ZeroCopyDecoder : public QObject, public IDecoder {
-    Q_OBJECT
+class ZeroCopyDecoder : public IDecoder {
 
 public:
-    explicit ZeroCopyDecoder(QObject* parent = nullptr);
+    explicit ZeroCopyDecoder();
     ~ZeroCopyDecoder() override;
 
     // IDecoder 接口实现
@@ -57,7 +58,7 @@ public:
     /**
      * @brief 获取硬件解码器名称
      */
-    QString hwDecoderName() const { return m_hwDecoderName; }
+    std::string hwDecoderName() const { return m_hwDecoderName; }
 
     /**
      * @brief 获取当前帧用于截图
@@ -82,16 +83,13 @@ public:
      */
     void* getD3D11Device() const;
 
-signals:
-    /**
-     * @brief FPS 更新信号
-     */
-    void fpsUpdated(quint32 fps);
+    // FPS 更新信号
+    Signal<uint32_t> fpsUpdated;
 
     /**
      * @brief 新帧可用信号
      */
-    void frameReady();
+    Signal<> frameReady;
 
 private:
     bool initHardwareDecoder(const AVCodec* codec);
@@ -111,7 +109,7 @@ private:
     int m_hwPixFmt = -1;  // AVPixelFormat 值
     int m_hwDeviceType = 0; // AVHWDeviceType，当前使用的硬件类型
     bool m_isOpen = false;
-    QString m_hwDecoderName;
+    std::string m_hwDecoderName;
     int m_codecId = 0;
 
     // 零拷贝输出
@@ -122,12 +120,12 @@ private:
     bool m_gpuDirectEnabled = false;
 
     // FPS 统计
-    std::atomic<quint32> m_frameCount{0};
-    std::atomic<quint32> m_currentFps{0};
-    QElapsedTimer m_fpsTimer;  // monotonic clock，无系统调用开销
+    std::atomic<uint32_t> m_frameCount{0};
+    std::atomic<uint32_t> m_currentFps{0};
+    ElapsedTimer m_fpsTimer;  // monotonic clock，无系统调用开销
 
     // 截图缓存：保留最后一帧 AVFrame 的引用，避免每帧拷贝
-    QMutex m_screenshotMutex;
+    std::mutex m_screenshotMutex;
     AVFrame* m_lastAVFrame = nullptr;  // 引用计数的 AVFrame 副本
     std::vector<uint8_t> m_lastFrameY;  // 懒转换缓存
     std::vector<uint8_t> m_lastFrameU;
@@ -145,7 +143,7 @@ private:
     int m_receiveErrors = 0;        // 连续 receive 错误计数
     bool m_forceSwDecode = false;   // 强制软件解码（HW 失败后自动设置）
     bool m_waitingForKeyframe = false;  // 重新打开后等待关键帧
-    QByteArray m_cachedConfigPacket; // 首个 SPS/PPS+关键帧数据，用于重开后恢复参数集
+    std::vector<uint8_t> m_cachedConfigPacket; // 首个 SPS/PPS+关键帧数据，用于重开后恢复参数集
 };
 
 } // namespace core

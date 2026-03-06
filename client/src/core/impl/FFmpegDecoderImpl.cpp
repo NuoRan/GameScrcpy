@@ -2,6 +2,8 @@
 #include "infra/FrameData.h"
 #include "decoder.h"
 
+#include <cstdio>
+
 extern "C" {
 #include "libavcodec/avcodec.h"
 }
@@ -49,7 +51,7 @@ bool FFmpegDecoderImpl::open(int codecId)
     // 旧版解码器只支持 H.264
     AVCodecID avCodecId = static_cast<AVCodecID>(codecId);
     if (avCodecId != AV_CODEC_ID_H264) {
-        qWarning("[FFmpegDecoderImpl] Only H.264 is supported, requested codec: %d", codecId);
+        fprintf(stderr, "[FFmpegDecoderImpl] Only H.264 is supported, requested codec: %d\n", codecId);
         m_decoder.reset();
         return false;
     }
@@ -78,8 +80,8 @@ void FFmpegDecoderImpl::close()
 
 bool FFmpegDecoderImpl::decode(const uint8_t* data, int size, int64_t pts, int flags)
 {
-    Q_UNUSED(pts)
-    Q_UNUSED(flags)
+    (void)pts;
+    (void)flags;
 
     if (!m_decoder || !m_isOpen) {
         return false;

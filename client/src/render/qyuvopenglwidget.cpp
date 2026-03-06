@@ -7,9 +7,11 @@
 #include <QThread>
 #include <QTimer>
 #include <QMetaObject>
+#include <thread>
+#include <chrono>
 
 // 渲染线程优先级提升
-#ifdef Q_OS_WIN
+#ifdef _WIN32
 #include <windows.h>
 #include <avrt.h>   // MMCSS 实时调度
 #endif
@@ -193,7 +195,7 @@ QYUVOpenGLWidget::~QYUVOpenGLWidget()
 
     // 释放旧路径持有的直接指针帧
     {
-        QMutexLocker locker(&m_yuvMutex);
+        std::lock_guard<std::mutex> locker(m_yuvMutex);
         if (m_directFrameReleaseCallback) {
             m_directFrameReleaseCallback();
             m_directFrameReleaseCallback = nullptr;
@@ -215,7 +217,7 @@ QYUVOpenGLWidget::~QYUVOpenGLWidget()
     }
 
     // 等待一小段时间确保没有正在进行的渲染
-    QThread::msleep(50);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
     // 清理OpenGL资源
     if (context()) {
@@ -269,7 +271,7 @@ const QSize &QYUVOpenGLWidget::frameSize()
 // ---------------------------------------------------------
 // 更新YUV纹理数据
 // ---------------------------------------------------------
-void QYUVOpenGLWidget::updateTextures(quint8 *dataY, quint8 *dataU, quint8 *dataV, quint32 linesizeY, quint32 linesizeU, quint32 linesizeV)
+void QYUVOpenGLWidget::updateTextures(uint8_t *dataY, uint8_t *dataU, uint8_t *dataV, uint32_t linesizeY, uint32_t linesizeU, uint32_t linesizeV)
 {
     // 如果正在销毁，直接返回
     if (m_isDestroying.load(std::memory_order_acquire)) {
@@ -281,7 +283,7 @@ void QYUVOpenGLWidget::updateTextures(quint8 *dataY, quint8 *dataU, quint8 *data
 
     // 缓存 YUV 数据
     {
-        QMutexLocker locker(&m_yuvMutex);
+        std::lock_guard<std::mutex> locker(m_yuvMutex);
         if (m_frameSize.isValid() && dataY && dataU && dataV) {
             int w = m_frameSize.width();
             int h = m_frameSize.height();
@@ -334,7 +336,7 @@ void QYUVOpenGLWidget::submitFrame(QByteArray frameData, int width, int height, 
     m_totalFrames++;
 
     {
-        QMutexLocker locker(&m_yuvMutex);
+        std::lock_guard<std::mutex> locker(m_yuvMutex);
         // 直接移动 QByteArray，利用隐式共享，无额外拷贝
         m_zeroCopyFrame = std::move(frameData);
         m_zcFrameWidth = width;
@@ -402,7 +404,7 @@ void QYUVOpenGLWidget::submitFrameDirect(uint8_t* dataY, uint8_t* dataU, uint8_t
 
     // 更新帧尺寸（需在 GUI 线程检查，但写入是安全的：只有 paintGL 读取 m_frameSize）
     if (m_frameSize.width() != width || m_frameSize.height() != height) {
-        QMutexLocker locker(&m_yuvMutex);
+        std::lock_guard<std::mutex> locker(m_yuvMutex);
         m_frameSize = QSize(width, height);
         m_needUpdate = true;
     }
@@ -442,7 +444,7 @@ void QYUVOpenGLWidget::discardPendingFrame()
     }
 
     // 旧路径兼容
-    QMutexLocker locker(&m_yuvMutex);
+    std::lock_guard<std::mutex> locker(m_yuvMutex);
     if (m_directFrameReleaseCallback) {
         m_directFrameReleaseCallback();
         m_directFrameReleaseCallback = nullptr;
@@ -455,7 +457,7 @@ void QYUVOpenGLWidget::discardPendingFrame()
 // ---------------------------------------------------------
 // NV12: 更新 NV12 格式纹理数据 (直接渲染，避免格式转换)
 // ---------------------------------------------------------
-void QYUVOpenGLWidget::updateTexturesNV12(quint8 *dataY, quint8 *dataUV, quint32 linesizeY, quint32 linesizeUV)
+void QYUVOpenGLWidget::updateTexturesNV12(uint8_t *dataY, uint8_t *dataUV, uint32_t linesizeY, uint32_t linesizeUV)
 {
     // 如果正在销毁，直接返回
     if (m_isDestroying.load(std::memory_order_acquire)) {
@@ -467,7 +469,7 @@ void QYUVOpenGLWidget::updateTexturesNV12(quint8 *dataY, quint8 *dataUV, quint32
 
     // 缓存 NV12 数据
     {
-        QMutexLocker locker(&m_yuvMutex);
+        std::lock_guard<std::mutex> locker(m_yuvMutex);
         if (m_frameSize.isValid() && dataY && dataUV) {
             int w = m_frameSize.width();
             int h = m_frameSize.height();
@@ -601,6 +603,76 @@ void QYUVOpenGLWidget::initTexturesNV12()
 }
 
 // ---------------------------------------------------------
+// 从渲染帧刷新 YUV 缓存 (调用方需持 m_yuvMutex)
+// ---------------------------------------------------------
+void QYUVOpenGLWidget::refreshYuvCache()
+{
+    if (!m_grabDataStale || !m_frameSize.isValid()) return;
+
+    int w, h;
+
+    // 优先从无锁渲染帧读取
+    if (m_renderedFrame && m_renderedFrame->dataY) {
+        w = m_renderedFrame->width;
+        h = m_renderedFrame->height;
+        int uvH = h / 2;
+        int uvW = w / 2;
+
+        m_yuvDataY.resize(w * h);
+        m_yuvDataU.resize(uvW * uvH);
+        m_yuvDataV.resize(uvW * uvH);
+        for (int y = 0; y < h; ++y)
+            memcpy(m_yuvDataY.data() + y * w, m_renderedFrame->dataY + y * m_renderedFrame->linesizeY, w);
+        for (int y = 0; y < uvH; ++y) {
+            memcpy(m_yuvDataU.data() + y * uvW, m_renderedFrame->dataU + y * m_renderedFrame->linesizeU, uvW);
+            memcpy(m_yuvDataV.data() + y * uvW, m_renderedFrame->dataV + y * m_renderedFrame->linesizeV, uvW);
+        }
+        m_grabDataStale = false;
+    }
+    // 旧路径：从直接指针帧读取
+    else if (m_directDataY) {
+        w = m_directWidth;
+        h = m_directHeight;
+        int uvH = h / 2;
+        int uvW = w / 2;
+
+        m_yuvDataY.resize(w * h);
+        m_yuvDataU.resize(uvW * uvH);
+        m_yuvDataV.resize(uvW * uvH);
+        for (int y = 0; y < h; ++y)
+            memcpy(m_yuvDataY.data() + y * w, m_directDataY + y * m_directLinesizeY, w);
+        for (int y = 0; y < uvH; ++y) {
+            memcpy(m_yuvDataU.data() + y * uvW, m_directDataU + y * m_directLinesizeU, uvW);
+            memcpy(m_yuvDataV.data() + y * uvW, m_directDataV + y * m_directLinesizeV, uvW);
+        }
+        m_grabDataStale = false;
+    }
+    // 零拷贝 QByteArray 路径
+    else if (!m_zeroCopyFrame.isEmpty()) {
+        w = m_zcFrameWidth > 0 ? m_zcFrameWidth : m_frameSize.width();
+        h = m_zcFrameHeight > 0 ? m_zcFrameHeight : m_frameSize.height();
+        int uvH = h / 2;
+        int uvW = w / 2;
+        int ySize = m_zcLinesizeY * h;
+        int uSize = m_zcLinesizeU * uvH;
+        const uint8_t* srcY = reinterpret_cast<const uint8_t*>(m_zeroCopyFrame.constData());
+        const uint8_t* srcU = srcY + ySize;
+        const uint8_t* srcV = srcU + uSize;
+
+        m_yuvDataY.resize(w * h);
+        m_yuvDataU.resize(uvW * uvH);
+        m_yuvDataV.resize(uvW * uvH);
+        for (int y = 0; y < h; ++y)
+            memcpy(m_yuvDataY.data() + y * w, srcY + y * m_zcLinesizeY, w);
+        for (int y = 0; y < uvH; ++y) {
+            memcpy(m_yuvDataU.data() + y * uvW, srcU + y * m_zcLinesizeU, uvW);
+            memcpy(m_yuvDataV.data() + y * uvW, srcV + y * m_zcLinesizeV, uvW);
+        }
+        m_grabDataStale = false;
+    }
+}
+
+// ---------------------------------------------------------
 // 获取当前帧的 RGB 图像
 // 将 YUV420P 转换为 RGB
 // ---------------------------------------------------------
@@ -610,70 +682,8 @@ QImage QYUVOpenGLWidget::grabCurrentFrame()
 
     // 第一阶段：仅在互斥锁内做快速数据拷贝
     {
-        QMutexLocker locker(&m_yuvMutex);
-
-        // 懒拷贝：仅在截图时才从当前帧同步到 YUV 缓存
-        if (m_grabDataStale && m_frameSize.isValid()) {
-            // 优先从无锁渲染帧读取
-            if (m_renderedFrame && m_renderedFrame->dataY) {
-                w = m_renderedFrame->width;
-                h = m_renderedFrame->height;
-                int uvH = h / 2;
-                int uvW = w / 2;
-
-                m_yuvDataY.resize(w * h);
-                m_yuvDataU.resize(uvW * uvH);
-                m_yuvDataV.resize(uvW * uvH);
-                for (int y = 0; y < h; ++y)
-                    memcpy(m_yuvDataY.data() + y * w, m_renderedFrame->dataY + y * m_renderedFrame->linesizeY, w);
-                for (int y = 0; y < uvH; ++y) {
-                    memcpy(m_yuvDataU.data() + y * uvW, m_renderedFrame->dataU + y * m_renderedFrame->linesizeU, uvW);
-                    memcpy(m_yuvDataV.data() + y * uvW, m_renderedFrame->dataV + y * m_renderedFrame->linesizeV, uvW);
-                }
-                m_grabDataStale = false;
-            }
-            // 旧路径：从直接指针帧读取
-            else if (m_directDataY) {
-                w = m_directWidth;
-                h = m_directHeight;
-                int uvH = h / 2;
-                int uvW = w / 2;
-
-                m_yuvDataY.resize(w * h);
-                m_yuvDataU.resize(uvW * uvH);
-                m_yuvDataV.resize(uvW * uvH);
-                for (int y = 0; y < h; ++y)
-                    memcpy(m_yuvDataY.data() + y * w, m_directDataY + y * m_directLinesizeY, w);
-                for (int y = 0; y < uvH; ++y) {
-                    memcpy(m_yuvDataU.data() + y * uvW, m_directDataU + y * m_directLinesizeU, uvW);
-                    memcpy(m_yuvDataV.data() + y * uvW, m_directDataV + y * m_directLinesizeV, uvW);
-                }
-                m_grabDataStale = false;
-            }
-            // 零拷贝 QByteArray 路径
-            else if (!m_zeroCopyFrame.isEmpty()) {
-                w = m_zcFrameWidth > 0 ? m_zcFrameWidth : m_frameSize.width();
-                h = m_zcFrameHeight > 0 ? m_zcFrameHeight : m_frameSize.height();
-                int uvH = h / 2;
-                int uvW = w / 2;
-                int ySize = m_zcLinesizeY * h;
-                int uSize = m_zcLinesizeU * uvH;
-                const uint8_t* srcY = reinterpret_cast<const uint8_t*>(m_zeroCopyFrame.constData());
-                const uint8_t* srcU = srcY + ySize;
-                const uint8_t* srcV = srcU + uSize;
-
-                m_yuvDataY.resize(w * h);
-                m_yuvDataU.resize(uvW * uvH);
-                m_yuvDataV.resize(uvW * uvH);
-                for (int y = 0; y < h; ++y)
-                    memcpy(m_yuvDataY.data() + y * w, srcY + y * m_zcLinesizeY, w);
-                for (int y = 0; y < uvH; ++y) {
-                    memcpy(m_yuvDataU.data() + y * uvW, srcU + y * m_zcLinesizeU, uvW);
-                    memcpy(m_yuvDataV.data() + y * uvW, srcV + y * m_zcLinesizeV, uvW);
-                }
-                m_grabDataStale = false;
-            }
-        }
+        std::lock_guard<std::mutex> locker(m_yuvMutex);
+        refreshYuvCache();
 
         if (m_yuvDataY.empty() || !m_frameSize.isValid()) {
             return QImage();
@@ -727,8 +737,36 @@ QImage QYUVOpenGLWidget::grabCurrentFrame()
 // ---------------------------------------------------------
 std::vector<uint8_t> QYUVOpenGLWidget::grabCurrentFrameGrayscale()
 {
-    QMutexLocker locker(&m_yuvMutex);
+    std::lock_guard<std::mutex> locker(m_yuvMutex);
+    refreshYuvCache();
     return m_yuvDataY;  // 返回 Y 分量的副本
+}
+
+// ---------------------------------------------------------
+// 获取当前帧的灰度帧 (带宽高信息，触发懒拷贝)
+// 返回 GrayFrame，直接用于零拷贝图像匹配
+// ---------------------------------------------------------
+GrayFrame QYUVOpenGLWidget::grabGrayFrame()
+{
+    std::lock_guard<std::mutex> locker(m_yuvMutex);
+    refreshYuvCache();
+
+    if (m_yuvDataY.empty() || !m_frameSize.isValid()) {
+        return {};
+    }
+
+    int w = m_frameSize.width();
+    int h = m_frameSize.height();
+    size_t expectedSize = static_cast<size_t>(w) * h;
+    if (m_yuvDataY.size() < expectedSize) {
+        return {};
+    }
+
+    GrayFrame frame;
+    frame.data = m_yuvDataY;  // copy Y plane
+    frame.width = w;
+    frame.height = h;
+    return frame;
 }
 
 // ---------------------------------------------------------
@@ -856,7 +894,7 @@ void QYUVOpenGLWidget::deInitPBO()
 }
 
 // PBO 纹理更新：孤立旧缓冲 + 流式上传实现零帧延迟
-void QYUVOpenGLWidget::updateTextureWithPBONoContext(GLuint texture, quint32 textureType, quint8 *pixels, quint32 stride)
+void QYUVOpenGLWidget::updateTextureWithPBONoContext(GLuint texture, uint32_t textureType, uint8_t *pixels, uint32_t stride)
 {
     if (!pixels || !m_pboInited) return;
 
@@ -891,7 +929,7 @@ void QYUVOpenGLWidget::updateTextureWithPBONoContext(GLuint texture, quint32 tex
     }
 
     const uint8_t* srcData = pixels;
-    bool needStrideCopy = (stride != static_cast<quint32>(size.width()));
+    bool needStrideCopy = (stride != static_cast<uint32_t>(size.width()));
 
     if (needStrideCopy) {
         if (m_pboTempBuffer.size() < static_cast<size_t>(dataSize)) {
@@ -932,7 +970,7 @@ void QYUVOpenGLWidget::updateTextureWithPBONoContext(GLuint texture, quint32 tex
 }
 
 // PBO 纹理更新（带 makeCurrent/doneCurrent，与 NoContext 版本逻辑一致）
-void QYUVOpenGLWidget::updateTextureWithPBO(GLuint texture, quint32 textureType, quint8 *pixels, quint32 stride)
+void QYUVOpenGLWidget::updateTextureWithPBO(GLuint texture, uint32_t textureType, uint8_t *pixels, uint32_t stride)
 {
     if (!pixels || !m_pboInited) return;
 
@@ -965,7 +1003,7 @@ void QYUVOpenGLWidget::updateTextureWithPBO(GLuint texture, quint32 textureType,
     }
 
     const uint8_t* srcData = pixels;
-    bool needStrideCopy = (stride != static_cast<quint32>(size.width()));
+    bool needStrideCopy = (stride != static_cast<uint32_t>(size.width()));
 
     if (needStrideCopy) {
         if (m_pboTempBuffer.size() < static_cast<size_t>(dataSize)) {
@@ -1004,7 +1042,7 @@ void QYUVOpenGLWidget::updateTextureWithPBO(GLuint texture, quint32 textureType,
     doneCurrent();
 }
 
-bool QYUVOpenGLWidget::isRegionDirty(const quint8* newData, const quint8* oldData, size_t size, int sampleStep)
+bool QYUVOpenGLWidget::isRegionDirty(const uint8_t* newData, const uint8_t* oldData, size_t size, int sampleStep)
 {
     if (!oldData || !newData) return true;
 
@@ -1037,7 +1075,7 @@ void QYUVOpenGLWidget::initializeGL()
     checkPBOSupport();
 
     // 提升渲染线程优先级
-#ifdef Q_OS_WIN
+#ifdef _WIN32
     SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_ABOVE_NORMAL);
     // MMCSS: 注册为 "Playback" 获得内核级优先级提升
     {
@@ -1132,7 +1170,7 @@ void QYUVOpenGLWidget::paintGL()
             }
             // 回退：非直接帧路径仍用 mutex
             else {
-                QMutexLocker locker(&m_yuvMutex);
+                std::lock_guard<std::mutex> locker(m_yuvMutex);
                 // 零拷贝帧（QByteArray 模式）
                 if (m_useZeroCopyFrame && !m_zeroCopyFrame.isEmpty()) {
                 const int h = m_zcFrameHeight;
@@ -1145,13 +1183,13 @@ void QYUVOpenGLWidget::paintGL()
                 const uint8_t* dataV = dataU + uSize;
 
                 if (isPBOEnabled() && m_pboInited) {
-                    updateTextureWithPBONoContext(m_texture[0], 0, const_cast<quint8*>(dataY), m_zcLinesizeY);
-                    updateTextureWithPBONoContext(m_texture[1], 1, const_cast<quint8*>(dataU), m_zcLinesizeU);
-                    updateTextureWithPBONoContext(m_texture[2], 2, const_cast<quint8*>(dataV), m_zcLinesizeV);
+                    updateTextureWithPBONoContext(m_texture[0], 0, const_cast<uint8_t*>(dataY), m_zcLinesizeY);
+                    updateTextureWithPBONoContext(m_texture[1], 1, const_cast<uint8_t*>(dataU), m_zcLinesizeU);
+                    updateTextureWithPBONoContext(m_texture[2], 2, const_cast<uint8_t*>(dataV), m_zcLinesizeV);
                 } else {
-                    updateTextureNoContext(m_texture[0], 0, const_cast<quint8*>(dataY), m_zcLinesizeY);
-                    updateTextureNoContext(m_texture[1], 1, const_cast<quint8*>(dataU), m_zcLinesizeU);
-                    updateTextureNoContext(m_texture[2], 2, const_cast<quint8*>(dataV), m_zcLinesizeV);
+                    updateTextureNoContext(m_texture[0], 0, const_cast<uint8_t*>(dataY), m_zcLinesizeY);
+                    updateTextureNoContext(m_texture[1], 1, const_cast<uint8_t*>(dataU), m_zcLinesizeU);
+                    updateTextureNoContext(m_texture[2], 2, const_cast<uint8_t*>(dataV), m_zcLinesizeV);
                 }
 
                 m_grabDataStale = true;
@@ -1272,14 +1310,15 @@ void QYUVOpenGLWidget::closeEvent(QCloseEvent *event)
 // ---------------------------------------------------------
 void QYUVOpenGLWidget::initShader()
 {
+    QString frag = s_fragShader;
     if (QCoreApplication::testAttribute(Qt::AA_UseOpenGLES)) {
-        s_fragShader.prepend(R"(
+        frag.prepend(R"(
                              precision mediump int;
                              precision mediump float;
                              )");
     }
     m_shaderProgram.addShaderFromSourceCode(QOpenGLShader::Vertex, s_vertShader);
-    m_shaderProgram.addShaderFromSourceCode(QOpenGLShader::Fragment, s_fragShader);
+    m_shaderProgram.addShaderFromSourceCode(QOpenGLShader::Fragment, frag);
     m_shaderProgram.link();
     m_shaderProgram.bind();
 
@@ -1331,13 +1370,15 @@ void QYUVOpenGLWidget::deInitTextures()
 {
     if (QOpenGLFunctions::isInitialized(QOpenGLFunctions::d_ptr)) {
         glDeleteTextures(3, m_texture);
+        glDeleteTextures(2, m_textureNV12);
     }
     memset(m_texture, 0, sizeof(m_texture));
+    memset(m_textureNV12, 0, sizeof(m_textureNV12));
     m_textureInited = false;
 }
 
 // 不带 makeCurrent/doneCurrent 的纹理更新（用于批量更新）
-void QYUVOpenGLWidget::updateTextureNoContext(GLuint texture, quint32 textureType, quint8 *pixels, quint32 stride)
+void QYUVOpenGLWidget::updateTextureNoContext(GLuint texture, uint32_t textureType, uint8_t *pixels, uint32_t stride)
 {
     if (!pixels) return;
     QSize size = 0 == textureType ? m_frameSize : m_frameSize / 2;
@@ -1347,7 +1388,7 @@ void QYUVOpenGLWidget::updateTextureNoContext(GLuint texture, quint32 textureTyp
     glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, size.width(), size.height(), GL_LUMINANCE, GL_UNSIGNED_BYTE, pixels);
 }
 
-void QYUVOpenGLWidget::updateTexture(GLuint texture, quint32 textureType, quint8 *pixels, quint32 stride)
+void QYUVOpenGLWidget::updateTexture(GLuint texture, uint32_t textureType, uint8_t *pixels, uint32_t stride)
 {
     if (!pixels) return;
     QSize size = 0 == textureType ? m_frameSize : m_frameSize / 2;
