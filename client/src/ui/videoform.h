@@ -158,6 +158,7 @@ private:
     bool m_restoringGeometry = false;  // 正在恢复窗口位置时不保存
     bool m_initializing = true;        // 初始化期间不保存窗口位置
     bool m_hasUserGeometry = false;    // 是否有用户设置的窗口位置（恢复成功时为 true）
+    bool m_pendingOverlaySync = false; // 防止 overlay 同步重复排队
 
     // 防止重复鼠标事件
     Qt::MouseButtons m_pressedButtons;

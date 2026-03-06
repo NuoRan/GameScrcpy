@@ -5,6 +5,7 @@
 #include <QGraphicsScene>
 #include <QPainter>
 #include <QPen>
+#include <QTimer>
 #include "third_party/nlohmann/json.hpp"
 #include <QSharedPointer>
 #include <QKeyEvent>
@@ -74,11 +75,17 @@ public:
     }
 
     // 检测点击是否命中关闭按钮，命中则从场景中移除自身
+    // 必须延迟到当前事件处理完毕后执行，否则 Qt 事件分发会访问已移除的 item
     bool handleCloseButtonClick(const QPointF& localPos) {
         QRectF cr = closeButtonRect(boundingRect());
         if (cr.contains(localPos) && scene()) {
-            scene()->removeItem(this);
-            deleteLater();
+            QGraphicsScene* s = scene();
+            QTimer::singleShot(0, s, [this, s]() {
+                if (s->items().contains(this)) {
+                    s->removeItem(this);
+                    deleteLater();
+                }
+            });
             return true;
         }
         return false;
@@ -106,11 +113,9 @@ protected:
             QRectF sr = scene()->sceneRect();
             if (!sr.isEmpty()) {
                 QPointF newPos = value.toPointF();
-                QRectF br = boundingRect();
-                // 确保键位中心 ± 半径不超出场景边界
-                double margin = qMin(br.width(), br.height()) / 2;
-                newPos.setX(qBound(sr.left() - margin, newPos.x(), sr.right() + margin));
-                newPos.setY(qBound(sr.top() - margin, newPos.y(), sr.bottom() + margin));
+                // 确保键位中心始终在场景内
+                newPos.setX(qBound(sr.left(), newPos.x(), sr.right()));
+                newPos.setY(qBound(sr.top(), newPos.y(), sr.bottom()));
                 return newPos;
             }
         }

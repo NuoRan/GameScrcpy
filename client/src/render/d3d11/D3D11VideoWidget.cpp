@@ -214,7 +214,9 @@ QSize D3D11VideoWidget::minimumSizeHint() const
 
 QSize D3D11VideoWidget::sizeHint() const
 {
-    return m_frameSize.isValid() ? m_frameSize : QSize(256, 256);
+    // 不返回帧尺寸——尺寸由 KeepRatioWidget 的 setGeometry 控制
+    // 返回帧尺寸会导致 Qt layout 与手动 geometry 冲突引发 resize 震荡
+    return QSize(256, 256);
 }
 
 // =============================================================================

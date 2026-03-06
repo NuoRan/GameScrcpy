@@ -1254,6 +1254,7 @@ QMargins VideoForm::getMargins(bool v) {
 }
 
 void VideoForm::updateShowSize(const QSize &s) {
+    if (s.width() <= 0 || s.height() <= 0) return;
     if (m_frameSize != s) {
         m_frameSize = s;
         m_widthHeightRatio = 1.0f * s.width() / s.height();
@@ -1282,24 +1283,15 @@ void VideoForm::updateShowSize(const QSize &s) {
             if (ss != size()) resize(ss);
         }
 
-        // 无论如何都需要更新键位提示层（处理旋转）
-        // 使用延时确保 videoWidget 大小已更新
-        QTimer::singleShot(100, this, [this]() {
-            syncOverlaysToVideo();
-            // 重新定位键位编辑项（修复首次连接时 UI 堆叠在左上角的问题）
-            if (m_keyMapEditView && m_keyMapEditView->scene() && !m_videoWidget->size().isEmpty()) {
-                QSize newSz = m_videoWidget->size();
-                for (auto* g : m_keyMapEditView->scene()->items()) {
-                    if (auto* item = dynamic_cast<KeyMapItemBase*>(g)) {
-                        // getNormalizedPos 返回归一化坐标，setNormalizedPos 用新尺寸转换
-                        QPointF norm = item->getNormalizedPos(newSz);
-                        item->setNormalizedPos(norm, newSz);
-                        if (auto* w = dynamic_cast<KeyMapItemSteerWheel*>(item))
-                            w->updateSubItemsPos();
-                    }
-                }
-            }
-        });
+        // 更新键位提示层（处理旋转）
+        // 使用延时确保 videoWidget 大小已更新，合并多次快速变化
+        if (!m_pendingOverlaySync) {
+            m_pendingOverlaySync = true;
+            QTimer::singleShot(100, this, [this]() {
+                m_pendingOverlaySync = false;
+                syncOverlaysToVideo();
+            });
+        }
     }
 }
 

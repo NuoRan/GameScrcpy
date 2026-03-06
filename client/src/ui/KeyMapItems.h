@@ -199,8 +199,13 @@ protected:
         if (event->button() == Qt::LeftButton) {
             QRectF closeRect(-4, -18, 12, 12);
             if (closeRect.contains(event->pos()) && scene()) {
-                scene()->removeItem(this);
-                deleteLater();
+                QGraphicsScene* s = scene();
+                QTimer::singleShot(0, s, [this, s]() {
+                    if (s->items().contains(this)) {
+                        s->removeItem(this);
+                        deleteLater();
+                    }
+                });
                 event->accept();
                 return;
             }
@@ -379,6 +384,9 @@ private:
     void openScriptEditor() {
         // 保护 this：dlg.exec() 会进入嵌套事件循环，期间用户可能删除本项
         QPointer<KeyMapItemScript> guard(this);
+        // 保存位置：exec() 期间视频帧仍在到达，overlay sync 可能改变 sceneRect 和 item 位置
+        QPointF savedPos = pos();
+
         ScriptEditorDialog dlg(m_script);
 
         // 尝试获取 VideoForm 以设置帧获取回调
@@ -405,6 +413,10 @@ private:
             if (guard) {
                 m_script = dlg.getScript();
             }
+        }
+        // 恢复位置（防止 exec 期间被 overlay sync 偏移）
+        if (guard) {
+            setPos(savedPos);
         }
     }
 
@@ -828,6 +840,7 @@ protected:
     void openSettingsDialog() {
         // 保护 this：dlg.exec() 会进入嵌套事件循环，期间用户可能删除本项
         QPointer<KeyMapItemFreeLook> guard(this);
+        QPointF savedPos = pos();
         QDialog dlg;
         dlg.setWindowTitle("小眼睛设置");
         dlg.setFixedSize(280, 120);
@@ -859,6 +872,10 @@ protected:
             if (guard) {
                 m_resetViewOnRelease = checkBox->isChecked();
             }
+        }
+        // 恢复位置（防止 exec 期间被 overlay sync 偏移）
+        if (guard) {
+            setPos(savedPos);
         }
     }
 
