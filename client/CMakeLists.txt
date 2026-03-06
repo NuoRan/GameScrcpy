@@ -20,7 +20,7 @@ set(QC_PROJECT_VERSION "1.3.0")
 project(${QC_PROJECT_NAME} VERSION ${QC_PROJECT_VERSION} LANGUAGES C CXX)
 message(STATUS "[${PROJECT_NAME}] Project ${PROJECT_NAME} ${PROJECT_VERSION}")
 
-# 架构检测
+# 架构检�?
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(QC_CPU_ARCH x64)
 else()
@@ -40,7 +40,7 @@ endif()
 message(STATUS "[${PROJECT_NAME}] CPU_ARCH: ${QC_CPU_ARCH}")
 
 #
-# 编译器配置
+# 编译器配�?
 #
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -100,7 +100,7 @@ if(NOT QT_DESIRED_VERSION MATCHES 6)
 endif()
 
 #
-# OpenCV 配置 (可选)
+# OpenCV 配置 (可�?
 #
 set(OPENCV_LOCAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/env/opencv/build/x64/vc16/lib")
 if(EXISTS "${OPENCV_LOCAL_DIR}/OpenCVConfig.cmake")
@@ -114,24 +114,24 @@ if(OpenCV_FOUND)
     set(ENABLE_IMAGE_MATCHING ON)
     list(APPEND LINK_LIBS ${OpenCV_LIBS})
 
-    # opencv_matching 库 (模板匹配)
+    # opencv_matching �?(模板匹配)
     set(OPENCV_MATCHING_DIR "${CMAKE_CURRENT_SOURCE_DIR}/env/opencv_matching")
     if(EXISTS "${OPENCV_MATCHING_DIR}/include/matcher.h")
         include_directories(${OPENCV_MATCHING_DIR}/include)
         include_directories(${OPENCV_MATCHING_DIR}/matcher)
         include_directories(${OPENCV_MATCHING_DIR}/matcher/base_matcher)
         include_directories(${OPENCV_MATCHING_DIR}/matcher/Pattern_Matching)
-        # spdlog 日志库 (opencv_matching 依赖)
+        # spdlog 日志�?(opencv_matching 依赖)
         include_directories(${OPENCV_MATCHING_DIR}/3rdParty/spdlog/include)
         message(STATUS "[${PROJECT_NAME}] opencv_matching found")
 
-        # 添加 opencv_matching 源文件
+        # 添加 opencv_matching 源文�?
         set(SRC_OPENCV_MATCHING
             ${OPENCV_MATCHING_DIR}/matcher/matcher.cpp
             ${OPENCV_MATCHING_DIR}/matcher/base_matcher/base_matcher.cpp
             ${OPENCV_MATCHING_DIR}/matcher/Pattern_Matching/PatternMatching.cpp
         )
-        # 禁用 opencv_matching 的警告当错误（第三方代码）
+        # 禁用 opencv_matching 的警告当错误（第三方代码�?
         if(MSVC)
             set_source_files_properties(${SRC_OPENCV_MATCHING} PROPERTIES COMPILE_FLAGS "/W0")
         endif()
@@ -146,7 +146,7 @@ else()
 endif()
 
 #
-# 源文件
+# 源文�?
 #
 
 # app - 应用入口
@@ -186,7 +186,7 @@ endif()
 
 # ui - 用户界面
 set(SRC_UI
-    # 旧文件 (部分保留用于 VideoForm 等)
+    # 旧文�?(部分保留用于 VideoForm �?
     src/ui/dialog.cpp
     src/ui/dialog.h
     src/ui/dialog.ui
@@ -223,8 +223,8 @@ set(SRC_UI
     src/ui/widgets/magneticwidget.h
     src/ui/widgets/iconhelper.cpp
     src/ui/widgets/iconhelper.h
-    # ===== Fluent UI 新架构 =====
-    # 主窗口
+    # ===== Fluent UI 新架�?=====
+    # 主窗�?
     src/ui/MainWindow.h
     src/ui/MainWindow.cpp
     # 主题基础设施
@@ -232,7 +232,7 @@ set(SRC_UI
     src/ui/theme/MotionTokens.h
     src/ui/theme/ThemeManager.h
     src/ui/theme/ThemeManager.cpp
-    # 组件库
+    # 组件�?
     src/ui/components/FluentCard.h
     src/ui/components/FluentCard.cpp
     src/ui/components/FluentButton.h
@@ -342,7 +342,7 @@ set(SRC_TRANSPORT
     # server
     src/transport/server/server.cpp
     src/transport/server/server.h
-    # device.cpp/h 已删除，被 core/service/DeviceAdapter 替代
+    # device.cpp/h 已删除，�?core/service/DeviceAdapter 替代
     src/transport/server/devicemanage.cpp
     src/transport/server/devicemanage.h
     # tcp
@@ -385,7 +385,7 @@ set(SRC_TRANSPORT
     src/transport/native/NativeTcpServer.h
 )
 
-# 确保 ikcp.c 使用 C 编译器
+# 确保 ikcp.c 使用 C 编译�?
 set_source_files_properties(src/transport/kcp/ikcp.c PROPERTIES LANGUAGE C)
 
 # decoder - 解码模块
@@ -440,34 +440,34 @@ set(SRC_COMMON
     src/common/NativeTimer.cpp
 )
 
-# QuickJS - 嵌入式 JavaScript 引擎 (C 源码)
+# QuickJS - 嵌入�?JavaScript 引擎 (C 源码)
 # QuickJS C files compiled as a separate static library with relaxed flags
 set(QUICKJS_SOURCES
-    src/common/quickjs/quickjs.c
-    src/common/quickjs/cutils.c
-    src/common/quickjs/libregexp.c
-    src/common/quickjs/libunicode.c
-    src/common/quickjs/dtoa.c
+    env/quickjs/quickjs.c
+    env/quickjs/cutils.c
+    env/quickjs/libregexp.c
+    env/quickjs/libunicode.c
+    env/quickjs/dtoa.c
 )
 set(QUICKJS_HEADERS
-    src/common/quickjs/quickjs.h
-    src/common/quickjs/quickjs-libc.h
-    src/common/quickjs/quickjs-atom.h
-    src/common/quickjs/quickjs-opcode.h
-    src/common/quickjs/cutils.h
-    src/common/quickjs/libregexp.h
-    src/common/quickjs/libregexp-opcode.h
-    src/common/quickjs/libunicode.h
-    src/common/quickjs/libunicode-table.h
-    src/common/quickjs/dtoa.h
-    src/common/quickjs/list.h
+    env/quickjs/quickjs.h
+    env/quickjs/quickjs-libc.h
+    env/quickjs/quickjs-atom.h
+    env/quickjs/quickjs-opcode.h
+    env/quickjs/cutils.h
+    env/quickjs/libregexp.h
+    env/quickjs/libregexp-opcode.h
+    env/quickjs/libunicode.h
+    env/quickjs/libunicode-table.h
+    env/quickjs/dtoa.h
+    env/quickjs/list.h
 )
 
 # Build QuickJS as a static library with its own compile flags
 add_library(quickjs STATIC ${QUICKJS_SOURCES} ${QUICKJS_HEADERS})
 set_target_properties(quickjs PROPERTIES AUTOMOC OFF AUTOUIC OFF AUTORCC OFF)
 target_include_directories(quickjs PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/quickjs
+    ${CMAKE_CURRENT_SOURCE_DIR}/env/quickjs
 )
 target_compile_definitions(quickjs PRIVATE
     CONFIG_VERSION="2025-09-13"
@@ -487,7 +487,7 @@ set(SRC_QUICKJS
     src/control/script/JsBindings.cpp
 )
 
-# core - 核心层 (新架构)
+# core - 核心�?(新架�?
 set(SRC_CORE
     # infra - 基础设施
     src/core/infra/FrameData.h
@@ -501,7 +501,7 @@ set(SRC_CORE
     src/core/interfaces/IControlChannel.h
     src/core/interfaces/IRenderer.h
     src/core/interfaces/IInputProcessor.h
-    # impl - 接口实现 (适配器)
+    # impl - 接口实现 (适配�?
     src/core/impl/TcpVideoChannel.h
     src/core/impl/TcpVideoChannel.cpp
     src/core/impl/KcpVideoChannel.h
@@ -514,10 +514,10 @@ set(SRC_CORE
     src/core/impl/FFmpegDecoderImpl.cpp
     src/core/impl/GameInputProcessor.h
     src/core/impl/GameInputProcessor.cpp
-    # impl - 零拷贝组件
+    # impl - 零拷贝组�?
     src/core/impl/ZeroCopyDecoder.h
     src/core/impl/ZeroCopyDecoder.cpp
-    # service - 服务层
+    # service - 服务�?
     src/core/service/ConnectionManager.h
     src/core/service/ConnectionManager.cpp
     src/core/service/DeviceSession.h
@@ -571,7 +571,7 @@ set(ALL_SOURCES
     ${SRC_PLATFORM}
 )
 
-# 源文件分组 (IDE 中显示)
+# 源文件分�?(IDE 中显�?
 source_group(app FILES ${SRC_APP})
 source_group(ui FILES ${SRC_UI})
 source_group(control FILES ${SRC_CONTROL})
@@ -583,7 +583,7 @@ source_group(core FILES ${SRC_CORE})
 source_group(quickjs FILES ${SRC_QUICKJS})
 
 #
-# 可执行文件
+# 可执行文�?
 #
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(QC_RUNTIME_TYPE MACOSX_BUNDLE)
@@ -625,8 +625,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common/third_party
-    ${CMAKE_CURRENT_SOURCE_DIR}/src/common/quickjs
-    # core - 新架构
+    ${CMAKE_CURRENT_SOURCE_DIR}/env/quickjs
+    # core - 新架�?
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/interfaces
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/infra
@@ -660,7 +660,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     # d3d11/dxgi/d3dcompiler: D3D11 渲染, winmm: 高精度定时器, avrt: MMCSS 实时调度
     target_link_libraries(${PROJECT_NAME} PRIVATE d3d11 dxgi d3dcompiler winmm avrt)
 
-    # 复制 DLL 和工具
+    # 复制 DLL 和工�?
     set(FFMPEG_BIN_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/ffmpeg/bin")
     set(ADB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/adb/win")
     set(OPENCV_BIN_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/opencv/build/x64/vc16/bin")
@@ -684,7 +684,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         COMMENT "Deploying runtime dependencies to ${QSC_DEPLOY_PATH}"
     )
 
-    # ============ windeployqt: 自动收集 Qt 运行时 DLL ============
+    # ============ windeployqt: 自动收集 Qt 运行�?DLL ============
     # 查找 windeployqt 工具
     find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}" "${QT${QT_DESIRED_VERSION}_DIR}/../../../bin")
     if(WINDEPLOYQT_EXECUTABLE)
@@ -739,7 +739,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 #
-# 链接库
+# 链接�?
 #
 target_link_libraries(${PROJECT_NAME} PRIVATE ${LINK_LIBS})
 

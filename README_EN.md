@@ -304,6 +304,7 @@ cd server
 - [scrcpy](https://github.com/Genymobile/scrcpy) — Android screen mirroring pioneer
 - [QtScrcpy](https://github.com/barry-ran/QtScrcpy) — Project foundation
 - [opencv_matching](https://github.com/acai66/opencv_matching) — OpenCV image matching wrapper
+- [QuickJS](https://bellard.org/quickjs/) — Embedded JavaScript engine
 - [FFmpeg](https://ffmpeg.org/) / [Qt](https://www.qt.io/) / [OpenCV](https://opencv.org/) / [KCP](https://github.com/skywind3000/kcp)
 
 ---

@@ -306,6 +306,7 @@ cd server
 - [scrcpy](https://github.com/Genymobile/scrcpy) — Android 投屏先驱
 - [QtScrcpy](https://github.com/barry-ran/QtScrcpy) — 项目基础
 - [opencv_matching](https://github.com/acai66/opencv_matching) — OpenCV 图像匹配封装
+- [QuickJS](https://bellard.org/quickjs/) — 嵌入式 JavaScript 引擎
 - [FFmpeg](https://ffmpeg.org/) / [Qt](https://www.qt.io/) / [OpenCV](https://opencv.org/) / [KCP](https://github.com/skywind3000/kcp)
 
 ---
