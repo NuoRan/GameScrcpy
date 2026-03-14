@@ -1,5 +1,32 @@
 # 更新日志 / Changelog
 
+## v1.3.2 (2026-03-14)
+
+### 🔧 帧缓存与输入优化
+
+- **YUV 帧缓存抓图**：`grabCurrentFrame()` / `grabGrayFrame()` 改为从 CPU 侧缓存的 YUV 平面数据转换，不再依赖 GPU 回读，消除 D3D11 设备锁竞争
+- **cacheFramePlanes()**：每帧渲染时同步缓存 Y/U/V 三平面到 `std::vector`，加 `std::mutex` 保护
+- **Click 事件 DOWN/UP 分离**：脚本 `click()` 在 DOWN 与 UP 之间插入 20ms 延迟（`kClickReleaseDelay`），确保服务端正确识别点击
+- **鼠标按键状态追踪**：`InputDispatcher::mouseEvent()` 新增 `m_keyStates` 按键状态记录
+
+### 📝 文档与构建修正
+
+- **移除 Qt Multimedia 虚假依赖**：BUILD.md 发布包结构移除 `Qt6Multimedia.dll` 和 `multimedia/` 目录
+- **新增 QuickJS 内置依赖说明**：构建文档已内置依赖表新增 QuickJS (env/quickjs/)
+- **修正构建脚本输出路径**：`build_all.bat` 修正为 `output/x64/<BuildType>/` 匹配 CMake RUNTIME_OUTPUT_DIRECTORY
+- **修正 config.ini 过时注释**：移除 OpenGL 硬解选项说明，更新编码器支持 H.265，修正 ServerPath 后缀
+- **版本号统一更新**：README / SCRIPT_API / RC 文件版本同步至 1.3.2
+
+## v1.3.1 (2026-03-12)
+
+### 🐛 编辑模式崩溃与稳定性修复
+
+- **NaN 比例崩溃修复**：`updateShowSize()` 新增 `size.width() <= 0 || size.height() <= 0` 早期返回守卫，防止 0÷0 产生 NaN 导致无限缩放振荡
+- **sizeHint 冲突修复**：`D3D11VideoWidget::sizeHint()` 改为返回固定 `QSize(256,256)`，避免帧尺寸变化与 KeepRatioWidget 手动布局冲突
+- **覆盖层同步防抖**：新增 `m_pendingOverlaySync` 标志位，合并高频 resize 事件的覆盖层同步
+- **删除 use-after-free 修复**：键位映射项的关闭按钮点击改用 `QTimer::singleShot(0)` 延迟删除，避免 `mousePressEvent` 中同步移除导致的野指针访问
+- **项目位置跳变修复**：移除 `updateShowSize` 定时器中的重复重定位逻辑、收紧边界钳位范围、dialog `exec()` 前后保存恢复位置
+
 ## v1.3 (2026-03-06)
 
 > 183 files changed, +12,615 / -7,877 lines

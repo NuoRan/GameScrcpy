@@ -234,7 +234,8 @@ echo.
 
 :: 设置路径
 set "OUTPUT_DIR=%ROOT_DIR%\output\GameScrcpy-Windows-x64"
-set "BUILD_OUTPUT=%CLIENT_BUILD_DIR%\%BUILD_MODE%"
+:: CMake RUNTIME_OUTPUT_DIRECTORY 将 exe 输出到 output\x64\<BuildType>\
+set "BUILD_OUTPUT=%ROOT_DIR%\output\x64\%BUILD_MODE%"
 
 if exist "%OUTPUT_DIR%" rmdir /s /q "%OUTPUT_DIR%"
 mkdir "%OUTPUT_DIR%"

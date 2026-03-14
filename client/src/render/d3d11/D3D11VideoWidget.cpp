@@ -75,6 +75,8 @@ void D3D11VideoWidget::updateTextures(
     int h = m_frameSize.height();
     if (w <= 0 || h <= 0) return;
 
+    cacheFramePlanes(dataY, dataU, dataV, w, h, linesizeY, linesizeU, linesizeV);
+
     m_renderer->renderYUV420P(dataY, dataU, dataV,
                               linesizeY, linesizeU, linesizeV,
                               w, h);
@@ -160,47 +162,96 @@ void D3D11VideoWidget::discardPendingFrame()
 
 QImage D3D11VideoWidget::grabCurrentFrame()
 {
-    if (!m_rendererInitialized || !m_renderer) return QImage();
+    int w = 0;
+    int h = 0;
+    std::vector<uint8_t> yPlane;
+    std::vector<uint8_t> uPlane;
+    std::vector<uint8_t> vPlane;
 
-    int w = 0, h = 0;
-    // 先分配最大可能的缓冲区 (窗口尺寸)
-    const int winW = m_renderer->windowWidth();
-    const int winH = m_renderer->windowHeight();
-    if (winW <= 0 || winH <= 0) return QImage();
+    {
+        std::lock_guard<std::mutex> lock(m_yuvMutex);
+        if (m_cachedFrameWidth <= 0 || m_cachedFrameHeight <= 0 || m_yuvDataY.empty()) {
+            return QImage();
+        }
 
-    std::vector<uint8_t> rgba(winW * winH * 4);
-    if (!m_renderer->grabFrame(rgba.data(), &w, &h)) {
-        return QImage();
+        w = m_cachedFrameWidth;
+        h = m_cachedFrameHeight;
+        yPlane = m_yuvDataY;
+        uPlane = m_yuvDataU;
+        vPlane = m_yuvDataV;
     }
 
-    // RGBA → QImage
-    QImage img(w, h, QImage::Format_RGBA8888);
-    const int rowBytes = w * 4;
-    for (int row = 0; row < h; ++row) {
-        memcpy(img.scanLine(row), rgba.data() + row * rowBytes, rowBytes);
+    QImage image(w, h, QImage::Format_RGB888);
+    const int uvW = w / 2;
+
+    for (int y = 0; y < h; ++y) {
+        uchar* rgb = image.scanLine(y);
+        for (int x = 0; x < w; ++x) {
+            const int yIdx = y * w + x;
+            const int uvIdx = (y / 2) * uvW + (x / 2);
+
+            const int Y = yPlane[yIdx];
+            const int U = uPlane[uvIdx] - 128;
+            const int V = vPlane[uvIdx] - 128;
+
+            rgb[x * 3 + 0] = static_cast<uchar>(qBound(0, static_cast<int>(Y + 1.5748 * V), 255));
+            rgb[x * 3 + 1] = static_cast<uchar>(qBound(0, static_cast<int>(Y - 0.1873 * U - 0.4681 * V), 255));
+            rgb[x * 3 + 2] = static_cast<uchar>(qBound(0, static_cast<int>(Y + 1.8556 * U), 255));
+        }
     }
-    return img;
+
+    return image;
 }
 
 GrayFrame D3D11VideoWidget::grabGrayFrame()
 {
     GrayFrame frame;
-    if (!m_rendererInitialized || !m_renderer) return frame;
 
-    int fw = m_frameSize.width();
-    int fh = m_frameSize.height();
-    if (fw <= 0 || fh <= 0) return frame;
-
-    frame.data.resize(fw * fh);
-    int w = 0, h = 0;
-    if (m_renderer->grabGrayFrame(frame.data.data(), &w, &h)) {
-        frame.width  = w;
-        frame.height = h;
-        frame.data.resize(w * h);  // 可能因实际帧尺寸而调整
-    } else {
-        frame.data.clear();
+    std::lock_guard<std::mutex> lock(m_yuvMutex);
+    if (m_cachedFrameWidth <= 0 || m_cachedFrameHeight <= 0 || m_yuvDataY.empty()) {
+        return frame;
     }
+
+    frame.width = m_cachedFrameWidth;
+    frame.height = m_cachedFrameHeight;
+    frame.data = m_yuvDataY;
     return frame;
+}
+
+void D3D11VideoWidget::cacheFramePlanes(
+    uint8_t* dataY, uint8_t* dataU, uint8_t* dataV,
+    int width, int height,
+    int linesizeY, int linesizeU, int linesizeV)
+{
+    if (!dataY || !dataU || !dataV || width <= 0 || height <= 0) {
+        return;
+    }
+
+    const int uvW = width / 2;
+    const int uvH = height / 2;
+
+    std::lock_guard<std::mutex> lock(m_yuvMutex);
+    m_yuvDataY.resize(static_cast<size_t>(width) * height);
+    m_yuvDataU.resize(static_cast<size_t>(uvW) * uvH);
+    m_yuvDataV.resize(static_cast<size_t>(uvW) * uvH);
+
+    for (int row = 0; row < height; ++row) {
+        memcpy(m_yuvDataY.data() + static_cast<size_t>(row) * width,
+               dataY + static_cast<size_t>(row) * linesizeY,
+               static_cast<size_t>(width));
+    }
+
+    for (int row = 0; row < uvH; ++row) {
+        memcpy(m_yuvDataU.data() + static_cast<size_t>(row) * uvW,
+               dataU + static_cast<size_t>(row) * linesizeU,
+               static_cast<size_t>(uvW));
+        memcpy(m_yuvDataV.data() + static_cast<size_t>(row) * uvW,
+               dataV + static_cast<size_t>(row) * linesizeV,
+               static_cast<size_t>(uvW));
+    }
+
+    m_cachedFrameWidth = width;
+    m_cachedFrameHeight = height;
 }
 
 // =============================================================================
@@ -384,6 +435,12 @@ void D3D11VideoWidget::consumeAndRenderFrame()
         delete m_renderedFrame;
     }
     m_renderedFrame = slot;
+
+    cacheFramePlanes(
+        slot->dataY, slot->dataU, slot->dataV,
+        slot->width, slot->height,
+        slot->linesizeY, slot->linesizeU, slot->linesizeV
+    );
 
     // 渲染
     m_renderer->renderYUV420P(

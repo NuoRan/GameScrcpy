@@ -113,6 +113,12 @@ void InputDispatcher::mouseEvent(const InputEvent& from, const Size& frameSize, 
 {
     updateSize(frameSize, showSize);
 
+    if (from.type == InputEventType::MousePress) {
+        m_keyStates[static_cast<int>(from.button)] = true;
+    } else if (from.type == InputEventType::MouseRelease) {
+        m_keyStates[static_cast<int>(from.button)] = false;
+    }
+
     // 检测"模式切换"热键
     if (m_keyMap && m_keyMap->isSwitchOnKeyboard() == false &&
         m_keyMap->getSwitchKey() == static_cast<int>(from.button)) {

@@ -39,7 +39,7 @@
 
 | 依赖 | 版本 | 用途 |
 |------|------|------|
-| Qt | 6.5+ | GUI 框架、多媒体 |
+| Qt | 6.5+ | GUI 框架 |
 | MSVC | 2022 | C++ 编译器 |
 | CMake | 3.19+ | 构建系统 |
 
@@ -53,6 +53,7 @@
 | scrcpy-server | Android 服务端 | 完整 |
 | FFmpeg | 视频解码 | include + lib |
 | OpenCV | 图像识别 | include + lib |
+| QuickJS | JavaScript 脚本引擎 | 源码 (env/quickjs/) |
 
 ### 需要下载的依赖 (DLL)
 
@@ -62,9 +63,9 @@
 
 | 项目 | 说明 |
 |------|------|
-| **版本** | 7.1 |
-| **下载** | https://github.com/BtbN/FFmpeg-Builds/releases |
-| **文件** | `ffmpeg-n7.1-latest-win64-lgpl-shared-7.1.zip` |
+| **版本** | 8.0.1 |
+| **下载** | https://www.gyan.dev/ffmpeg/builds/ |
+| **文件** | `ffmpeg-8.0.1-full_build-shared.7z` |
 
 下载后将 `bin/` 目录中的 DLL 复制到 `client/env/ffmpeg/bin/`：
 ```
@@ -107,7 +108,6 @@ client/env/opencv/build/x64/vc16/bin/
 3. 选择安装组件：
    - Qt 6.5.x (或更高版本)
      - ✅ MSVC 2022 64-bit
-     - ✅ Qt Multimedia
    - Developer and Designer Tools
      - ✅ CMake
      - ✅ Ninja
@@ -189,8 +189,8 @@ cmake -G "Visual Studio 17 2022" -A x64 ..
 # 5. 构建 Release 版本
 cmake --build . --config Release
 
-# 6. 构建产物在 Release/ 目录
-dir Release\
+# 6. 构建产物在 output\x64\Release\ 目录
+dir ..\..\output\x64\Release\
 ```
 
 ---
@@ -364,7 +364,7 @@ GameScrcpy-Windows-x64/
 ├── Qt6Core.dll            # Qt 核心库
 ├── Qt6Gui.dll             # Qt GUI 库
 ├── Qt6Widgets.dll         # Qt 控件库
-├── Qt6Multimedia.dll      # Qt 多媒体库
+├── Qt6Svg.dll             # Qt SVG 库
 ├── avcodec-62.dll         # FFmpeg 编解码
 ├── avformat-62.dll        # FFmpeg 格式
 ├── avutil-60.dll          # FFmpeg 工具
@@ -382,8 +382,8 @@ GameScrcpy-Windows-x64/
 │   └── config.ini
 ├── platforms/             # Qt 平台插件
 │   └── qwindows.dll
-├── multimedia/            # Qt 多媒体插件
-│   └── ...
+├── styles/                # Qt 样式插件
+│   └── qmodernwindowsstyle.dll
 └── imageformats/          # Qt 图片插件
     ├── qjpeg.dll
     └── qpng.dll

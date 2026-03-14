@@ -121,6 +121,9 @@ protected:
 private:
     void ensureRenderer();
     void consumeAndRenderFrame();
+    void cacheFramePlanes(uint8_t* dataY, uint8_t* dataU, uint8_t* dataV,
+                          int width, int height,
+                          int linesizeY, int linesizeU, int linesizeV);
 
 private:
     // D3D11 渲染器
@@ -140,6 +143,14 @@ private:
 
     // 销毁标志
     std::atomic<bool> m_isDestroying{false};
+
+    // 原始帧缓存（用于原始尺寸抓帧）
+    std::mutex m_yuvMutex;
+    std::vector<uint8_t> m_yuvDataY;
+    std::vector<uint8_t> m_yuvDataU;
+    std::vector<uint8_t> m_yuvDataV;
+    int m_cachedFrameWidth = 0;
+    int m_cachedFrameHeight = 0;
 
     // 统计
     std::atomic<uint64_t> m_totalFrames{0};

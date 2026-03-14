@@ -54,6 +54,8 @@ static int64_t currentMSecsSinceEpoch() {
         std::chrono::steady_clock::now().time_since_epoch()).count();
 }
 
+static constexpr auto kClickReleaseDelay = std::chrono::milliseconds(20);
+
 // ============================================================
 // 线程局部帧缓存 - 同一线程短时间内多次 findImage 复用同一�?
 // 避免每次找图都重新抓帧（�?+ 拷贝开销�?
@@ -644,6 +646,11 @@ void SandboxScriptApi::click(double x, double y)
     ScriptSandbox* sandbox = m_sandbox;
     dispatch::postToMain([sandbox, seqId, nx, ny]() {
         sandbox->touchRequested.fire(seqId, FTA_DOWN, nx, ny);
+    });
+
+    std::this_thread::sleep_for(kClickReleaseDelay);
+
+    dispatch::postToMain([sandbox, seqId, nx, ny]() {
         sandbox->touchRequested.fire(seqId, FTA_UP, nx, ny);
     });
 }

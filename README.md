@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="../../releases"><img src="https://img.shields.io/github/v/release/nicenick14/GameScrcpy?style=flat-square&color=blue" alt="Release"></a>
-  <img src="https://img.shields.io/badge/Version-1.3.0-blue?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.3.2-blue?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11-blue?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/Qt-6.x-41CD52?style=flat-square&logo=qt" alt="Qt Version">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License"></a>
@@ -260,7 +260,7 @@ GameScrcpy/
 | 组件 | 说明 |
 |:-----|:-----|
 | Qt 6.x (MSVC 2022) | GUI 框架 |
-| FFmpeg 7.1 | 视频解码 |
+| FFmpeg 8.0.1 | 视频解码 |
 | QuickJS | JavaScript 脚本引擎 |
 | OpenCV 4.12 | 图像识别 (可选) |
 | KCP | 低延迟 UDP 传输 |

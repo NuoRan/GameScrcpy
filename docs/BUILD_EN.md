@@ -39,7 +39,7 @@ This document provides detailed instructions for building GameScrcpy from source
 
 | Dependency | Version | Purpose |
 |------------|---------|---------|
-| Qt | 6.5+ | GUI framework, multimedia |
+| Qt | 6.5+ | GUI framework |
 | MSVC | 2022 | C++ compiler |
 | CMake | 3.19+ | Build system |
 
@@ -53,6 +53,7 @@ The following dependencies are already included in the repository:
 | scrcpy-server | Android server | Complete |
 | FFmpeg | Video decoding | include + lib |
 | OpenCV | Image recognition | include + lib |
+| QuickJS | JavaScript scripting engine | Source (env/quickjs/) |
 
 ### Required Downloads (DLLs)
 
@@ -62,9 +63,9 @@ The repository includes headers and static libraries. **You only need to downloa
 
 | Item | Details |
 |------|---------|
-| **Version** | 7.1 |
-| **Download** | https://github.com/BtbN/FFmpeg-Builds/releases |
-| **File** | `ffmpeg-n7.1-latest-win64-lgpl-shared-7.1.zip` |
+| **Version** | 8.0.1 |
+| **Download** | https://www.gyan.dev/ffmpeg/builds/ |
+| **File** | `ffmpeg-8.0.1-full_build-shared.7z` |
 
 After downloading, copy the DLLs from the `bin/` directory to `client/env/ffmpeg/bin/`:
 ```
@@ -107,7 +108,6 @@ The simplest build method, suitable for daily development.
 3. Select components:
    - Qt 6.5.x (or higher)
      - ✅ MSVC 2022 64-bit
-     - ✅ Qt Multimedia
    - Developer and Designer Tools
      - ✅ CMake
      - ✅ Ninja
@@ -189,8 +189,8 @@ cmake -G "Visual Studio 17 2022" -A x64 ..
 # 5. Build Release
 cmake --build . --config Release
 
-# 6. Output is in Release/ directory
-dir Release\
+# 6. Output is in output\x64\Release\ directory
+dir ..\..\output\x64\Release\
 ```
 
 ---
@@ -364,7 +364,7 @@ GameScrcpy-Windows-x64/
 ├── Qt6Core.dll            # Qt core library
 ├── Qt6Gui.dll             # Qt GUI library
 ├── Qt6Widgets.dll         # Qt widgets library
-├── Qt6Multimedia.dll      # Qt multimedia library
+├── Qt6Svg.dll             # Qt SVG library
 ├── avcodec-62.dll         # FFmpeg codec
 ├── avformat-62.dll        # FFmpeg format
 ├── avutil-60.dll          # FFmpeg utility
@@ -382,8 +382,8 @@ GameScrcpy-Windows-x64/
 │   └── config.ini
 ├── platforms/             # Qt platform plugins
 │   └── qwindows.dll
-├── multimedia/            # Qt multimedia plugins
-│   └── ...
+├── styles/                # Qt style plugins
+│   └── qmodernwindowsstyle.dll
 └── imageformats/          # Qt image plugins
     ├── qjpeg.dll
     └── qpng.dll
