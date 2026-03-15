@@ -50,6 +50,18 @@ void InputManager::setControlChannel(IControlChannel* channel)
     }
 }
 
+void InputManager::setTouchRouter(TouchRouter* router)
+{
+    if (m_controller) {
+        m_controller->setTouchRouter(router);
+    }
+}
+
+TouchRouter* InputManager::touchRouter() const
+{
+    return m_controller ? m_controller->touchRouter() : nullptr;
+}
+
 void InputManager::setKcpControlSocket(KcpControlSocket* socket)
 {
     if (m_controller) {

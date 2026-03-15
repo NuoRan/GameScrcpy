@@ -42,6 +42,9 @@ public:
     QString  getDevicePort() const;
     void     setDeviceIP(const QString &ip);
 
+    // 触控模式 (0=Scrcpy, 1=AOA HID, 2=ESP32)
+    int      getTouchMode() const;
+
     // 初始化时从 Config 同步值
     void     syncFromConfig();
 
@@ -54,6 +57,7 @@ signals:
     void requestDeviceIP();
     void startAdbd();
     void restartOnboarding();
+    void touchModeChanged(int mode);
 
 protected:
     void changeEvent(QEvent *event) override;
@@ -88,6 +92,13 @@ private:
     Fluent::FluentToggle *m_controlChannelToggle = nullptr;
     Fluent::FluentToggle *m_auxChannelToggle     = nullptr;
 
+    // 触控设置
+    QLabel    *m_touchTitle     = nullptr;
+    QComboBox *m_touchModeBox   = nullptr;
+    QLineEdit *m_esp32PortEdit  = nullptr;
+    QComboBox *m_aoaResBox      = nullptr;
+    Fluent::FluentToggle *m_aoaLandscapeToggle = nullptr;
+
     // 外观
     QLabel    *m_appearTitle = nullptr;
     QComboBox *m_themeBox    = nullptr;
@@ -106,6 +117,7 @@ private:
     // 其他
     QLabel      *m_otherTitle     = nullptr;
     Fluent::FluentButton *m_onboardingBtn = nullptr;
+
 };
 
 #endif // SETTINGSPAGE_H

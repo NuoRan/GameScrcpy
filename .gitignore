@@ -109,3 +109,28 @@ Info_Mac.plist
 # 保留 ADB 和 scrcpy-server
 !/client/env/adb/
 !/client/env/scrcpy-server
+
+# ===========================
+# 排除外部/参考项目
+# ===========================
+/scrcpy-3.3.4/
+/QineTouch-main/
+
+# ===========================
+# 排除根目录的工具脚本
+# ===========================
+/analyze_separators.py
+/generate_icon.py
+/map_offsets.py
+/parse_dump.py
+/parse_dump2.py
+
+# ===========================
+# Android 构建产物
+# ===========================
+/companion_app/app/build/
+
+# ===========================
+# 日志
+# ===========================
+/日志/

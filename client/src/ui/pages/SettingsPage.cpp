@@ -10,6 +10,7 @@
 #include "StringUtils.h"
 
 #include <QVBoxLayout>
+#include <QMessageBox>
 #include <QHBoxLayout>
 #include <QGridLayout>
 #include <QScrollArea>
@@ -240,8 +241,10 @@ void SettingsPage::setupUI()
     m_auxChannelToggle->setChecked(true);
 
     // 通道开关持久化
-    connect(m_videoChannelToggle, &FluentToggle::toggled, this, [](bool on) {
+    connect(m_videoChannelToggle, &FluentToggle::toggled, this, [this](bool on) {
         qsc::ConfigCenter::instance().set("user/videoChannelEnabled", on);
+        // 视频通道变化影响直连条目显示，重新触发触控模式通知
+        emit touchModeChanged(m_touchModeBox ? m_touchModeBox->currentData().toInt() : 0);
     });
     connect(m_audioChannelToggle, &FluentToggle::toggled, this, [](bool on) {
         qsc::ConfigCenter::instance().set("user/audioChannelEnabled", on);
@@ -252,7 +255,163 @@ void SettingsPage::setupUI()
     connect(m_auxChannelToggle, &FluentToggle::toggled, this, [](bool on) {
         qsc::ConfigCenter::instance().set("user/auxChannelEnabled", on);
     });
+
     main->addWidget(chCard);
+
+    // ═══════════ 触控设置 ═══════════
+    main->addWidget(makeSeparator());
+    m_touchTitle = makeSectionTitle(QString(), tm);
+    main->addWidget(m_touchTitle);
+
+    auto *touchCard = new FluentCard;
+    auto *tl = new QVBoxLayout(touchCard);
+    tl->setContentsMargins(20, 16, 20, 16);
+    tl->setSpacing(12);
+
+    // 触控模式 + ESP32 串口 同一行 (参考视频参数区 grid 风格)
+    {
+        auto *row = new QHBoxLayout;
+        row->setSpacing(16);
+
+        // 左: 触控模式
+        auto *touchLabel = makeFormLabel();
+        touchLabel->setProperty("_role", "touchModeLabel");
+        touchLabel->setFixedWidth(70);
+        touchLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        m_touchModeBox = new QComboBox;
+        m_touchModeBox->setMinimumSize(180, 36);
+
+        auto *leftPart = new QHBoxLayout;
+        leftPart->setSpacing(6);
+        leftPart->addWidget(touchLabel);
+        leftPart->addWidget(m_touchModeBox);
+
+        row->addLayout(leftPart, 1);
+
+#ifdef HAVE_ESP32_HID
+        // 右: ESP32 串口
+        auto *espLabel = makeFormLabel();
+        espLabel->setProperty("_role", "esp32PortLabel");
+        espLabel->setFixedWidth(70);
+        espLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+        m_esp32PortEdit = new QLineEdit;
+        m_esp32PortEdit->setFixedWidth(120);
+        m_esp32PortEdit->setMinimumHeight(36);
+        m_esp32PortEdit->setPlaceholderText("COM3");
+
+        auto *rightPart = new QHBoxLayout;
+        rightPart->setSpacing(6);
+        rightPart->addWidget(espLabel);
+        rightPart->addWidget(m_esp32PortEdit);
+
+        row->addLayout(rightPart, 1);
+
+        connect(m_esp32PortEdit, &QLineEdit::editingFinished, this, [this]() {
+            qsc::ConfigCenter::instance().set("user/esp32Port",
+                m_esp32PortEdit->text().trimmed().toStdString());
+        });
+#else
+        row->addStretch(1);
+#endif
+
+        tl->addLayout(row);
+
+        connect(m_touchModeBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int idx) {
+            int modeVal = m_touchModeBox->itemData(idx).toInt();
+            qsc::ConfigCenter::instance().set("user/touchMode", modeVal);
+            emit touchModeChanged(modeVal);
+        });
+    }
+
+    // AOA/ESP32 设备分辨率 + 横屏开关
+    {
+        auto *row = new QHBoxLayout;
+        row->setSpacing(16);
+
+        auto *resLabel = makeFormLabel();
+        resLabel->setProperty("_role", "aoaResLabel");
+        resLabel->setFixedWidth(70);
+        resLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+        m_aoaResBox = new QComboBox;
+        m_aoaResBox->setMinimumSize(160, 36);
+        m_aoaResBox->setEditable(true);
+        m_aoaResBox->lineEdit()->setPlaceholderText("1080x2400");
+
+        // 常见 Android 分辨率预设 (竖屏 W×H)
+        m_aoaResBox->addItem("1080x2400");
+        m_aoaResBox->addItem("1080x2340");
+        m_aoaResBox->addItem("1080x1920");
+        m_aoaResBox->addItem("1440x3200");
+        m_aoaResBox->addItem("1440x2560");
+        m_aoaResBox->addItem("720x1600");
+        m_aoaResBox->addItem("720x1280");
+        m_aoaResBox->addItem("1080x2520");
+        m_aoaResBox->addItem("1200x2670");
+
+        // 从 config 恢复
+        int savedW = qsc::ConfigCenter::instance().get<int>("user/aoaResWidth", 1080);
+        int savedH = qsc::ConfigCenter::instance().get<int>("user/aoaResHeight", 2400);
+        QString savedText = QString("%1x%2").arg(savedW).arg(savedH);
+        int foundIdx = m_aoaResBox->findText(savedText);
+        if (foundIdx >= 0) {
+            m_aoaResBox->setCurrentIndex(foundIdx);
+        } else {
+            m_aoaResBox->setCurrentText(savedText);
+        }
+
+        // 解析 "宽x高" 字符串并保存到配置
+        auto saveResolution = [this]() {
+            QString text = m_aoaResBox->currentText().trimmed();
+            // 支持 "宽x高" / "宽×高" / "宽 x 高" 等格式
+            static QRegularExpression re(R"((\d+)\s*[xX×]\s*(\d+))");
+            auto match = re.match(text);
+            if (match.hasMatch()) {
+                int w = match.captured(1).toInt();
+                int h = match.captured(2).toInt();
+                if (w >= 320 && h >= 320 && w <= 4096 && h <= 4096) {
+                    qsc::ConfigCenter::instance().set("user/aoaResWidth", w);
+                    qsc::ConfigCenter::instance().set("user/aoaResHeight", h);
+                }
+            }
+        };
+
+        auto *leftPart = new QHBoxLayout;
+        leftPart->setSpacing(6);
+        leftPart->addWidget(resLabel);
+        leftPart->addWidget(m_aoaResBox);
+
+        // 横屏开关
+        auto *landLabel = makeFormLabel();
+        landLabel->setProperty("_role", "aoaLandscapeLabel");
+        landLabel->setFixedWidth(70);
+        landLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
+
+        m_aoaLandscapeToggle = new FluentToggle;
+
+        auto *rightPart = new QHBoxLayout;
+        rightPart->setSpacing(6);
+        rightPart->addWidget(landLabel);
+        rightPart->addWidget(m_aoaLandscapeToggle);
+        rightPart->addStretch();
+
+        row->addLayout(leftPart, 1);
+        row->addLayout(rightPart, 1);
+
+        tl->addLayout(row);
+
+        connect(m_aoaResBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [saveResolution](int) {
+            saveResolution();
+        });
+        connect(m_aoaResBox->lineEdit(), &QLineEdit::editingFinished, this, [saveResolution]() {
+            saveResolution();
+        });
+        connect(m_aoaLandscapeToggle, &FluentToggle::toggled, this, [](bool on) {
+            qsc::ConfigCenter::instance().set("user/aoaLandscape", on);
+        });
+    }
+
+    main->addWidget(touchCard);
 
     // ═══════════ 外观 ═══════════
     main->addWidget(makeSeparator());
@@ -389,6 +548,7 @@ void SettingsPage::setupUI()
         row->addStretch();
         otherL->addLayout(row);
     }
+
     main->addWidget(otherCard);
 
     main->addStretch();
@@ -410,6 +570,8 @@ void SettingsPage::setupUI()
     connect(m_getIpBtn, &QPushButton::clicked, this, &SettingsPage::requestDeviceIP);
     connect(m_adbdBtn, &QPushButton::clicked, this, &SettingsPage::startAdbd);
     connect(m_onboardingBtn, &QPushButton::clicked, this, &SettingsPage::restartOnboarding);
+
+
 
     // 加载 ip/port 历史
     m_ipEdit->clear();
@@ -459,6 +621,35 @@ void SettingsPage::retranslateUi()
 
     m_channelTitle->setText(tr("通道控制"));
 
+    // 触控设置
+    m_touchTitle->setText(tr("触控设置"));
+    {
+        int savedIdx = m_touchModeBox->currentIndex();
+        m_touchModeBox->blockSignals(true);  // 防止 clear/addItem 触发信号覆盖持久化值
+        m_touchModeBox->clear();
+        m_touchModeBox->addItem(tr("ADB 触控"),           0);
+        m_touchModeBox->addItem(tr("UHID 触控 (推荐)"),   1);
+#ifdef HAVE_ESP32_HID
+        m_touchModeBox->addItem(tr("ESP32 触控"),         2);
+#endif
+#ifdef HAVE_AOA_HID
+        m_touchModeBox->addItem(tr("AOA 触控 (OTG)"),    3);
+#endif
+        if (savedIdx >= 0 && savedIdx < m_touchModeBox->count())
+            m_touchModeBox->setCurrentIndex(savedIdx);
+        m_touchModeBox->blockSignals(false);
+        for (auto *l : findChildren<QLabel *>()) {
+            if (l->property("_role").toString() == "touchModeLabel")
+                l->setText(tr("触控模式"));
+            if (l->property("_role").toString() == "esp32PortLabel")
+                l->setText(tr("ESP32 串口"));
+            if (l->property("_role").toString() == "aoaResLabel")
+                l->setText(tr("设备分辨率"));
+            if (l->property("_role").toString() == "aoaLandscapeLabel")
+                l->setText(tr("横屏"));
+        }
+    }
+
     m_appearTitle->setText(tr("外观"));
     // 主题下拉
     m_themeBox->clear();
@@ -483,6 +674,7 @@ void SettingsPage::retranslateUi()
 
     m_otherTitle->setText(tr("其他"));
     m_onboardingBtn->setText(tr("重新引导"));
+
 }
 
 void SettingsPage::changeEvent(QEvent *event)
@@ -537,6 +729,33 @@ void SettingsPage::syncFromConfig()
     m_audioChannelToggle->setChecked(cc.get<bool>("user/audioChannelEnabled", false));
     m_controlChannelToggle->setChecked(cc.get<bool>("user/controlChannelEnabled", true));
     m_auxChannelToggle->setChecked(cc.get<bool>("user/auxChannelEnabled", true));
+
+    // 触控模式 (保存的是 enum 值，通过 itemData 查找对应 combo index)
+    int touchMode = cc.get<int>("user/touchMode", 0);
+    int comboIdx = m_touchModeBox->findData(touchMode);
+    if (comboIdx >= 0)
+        m_touchModeBox->setCurrentIndex(comboIdx);
+
+    // ESP32 串口
+    if (m_esp32PortEdit) {
+        auto port = cc.get<std::string>("user/esp32Port", "");
+        m_esp32PortEdit->setText(QString::fromStdString(port));
+    }
+
+    // AOA 设备分辨率
+    if (m_aoaResBox) {
+        int w = cc.get<int>("user/aoaResWidth", 1080);
+        int h = cc.get<int>("user/aoaResHeight", 2400);
+        QString text = QString("%1x%2").arg(w).arg(h);
+        int idx = m_aoaResBox->findText(text);
+        if (idx >= 0)
+            m_aoaResBox->setCurrentIndex(idx);
+        else
+            m_aoaResBox->setCurrentText(text);
+    }
+    if (m_aoaLandscapeToggle) {
+        m_aoaLandscapeToggle->setChecked(cc.get<bool>("user/aoaLandscape", false));
+    }
 }
 
 // ═══════════ Getters ═══════════
@@ -575,4 +794,9 @@ QString SettingsPage::getDevicePort() const { return m_portEdit->currentText().t
 void SettingsPage::setDeviceIP(const QString &ip)
 {
     m_ipEdit->setCurrentText(ip);
+}
+
+int SettingsPage::getTouchMode() const
+{
+    return m_touchModeBox ? m_touchModeBox->currentData().toInt() : 0;
 }

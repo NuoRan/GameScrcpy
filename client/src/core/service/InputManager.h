@@ -11,6 +11,7 @@
 
 // 前向声明
 class Controller;
+class TouchRouter;
 struct InputEvent;
 class KcpControlSocket;
 class NativeTcpSocket;
@@ -140,6 +141,11 @@ public:
     // === 获取底层 Controller ===
 
     Controller* controller() const { return m_controller.get(); }
+
+    // === 触控路由 ===
+
+    void setTouchRouter(TouchRouter* router);
+    TouchRouter* touchRouter() const;
 
 private:
     std::unique_ptr<Controller> m_controller;

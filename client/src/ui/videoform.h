@@ -33,6 +33,7 @@ namespace qsc { namespace core { class DeviceSession; } }
 namespace Ui { class videoForm; }
 class ToolForm; class D3D11VideoWidget; class QLabel;
 class VideoBottomBar; class KeyMapSidePanel; class VideoSettingsPopup;
+class CompanionClient;
 
 /**
  * @brief 视频显示窗口 / Video Display Window
@@ -69,6 +70,9 @@ public:
     void showFPS(bool show);
     void switchFullScreen();
     bool isHost();
+
+    /// 纯触控模式: 无视频流，显示深色虚拟画布供键位映射使用
+    void enableVirtualCanvas(const QSize& canvasSize);
 
     // 脚本控制接口：模拟触控和按键
     void sendTouchDown(int id, float x, float y);
@@ -124,6 +128,9 @@ protected:
     void closeEvent(QCloseEvent *event) override;
     void changeEvent(QEvent *event) override;  // 处理窗口激活状态变化
     bool eventFilter(QObject *watched, QEvent *event) override;  // v21: 跟踪 videoWidget 位置
+#if defined(Q_OS_WIN32)
+    bool nativeEvent(const QByteArray &eventType, void *message, qintptr *result) override;
+#endif
 
 public:
     void saveWindowGeometry();
@@ -132,6 +139,7 @@ public:
 private:
     void applyDarkStyle();  // 应用深色样式
     void setDarkTitleBar(); // 设置 Windows 深色标题栏
+    void showCompanionDialog(); // 手机伴侣连接对话框
 
 private:
     Ui::videoForm *ui;
@@ -159,6 +167,10 @@ private:
     bool m_initializing = true;        // 初始化期间不保存窗口位置
     bool m_hasUserGeometry = false;    // 是否有用户设置的窗口位置（恢复成功时为 true）
     bool m_pendingOverlaySync = false; // 防止 overlay 同步重复排队
+
+    // 手机伴侣
+    CompanionClient* m_companionClient = nullptr;
+    bool m_cursorGrabbed = false;  // 当前是否游戏模式（光标捕获）
 
     // 防止重复鼠标事件
     Qt::MouseButtons m_pressedButtons;

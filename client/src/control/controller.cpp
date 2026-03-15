@@ -10,6 +10,7 @@
 #include "fastmsg.h"
 #include "interfaces/IControlChannel.h"
 #include "StringUtils.h"
+#include "hid/TouchRouter.h"
 
 // 初始化 SessionContext 和异步发送器
 Controller::Controller(KcpSendCallback sendCallback, std::string gameScript)
@@ -71,6 +72,11 @@ void Controller::stopSender()
 void Controller::postFastMsg(const std::vector<uint8_t> &data)
 {
     if (data.empty()) return;
+    if (m_touchRouter) {
+        m_touchRouter->routeFastMsg(reinterpret_cast<const char*>(data.data()),
+                                    static_cast<int>(data.size()));
+        return;
+    }
     if (m_controlSender) {
         m_controlSender->send(data);
     }
@@ -79,6 +85,10 @@ void Controller::postFastMsg(const std::vector<uint8_t> &data)
 void Controller::postFastMsg(const char *data, int len)
 {
     if (!data || len <= 0) return;
+    if (m_touchRouter) {
+        m_touchRouter->routeFastMsg(data, len);
+        return;
+    }
     if (m_controlSender) {
         m_controlSender->send(data, len);
     }
@@ -229,6 +239,14 @@ void Controller::setControlChannel(qsc::core::IControlChannel* channel)
     if (m_controlSender && channel) {
         m_controlSender->setControlChannel(channel);
         m_controlSender->setSendCallback(nullptr);
+    }
+}
+
+void Controller::setTouchRouter(TouchRouter* router)
+{
+    m_touchRouter = router;
+    if (m_touchRouter && m_controlSender) {
+        m_touchRouter->setScrcpySender(m_controlSender);
     }
 }
 

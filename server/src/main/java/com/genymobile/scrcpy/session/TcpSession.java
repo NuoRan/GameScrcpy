@@ -89,7 +89,7 @@ public class TcpSession extends ScrcpySession {
         boolean video = options.getVideo();
         boolean sendDummyByte = options.getSendDummyByte();
 
-        connection = DesktopConnection.open(scid, tunnelForward, video, options.getAudio(), control, sendDummyByte);
+        connection = DesktopConnection.open(scid, tunnelForward, video, options.getAudio(), control, sendDummyByte, options.getAux());
     }
 
     @Override

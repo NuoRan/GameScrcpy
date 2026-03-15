@@ -57,6 +57,7 @@ private:
     void onSteerWheelTimer();
     void onFirstPressTimer();
     void onHumanizeTimer();
+    void onResetRepressTimer();
 
 private:
     void processSteerWheel(const KeyMap::KeyMapNode& node, const InputEvent& event);
@@ -99,6 +100,10 @@ private:
             std::deque<uint32_t> queueTimer;
             int pressedNum = 0;
         } delayData;
+
+        // resetWheel 延迟 re-trigger
+        NativeTimer resetRepressTimer;
+        bool waitingForResetRepress = false;
     } m_state;
 };
 

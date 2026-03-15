@@ -7,11 +7,10 @@
 #define LOG_TAG "FreeLookHandler"
 #include "Logger.h"
 
-// 静态辅助函数：获取目标尺寸
-static Size getTargetSize(const Size& frameSize, const Size& showSize) {
-    if (frameSize.isValid() && !frameSize.isEmpty()) {
-        return frameSize;
-    }
+// 辅助函数：获取目标尺寸（优先使用手机分辨率）
+static Size getTargetSize(const Size& frameSize, const Size& showSize, const Size& mobileSize) {
+    if (mobileSize.isValid() && !mobileSize.isEmpty()) return mobileSize;
+    if (frameSize.isValid() && !frameSize.isEmpty()) return frameSize;
     return showSize;
 }
 
@@ -164,7 +163,8 @@ void FreeLookHandler::processMouseDelta(const PointF& delta, const Size& frameSi
     m_showSize = showSize;
 
     PointF speedRatio = m_state.speedRatio;
-    Size targetSize = getTargetSize(m_frameSize, m_showSize);
+    Size ms = m_sessionContext ? m_sessionContext->mobileSize() : Size();
+    Size targetSize = getTargetSize(m_frameSize, m_showSize, ms);
 
     if (targetSize.width <= 0 || targetSize.height <= 0 ||
         speedRatio.x <= 0 || speedRatio.y <= 0) {

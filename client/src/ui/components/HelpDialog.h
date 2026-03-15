@@ -98,6 +98,8 @@ public:
         addSection(tr("mapi API"),       buildApi());
         addSection(tr("图像识别"),       buildImageMatch());
         addSection(tr("自定义选区"),     buildSelection());
+        addSection(tr("Companion App"), buildCompanionApp());
+        addSection(tr("触控后端"),       buildTouchBackend());
         addSection(tr("设置参数"),       buildSettings());
         addSection(tr("终端 / ADB"),     buildTerminal());
         addSection(tr("快捷键"),         buildShortcuts());
@@ -176,6 +178,8 @@ private:
     QWidget* buildApi();
     QWidget* buildImageMatch();
     QWidget* buildSelection();
+    QWidget* buildCompanionApp();
+    QWidget* buildTouchBackend();
     QWidget* buildSettings();
     QWidget* buildTerminal();
     QWidget* buildShortcuts();

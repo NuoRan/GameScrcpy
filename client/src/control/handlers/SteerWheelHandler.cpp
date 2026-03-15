@@ -51,10 +51,9 @@ static PointF applyRandomOffset(const PointF& pos, const Size& targetSize) {
 }
 
 // 静态辅助函数：获取目标尺寸
-static Size getTargetSize(const Size& frameSize, const Size& showSize) {
-    if (frameSize.isValid() && !frameSize.isEmpty()) {
-        return frameSize;
-    }
+static Size getTargetSize(const Size& frameSize, const Size& showSize, const Size& mobileSize) {
+    if (mobileSize.isValid() && !mobileSize.isEmpty()) return mobileSize;
+    if (frameSize.isValid() && !frameSize.isEmpty()) return frameSize;
     return showSize;
 }
 
@@ -70,6 +69,10 @@ SteerWheelHandler::SteerWheelHandler()
 
     m_state.humanizeTimer.setSingleShot(true);
     m_state.humanizeTimer.setCallback([this]() { onHumanizeTimer(); });
+
+    m_state.resetRepressTimer.setSingleShot(true);
+    m_state.resetRepressTimer.setInterval(20);
+    m_state.resetRepressTimer.setCallback([this]() { onResetRepressTimer(); });
 }
 
 SteerWheelHandler::~SteerWheelHandler()
@@ -123,6 +126,8 @@ void SteerWheelHandler::reset()
     m_state.firstPressTimer.stop();
     m_state.humanizeTimer.stop();
     m_state.delayData.timer.stop();
+    m_state.resetRepressTimer.stop();
+    m_state.waitingForResetRepress = false;
 
     if (m_state.fastTouchSeqId != 0) {
         sendFastTouch(FTA_UP, m_state.delayData.currentPos);
@@ -169,6 +174,11 @@ void SteerWheelHandler::resetWheel()
     // 用于场景切换后重置轮盘状态（如跑步时按F进车）
     // 游戏内的轮盘已经被重置，但用户仍然按着方向键
 
+    // 如果已经在等待 resetRepress，只需确保定时器继续即可
+    if (m_state.waitingForResetRepress) {
+        return;
+    }
+
     // 1. 停止所有定时器和清空队列
     if (m_state.firstPressTimer.isActive()) {
         m_state.firstPressTimer.stop();
@@ -189,7 +199,7 @@ void SteerWheelHandler::resetWheel()
     m_state.isFirstPress = true;
     m_state.pendingNode = nullptr;
 
-    // 4. 如果仍有方向键按住，重新触发轮盘
+    // 4. 如果仍有方向键按住，延迟 re-trigger（给游戏时间处理 UP）
     int pressedNum = 0;
     if (m_state.pressedUp) ++pressedNum;
     if (m_state.pressedRight) ++pressedNum;
@@ -198,12 +208,9 @@ void SteerWheelHandler::resetWheel()
 
     if (pressedNum > 0 && m_keyMap) {
         m_state.delayData.pressedNum = pressedNum;
-        const KeyMap::KeyMapNode* node = m_keyMap->getSteerWheelNode();
-        if (node) {
-            // 直接执行轮盘移动，不走首次按键延迟
-            m_state.isFirstPress = false;
-            executeMove(*node);
-        }
+        // 延迟 20ms 再 DOWN，让游戏至少处理一帧 UP
+        m_state.waitingForResetRepress = true;
+        m_state.resetRepressTimer.start();
     }
 }
 
@@ -236,6 +243,28 @@ void SteerWheelHandler::onFirstPressTimer()
 
     if (m_state.delayData.pressedNum > 0) {
         executeMove(*m_state.pendingNode);
+    }
+}
+
+void SteerWheelHandler::onResetRepressTimer()
+{
+    if (!m_state.waitingForResetRepress) return;
+    m_state.waitingForResetRepress = false;
+
+    // 重新计算当前按下的键数（可能在延迟期间有变化）
+    int pressedNum = 0;
+    if (m_state.pressedUp) ++pressedNum;
+    if (m_state.pressedRight) ++pressedNum;
+    if (m_state.pressedDown) ++pressedNum;
+    if (m_state.pressedLeft) ++pressedNum;
+    m_state.delayData.pressedNum = pressedNum;
+
+    if (pressedNum > 0 && m_keyMap) {
+        const KeyMap::KeyMapNode* node = m_keyMap->getSteerWheelNode();
+        if (node) {
+            m_state.isFirstPress = false;
+            executeMove(*node);
+        }
     }
 }
 
@@ -297,6 +326,12 @@ void SteerWheelHandler::processSteerWheel(const KeyMap::KeyMapNode& node, const 
         m_state.firstPressTimer.stop();
         m_state.isFirstPress = true;
 
+        // 取消 resetWheel 延迟 re-trigger
+        if (m_state.waitingForResetRepress) {
+            m_state.resetRepressTimer.stop();
+            m_state.waitingForResetRepress = false;
+        }
+
         if (m_state.delayData.timer.isActive()) {
             m_state.delayData.timer.stop();
             m_state.delayData.queueTimer.clear();
@@ -307,6 +342,11 @@ void SteerWheelHandler::processSteerWheel(const KeyMap::KeyMapNode& node, const 
             sendFastTouch(FTA_UP, m_state.delayData.currentPos);
             m_state.fastTouchSeqId = 0;
         }
+        return;
+    }
+
+    // resetWheel 延迟中：按键状态已更新，timer callback 会用最新状态
+    if (m_state.waitingForResetRepress) {
         return;
     }
 
@@ -396,7 +436,8 @@ void SteerWheelHandler::executeMove(const KeyMap::KeyMapNode& node)
 
     // 如果还没开始触摸，先按下（应用随机偏移）
     if (m_state.fastTouchSeqId == 0) {
-        Size targetSize = getTargetSize(m_frameSize, m_showSize);
+        Size ms = m_sessionContext ? m_sessionContext->mobileSize() : Size();
+        Size targetSize = getTargetSize(m_frameSize, m_showSize, ms);
         PointF randomCenterPos = applyRandomOffset(node.data.steerWheel.centerPos, targetSize);
         m_state.fastTouchSeqId = FastTouchSeq::next();
         m_state.delayData.currentPos = randomCenterPos;

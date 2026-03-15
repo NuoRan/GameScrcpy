@@ -64,6 +64,7 @@ private slots:
     void onRequestWifiConnect(const QString& address);
     void onRequestRefresh();
     void onRequestDeviceConnect(const QString& serial);
+    void onRequestDirectConnect();
     void onRequestWifiDisconnect();
     void onRequestGetDeviceIP();
     void onRequestStartAdbd();

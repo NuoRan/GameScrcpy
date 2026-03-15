@@ -18,6 +18,7 @@
 #include "ThreadDispatcher.h"
 #include <QLabel>
 #include <QHBoxLayout>
+#include <QVBoxLayout>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QScreen>
@@ -30,13 +31,22 @@
 #include "FluentDialog.h"
 #include "ThemeManager.h"
 #include "OnboardingOverlay.h"
+#include "CompanionClient.h"
+#include "TouchRouter.h"
+#include "ITouchBackend.h"
+#include "InputManager.h"
 #include <QThread>
+#include <QLineEdit>
+#include <QDialogButtonBox>
+#include <QPushButton>
+#include <QDialog>
 #include <iostream>
 #include <fstream>
 #include <QStyleOption>
 
 #if defined(Q_OS_WIN32)
 #include <Windows.h>
+#include <windowsx.h>
 #include <dwmapi.h>
 #pragma comment(lib, "dwmapi.lib")
 #ifndef DWMWA_USE_IMMERSIVE_DARK_MODE
@@ -434,6 +444,13 @@ void VideoForm::onSessionFpsUpdated(quint32 fps) {
 }
 
 void VideoForm::onSessionCursorGrabChanged(bool grabbed) {
+    m_cursorGrabbed = grabbed;
+
+    // 游戏模式下隐藏手机光标
+    if (grabbed && m_companionClient && m_companionClient->isConnected()) {
+        m_companionClient->hideCursor();
+    }
+
     // 启用/禁用鼠标捕获
     QRect rc = getGrabCursorRect();
     MouseTap::getInstance()->enableMouseEventTap(rc, grabbed);
@@ -689,6 +706,167 @@ void VideoForm::initUI() {
     connect(m_settingsPopup, &VideoSettingsPopup::screenOffChanged, this, [this](bool off) {
         if (m_session) m_session->setDisplayPower(!off);
     });
+
+    // === 手机伴侣 ===
+    m_companionClient = new CompanionClient(this);
+
+    connect(m_companionClient, &CompanionClient::connected, this, [this]() {
+        if (m_bottomBar) m_bottomBar->setCompanionConnected(true);
+    });
+
+    connect(m_companionClient, &CompanionClient::disconnected, this, [this]() {
+        if (m_bottomBar) m_bottomBar->setCompanionConnected(false);
+    });
+
+    connect(m_companionClient, &CompanionClient::screenshotReceived, this, [this](const QImage& image) {
+        if (m_videoWidget && !image.isNull()) {
+            // 将 QImage 转换为 YUV 渲染到 D3D11 widget
+            QImage rgb = image.convertToFormat(QImage::Format_RGB888);
+            int w = rgb.width(), h = rgb.height();
+
+            // 确保 widget 可见，否则 D3D11 renderer 不会初始化
+            if (m_videoWidget->isHidden()) {
+                m_videoWidget->show();
+            }
+            updateShowSize(QSize(w, h));
+            m_videoWidget->setFrameSize(QSize(w, h));
+
+            // RGB888 → YUV420P
+            std::vector<uint8_t> yuv(w * h * 3 / 2);
+            uint8_t* yPlane = yuv.data();
+            uint8_t* uPlane = yPlane + w * h;
+            uint8_t* vPlane = uPlane + w * h / 4;
+
+            for (int row = 0; row < h; ++row) {
+                const uint8_t* line = rgb.scanLine(row);
+                for (int col = 0; col < w; ++col) {
+                    uint8_t r = line[col * 3];
+                    uint8_t g = line[col * 3 + 1];
+                    uint8_t b = line[col * 3 + 2];
+                    yPlane[row * w + col] = static_cast<uint8_t>((66 * r + 129 * g + 25 * b + 128) >> 8) + 16;
+                    if ((row & 1) == 0 && (col & 1) == 0) {
+                        int idx = (row / 2) * (w / 2) + (col / 2);
+                        uPlane[idx] = static_cast<uint8_t>((-38 * r - 74 * g + 112 * b + 128) >> 8) + 128;
+                        vPlane[idx] = static_cast<uint8_t>((112 * r - 94 * g - 18 * b + 128) >> 8) + 128;
+                    }
+                }
+            }
+
+            m_videoWidget->updateTextures(yPlane, uPlane, vPlane, w, w / 2, w / 2);
+        }
+    });
+
+    connect(m_bottomBar, &VideoBottomBar::companionClicked, this, [this]() {
+        showCompanionDialog();
+    });
+}
+
+// ---------------------------------------------------------
+// 手机伴侣连接对话框
+// ---------------------------------------------------------
+void VideoForm::showCompanionDialog()
+{
+    QDialog dlg(this);
+    dlg.setWindowTitle(tr("手机伴侣"));
+    dlg.setFixedSize(320, 200);
+
+    auto* layout = new QVBoxLayout(&dlg);
+    layout->setSpacing(12);
+
+    auto* label = new QLabel(tr("输入手机 IP 地址 (手机 App 上会显示):"), &dlg);
+    auto* ipEdit = new QLineEdit(&dlg);
+    ipEdit->setPlaceholderText("192.168.x.x");
+
+    // 从配置恢复上次 IP
+    QString lastIp = QString::fromStdString(
+        qsc::ConfigCenter::instance().get<std::string>("user/companionIp", ""));
+    if (!lastIp.isEmpty()) ipEdit->setText(lastIp);
+
+    auto* statusLabel = new QLabel(&dlg);
+    statusLabel->setStyleSheet("color: #888;");
+
+    auto* btnLayout = new QHBoxLayout();
+    auto* connectBtn = new QPushButton(
+        m_companionClient->isConnected() ? tr("断开") : tr("连接"), &dlg);
+    auto* screenshotBtn = new QPushButton(tr("截屏"), &dlg);
+    screenshotBtn->setEnabled(m_companionClient->isConnected());
+
+    btnLayout->addWidget(connectBtn);
+    btnLayout->addWidget(screenshotBtn);
+
+    layout->addWidget(label);
+    layout->addWidget(ipEdit);
+    layout->addWidget(statusLabel);
+    layout->addLayout(btnLayout);
+    layout->addStretch();
+
+    if (m_companionClient->isConnected()) {
+        statusLabel->setText(tr("已连接"));
+        statusLabel->setStyleSheet("color: #4CAF50;");
+        ipEdit->setEnabled(false);
+    }
+
+    connect(connectBtn, &QPushButton::clicked, &dlg, [&]() {
+        if (m_companionClient->isConnected()) {
+            m_companionClient->disconnectFromDevice();
+            connectBtn->setText(tr("连接"));
+            statusLabel->setText(tr("已断开"));
+            statusLabel->setStyleSheet("color: #888;");
+            ipEdit->setEnabled(true);
+            screenshotBtn->setEnabled(false);
+        } else {
+            QString ip = ipEdit->text().trimmed();
+            if (ip.isEmpty()) return;
+            // 保存 IP 到配置
+            qsc::ConfigCenter::instance().set("user/companionIp", ip.toStdString());
+            statusLabel->setText(tr("连接中..."));
+            statusLabel->setStyleSheet("color: #FF9800;");
+            m_companionClient->connectToDevice(ip);
+        }
+    });
+
+    // 临时连接信号以在对话框中更新状态
+    auto connHandle = connect(m_companionClient, &CompanionClient::connected, &dlg, [&]() {
+        connectBtn->setText(tr("断开"));
+        statusLabel->setText(tr("已连接"));
+        statusLabel->setStyleSheet("color: #4CAF50;");
+        ipEdit->setEnabled(false);
+        screenshotBtn->setEnabled(true);
+    });
+    auto errHandle = connect(m_companionClient, &CompanionClient::errorOccurred, &dlg, [&](const QString& msg) {
+        statusLabel->setText(tr("错误: ") + msg);
+        statusLabel->setStyleSheet("color: #F44336;");
+    });
+    auto discHandle = connect(m_companionClient, &CompanionClient::disconnected, &dlg, [&]() {
+        connectBtn->setText(tr("连接"));
+        statusLabel->setText(tr("已断开"));
+        statusLabel->setStyleSheet("color: #888;");
+        ipEdit->setEnabled(true);
+        screenshotBtn->setEnabled(false);
+    });
+
+    connect(screenshotBtn, &QPushButton::clicked, &dlg, [this, statusLabel]() {
+        m_companionClient->requestScreenshot();
+        statusLabel->setText(tr("截屏请求已发送..."));
+    });
+
+    // 截屏成功→关闭对话框
+    auto ssHandle = connect(m_companionClient, &CompanionClient::screenshotReceived, &dlg, [&dlg]() {
+        dlg.accept();
+    });
+    auto ssFailHandle = connect(m_companionClient, &CompanionClient::screenshotFailed, &dlg, [statusLabel]() {
+        statusLabel->setText(tr("截屏失败，请确保手机截屏服务已启动"));
+        statusLabel->setStyleSheet("color: #F44336;");
+    });
+
+    dlg.exec();
+
+    // 断开临时信号
+    disconnect(connHandle);
+    disconnect(errHandle);
+    disconnect(discHandle);
+    disconnect(ssHandle);
+    disconnect(ssFailHandle);
 }
 
 // ---------------------------------------------------------
@@ -799,6 +977,11 @@ void VideoForm::loadKeyMap(const QString& filename, bool runAutoStart) {
 
     KeyMapFactoryImpl factory;
     QSize sz = m_videoWidget->size().isEmpty() ? QSize(100,100) : m_videoWidget->size();
+
+    qInfo("[loadKeyMap] videoWidget size=%dx%d  using sz=%dx%d  m_frameSize=%dx%d",
+          m_videoWidget->width(), m_videoWidget->height(),
+          sz.width(), sz.height(),
+          m_frameSize.width(), m_frameSize.height());
 
     if (root.contains("keyMapNodes") && root["keyMapNodes"].is_array()) {
         for (const auto& node : root["keyMapNodes"]) {
@@ -1026,6 +1209,16 @@ void VideoForm::mouseMoveEvent(QMouseEvent *e) {
     QRect videoRect = m_videoWidget->geometry();
     if(videoRect.contains(e->pos())){
         if(!m_session) return;
+
+        // 光标模式下发送鼠标位置到伴侣 App (归一化坐标)
+        if (!m_cursorGrabbed && m_companionClient && m_companionClient->isConnected()) {
+            QPointF localPos = m_videoWidget->mapFrom(this, e->position().toPoint());
+            float nx = static_cast<float>(localPos.x() / m_videoWidget->width());
+            float ny = static_cast<float>(localPos.y() / m_videoWidget->height());
+            if (nx >= 0.f && nx <= 1.f && ny >= 0.f && ny <= 1.f)
+                m_companionClient->sendCursorPos(nx, ny);
+        }
+
         auto ev = fromQMouseEvent(e, m_videoWidget, this);
         m_session->mouseEvent(ev, typeconv::fromQ(m_frameSize), typeconv::fromQ(m_videoWidget->size()));
     } else if(!m_dragPosition.isNull() && (e->buttons() & Qt::LeftButton)){
@@ -1253,25 +1446,136 @@ QMargins VideoForm::getMargins(bool v) {
     return v ? QMargins(10, 68, 12, 62) : QMargins(68, 12, 62, 10);
 }
 
+void VideoForm::enableVirtualCanvas(const QSize& canvasSize) {
+    if (canvasSize.width() <= 0 || canvasSize.height() <= 0) return;
+
+    int w = canvasSize.width();
+    int h = canvasSize.height();
+
+    if (m_videoWidget) {
+        m_videoWidget->setFrameSize(canvasSize);
+        if (m_videoWidget->isHidden()) {
+            m_videoWidget->show();
+        }
+
+        // 生成参考网格图 (QImage → YUV420P → D3D11)
+        QImage img(w, h, QImage::Format_RGB888);
+        img.fill(QColor(25, 25, 30));  // 深灰底
+
+        QPainter p(&img);
+        p.setRenderHint(QPainter::Antialiasing);
+
+        // 网格线 (每 10% 一根)
+        QPen gridPen(QColor(60, 60, 70), 1);
+        p.setPen(gridPen);
+        for (int i = 1; i < 10; ++i) {
+            int x = w * i / 10;
+            int y = h * i / 10;
+            p.drawLine(x, 0, x, h);
+            p.drawLine(0, y, w, y);
+        }
+
+        // 中心十字线
+        QPen centerPen(QColor(80, 120, 200, 120), 2);
+        p.setPen(centerPen);
+        p.drawLine(w / 2, 0, w / 2, h);
+        p.drawLine(0, h / 2, w, h / 2);
+
+        // 边框
+        QPen borderPen(QColor(80, 80, 100), 2);
+        p.setPen(borderPen);
+        p.drawRect(1, 1, w - 2, h - 2);
+
+        // 文字提示
+        QFont font;
+        font.setPixelSize(qMax(16, qMin(w, h) / 30));
+        p.setFont(font);
+        p.setPen(QColor(120, 120, 140));
+
+        QString info = QString("%1 x %2").arg(w).arg(h);
+        p.drawText(QRect(0, h / 2 - 40, w, 40), Qt::AlignCenter, info);
+        p.drawText(QRect(0, h / 2 + 5, w, 40), Qt::AlignCenter,
+                   tr("纯触控模式 — 请看手机屏幕操作"));
+        p.end();
+
+        // RGB → YUV420P
+        int ySize = w * h;
+        int uvSize = (w / 2) * (h / 2);
+        std::vector<uint8_t> yPlane(ySize);
+        std::vector<uint8_t> uPlane(uvSize);
+        std::vector<uint8_t> vPlane(uvSize);
+
+        for (int row = 0; row < h; ++row) {
+            const uchar* rgb = img.constScanLine(row);
+            for (int col = 0; col < w; ++col) {
+                int r = rgb[col * 3 + 0];
+                int g = rgb[col * 3 + 1];
+                int b = rgb[col * 3 + 2];
+                int y = ((66 * r + 129 * g + 25 * b + 128) >> 8) + 16;
+                yPlane[row * w + col] = static_cast<uint8_t>(qBound(0, y, 255));
+                if ((row & 1) == 0 && (col & 1) == 0) {
+                    int idx = (row / 2) * (w / 2) + (col / 2);
+                    int u = ((-38 * r - 74 * g + 112 * b + 128) >> 8) + 128;
+                    int v = ((112 * r - 94 * g - 18 * b + 128) >> 8) + 128;
+                    uPlane[idx] = static_cast<uint8_t>(qBound(0, u, 255));
+                    vPlane[idx] = static_cast<uint8_t>(qBound(0, v, 255));
+                }
+            }
+        }
+
+        // 提交到 D3D11 渲染 (同步路径)
+        m_videoWidget->updateTextures(
+            yPlane.data(), uPlane.data(), vPlane.data(),
+            w, w / 2, w / 2);
+    }
+
+    // 标记首帧已收到，使脚本引擎和键位映射正常工作
+    m_firstFrameReceived = true;
+
+    // 设置 DPR，用于游戏模式光标重定位 (scrcpy 模式在收到首帧时设置，纯触控模式在此设置)
+    if (m_session && m_videoWidget) {
+        m_session->setDevicePixelRatio(m_videoWidget->devicePixelRatioF());
+    }
+
+    updateShowSize(canvasSize);
+
+    // 自动启动脚本 (键位映射)
+    if (!m_currentKeyMapFile.isEmpty() && m_session) {
+        m_session->runAutoStartScripts();
+    }
+
+    qInfo("[VideoForm] Virtual canvas enabled: %dx%d", canvasSize.width(), canvasSize.height());
+
+    // 延迟同步 overlay，确保窗口 show() 和 layout 完成后再定位
+    // 500ms 以确保在 setKeyMapOverlayVisible(true) 的 500ms timer 之前完成尺寸修正
+    QTimer::singleShot(400, this, [this]() {
+        syncOverlaysToVideo();
+    });
+}
+
 void VideoForm::updateShowSize(const QSize &s) {
     if (s.width() <= 0 || s.height() <= 0) return;
     if (m_frameSize != s) {
+        float oldRatio = m_widthHeightRatio;
         m_frameSize = s;
         m_widthHeightRatio = 1.0f * s.width() / s.height();
         ui->keepRatioWidget->setWidthHeightRatio(m_widthHeightRatio);
 
         bool v = m_widthHeightRatio < 1.0f;
+        // 检测横竖屏切换（ratio 跨越 1.0）
+        bool orientChanged = (oldRatio > 0) && ((oldRatio >= 1.0f) != (m_widthHeightRatio >= 1.0f));
 
-        // 如果已有用户设置的窗口位置，不强制 resize（保持用户设置的大小）
-        if (m_hasUserGeometry) {
-            // 只更新样式（横竖屏切换）和键位提示层
-            if (m_skin) updateStyleSheet(v);
-        } else {
+        if (m_skin) updateStyleSheet(v);
+
+        if (!m_hasUserGeometry || orientChanged) {
             QSize ss = s;
             if (m_skin) {
                 ss.setWidth(ss.width() + getMargins(v).left() + getMargins(v).right());
                 ss.setHeight(ss.height() + getMargins(v).top() + getMargins(v).bottom());
             }
+            // 加上侧边栏/底部栏占用的宽度
+            if (m_bottomBar && m_bottomBar->isVisible()) ss.setWidth(ss.width() + m_bottomBar->width());
+            if (m_sidePanel && m_sidePanel->isVisible()) ss.setWidth(ss.width() + m_sidePanel->width());
             // 确保窗口不超出屏幕可用区域（平板等宽屏设备）
             QRect screenRect = getScreenRect();
             int maxW = screenRect.width() * 9 / 10;   // 最大占屏幕 90%
@@ -1362,6 +1666,16 @@ void VideoForm::showEvent(QShowEvent *e) {
         // 窗口首次显示时设置深色标题栏（确保 HWND 有效）
         setDarkTitleBar();
 
+#ifdef Q_OS_WIN32
+        // 为无边框窗口添加 WS_THICKFRAME 以支持边角拖拽缩放
+        if (m_skin) {
+            HWND hwnd = reinterpret_cast<HWND>(winId());
+            LONG style = GetWindowLong(hwnd, GWL_STYLE);
+            style |= WS_THICKFRAME;
+            SetWindowLong(hwnd, GWL_STYLE, style);
+        }
+#endif
+
         // 投屏窗口首次引导
         if (!Config::getInstance().getOnboardingCompleted(Config::OB_VIDEO_FORM)) {
             QTimer::singleShot(800, this, [this]() {
@@ -1391,13 +1705,124 @@ bool VideoForm::eventFilter(QObject *watched, QEvent *event)
     return QWidget::eventFilter(watched, event);
 }
 
+#if defined(Q_OS_WIN32)
+bool VideoForm::nativeEvent(const QByteArray &eventType, void *message, qintptr *result)
+{
+    MSG *msg = static_cast<MSG *>(message);
+    switch (msg->message) {
+
+    case WM_NCCALCSIZE:
+        // 无边框 + WS_THICKFRAME：消除非客户区，保持无边框外观
+        if (m_skin && msg->wParam == TRUE) {
+            *result = 0;
+            return true;
+        }
+        break;
+
+    case WM_NCHITTEST: {
+        POINT pt = { GET_X_LPARAM(msg->lParam), GET_Y_LPARAM(msg->lParam) };
+        RECT rc;
+        GetWindowRect(reinterpret_cast<HWND>(winId()), &rc);
+
+        const int grip = 12; // 边角拖拽热区大小（像素）
+        bool nearLeft   = (pt.x - rc.left)  < grip;
+        bool nearRight  = (rc.right - pt.x)  < grip;
+        bool nearTop    = (pt.y - rc.top)   < grip;
+        bool nearBottom = (rc.bottom - pt.y) < grip;
+
+        // 全屏模式不允许缩放
+        if (isFullScreen()) break;
+
+        // 只允许四个边角缩放
+        if (nearTop    && nearLeft)  { *result = HTTOPLEFT;     return true; }
+        if (nearTop    && nearRight) { *result = HTTOPRIGHT;    return true; }
+        if (nearBottom && nearLeft)  { *result = HTBOTTOMLEFT;  return true; }
+        if (nearBottom && nearRight) { *result = HTBOTTOMRIGHT; return true; }
+
+        if (!m_skin) {
+            // 有边框模式：拦截边缘缩放，改为客户区
+            auto def = DefWindowProc(msg->hwnd, msg->message, msg->wParam, msg->lParam);
+            if (def == HTLEFT || def == HTRIGHT || def == HTTOP || def == HTBOTTOM) {
+                *result = HTCLIENT;
+                return true;
+            }
+            *result = def;
+            return true;
+        }
+        break;
+    }
+
+    case WM_SIZING: {
+        if (m_widthHeightRatio <= 0.0f || isFullScreen()) break;
+
+        RECT *rc = reinterpret_cast<RECT *>(msg->lParam);
+        int w = rc->right - rc->left;
+
+        // 动态计算窗口到 keepRatioWidget 之间的开销（包含皮肤边距 + 侧边栏/底部栏）
+        int overW = width() - ui->keepRatioWidget->width();
+        int overH = height() - ui->keepRatioWidget->height();
+
+        float ratio = m_widthHeightRatio;
+        int videoW = w - overW;
+        if (videoW < 100) videoW = 100;
+
+        // 以宽度为准，按比例计算高度
+        int h = static_cast<int>(videoW / ratio) + overH;
+
+        switch (msg->wParam) {
+        case WMSZ_TOPLEFT:
+            rc->left = rc->right - w;
+            rc->top  = rc->bottom - h;
+            break;
+        case WMSZ_TOPRIGHT:
+            rc->right = rc->left + w;
+            rc->top   = rc->bottom - h;
+            break;
+        case WMSZ_BOTTOMLEFT:
+            rc->left   = rc->right - w;
+            rc->bottom = rc->top + h;
+            break;
+        case WMSZ_BOTTOMRIGHT:
+        default:
+            rc->right  = rc->left + w;
+            rc->bottom = rc->top + h;
+            break;
+        }
+
+        *result = TRUE;
+        return true;
+    }
+
+    } // switch
+    return QWidget::nativeEvent(eventType, message, result);
+}
+#endif
+
 // v28: 顶层窗口同步到 videoWidget 的屏幕坐标
 void VideoForm::syncOverlaysToVideo()
 {
-    if (!m_videoWidget || !m_videoWidget->isVisible()) return;
+    if (!m_videoWidget) return;
     QRect vg = m_videoWidget->geometry();  // 在 keepRatioWidget 坐标系中
+    // 放宽可见性检查：虚拟画布模式下 widget 可能被 Qt 认为不可见但已有有效几何
+    if (vg.width() <= 1 || vg.height() <= 1) {
+        qInfo("[syncOverlay] SKIP: geom too small (%dx%d)", vg.width(), vg.height());
+        return;
+    }
     QPoint globalPos = ui->keepRatioWidget->mapToGlobal(vg.topLeft());
     QSize sz = vg.size();
+
+    qInfo("[syncOverlay] videoWidget geom=(%d,%d %dx%d) keepRatio size=(%dx%d) overlay sz=%dx%d",
+          vg.x(), vg.y(), vg.width(), vg.height(),
+          ui->keepRatioWidget->width(), ui->keepRatioWidget->height(),
+          sz.width(), sz.height());
+
+    // 同步 sceneRect：loadKeyMap 可能在 widget 很小时设置了 15x30 等错误值
+    if (m_keyMapEditView && m_keyMapEditView->scene()) {
+        QSizeF oldScene = m_keyMapEditView->scene()->sceneRect().size();
+        if (oldScene.toSize() != sz && sz.width() > 100) {
+            m_keyMapEditView->updateSize(sz);
+        }
+    }
 
     if (m_keyMapOverlay) {
         m_keyMapOverlay->setGeometry(globalPos.x(), globalPos.y(), sz.width(), sz.height());
@@ -1520,6 +1945,11 @@ void VideoForm::updateKeyMapOverlay() {
     QSize sz = (sceneSize.isEmpty() || sceneSize.width() <= 0)
                    ? m_videoWidget->size()
                    : sceneSize.toSize();
+
+    qInfo("[updateKeyMapOverlay] sceneSize=(%.0f,%.0f) videoWidget=%dx%d normalizeSz=%dx%d items=%d",
+          sceneSize.width(), sceneSize.height(),
+          m_videoWidget->width(), m_videoWidget->height(),
+          sz.width(), sz.height(), items.count());
 
     for (auto item : items) {
         auto* base = dynamic_cast<KeyMapItemBase*>(item);

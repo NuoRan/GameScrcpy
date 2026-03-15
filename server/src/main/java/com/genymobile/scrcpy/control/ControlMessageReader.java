@@ -46,6 +46,13 @@ public class ControlMessageReader {
                 return parseSetVideoBitRate();
             case ControlMessage.TYPE_SET_DISPLAY_POWER:
                 return parseSetDisplayPower();
+            // UHID 消息
+            case ControlMessage.TYPE_UHID_CREATE:
+                return parseUhidCreate();
+            case ControlMessage.TYPE_UHID_INPUT:
+                return parseUhidInput();
+            case ControlMessage.TYPE_UHID_DESTROY:
+                return parseUhidDestroy();
 
             default:
                 throw new ControlProtocolException("Unknown event type: " + type);
@@ -119,6 +126,40 @@ public class ControlMessageReader {
     private ControlMessage parseSetDisplayPower() throws IOException {
         int mode = dis.readUnsignedByte();
         return ControlMessage.createSetDisplayPower(mode != 0);
+    }
+
+    // ========== UHID 消息解析 ==========
+
+    private ControlMessage parseUhidCreate() throws IOException {
+        int id = dis.readUnsignedShort();
+        int vendorId = dis.readUnsignedShort();
+        int productId = dis.readUnsignedShort();
+        // 名称: 1字节长度前缀 + UTF-8 字符串
+        int nameLen = dis.readUnsignedByte();
+        String name = "";
+        if (nameLen > 0) {
+            byte[] nameBytes = new byte[nameLen];
+            dis.readFully(nameBytes);
+            name = new String(nameBytes, java.nio.charset.StandardCharsets.UTF_8);
+        }
+        // 报告描述符: 2字节长度前缀 + 数据
+        int descLen = dis.readUnsignedShort();
+        byte[] reportDesc = new byte[descLen];
+        dis.readFully(reportDesc);
+        return ControlMessage.createUhidCreate(id, vendorId, productId, name, reportDesc);
+    }
+
+    private ControlMessage parseUhidInput() throws IOException {
+        int id = dis.readUnsignedShort();
+        int dataLen = dis.readUnsignedShort();
+        byte[] data = new byte[dataLen];
+        dis.readFully(data);
+        return ControlMessage.createUhidInput(id, data);
+    }
+
+    private ControlMessage parseUhidDestroy() throws IOException {
+        int id = dis.readUnsignedShort();
+        return ControlMessage.createUhidDestroy(id);
     }
 
 

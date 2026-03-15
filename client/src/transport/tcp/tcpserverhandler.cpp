@@ -371,6 +371,9 @@ bool TcpServerHandler::execute()
         args.pop_back();
         args.push_back("audio=false");
     }
+    if (!m_params.auxEnabled) {
+        args.push_back("aux=false");
+    }
     if (-1 != m_params.scid) {
         args.push_back(strutil::format("scid=%08x", m_params.scid));
     }

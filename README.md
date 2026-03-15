@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="../../releases"><img src="https://img.shields.io/github/v/release/nicenick14/GameScrcpy?style=flat-square&color=blue" alt="Release"></a>
-  <img src="https://img.shields.io/badge/Version-1.3.2-blue?style=flat-square" alt="Version">
+  <img src="https://img.shields.io/badge/Version-1.3.3-blue?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11-blue?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/Qt-6.x-41CD52?style=flat-square&logo=qt" alt="Qt Version">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License"></a>
@@ -18,6 +18,8 @@
   <a href="#-快速开始">快速开始</a> •
   <a href="#️-键位映射">键位映射</a> •
   <a href="#-脚本系统">脚本系统</a> •
+  <a href="#-companion-app">Companion App</a> •
+  <a href="#-触控后端">触控后端</a> •
   <a href="#-从源码构建">构建</a>
 </p>
 
@@ -57,6 +59,8 @@
 - **音频串流** — OPUS 音频实时转发 + WASAPI 低延迟播放
 - **帧率可调** — 0-999 FPS 自由设置，0 = 不限制
 - **性能监控** — 实时 FPS、解码延迟、网络延迟、CPU/内存指标
+- **多触控后端** — Adb / UHID / AOA USB / ESP32 串口四种触控注入方式
+- **Companion App** — 手机端浮动光标 + 远程截屏辅助应用
 ---
 
 ### 🎮 游戏键位映射
@@ -142,6 +146,47 @@ mapi.swipeById(1, 200, 10);
 - **滑动轨迹曲线** — 三层正弦叠加模拟真人滑动轨迹（主曲线 + 次曲线 + 微振动）
 - **方向轮盘平滑** — 移动输入自然过渡
 - **可调强度** — UI 滑块实时调节偏移量和曲线幅度 (0~100)
+
+---
+
+### 📱 Companion App
+
+手机端辅助应用，为投屏游戏提供光标显示与远程截屏能力。
+
+- **浮动光标** — PC 端鼠标位置实时映射到手机屏幕上的浮动光标覆盖层，帮助瞄准
+  - TCP 端口 26758，归一化坐标传输，5 秒无更新自动隐藏
+  - 适配横屏/竖屏旋转，实时查询 `Display.getRealSize()`
+- **远程截屏** — PC 端一键截取手机当前屏幕，用于脚本调试和图像识别模板制作
+  - TCP 端口 26759，基于 MediaProjection + ImageReader，JPEG 格式传输
+  - 截屏完成自动释放资源
+- **Android 14+ 兼容** — 符合新版前台服务权限要求
+
+> 需在手机端安装 `companion-release.apk` 并手动启动服务，详见 [BUILD.md](docs/BUILD.md)。
+
+---
+
+### 🔌 触控后端
+
+支持 4 种触控注入方式，通过 TouchRouter 统一路由管理：
+
+| 后端 | 连接方式 | 说明 |
+|:-----|:---------|:-----|
+| **Adb** | USB / WiFi | scrcpy 原生注入（默认） |
+| **UHID** | USB / WiFi | 通过 `/dev/uhid` 创建虚拟触摸屏，推荐 WiFi 场景 |
+| **AOA** | USB | USB OTG 直接注入，libusb AOA 协议，最低延迟 |
+| **ESP32** | 串口 | ESP32-S3 USB HID 触摸屏，QineTouch v3.2 协议 |
+
+- AOA 后端支持自动安装 WinUSB 驱动
+- HID 报告描述符：7 字节格式，最大 16 触点，坐标范围 0-32767
+- 按键支持 HID 优先 + scrcpy 回退
+
+---
+
+### 📖 帮助中心
+
+- **12 节内置帮助文档** — 快速入门 / 连接设备 / 投屏窗口 / 键鼠映射 / 脚本编辑器 / mapi API / 图像识别 / 自定义选区 / 设置参数 / 终端 ADB / 快捷键 / 常见问题
+- **分步引导** — 首次运行自动弹出聚光灯引导（主窗口 9 步 + 投屏窗口 4 步 + 编辑模式引导），可在设置页重新启动
+- **导航栏「帮助」** — 点击打开完整帮助中心
 
 ---
 
@@ -231,14 +276,20 @@ GameScrcpy/
 ├── client/                 # 客户端 (Qt/C++)
 │   ├── src/
 │   │   ├── app/           # 应用入口、配置、首次运行协议
-│   │   ├── ui/            # 用户界面、键位覆盖层、脚本编辑器、选区编辑器、性能监控
+│   │   ├── ui/            # Fluent Design UI、键位覆盖层、脚本编辑器、选区编辑器、帮助中心、引导系统
 │   │   ├── control/       # 控制、键位映射、脚本引擎 (沙箱化)、责任链输入处理
-│   │   ├── transport/     # 传输 (TCP / KCP / 裸 UDP / ADB)、FEC 前向纠错
+│   │   │   ├── handlers/  # HandlerChain: Viewport(自适应EMA) / SteerWheel / FreeLook / Cursor / Keyboard
+│   │   │   └── hid/       # TouchRouter + 多后端: UHID / AOA / ESP32 / Adb
+│   │   ├── transport/     # 传输 (TCP / KCP / 裸 UDP / ADB / Companion)、FEC 前向纠错
 │   │   ├── decoder/       # FFmpeg 视频解码 (零拷贝 SIMD + D3D11VA GPU 直通)
 │   │   ├── render/        # D3D11 原生渲染 (零拷贝帧提交)
 │   │   ├── core/          # 核心架构 (接口层/基础设施/实现/服务)
 │   │   └── common/        # 配置中心、无锁性能监控、图像识别
 │   └── env/               # 预编译依赖 (FFmpeg, ADB, OpenCV)
+│
+├── companion_app/          # 手机端辅助应用 (Android/Java)
+│   └── app/src/main/
+│       └── java/           # CursorService (光标覆盖) / ScreenshotService (远程截屏) / MainActivity
 │
 ├── server/                 # 服务端 (Android/Java)
 │   └── src/main/
@@ -264,6 +315,8 @@ GameScrcpy/
 | QuickJS | JavaScript 脚本引擎 |
 | OpenCV 4.12 | 图像识别 (可选) |
 | KCP | 低延迟 UDP 传输 |
+| libusb | AOA USB HID 触控 (可选) |
+| D3D11 / DXGI | 原生视频渲染 |
 
 ---
 
@@ -292,6 +345,17 @@ cd ci\win
 cd server
 ..\gradlew.bat assembleRelease
 ```
+
+### Companion App 构建
+
+```powershell
+cd companion_app
+..\gradlew.bat :companion:assembleRelease
+```
+
+APK 输出路径：`companion_app/app/build/outputs/apk/release/companion-release.apk`
+
+安装到手机后，需手动授予「悬浮窗」权限，并在应用内分别启动光标服务和截屏服务。
 
 ---
 

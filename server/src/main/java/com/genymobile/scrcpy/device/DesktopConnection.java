@@ -58,8 +58,8 @@ public final class DesktopConnection implements Closeable {
         return SOCKET_NAME_PREFIX + String.format("_%08x", scid);
     }
 
-    public static DesktopConnection open(int scid, boolean tunnelForward, boolean video, boolean audio, boolean control, boolean sendDummyByte)
-            throws IOException {
+    public static DesktopConnection open(int scid, boolean tunnelForward, boolean video, boolean audio, boolean control, boolean sendDummyByte,
+            boolean aux) throws IOException {
         String baseSocketName = getSocketName(scid);
         String videoSocketName = baseSocketName + "_video";
         String audioSocketName = baseSocketName + "_audio";
@@ -100,11 +100,13 @@ public final class DesktopConnection implements Closeable {
                     }
                 }
 
-                // 辅助通道（始终创建）
-                try (LocalServerSocket auxServerSocket = new LocalServerSocket(auxSocketName)) {
-                    auxSocket = auxServerSocket.accept();
-                    if (sendDummyByte) {
-                        auxSocket.getOutputStream().write(0);
+                // 辅助通道
+                if (aux) {
+                    try (LocalServerSocket auxServerSocket = new LocalServerSocket(auxSocketName)) {
+                        auxSocket = auxServerSocket.accept();
+                        if (sendDummyByte) {
+                            auxSocket.getOutputStream().write(0);
+                        }
                     }
                 }
             } else {
@@ -118,7 +120,9 @@ public final class DesktopConnection implements Closeable {
                     controlSocket = connect(controlSocketName);
                 }
                 // 辅助通道
-                auxSocket = connect(auxSocketName);
+                if (aux) {
+                    auxSocket = connect(auxSocketName);
+                }
             }
         } catch (IOException | RuntimeException e) {
             if (videoSocket != null) {

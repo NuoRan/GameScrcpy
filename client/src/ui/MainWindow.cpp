@@ -36,6 +36,8 @@
 #include "ScriptEngine.h"
 #include "service/DeviceSession.h"
 #include "StringUtils.h"
+#include "ConfigCenter.h"
+#include "hid/TouchRouter.h"  // TouchMethod, methodNeedsServer
 #ifdef Q_OS_WIN32
 #include "winutils.h"
 #endif
@@ -389,6 +391,15 @@ void MainWindow::connectSignals()
         }
     });
     connect(m_settingsPage, &SettingsPage::startAdbd, this, &MainWindow::onRequestStartAdbd);
+    connect(m_settingsPage, &SettingsPage::touchModeChanged, this, [this](int mode) {
+        // 通知首页动态更新直连条目
+        if (m_homePage) m_homePage->onTouchMethodChanged(mode);
+    });
+    connect(m_homePage, &HomePage::requestDirectConnect, this, &MainWindow::onRequestDirectConnect);
+
+    // 初始化首页直连条目状态
+    int initTouchMethod = qsc::ConfigCenter::instance().get<int>("user/touchMode", 0);
+    m_homePage->onTouchMethodChanged(initTouchMethod);
     connect(m_settingsPage, &SettingsPage::restartOnboarding, this, [this]() {
         Config::getInstance().resetAllOnboarding();
         m_stack->setCurrentWidget(m_homePage);   // 回到首页再启动引导
@@ -416,9 +427,9 @@ void MainWindow::onNavItemClicked(const QString& id)
     if (id == "home")     m_stack->setCurrentWidget(m_homePage);
     else if (id == "settings") {
         if (m_settingsPage) {
-            // 先把当前 UI 值写回 Config，再重新读取（合并外部变更且不丢失本页修改）
-            m_settingsPage->saveToConfig();
+            // 先同步外部变更（如 VideoSettingsPopup），再保存当前 UI 状态
             m_settingsPage->syncFromConfig();
+            m_settingsPage->saveToConfig();
         }
         m_stack->setCurrentWidget(m_settingsPage);
     }
@@ -505,6 +516,51 @@ void MainWindow::onRequestRefresh()
 void MainWindow::onRequestDeviceConnect(const QString& serial)
 {
     tryStartServerForSerial(serial);
+}
+
+void MainWindow::onRequestDirectConnect()
+{
+    // AOA/ESP32 直连: 不需要 ADB, 用虚拟 serial 走纯触控路径
+    int touchMethodIdx = qsc::ConfigCenter::instance().get<int>("user/touchMode", 0);
+    auto tm = static_cast<TouchMethod>(touchMethodIdx);
+
+    QString pseudoSerial;
+    if (methodUsesAoa(tm))
+        pseudoSerial = QStringLiteral("AOA-DIRECT");
+    else if (methodUsesEsp32(tm))
+        pseudoSerial = QStringLiteral("ESP32-DIRECT");
+    else
+        return;
+
+    if (m_videoForms.contains(pseudoSerial)) {
+        Fluent::FluentInfoBar::warning(this, tr("已有活跃的直连会话"));
+        return;
+    }
+
+    // 直连 = 纯触控，不管视频开关都跳过 server（没有 ADB 就没法传视频）
+    Fluent::FluentInfoBar::info(this, tr("正在启动直连会话 (纯触控)..."));
+    m_currentSerial = pseudoSerial;
+
+    qsc::DeviceParams params;
+    params.serial = strutil::fromQ(pseudoSerial);
+    params.maxSize = 0;
+    params.bitRate = 0;
+    params.maxFps = 0;
+    params.renderExpiredFrames = false;
+    params.serverLocalPath = "";
+    params.serverRemotePath = "";
+    params.gameScript = "";
+    params.logLevel = "";
+    params.codecOptions = "";
+    params.codecName = "";
+    params.videoCodec = "";
+    params.scid = 0;
+    // 临时关闭视频通道，确保走纯触控路径
+    bool savedVideo = qsc::ConfigCenter::instance().get<bool>("user/videoChannelEnabled", true);
+    qsc::ConfigCenter::instance().set("user/videoChannelEnabled", false);
+    qsc::IDeviceManage::getInstance().connectDevice(params);
+    // 恢复视频通道设置（不影响用户配置）
+    qsc::ConfigCenter::instance().set("user/videoChannelEnabled", savedVideo);
 }
 
 void MainWindow::onRequestWifiDisconnect()
@@ -604,6 +660,14 @@ void MainWindow::onDeviceConnected(bool success, const QString& serial, const QS
     videoForm->updateShowSize(size);
     videoForm->restoreWindowGeometry();
 
+    // 纯触控模式: 视频关闭 且 触控方式不需 server → 启用虚拟画布
+    int touchMethodIdx = qsc::ConfigCenter::instance().get<int>("user/touchMode", 0);
+    auto touchMethod = static_cast<TouchMethod>(touchMethodIdx);
+    bool videoEnabled = qsc::ConfigCenter::instance().get<bool>("user/videoChannelEnabled", true);
+    if (!videoEnabled && !methodNeedsServer(touchMethod)) {
+        videoForm->enableVirtualCanvas(QSize(size.width(), size.height()));
+    }
+
     videoForm->show();
     qInfo("[MainWindow] onDeviceConnected done");
 }
@@ -652,8 +716,9 @@ void MainWindow::tryStartServerForSerial(const QString& serial)
     if (serial.isEmpty()) return;
     m_currentSerial = serial;
 
-    // 先将设置页 UI 值持久化到 Config，确保 onDeviceConnected 读到最新配置
+    // 先从 Config 同步到设置页 UI（VideoSettingsPopup 可能已修改配置），再保存
     if (m_settingsPage) {
+        m_settingsPage->syncFromConfig();
         m_settingsPage->saveToConfig();
     }
 

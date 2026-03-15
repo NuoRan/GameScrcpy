@@ -23,6 +23,8 @@
 #include "terminaldialog.h"
 #include "ScriptEngine.h"
 #include "service/DeviceSession.h"
+#include "ConfigCenter.h"
+#include "hid/TouchRouter.h"
 
 #ifdef Q_OS_WIN32
 #include "winutils.h"
@@ -1109,6 +1111,14 @@ void Dialog::onDeviceConnected(bool success, const QString &serial, const QStrin
 
     videoForm->setWindowTitle(name + " - " + serial);
     videoForm->updateShowSize(size);
+
+    // 纯触控模式: 视频关闭 且 触控方式不需 server → 启用虚拟画布
+    int touchMethodIdx = qsc::ConfigCenter::instance().get<int>("user/touchMode", 0);
+    auto touchMethod = static_cast<TouchMethod>(touchMethodIdx);
+    bool videoEnabled = qsc::ConfigCenter::instance().get<bool>("user/videoChannelEnabled", true);
+    if (!videoEnabled && !methodNeedsServer(touchMethod)) {
+        videoForm->enableVirtualCanvas(QSize(size.width(), size.height()));
+    }
 
     // 恢复窗口位置和大小（必须在 show 之前调用）
     videoForm->restoreWindowGeometry();

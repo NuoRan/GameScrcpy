@@ -21,6 +21,7 @@ import com.genymobile.scrcpy.util.IO;
 import com.genymobile.scrcpy.util.Ln;
 import com.genymobile.scrcpy.video.VirtualDisplayListener;
 import com.genymobile.scrcpy.wrappers.InputManager;
+import com.genymobile.scrcpy.wrappers.ServiceManager;
 
 import android.os.Build;
 import android.os.SystemClock;
@@ -98,6 +99,9 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
 
     // 新增：快速触摸处理器
     private final FastTouch fastTouch = new FastTouch();
+
+    // UHID 管理器 (懒初始化)
+    private UhidManager uhidManager;
 
     public Controller(IControlChannel controlChannel, CleanUp cleanUp, Options options) {
         this.displayId = options.getDisplayId();
@@ -193,6 +197,9 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
                     fatalError = true;
                 }
             } finally {
+                if (uhidManager != null) {
+                    uhidManager.closeAll();
+                }
                 fastTouch.stop();
                 listener.onTerminated(fatalError);
             }
@@ -291,11 +298,87 @@ public class Controller implements AsyncProcessor, VirtualDisplayListener {
                 Device.setDisplayPower(displayId, powerOn);
                 break;
 
+            // ========== UHID ==========
+            case ControlMessage.TYPE_UHID_CREATE:
+                if (uhidManager == null) {
+                    uhidManager = new UhidManager(sender);
+                }
+                uhidManager.open(msg.getUhidId(), msg.getVendorId(), msg.getProductId(), msg.getName(), msg.getData());
+                break;
+            case ControlMessage.TYPE_UHID_INPUT:
+                if (uhidManager != null) {
+                    byte[] uhidData = msg.getData();
+                    // 触摸报告 (7字节) 需要根据屏幕旋转修正坐标
+                    // UHID 设备坐标是物理面板坐标，但客户端发送的是逻辑屏幕坐标
+                    if (uhidData.length == 7) {
+                        uhidData = applyTouchRotation(uhidData);
+                    }
+                    uhidManager.writeInput(msg.getUhidId(), uhidData);
+                }
+                break;
+            case ControlMessage.TYPE_UHID_DESTROY:
+                if (uhidManager != null) {
+                    uhidManager.close(msg.getUhidId());
+                }
+                break;
+
             default:
                 // do nothing
         }
 
         return true;
+    }
+
+    /**
+     * 将 UHID 触摸报告从逻辑屏幕坐标转换为物理面板坐标
+     *
+     * Android InputReader 对 UHID 触摸屏自动应用显示旋转：
+     *   ROTATION_90:  displayX = rawY,         displayY = maxRaw - rawX
+     *   ROTATION_180: displayX = maxRaw - rawX, displayY = maxRaw - rawY
+     *   ROTATION_270: displayX = maxRaw - rawY, displayY = rawX
+     *
+     * 客户端发送的是逻辑坐标（视频坐标系），需要逆变换为物理坐标。
+     */
+    private byte[] applyTouchRotation(byte[] data) {
+        int rotation;
+        try {
+            rotation = ServiceManager.getWindowManager().getRotation();
+        } catch (Exception e) {
+            return data;
+        }
+        if (rotation == 0) {
+            return data;
+        }
+
+        // 提取 LE16 坐标: data[2-3]=X, data[4-5]=Y
+        int x = (data[2] & 0xFF) | ((data[3] & 0xFF) << 8);
+        int y = (data[4] & 0xFF) | ((data[5] & 0xFF) << 8);
+        int max = 32767;
+        int rawX, rawY;
+
+        switch (rotation) {
+            case 1: // ROTATION_90 逆变换
+                rawX = max - y;
+                rawY = x;
+                break;
+            case 2: // ROTATION_180 逆变换
+                rawX = max - x;
+                rawY = max - y;
+                break;
+            case 3: // ROTATION_270 逆变换
+                rawX = y;
+                rawY = max - x;
+                break;
+            default:
+                return data;
+        }
+
+        byte[] out = data.clone();
+        out[2] = (byte) (rawX & 0xFF);
+        out[3] = (byte) ((rawX >> 8) & 0xFF);
+        out[4] = (byte) (rawY & 0xFF);
+        out[5] = (byte) ((rawY >> 8) & 0xFF);
+        return out;
     }
 
     private boolean injectKeycode(int action, int keycode, int repeat, int metaState) {

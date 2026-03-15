@@ -378,6 +378,17 @@ void SessionContext::script_simulateKey(const std::string& keyName, bool press)
         return;
     }
 
+    // 直接发送 Android 键码到设备，跳过键位映射分发器
+    // 避免与宏热键绑定的按键（如 ESC）在分发器中再次触发脚本，形成无限递归
+    if (m_inputDispatcher) {
+        AndroidKeycode akc = m_inputDispatcher->convertKeyCode(qtKey, InputModifier::None);
+        if (akc != AKEYCODE_UNKNOWN) {
+            sendKeyEvent(press ? 0 : 1, akc);
+            return;
+        }
+    }
+
+    // 回退：无法转换时走分发器
     InputEvent event{};
     event.type = press ? InputEventType::KeyPress : InputEventType::KeyRelease;
     event.key = qtKey;

@@ -16,6 +16,7 @@
   - [方式三：命令行](#方式三命令行)
   - [方式四：一键构建脚本](#方式四一键构建脚本)
 - [服务端构建](#服务端构建)
+- [Companion App 构建](#companion-app-构建)
 - [打包发布](#打包发布)
 - [常见问题](#常见问题)
 
@@ -54,6 +55,7 @@
 | FFmpeg | 视频解码 | include + lib |
 | OpenCV | 图像识别 | include + lib |
 | QuickJS | JavaScript 脚本引擎 | 源码 (env/quickjs/) |
+| libusb | AOA USB HID 触控 | include + lib (env/libusb/) |
 
 ### 需要下载的依赖 (DLL)
 
@@ -308,6 +310,58 @@ zip -j server.apk classes.dex
 
 ---
 
+## Companion App 构建
+
+Companion App 是运行在 Android 手机端的辅助应用，提供浮动光标覆盖层和远程截屏功能。
+
+### 环境要求
+
+| 工具 | 要求 |
+|------|------|
+| Android SDK | API 34+ |
+| Java | JDK 17+ |
+| Gradle | 8.x (项目自带 Wrapper) |
+
+### 构建步骤
+
+```powershell
+# 在项目根目录执行
+.\gradlew.bat :companion:assembleRelease
+```
+
+### 构建产物
+
+```
+companion_app/app/build/outputs/apk/release/companion-release.apk
+```
+
+### 安装与使用
+
+1. **安装 APK**
+   ```powershell
+   adb install companion-release.apk
+   ```
+
+2. **授予悬浮窗权限**
+   - 打开手机「设置」→「应用」→「GameScrcpy Companion」→「悬浮窗」→ 允许
+
+3. **启动服务**
+   - 打开 Companion App
+   - 点击「光标服务」按钮启动浮动光标（TCP 端口 26758）
+   - 点击「截屏服务」按钮启动远程截屏（TCP 端口 26759），需授予屏幕录制权限
+
+4. **PC 端连接**
+   - PC 客户端会通过 ADB 端口转发自动连接 Companion App
+   - 鼠标移动时手机屏幕上会显示对应位置的浮动光标
+
+### 注意事项
+
+- Android 14+ 设备需要前台服务特殊权限，应用已内置相关声明
+- 截屏服务使用完毕后会自动停止，无需手动关闭
+- 光标位置使用归一化坐标传输，自动适配横屏/竖屏旋转
+
+---
+
 ## 打包发布
 
 ### 自动打包 (推荐)
@@ -402,6 +456,7 @@ GameScrcpy-Windows-x64/
 - [ ] keymap/ 目录
 - [ ] config/config.ini (不要包含 userdata.ini)
 - [ ] platforms/qwindows.dll
+- [ ] companion-release.apk (Companion App，可选)
 
 ---
 

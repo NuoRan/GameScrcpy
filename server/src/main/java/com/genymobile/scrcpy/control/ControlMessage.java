@@ -27,6 +27,11 @@ public final class ControlMessage {
     public static final int TYPE_SET_VIDEO_BITRATE = 20;  // 4B: bitrate(4)
     public static final int TYPE_SET_DISPLAY_POWER = 21;  // 1B: mode(1) 0=off,1=on
 
+    // UHID 消息 (服务端 /dev/uhid 硬件触控注入)
+    public static final int TYPE_UHID_CREATE  = 30;  // id(2)+vendorId(2)+productId(2)+nameLen(1)+name(N)+descLen(2)+desc(M)
+    public static final int TYPE_UHID_INPUT   = 31;  // id(2)+dataLen(2)+data(N)
+    public static final int TYPE_UHID_DESTROY = 32;  // id(2)
+
     // 核心字段
     private int type;
     private int metaState;     // KeyEvent.META_*
@@ -49,6 +54,12 @@ public final class ControlMessage {
     // 运行时参数字段
     private int videoBitRate;
     private boolean displayPowerOn;
+
+    // UHID 字段
+    private int uhidId;
+    private int vendorId;
+    private int productId;
+    private String name;
 
     private ControlMessage() {
     }
@@ -134,6 +145,32 @@ public final class ControlMessage {
         return msg;
     }
 
+    public static ControlMessage createUhidCreate(int id, int vendorId, int productId, String name, byte[] reportDesc) {
+        ControlMessage msg = new ControlMessage();
+        msg.type = TYPE_UHID_CREATE;
+        msg.uhidId = id;
+        msg.vendorId = vendorId;
+        msg.productId = productId;
+        msg.name = name;
+        msg.data = reportDesc;
+        return msg;
+    }
+
+    public static ControlMessage createUhidInput(int id, byte[] data) {
+        ControlMessage msg = new ControlMessage();
+        msg.type = TYPE_UHID_INPUT;
+        msg.uhidId = id;
+        msg.data = data;
+        return msg;
+    }
+
+    public static ControlMessage createUhidDestroy(int id) {
+        ControlMessage msg = new ControlMessage();
+        msg.type = TYPE_UHID_DESTROY;
+        msg.uhidId = id;
+        return msg;
+    }
+
 
 
     // ========== Getters ==========
@@ -206,5 +243,20 @@ public final class ControlMessage {
         return displayPowerOn;
     }
 
+    public int getUhidId() {
+        return uhidId;
+    }
+
+    public int getVendorId() {
+        return vendorId;
+    }
+
+    public int getProductId() {
+        return productId;
+    }
+
+    public String getName() {
+        return name;
+    }
 
 }

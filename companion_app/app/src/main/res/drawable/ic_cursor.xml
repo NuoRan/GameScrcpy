@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="40dp"
+    android:height="40dp"
+    android:viewportWidth="40"
+    android:viewportHeight="40">
+    <!-- 白色描边 (暗背景可见) -->
+    <path android:pathData="M20,2 L20,38"
+        android:strokeColor="#AAFFFFFF" android:strokeWidth="3"/>
+    <path android:pathData="M2,20 L38,20"
+        android:strokeColor="#AAFFFFFF" android:strokeWidth="3"/>
+    <!-- 红色十字线 -->
+    <path android:pathData="M20,4 L20,36"
+        android:strokeColor="#FFFF4444" android:strokeWidth="1.5"/>
+    <path android:pathData="M4,20 L36,20"
+        android:strokeColor="#FFFF4444" android:strokeWidth="1.5"/>
+    <!-- 中心点 -->
+    <path android:pathData="M20,20 m-2.5,0 a2.5,2.5 0 1,0 5,0 a2.5,2.5 0 1,0 -5,0"
+        android:fillColor="#FFFF4444"/>
+</vector>

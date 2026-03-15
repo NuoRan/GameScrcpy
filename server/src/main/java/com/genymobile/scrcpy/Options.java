@@ -81,6 +81,7 @@ public class Options {
     private int kcpPort = 27185;
     private int kcpControlPort = 27186;  // Control channel port (kcpPort + 1)
     private int auxPort = 27187;           // Auxiliary channel port (kcpPort + 2 for KCP; TCP uses separate socket name)
+    private boolean aux = true;              // Enable auxiliary channel
     private String clientIp = "";
 
     public Ln.Level getLogLevel() {
@@ -241,6 +242,10 @@ public class Options {
 
     public int getAuxPort() {
         return auxPort;
+    }
+
+    public boolean getAux() {
+        return aux;
     }
 
     public String getClientIp() {
@@ -416,6 +421,9 @@ public class Options {
                     break;
                 case "aux_port":
                     options.auxPort = Integer.parseInt(value);
+                    break;
+                case "aux":
+                    options.aux = Boolean.parseBoolean(value);
                     break;
                 case "raw_stream":
                     boolean rawStream = Boolean.parseBoolean(value);

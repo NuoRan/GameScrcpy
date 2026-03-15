@@ -14,6 +14,7 @@
 #include "DesignTokens.h"
 #include "MotionTokens.h"
 #include "ConfigCenter.h"
+#include "FluentDialog.h"
 
 // 复用 ToolForm 中已有的 DraggableLabel & KeyMapType
 #include "toolform.h"
@@ -277,23 +278,24 @@ void KeyMapSidePanel::setupUI()
 
     mainLayout->addWidget(makeGroupCard(configInner));
 
-    // 新建按钮 → 创建空配置文件
+    // 新建按钮 → 弹窗输入名称后创建空配置文件
     connect(m_newBtn, &QPushButton::clicked, this, [this]() {
-        // 简单弹输入框取名 (Phase 4 会改为 FluentDialog::input)
-        bool ok = false;
-        QString text;
-        // 向上层发出信号由外部处理，此处仅做简单文件创建
-        text = "new_config";
-        // TODO: FluentDialog::input
+        QString name = FluentDialog::input(this, tr("新建键位配置"), tr("请输入配置名称"), "new_config");
+        if (name.isEmpty()) return;
+        if (!name.endsWith(".json")) name += ".json";
         namespace fs = std::filesystem;
         fs::path dirPath("keymap");
         if (!fs::exists(dirPath)) fs::create_directories(dirPath);
-        if (!text.endsWith(".json")) text += ".json";
-        std::ofstream file((dirPath / text.toStdString()).string());
+        fs::path filePath = dirPath / name.toStdString();
+        if (fs::exists(filePath)) {
+            FluentDialog::info(this, tr("提示"), tr("配置文件 \"%1\" 已存在").arg(name));
+            return;
+        }
+        std::ofstream file(filePath.string());
         if (file) {
             file << "{}"; file.close();
             refreshConfigList();
-            m_configCombo->setCurrentText(text);
+            m_configCombo->setCurrentText(name);
         }
     });
 

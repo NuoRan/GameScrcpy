@@ -152,6 +152,9 @@ void ConfigCenter::registerDefaults()
     m_defaults["user/keyMapOverlayOpacity"] = 60;  // 键位提示层透明度 0~100
     m_defaults["user/keyMapOverlayVisible"] = false;  // 键位提示层是否显示
     m_defaults["user/scriptTipOpacity"] = 70;  // 脚本弹窗透明度 0~100
+    m_defaults["user/aoaResWidth"] = 1080;
+    m_defaults["user/aoaResHeight"] = 2400;
+    m_defaults["user/aoaLandscape"] = false;
 }
 
 bool ConfigCenter::initialize(const std::string& configPath, const std::string& userDataPath)

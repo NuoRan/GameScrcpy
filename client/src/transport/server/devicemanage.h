@@ -16,6 +16,8 @@
 class Server;
 class AuxChannelClient;
 class AudioStreamManager;
+class TouchRouter;
+class ITouchBackend;
 
 namespace qsc {
 namespace core {
@@ -51,6 +53,8 @@ private:
     void onServerStart(bool success, const std::string& deviceName, const Size& size);
     void onServerStop();
     void onAdbSizeResult(AdbProcess::ADB_EXEC_RESULT processResult);
+    bool startPureAoa();
+    bool startPureEsp32();
 
 private:
     DeviceParams m_params;
@@ -60,6 +64,8 @@ private:
     AuxChannelClient* m_auxChannel = nullptr;
     AudioStreamManager* m_audioManager = nullptr;
     AdbProcess* m_adbSizeProcess = nullptr;
+    TouchRouter* m_touchRouter = nullptr;
+    ITouchBackend* m_hidBackend = nullptr;
     Size m_mobileSize;
     bool m_stopping = false;
     std::shared_ptr<std::atomic<bool>> m_aliveToken;

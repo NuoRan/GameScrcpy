@@ -3,6 +3,8 @@
 #include "FluentButton.h"
 #include "ThemeManager.h"
 #include "DesignTokens.h"
+#include "hid/TouchRouter.h"
+#include "ConfigCenter.h"
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
@@ -172,16 +174,27 @@ void HomePage::setupUI()
     connect(m_refreshBtn, &QPushButton::clicked, this, &HomePage::requestRefresh);
 
     connect(m_deviceList, &QListWidget::itemDoubleClicked, this, [this](QListWidgetItem *item) {
-        if (item) emit requestDeviceConnect(item->text());
+        if (!item) return;
+        if (item->data(Qt::UserRole).toString() == "__DIRECT__") {
+            emit requestDirectConnect();
+        } else {
+            emit requestDeviceConnect(item->text());
+        }
     });
 }
 
 void HomePage::updateDeviceList(const QStringList &serials)
 {
+    m_lastSerials = serials;  // 缓存真实设备列表
+
     const QString currentText = m_deviceList->currentItem()
                                     ? m_deviceList->currentItem()->text()
                                     : QString();
     m_deviceList->clear();
+
+    // 如果触控方式是 AOA/ESP32，在顶部插入直连条目
+    updateDirectConnectItem();
+
     for (const auto &s : serials) {
         m_deviceList->addItem(s);
     }
@@ -219,4 +232,33 @@ void HomePage::changeEvent(QEvent *event)
     if (event->type() == QEvent::LanguageChange)
         retranslateUi();
     QWidget::changeEvent(event);
+}
+
+void HomePage::onTouchMethodChanged(int method)
+{
+    m_touchMethod = method;
+    // 重新构建列表 (在最前面插入或移除直连条目)
+    updateDeviceList(m_lastSerials);
+}
+
+void HomePage::updateDirectConnectItem()
+{
+    auto tm = static_cast<TouchMethod>(m_touchMethod);
+    // AOA / ESP32 不依赖 ADB，始终提供直连入口
+    if (methodNeedsServer(tm)) return;
+
+    QString label;
+    if (methodUsesAoa(tm))
+        label = tr("🔌 AOA 直连 (双击连接)");
+    else if (methodUsesEsp32(tm))
+        label = tr("🔌 ESP32 直连 (双击连接)");
+    else
+        return;
+
+    auto *item = new QListWidgetItem(label);
+    item->setData(Qt::UserRole, "__DIRECT__");
+    QFont f = item->font();
+    f.setBold(true);
+    item->setFont(f);
+    m_deviceList->insertItem(0, item);
 }

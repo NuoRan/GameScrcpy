@@ -1,5 +1,85 @@
 # 更新日志 / Changelog
 
+## v1.3.3 (2026-03-15)
+
+> 新增 Companion App、多触控后端路由、视角自适应平滑、帮助中心等
+
+### 📱 Companion App（全新 Android 辅助应用）
+
+- **CursorService 浮动光标服务**：TCP 端口 26758，PC 端发送归一化坐标 → 手机端绘制浮动光标覆盖层
+  - 协议：`0x01 [float x][float y]` 更新位置、`0x03` 隐藏光标
+  - 实时 `Display.getRealSize()` 适配横屏/竖屏旋转，不再缓存尺寸
+  - `FLAG_LAYOUT_IN_SCREEN` 精准定位，修复 ~50px 偏移问题
+  - 5 秒无更新自动隐藏、40dp 密度自适应光标尺寸
+- **ScreenshotService 远程截屏服务**：TCP 端口 26759，基于 MediaProjection + ImageReader
+  - 协议：`0x02` 请求截屏、`0x82 [int32 len][JPEG]` 响应
+  - Android 14+ 兼容（`registerCallback` 替代 `registerDisplayListener`）
+  - 截屏完成自动停止服务，释放 MediaProjection 资源
+- **MainActivity**：两个独立开关按钮分别启停光标/截屏服务，显示设备 IP、端口、分辨率
+- **PC 端 CompanionClient**：大端序 float 序列化、JPEG 响应解析、临时连接自动清理
+- **自定义应用图标**：使用 GameScrcpy.png 生成全密度 mipmap 图标
+- **Android 14+ 前台服务**：`foregroundServiceType="specialUse"` / `"mediaProjection"`，符合新版权限要求
+
+### 🎮 多触控后端 & TouchRouter
+
+- **ITouchBackend 统一接口**：`sendTouch(action, touchId, x, y)` + `resetAllTouch()` + `supportsKeys()`，坐标范围 0-65535
+- **TouchRouter 路由器**：4 种 TouchMethod（Adb / Uhid / Esp32 / Aoa），自动解析 FastMsg 分发到对应后端
+- **UhidTouchBackend**：通过控制通道发送 UHID_CREATE/INPUT/DESTROY 消息，服务端写 `/dev/uhid` 创建虚拟触摸屏，支持 WiFi 无需 USB 驱动
+- **AoaHidBackend + AoaHidDevice**：libusb AOA 协议注册 HID 触摸屏+键盘设备，`contactId` 池管理（0-15），多点触控活跃点补发，显示旋转坐标变换
+- **Esp32HidBackend**：QineTouch v3.2 协议（`0xF4` header + 12 字节包），串口通信（默认 921600 波特率），多触点管理
+- **HidReportDescriptor**：USB HID 触摸屏报告描述符（7 字节格式，最大 16 触点）+ 键盘描述符
+- **WinUsbDriverHelper**：Windows WinUSB 驱动自动安装/卸载，枚举 Android VID USB 设备，动态生成 INF
+
+### 🔍 视角控制自适应 EMA 平滑
+
+- **自适应双阈值 EMA**：替代固定系数 0.85，速度低时强平滑（`FACTOR_LOW=0.5`）消除锯齿，速度高时弱平滑（`FACTOR_HIGH=0.95`）保持响应
+- **速度阈值**：`SPEED_LOW=0.001`（归一化）→ `SPEED_HIGH=0.008`，线性插值计算因子
+- **Overshoot 回灌管线**：边缘/中心回正不再一次性 MOVE 跳步，改为回灌 `m_pendingMoveDelta` 由下帧 EMA 平滑消化，消除视角瞬移
+- **EMA 历史清空**：`onCenterRepressTimer()` 中 `m_smoothedDelta = {0,0}`，全新触摸序列不受旧残差影响
+- **移除 JITTER_THRESHOLD**：消除低速锯齿的根本原因（累积→刷新阶梯效应）
+- **Timer 间隔 15ms → 20ms**：减少过于频繁的回正触发
+
+### 🎮 方向轮盘重置可靠性
+
+- **resetWheel() 延迟重按**：场景切换时（如跑步按 F 进车）UP → 20ms 延迟 → 重新 DOWN，确保服务端正确识别触摸释放
+- **resetRepressTimer (20ms)**：`onResetRepressTimer()` 延迟后重新计算方向键状态并 re-trigger `executeMove`
+- **waitingForResetRepress 状态**：防止重入，所有键松开时自动取消定时器
+
+### 📖 帮助中心 & 引导系统
+
+- **HelpDialog 12 节帮助中心**：快速入门 / 连接设备 / 投屏窗口 / 键鼠映射 / 脚本编辑器 / mapi API / 图像识别 / 自定义选区 / 设置参数 / 终端 ADB / 快捷键 / 常见问题
+  - 统一 Fluent Design CSS、暗色模式支持、左侧导航 + 右侧内容区
+- **OnboardingOverlay 分步引导**：聚光灯裁剪 + 提示卡片、淡入动画、自动定位（下/上/右/左）
+  - 主窗口 9 步引导（欢迎→USB→WiFi→设备列表→导航栏→设置→终端→工作流→完成）
+  - 投屏窗口 4 步引导（画面区域→操作工具栏→键位面板）
+  - 编辑模式引导（首次进入键位编辑时触发）
+  - 设置页可重新启动全部引导
+
+### 🔌 连接进度指示
+
+- **ConnectionProgressWidget**：11 阶段可视化连接进度（Idle→Checking→Pushing→Starting→Connecting→Negotiating→Streaming→Connected/Failed/Timeout/Cancelled）
+- 脉冲动画、超时处理、状态文本实时更新
+
+### 📊 性能监控 & 图像截取
+
+- **PerformanceDialog**：实时视频指标（FPS/解码延迟/渲染延迟/帧数/丢帧）、网络指标（延迟/收发字节/pending）、输入指标
+- **ImageCaptureDialog**：3 种模式（模板截取/搜索区域选择/位置点选择）、`ZoomableImageWidget` 可缩放显示、OpenCV 集成
+
+### 🐛 Bug 修复
+
+- **ESC 宏热键无法执行**：键位映射解析器 `getItemKey()` 的 `qtKeyFromName` 查找表仅包含 `Key_Escape` 前缀形式，JSON 中写 `"Esc"` 无法匹配；新增 `displayNameToKeyWithModifiers()` 作为 fallback，支持所有短名称（Esc、Space、Tab、Enter、F1-F12、箭头键等）
+- **脚本 `simulateKey("ESC")` 无限递归**：`script_simulateKey()` 调用 `keyEvent()` 重新进入键映射分发器，遇到同一 KMT_SCRIPT 节点再次触发脚本；改为通过 `InputDispatcher::convertKeyCode()` + `sendKeyEvent()` 直接发送 Android 按键，绕过整个键映射链路
+- **视频窗口等比例锁定**：新增 `nativeEvent` 处理 WM_NCHITTEST（仅四角返回 HTTOPLEFT/HTTOPRIGHT/HTBOTTOMLEFT/HTBOTTOMRIGHT，边缘返回 HTCLIENT 禁止拖拽）+ WM_SIZING（动态计算窗口开销、以宽度为基准等比约束高度）+ WM_NCCALCSIZE（保持无边框外观）
+- **横竖屏切换窗口不更新**：`updateShowSize()` 检测 `m_widthHeightRatio` 跨越 1.0 的方向变化，即使用户手动调整过窗口也强制 resize 并重新计算尺寸
+- **移除设置页"恢复 ADB 驱动"按钮**：清理 SettingsPage 中 `#ifdef HAVE_AOA_HID` 相关的四处代码（include、UI 创建、click handler、翻译文本）
+- **光标覆盖层偏移**：CursorService 从 `DisplayMetrics`（内容区域）改为 `Display.getRealSize()`（含状态栏/导航栏），修复 ~50px 右偏
+- **横屏光标错位**：`getRealSize()` 从 onCreate 缓存改为 `updateCursor()` 每次实时查询，适配屏幕旋转
+- **视角瞬移**：边缘/中心回正 overshoot 从即时 MOVE 改为管线回灌 EMA 平滑
+- **低速锯齿**：移除 JITTER_THRESHOLD 阶梯效应，自适应 EMA 低速强平滑
+- **轮盘重置失败**：resetWheel 即时 UP+DOWN 改为 20ms 延迟重按
+
+---
+
 ## v1.3.2 (2026-03-14)
 
 ### 🔧 帧缓存与输入优化

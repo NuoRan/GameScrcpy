@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="32dp"
+    android:gravity="center_horizontal">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="GameScrcpy Companion"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="24dp"/>
+
+    <TextView
+        android:id="@+id/tvStatus"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Loading..."
+        android:textSize="16sp"
+        android:lineSpacingMultiplier="1.4"
+        android:layout_marginBottom="24dp"/>
+
+    <!-- 功能区1: 光标显示 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="功能一: 光标显示"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btnCursor"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:text="启动光标服务"/>
+
+    <!-- 功能区2: 截屏传送 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="功能二: 截屏传送"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:layout_marginTop="24dp"
+        android:layout_marginBottom="8dp"/>
+
+    <Button
+        android:id="@+id/btnScreenshot"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:text="启动截屏服务"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="使用说明:\n\n光标显示: 启动后 PC 连接即可在手机上\n看到光标悬浮窗 (需悬浮窗权限)\n\n截屏传送: 启动后等待 PC 请求截屏,\n完成一次截屏后自动关闭 (需录屏权限)"
+        android:textSize="13sp"
+        android:lineSpacingMultiplier="1.5"
+        android:layout_marginTop="32dp"
+        android:textColor="#666666"/>
+
+</LinearLayout>

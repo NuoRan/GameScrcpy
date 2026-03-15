@@ -14,6 +14,17 @@
 #include "ConfigCenter.h"
 #include "ThreadDispatcher.h"
 
+// 触控路由
+#include "hid/TouchRouter.h"
+#include "hid/ITouchBackend.h"
+#include "hid/UhidTouchBackend.h"
+#ifdef HAVE_AOA_HID
+#include "hid/AoaHidBackend.h"
+#endif
+#ifdef HAVE_ESP32_HID
+#include "hid/Esp32HidBackend.h"
+#endif
+
 // 新架构
 #include "service/DeviceSession.h"
 #include "service/ZeroCopyStreamManager.h"
@@ -134,6 +145,28 @@ bool DeviceController::start()
     }
     m_stopping = false;
 
+    // 读取触控方式
+    int touchMethodIdx = ConfigCenter::instance().get<int>("user/touchMode", 0);
+    auto touchMethod = static_cast<TouchMethod>(touchMethodIdx);
+
+    // 判断是否需要启动 server:
+    //   - 触控方式需要 server (ADB/UHID) → 必须启动
+    //   - 视频通道开启 → 需要 server 提供视频流
+    //   - 两者都不需要 (如 ESP32/AOA + 视频关闭) → 纯触控模式，不启动 server
+    bool videoEnabled = ConfigCenter::instance().get<bool>("user/videoChannelEnabled", true);
+    bool needServer = methodNeedsServer(touchMethod) || videoEnabled;
+
+    if (!needServer) {
+        // 纯触控模式 (无视频、无 server)
+        if (methodUsesAoa(touchMethod))
+            return startPureAoa();
+        if (methodUsesEsp32(touchMethod))
+            return startPureEsp32();
+        return false;
+    }
+
+    // 需要 server: 启动 (提供视频流 和/或 控制通道)
+
     // 转换参数为 Server::ServerParams
     Server::ServerParams serverParams;
     serverParams.serial = m_params.serial;
@@ -169,6 +202,132 @@ bool DeviceController::start()
     return m_server->start(serverParams);
 }
 
+bool DeviceController::startPureAoa()
+{
+#ifdef HAVE_AOA_HID
+    LOGI() << "[DeviceController] Starting pure AOA (OTG) mode";
+
+    // 创建会话（不含视频/控制通道，仅用于 TouchRouter）
+    core::SessionParams sp;
+    sp.serial = m_params.serial;
+    m_session = std::make_unique<core::DeviceSession>(sp);
+
+    auto* inputMgr = m_session->inputManager();
+
+    // 初始化 InputManager（创建 Controller + SessionContext）
+    // 纯 AOA 模式不需要 KCP 发送，用空回调
+    auto nullSend = [](const char*, int) -> int64_t { return 0; };
+    inputMgr->initialize(nullSend, m_params.gameScript);
+
+    // 从配置读取设备分辨率和方向
+    int resW = ConfigCenter::instance().get<int>("user/aoaResWidth", 1080);
+    int resH = ConfigCenter::instance().get<int>("user/aoaResHeight", 2400);
+    bool landscape = ConfigCenter::instance().get<bool>("user/aoaLandscape", false);
+    Size mobileSize = landscape ? Size(resH, resW) : Size(resW, resH);
+    inputMgr->setMobileSize(mobileSize);
+
+    // 创建 TouchRouter
+    m_touchRouter = new TouchRouter();
+    inputMgr->setTouchRouter(m_touchRouter);
+    m_touchRouter->setMethod(TouchMethod::Aoa);
+    m_touchRouter->setScrcpyAvailable(false);
+
+    // 创建 AOA 后端
+    auto* backend = new AoaHidBackend();
+    // "AOA-DIRECT" 等伪序列号不是真实 USB serial，留空让 AOA 自动匹配第一个设备
+    QString realSerial = QString::fromStdString(m_params.serial);
+    bool isPseudo = realSerial.startsWith("AOA-") || realSerial.startsWith("ESP32-");
+    bool isWiFi = m_params.serial.find(':') != std::string::npos;
+    if (!isPseudo && !isWiFi) {
+        backend->setSerial(realSerial);
+    }
+    m_hidBackend = backend;
+    m_touchRouter->setHidBackend(backend);
+
+    if (!backend->open()) {
+        LOGE() << "[DeviceController] Pure AOA: HID open failed";
+        return false;
+    }
+
+    if (landscape) {
+        backend->setDisplayRotation(90);
+    }
+
+    // 启动发送器（用于 FastMsg 队列处理）
+    inputMgr->start();
+
+    LOGI() << "[DeviceController] Pure AOA mode active";
+    // 延迟触发，确保 controller 已加入 DeviceManage::m_devices
+    auto token = m_aliveToken;
+    auto serial = m_params.serial;
+    dispatch::postToMain([this, token, serial, mobileSize]() {
+        if (!token || !token->load(std::memory_order_acquire)) return;
+        connected.fire(true, serial, std::string("AOA-OTG"), mobileSize);
+    });
+    return true;
+#else
+    LOGE() << "[DeviceController] AOA HID not compiled in";
+    return false;
+#endif
+}
+
+bool DeviceController::startPureEsp32()
+{
+#ifdef HAVE_ESP32_HID
+    LOGI() << "[DeviceController] Starting pure ESP32 mode";
+
+    core::SessionParams sp;
+    sp.serial = m_params.serial;
+    m_session = std::make_unique<core::DeviceSession>(sp);
+
+    auto* inputMgr = m_session->inputManager();
+
+    // 初始化 InputManager（创建 Controller）
+    auto nullSend = [](const char*, int) -> int64_t { return 0; };
+    inputMgr->initialize(nullSend, m_params.gameScript);
+
+    int resW = ConfigCenter::instance().get<int>("user/aoaResWidth", 1080);
+    int resH = ConfigCenter::instance().get<int>("user/aoaResHeight", 2400);
+    bool landscape = ConfigCenter::instance().get<bool>("user/aoaLandscape", false);
+    Size mobileSize = landscape ? Size(resH, resW) : Size(resW, resH);
+    inputMgr->setMobileSize(mobileSize);
+
+    m_touchRouter = new TouchRouter();
+    inputMgr->setTouchRouter(m_touchRouter);
+    m_touchRouter->setMethod(TouchMethod::Esp32);
+    m_touchRouter->setScrcpyAvailable(false);
+
+    auto* backend = new Esp32HidBackend();
+    std::string port = ConfigCenter::instance().get<std::string>("user/esp32Port", "");
+    backend->setPortName(port);
+    m_hidBackend = backend;
+    m_touchRouter->setHidBackend(backend);
+
+    if (!backend->open()) {
+        LOGE() << "[DeviceController] Pure ESP32: HID open failed (" << port << ")";
+        return false;
+    }
+
+    if (landscape) {
+        backend->setDisplayRotation(90);
+    }
+
+    inputMgr->start();
+
+    LOGI() << "[DeviceController] Pure ESP32 mode active (" << port << ")";
+    auto token = m_aliveToken;
+    auto serial = m_params.serial;
+    dispatch::postToMain([this, token, serial, mobileSize]() {
+        if (!token || !token->load(std::memory_order_acquire)) return;
+        connected.fire(true, serial, std::string("ESP32"), mobileSize);
+    });
+    return true;
+#else
+    LOGE() << "[DeviceController] ESP32 HID not compiled in";
+    return false;
+#endif
+}
+
 void DeviceController::stop()
 {
     if (m_stopping) {
@@ -192,6 +351,17 @@ void DeviceController::stop()
     if (m_streamManager) {
         m_streamManager->stop();
     }
+
+    // HID 后端必须在 m_server 之前关闭，
+    // 因为 close() → sendRaw() → m_sendFunc 依赖 m_server
+    if (m_hidBackend) {
+        m_hidBackend->close();
+        delete m_hidBackend;
+        m_hidBackend = nullptr;
+    }
+    delete m_touchRouter;
+    m_touchRouter = nullptr;
+
     if (m_server) {
         m_server->stop();
         delete m_server;
@@ -224,6 +394,10 @@ void DeviceController::onServerStart(bool success, const std::string& deviceName
 
     LOGI() << "[DeviceController] Server started, size:" << size.width << "x" << size.height;
     m_mobileSize = size;
+
+    // 读取触控方式
+    int touchMethodIdx = ConfigCenter::instance().get<int>("user/touchMode", 0);
+    auto touchMethod = static_cast<TouchMethod>(touchMethodIdx);
 
     // 配置流管线 (视频通道)
     bool videoEnabled = ConfigCenter::instance().get<bool>("user/videoChannelEnabled", true);
@@ -266,6 +440,7 @@ void DeviceController::onServerStart(bool success, const std::string& deviceName
         auto* inputMgr = m_session->inputManager();
 
         auto sendCallback = [this](const char* data, int len) -> int64_t {
+            if (!m_server) return -1;
             if (m_server->isWiFiMode() && m_server->getKcpControlSocket()) {
                 return m_server->getKcpControlSocket()->write(data, len);
             } else if (m_server->getControlSocket()) {
@@ -284,6 +459,59 @@ void DeviceController::onServerStart(bool success, const std::string& deviceName
 
         inputMgr->start();
         LOGI() << "[DeviceController] InputManager started";
+
+        // 创建 TouchRouter (默认 Scrcpy 模式，直通原有通道)
+        m_touchRouter = new TouchRouter();
+        inputMgr->setTouchRouter(m_touchRouter);
+
+        // 读取用户设置的触控模式
+        m_touchRouter->setMethod(touchMethod);
+        LOGI() << "[DeviceController] TouchRouter installed (method:" << touchMethodIdx << ")";
+
+        // 根据模式创建并打开 HID 后端
+        if (methodUsesUhid(touchMethod)) {
+            auto* backend = new UhidTouchBackend();
+            backend->setSendFunc(sendCallback);
+            m_hidBackend = backend;
+            m_touchRouter->setHidBackend(backend);
+            if (!backend->open()) {
+                LOGE() << "[DeviceController] UHID 触摸屏注册失败";
+            } else {
+                LOGI() << "[DeviceController] UHID 触摸屏已注册";
+            }
+        }
+#ifdef HAVE_AOA_HID
+        if (methodUsesAoa(touchMethod)) {
+            auto* backend = new AoaHidBackend();
+            bool isWiFi = m_params.serial.find(':') != std::string::npos;
+            if (!isWiFi) {
+                backend->setSerial(QString::fromStdString(m_params.serial));
+            } else {
+                LOGI() << "[DeviceController] WiFi mode: AOA will auto-detect USB device";
+            }
+            m_hidBackend = backend;
+            m_touchRouter->setHidBackend(backend);
+            if (!backend->open()) {
+                LOGE() << "[DeviceController] AOA HID 打开失败";
+            } else {
+                LOGI() << "[DeviceController] AOA HID 已连接";
+            }
+        }
+#endif
+#ifdef HAVE_ESP32_HID
+        if (methodUsesEsp32(touchMethod)) {
+            auto* backend = new Esp32HidBackend();
+            std::string port = ConfigCenter::instance().get<std::string>("user/esp32Port", "");
+            backend->setPortName(port);
+            m_hidBackend = backend;
+            m_touchRouter->setHidBackend(backend);
+            if (!backend->open()) {
+                LOGE() << "[DeviceController] ESP32 HID 打开失败 (" << port << ")";
+            } else {
+                LOGI() << "[DeviceController] ESP32 HID 已连接 (" << port << ")";
+            }
+        }
+#endif
 
         // 异步获取手机分辨率
         if (m_adbSizeProcess) {
@@ -440,6 +668,11 @@ bool DeviceManage::connectDevice(DeviceParams params)
         });
 
     if (!controller->start()) {
+        // 通知连接失败 (延迟到事件循环，确保 controller 已被安全释放)
+        auto serial = params.serial;
+        dispatch::postToMain([this, serial]() {
+            onDeviceConnected(false, serial, std::string(), Size());
+        });
         delete controller;
         return false;
     }
@@ -463,6 +696,9 @@ bool DeviceManage::disconnectDevice(const std::string &serial)
         controller->disconnected.disconnectAll();
         controller->stop();
         delete controller;
+
+        // 通知上层 (包括 MainWindow) 设备已断开
+        notifyDeviceDisconnected(serial);
         return true;
     }
     return false;

@@ -32,6 +32,7 @@ class Receiver;
 class DeviceMsg;
 class ControlSender;
 class SessionContext;
+class TouchRouter;
 struct InputEvent;
 
 // 前向声明
@@ -127,11 +128,16 @@ public:
     // 获取 SessionContext（供其他模块访问）
     SessionContext* sessionContext() const { return m_sessionContext; }
 
+    // 触控路由器
+    void setTouchRouter(TouchRouter* router);
+    TouchRouter* touchRouter() const { return m_touchRouter; }
+
     Signal<bool> grabCursor;
 
 private:
     KcpSendCallback m_sendCallback;
     ControlSender* m_controlSender = nullptr;
+    TouchRouter* m_touchRouter = nullptr;  // 不拥有, 外部管理
     Receiver* m_receiver = nullptr;
 
     SessionContext* m_sessionContext = nullptr;

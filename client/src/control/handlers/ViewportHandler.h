@@ -99,17 +99,14 @@ private:
     PointF m_pendingMoveDelta;
     bool m_moveSendScheduled = false;
 
-    // ========== 视角平滑控制 ==========
-    // 设计原则：原始灵敏度完全不变，只叠加平滑
-    //  - EMA 平滑：消除微抖动，保持丝滑
-    //  - 亚像素累积：微小位移不丢失
-
-    // 平滑参数
-    static constexpr double SMOOTH_FACTOR = 0.85;          // EMA 平滑系数 (0.85=轻微平滑, 1.0=无平滑)
-    static constexpr double JITTER_THRESHOLD = 0.00008;    // 抖动过滤阈值（极小，仅过滤传感器噪声）
+    // ========== 自适应 EMA 平滑 ==========
+    // 低速：强平滑消除锯齿；高速：弱平滑保持响应
+    static constexpr double SPEED_LOW  = 0.001;   // 低速阈值
+    static constexpr double SPEED_HIGH = 0.008;   // 高速阈值
+    static constexpr double FACTOR_LOW  = 0.5;    // 低速 EMA 系数（强平滑）
+    static constexpr double FACTOR_HIGH = 0.95;   // 高速 EMA 系数（弱平滑）
 
     PointF m_smoothedDelta = {0, 0};   // EMA 平滑状态
-    PointF m_subPixelAccum = {0, 0};   // 亚像素精度累积
 };
 
 #endif // VIEWPORTHANDLER_H

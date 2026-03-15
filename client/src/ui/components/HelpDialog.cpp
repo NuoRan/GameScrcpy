@@ -632,6 +632,110 @@ QWidget* HelpDialog::buildShortcuts() {
 // =========================================================
 //  12. 常见问题
 // =========================================================
+// =========================================================
+//  9. Companion App (手机端辅助应用)
+// =========================================================
+QWidget* HelpDialog::buildCompanionApp() {
+    return page(
+        "<h1>Companion App</h1>"
+        "<p>Companion App 是安装在手机端的辅助应用，为投屏游戏提供浮动光标和远程截屏功能。</p>"
+
+        "<h2>9.1 安装与权限</h2>"
+        "<ol>"
+        "<li>将 <code>companion-release.apk</code> 安装到手机</li>"
+        "<li>打开手机「设置」→「应用」→「GameScrcpy Companion」</li>"
+        "<li>授予「悬浮窗」权限（光标功能必需）</li>"
+        "<li>首次使用截屏功能时，需在弹窗中允许「屏幕录制」权限</li>"
+        "</ol>"
+        "<div class='tip'><b>提示：</b>Android 13+ 还需允许通知权限，否则前台服务无法正常显示通知。</div>"
+
+        "<h2>9.2 浮动光标服务</h2>"
+        "<p>在手机屏幕上显示一个跟随 PC 鼠标位置的浮动光标指示器。</p>"
+        "<ul>"
+        "<li><b>启动</b>：打开 Companion App → 点击「光标服务」按钮</li>"
+        "<li><b>TCP 端口</b>：26758（PC 端通过 ADB 端口转发自动连接）</li>"
+        "<li><b>光标大小</b>：40dp（自动适配屏幕密度）</li>"
+        "<li><b>自动隐藏</b>：5 秒无更新自动隐藏光标</li>"
+        "<li><b>横竖屏</b>：自动适配屏幕旋转，实时查询屏幕真实尺寸</li>"
+        "</ul>"
+
+        "<h2>9.3 远程截屏服务</h2>"
+        "<p>PC 端可远程请求手机截屏，用于脚本调试和图像识别模板制作。</p>"
+        "<ul>"
+        "<li><b>启动</b>：打开 Companion App → 点击「截屏服务」按钮 → 允许屏幕录制</li>"
+        "<li><b>TCP 端口</b>：26759</li>"
+        "<li><b>图片格式</b>：JPEG</li>"
+        "<li><b>自动停止</b>：截屏完成后服务自动停止，释放 MediaProjection 资源</li>"
+        "</ul>"
+        "<div class='warn'><b>注意：</b>截屏服务每次使用需重新授权屏幕录制权限（Android 系统限制）。</div>"
+
+        "<h2>9.4 通信协议</h2>"
+        "<table>"
+        "<tr><th>命令</th><th>字节</th><th>说明</th></tr>"
+        "<tr><td>0x01</td><td>1 + 4 + 4</td><td>更新光标位置 (float x, float y，归一化 0~1)</td></tr>"
+        "<tr><td>0x03</td><td>1</td><td>隐藏光标</td></tr>"
+        "<tr><td>0x02</td><td>1</td><td>请求截屏</td></tr>"
+        "<tr><td>0x82</td><td>1 + 4 + N</td><td>截屏响应 (int32 长度 + JPEG 数据)</td></tr>"
+        "</table>"
+    );
+}
+
+// =========================================================
+//  10. 触控后端
+// =========================================================
+QWidget* HelpDialog::buildTouchBackend() {
+    return page(
+        "<h1>触控后端</h1>"
+        "<p>GameScrcpy 支持 4 种触控注入方式，通过 TouchRouter 统一路由管理。</p>"
+
+        "<h2>10.1 后端类型</h2>"
+        "<table>"
+        "<tr><th>后端</th><th>连接方式</th><th>说明</th><th>适用场景</th></tr>"
+        "<tr><td><b>Adb</b></td><td>USB / WiFi</td><td>scrcpy 原生注入</td><td>默认模式，兼容性最好</td></tr>"
+        "<tr><td><b>UHID</b></td><td>USB / WiFi</td><td>通过 /dev/uhid 创建虚拟触摸屏</td><td>推荐 WiFi 模式使用</td></tr>"
+        "<tr><td><b>AOA</b></td><td>仅 USB</td><td>USB OTG + libusb AOA 协议</td><td>最低延迟，需安装 WinUSB 驱动</td></tr>"
+        "<tr><td><b>ESP32</b></td><td>串口</td><td>ESP32-S3 USB HID 触摸屏</td><td>独立硬件外设，需 QineTouch 固件</td></tr>"
+        "</table>"
+
+        "<h2>10.2 Adb（默认）</h2>"
+        "<p>使用 scrcpy 原生的 <code>InputManager.injectInputEvent</code> 注入触摸事件。"
+        "兼容性最好，无需额外驱动或硬件。</p>"
+
+        "<h2>10.3 UHID</h2>"
+        "<p>通过控制通道向 scrcpy-server 发送 UHID_CREATE/INPUT/DESTROY 消息，"
+        "服务端在 <code>/dev/uhid</code> 创建虚拟触摸屏设备。</p>"
+        "<ul>"
+        "<li>无需 USB 驱动，支持 WiFi 连接</li>"
+        "<li>需要 Android 内核支持 uhid (大多数设备已支持)</li>"
+        "</ul>"
+
+        "<h2>10.4 AOA (USB HID)</h2>"
+        "<p>通过 libusb 使用 Android Open Accessory 协议，直接注册 HID 触摸屏和键盘设备。</p>"
+        "<ul>"
+        "<li>延迟最低（绕过安卓输入系统）</li>"
+        "<li>需要安装 WinUSB 驱动（程序可自动安装）</li>"
+        "<li>仅限 USB 连接</li>"
+        "<li>支持最多 16 个触摸点</li>"
+        "</ul>"
+        "<div class='warn'><b>注意：</b>安装 WinUSB 驱动后，ADB 可能无法同时使用。"
+        "如需切换回 ADB，需要卸载 WinUSB 驱动。</div>"
+
+        "<h2>10.5 ESP32 (串口 HID)</h2>"
+        "<p>使用 ESP32-S3 开发板作为 USB HID 触摸屏外设，通过串口与 PC 通信。</p>"
+        "<ul>"
+        "<li>需要 ESP32-S3 硬件 + QineTouch 固件</li>"
+        "<li>串口通信，默认波特率 921600</li>"
+        "<li>v3.2 协议格式：0xF4 header + 12 字节数据</li>"
+        "</ul>"
+
+        "<h2>10.6 切换后端</h2>"
+        "<p>在投屏设置中选择触控方式即可切换。按键操作支持 HID 优先 + scrcpy 回退策略。</p>"
+    );
+}
+
+// =========================================================
+//  12. 常见问题 (FAQ)  [was 12, renumbered]
+// =========================================================
 QWidget* HelpDialog::buildFAQ() {
     return page(
         "<h1>常见问题 (FAQ)</h1>"

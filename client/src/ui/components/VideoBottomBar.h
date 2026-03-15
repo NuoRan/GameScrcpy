@@ -21,6 +21,7 @@ public:
     void setFullScreenMode(bool fullScreen);
     void setAudioMuted(bool muted);
     void setAudioVisible(bool visible);
+    void setCompanionConnected(bool connected);
 
 signals:
     void goBack();
@@ -30,6 +31,7 @@ signals:
     void keyMapToggled(bool active);
     void settingsClicked();
     void audioToggled(bool muted);
+    void companionClicked();
 
 protected:
     void paintEvent(QPaintEvent*) override;
@@ -44,6 +46,7 @@ private:
     Fluent::FluentButton* m_keyMapBtn = nullptr;
     Fluent::FluentButton* m_audioBtn = nullptr;
     Fluent::FluentButton* m_settingsBtn = nullptr;
+    Fluent::FluentButton* m_companionBtn = nullptr;
     bool m_keyMapActive = false;
     bool m_audioMuted = false;  // 音频启用时默认播放
 };

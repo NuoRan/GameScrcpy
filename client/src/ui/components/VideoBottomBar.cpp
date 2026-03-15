@@ -143,10 +143,22 @@ void VideoBottomBar::setupUI()
     m_audioBtn      = makeBtn(audioPlayingIcon, tr("音频 (播放中)"));
     m_settingsBtn   = makeBtn(settingsIcon,   tr("设置"));
 
+    // 伴侣 App 📱 手机图标
+    QIcon companionIcon = makeIcon(24, [fg](QPainter& p, int s) {
+        p.setPen(QPen(fg, 1.8));
+        p.setBrush(Qt::NoBrush);
+        p.drawRoundedRect(QRectF(s*0.28, s*0.12, s*0.44, s*0.76), 4, 4);
+        p.setPen(Qt::NoPen);
+        p.setBrush(fg);
+        p.drawEllipse(QPointF(s*0.5, s*0.8), s*0.04, s*0.04);
+    });
+    m_companionBtn  = makeBtn(companionIcon,  tr("手机伴侣"));
+
     layout->addWidget(m_backBtn);
     layout->addWidget(m_homeBtn);
     layout->addWidget(m_appSwitchBtn);
     layout->addStretch();
+    layout->addWidget(m_companionBtn);
     layout->addWidget(m_settingsBtn);
     layout->addWidget(m_audioBtn);
     layout->addWidget(m_fullScreenBtn);
@@ -157,6 +169,7 @@ void VideoBottomBar::setupUI()
     connect(m_appSwitchBtn,  &QPushButton::clicked, this, &VideoBottomBar::appSwitch);
     connect(m_fullScreenBtn, &QPushButton::clicked, this, &VideoBottomBar::fullScreen);
     connect(m_settingsBtn,   &QPushButton::clicked, this, &VideoBottomBar::settingsClicked);
+    connect(m_companionBtn,  &QPushButton::clicked, this, &VideoBottomBar::companionClicked);
 
     connect(m_audioBtn, &QPushButton::clicked, this, [this]() {
         m_audioMuted = !m_audioMuted;
@@ -277,5 +290,20 @@ void VideoBottomBar::setAudioVisible(bool visible)
             // 同步图标状态
             setAudioMuted(m_audioMuted);
         }
+    }
+}
+
+void VideoBottomBar::setCompanionConnected(bool connected)
+{
+    if (!m_companionBtn) return;
+    auto& tm = ThemeManager::instance();
+    if (connected) {
+        m_companionBtn->setStyleSheet(QStringLiteral(
+            "QPushButton { background: %1; border: none; border-radius: 8px; color: #ffffff; }"
+            "QPushButton:hover { background: %2; }").arg(tm.accentPrimary(), tm.accentHover()));
+        m_companionBtn->setToolTip(tr("手机伴侣 (已连接)"));
+    } else {
+        m_companionBtn->setStyleSheet(QString());
+        m_companionBtn->setToolTip(tr("手机伴侣"));
     }
 }

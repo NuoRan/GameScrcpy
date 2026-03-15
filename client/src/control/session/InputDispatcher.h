@@ -85,6 +85,10 @@ public:
 
     const std::unordered_map<int, bool>& keyStates() const { return m_keyStates; }
 
+    // ========== 按键转换 ==========
+
+    static AndroidKeycode convertKeyCode(int key, uint32_t modifiers);
+
     // ========== 坐标转换 ==========
 
     PointF calcFrameAbsolutePos(PointF relativePos) const;
@@ -110,9 +114,8 @@ private:
     void processFreeLook(const KeyMap::KeyMapNode& node, const InputEvent& from);
     void processAndroidKey(AndroidKeycode androidKey, const InputEvent& from);
 
-    // 按键转换
+    // 按键发送
     void sendKeyEvent(AndroidKeyeventAction action, AndroidKeycode keyCode);
-    AndroidKeycode convertKeyCode(int key, uint32_t modifiers);
 
     // 触摸 ID 管理
     int attachTouchID(int key);

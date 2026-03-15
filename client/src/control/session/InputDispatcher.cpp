@@ -3,6 +3,8 @@
 #define LOG_TAG "InputDispatch"
 #include "Logger.h"
 
+#include <QCursor>
+
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -417,6 +419,15 @@ bool InputDispatcher::processMouseClick(const InputEvent& from)
         return true;
     }
 
+    if (node.type == KeyMap::KMT_FREE_LOOK) {
+        // 将鼠标按键事件转换为等效的键盘事件传递给 FreeLook 处理
+        InputEvent keyEv = from;
+        keyEv.type = (from.type == InputEventType::MousePress) ? InputEventType::KeyPress : InputEventType::KeyRelease;
+        keyEv.key = node.data.freeLook.keyNode.key;
+        processFreeLook(node, keyEv);
+        return true;
+    }
+
     return false;
 }
 
@@ -488,30 +499,12 @@ void InputDispatcher::moveCursorTo(const InputEvent& from, int localX, int local
     int posOffsetX = static_cast<int>(std::lround(from.localX)) - localX;
     int posOffsetY = static_cast<int>(std::lround(from.localY)) - localY;
 
-    // 用 lround 而非 static_cast<int> 截断，避免窗口位于非整数逻辑坐标时
-    // 反复产生 ±1 像素的系统性偏移（WiFi 模式下尤其明显，详见下方注释）
     int globalX = static_cast<int>(std::lround(from.globalX)) - posOffsetX;
     int globalY = static_cast<int>(std::lround(from.globalY)) - posOffsetY;
 
-    // Qt 6 的 globalPosition() 返回逻辑坐标 (device-independent)，
-    // SetCursorPos 需要物理屏幕坐标，按 DPR 缩放。
-    double dpr = m_devicePixelRatio;
-    int physX = static_cast<int>(std::lround(globalX * dpr));
-    int physY = static_cast<int>(std::lround(globalY * dpr));
-
-    // **直接调用 SetCursorPos，不经 dispatch::postToMain 异步投递。**
-    //
-    // 原因：processMouseMove 已在主线程执行，在此同步调用 SetCursorPos 后，
-    // 操作系统生成的 WM_MOUSEMOVE 响应事件将排在 Qt 事件队列尾部，
-    // 确保 ignoreCount=1 刚好吃掉该响应事件。
-    //
-    // 若改用 dispatch::postToMain 异步投递，SetCursorPos 会被延后到下一轮
-    // 事件循环迭代：WiFi/KCP 模式下 KCP 定时器、UDP 回调等事件挤入队列，
-    // 导致 ignoreCount 被真实鼠标事件提前消耗，SetCursorPos 的回弹事件
-    // 反而携带截断误差通过 processMouseMove → 累积为系统性视角漂移。
-#ifdef _WIN32
-    SetCursorPos(physX, physY);
-#endif
+    // QCursor::setPos 使用 Qt 逻辑坐标（与 globalPosition() 相同坐标系），
+    // Qt 内部自动处理 DPR 缩放转换为物理像素。
+    QCursor::setPos(globalX, globalY);
 }
 
 void InputDispatcher::mouseMoveStartTouch(const InputEvent& from)

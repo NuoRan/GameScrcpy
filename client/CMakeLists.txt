@@ -15,7 +15,7 @@ cmake_minimum_required(VERSION 3.19 FATAL_ERROR)
 # 项目配置
 #
 set(QC_PROJECT_NAME "GameScrcpy")
-set(QC_PROJECT_VERSION "1.3.2")
+set(QC_PROJECT_VERSION "1.3.3")
 
 project(${QC_PROJECT_NAME} VERSION ${QC_PROJECT_VERSION} LANGUAGES C CXX)
 message(STATUS "[${PROJECT_NAME}] Project ${PROJECT_NAME} ${PROJECT_VERSION}")
@@ -76,7 +76,7 @@ find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core)
 set(QT_DESIRED_VERSION ${QT_VERSION_MAJOR})
 message(STATUS "[${PROJECT_NAME}] Qt version: ${QT_DESIRED_VERSION}")
 
-set(qt_required_components Widgets Gui Svg SvgWidgets)
+set(qt_required_components Widgets Gui Svg SvgWidgets SerialPort Network)
 
 if(NOT QT_DESIRED_VERSION MATCHES 6)
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -91,6 +91,8 @@ set(LINK_LIBS
     Qt${QT_DESIRED_VERSION}::Gui
     Qt${QT_DESIRED_VERSION}::Svg
     Qt${QT_DESIRED_VERSION}::SvgWidgets
+    Qt${QT_DESIRED_VERSION}::SerialPort
+    Qt${QT_DESIRED_VERSION}::Network
 )
 
 if(NOT QT_DESIRED_VERSION MATCHES 6)
@@ -335,6 +337,13 @@ set(SRC_CONTROL
     src/control/receiver/devicemsg.h
     src/control/receiver/receiver.cpp
     src/control/receiver/receiver.h
+    # hid - ?????? (TouchRouter ????)
+    src/control/hid/TouchRouter.h
+    src/control/hid/TouchRouter.cpp
+    src/control/hid/ITouchBackend.h
+    src/control/hid/HidReportDescriptor.h
+    src/control/hid/UhidTouchBackend.h
+    src/control/hid/UhidTouchBackend.cpp
 )
 
 # transport - 传输模块
@@ -383,6 +392,9 @@ set(SRC_TRANSPORT
     src/transport/native/NativeTcpSocket.h
     src/transport/native/NativeTcpServer.cpp
     src/transport/native/NativeTcpServer.h
+    # companion app client
+    src/transport/companion/CompanionClient.cpp
+    src/transport/companion/CompanionClient.h
 )
 
 # 确保 ikcp.c 使用 C 编译�?
@@ -614,12 +626,14 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/input
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/receiver
     ${CMAKE_CURRENT_SOURCE_DIR}/src/control/script
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/control/hid
     ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/server
     ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/tcp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/kcp
     ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/adb
     ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/auxiliary
     ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/native
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/transport/companion
     ${CMAKE_CURRENT_SOURCE_DIR}/src/decoder
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render
     ${CMAKE_CURRENT_SOURCE_DIR}/src/render/d3d11
@@ -746,4 +760,64 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${LINK_LIBS})
 # 编译定义
 if(ENABLE_IMAGE_MATCHING)
     target_compile_definitions(${PROJECT_NAME} PRIVATE ENABLE_IMAGE_MATCHING)
+endif()
+
+#
+# AOA HID touch backend (optional, requires libusb)
+#
+option(ENABLE_AOA_HID "Enable AOA HID touch backend (requires libusb)" ON)
+set(LIBUSB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/env/libusb")
+if(ENABLE_AOA_HID AND EXISTS "${LIBUSB_DIR}/include/libusb-1.0/libusb.h")
+    message(STATUS "[${PROJECT_NAME}] AOA HID: enabled (libusb found)")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_AOA_HID)
+    target_include_directories(${PROJECT_NAME} PRIVATE ${LIBUSB_DIR}/include/libusb-1.0)
+    target_sources(${PROJECT_NAME} PRIVATE
+        src/control/hid/AoaHidDevice.h
+        src/control/hid/AoaHidDevice.cpp
+        src/control/hid/AoaHidBackend.h
+        src/control/hid/AoaHidBackend.cpp
+        src/control/hid/WinUsbDriverHelper.h
+        src/control/hid/WinUsbDriverHelper.cpp
+    )
+    if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
+        target_link_directories(${PROJECT_NAME} PRIVATE ${LIBUSB_DIR}/lib)
+        target_link_libraries(${PROJECT_NAME} PRIVATE libusb-1.0)
+        set(LIBUSB_DLL "${LIBUSB_DIR}/bin/libusb-1.0.dll")
+        if(EXISTS "${LIBUSB_DLL}")
+            add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different "${LIBUSB_DLL}" "${QSC_DEPLOY_PATH}"
+                COMMENT "Deploying libusb-1.0.dll"
+            )
+        endif()
+    else()
+        find_package(PkgConfig QUIET)
+        if(PkgConfig_FOUND)
+            pkg_check_modules(LIBUSB REQUIRED libusb-1.0)
+            target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBUSB_LIBRARIES})
+            target_include_directories(${PROJECT_NAME} PRIVATE ${LIBUSB_INCLUDE_DIRS})
+        else()
+            target_link_libraries(${PROJECT_NAME} PRIVATE usb-1.0)
+        endif()
+    endif()
+else()
+    if(ENABLE_AOA_HID)
+        message(WARNING "[${PROJECT_NAME}] AOA HID: libusb not found at ${LIBUSB_DIR}, disabling")
+    else()
+        message(STATUS "[${PROJECT_NAME}] AOA HID: disabled by option")
+    endif()
+endif()
+
+#
+# ESP32 HID touch backend (optional, requires Qt SerialPort)
+#
+option(ENABLE_ESP32_HID "Enable ESP32 HID touch backend (serial)" ON)
+if(ENABLE_ESP32_HID)
+    message(STATUS "[${PROJECT_NAME}] ESP32 HID: enabled")
+    target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_ESP32_HID)
+    target_sources(${PROJECT_NAME} PRIVATE
+        src/control/hid/Esp32HidBackend.h
+        src/control/hid/Esp32HidBackend.cpp
+    )
+else()
+    message(STATUS "[${PROJECT_NAME}] ESP32 HID: disabled by option")
 endif()

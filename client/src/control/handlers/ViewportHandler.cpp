@@ -37,17 +37,16 @@ static PointF applyRandomOffset(const PointF& pos, const Size& targetSize) {
     return result;
 }
 
-static Size getTargetSize(const Size& frameSize, const Size& showSize) {
-    if (frameSize.isValid() && !frameSize.isEmpty()) {
-        return frameSize;
-    }
+static Size getTargetSize(const Size& frameSize, const Size& showSize, const Size& mobileSize) {
+    if (mobileSize.isValid() && !mobileSize.isEmpty()) return mobileSize;
+    if (frameSize.isValid() && !frameSize.isEmpty()) return frameSize;
     return showSize;
 }
 
 ViewportHandler::ViewportHandler()
 {
     m_state.centerRepressTimer.setSingleShot(true);
-    m_state.centerRepressTimer.setInterval(5);
+    m_state.centerRepressTimer.setInterval(20);
     m_state.centerRepressTimer.setCallback([this]() { onCenterRepressTimer(); });
 
     m_state.idleCenterTimer.setSingleShot(true);
@@ -94,7 +93,6 @@ void ViewportHandler::reset()
     m_pendingMoveDelta = {0, 0};
     m_moveSendScheduled = false;
     m_smoothedDelta = {0, 0};
-    m_subPixelAccum = {0, 0};
 }
 
 void ViewportHandler::startTouch(const Size& frameSize, const Size& showSize)
@@ -104,7 +102,8 @@ void ViewportHandler::startTouch(const Size& frameSize, const Size& showSize)
 
     if (!m_state.touching && m_keyMap) {
         PointF mouseMoveStartPos = m_keyMap->getMouseMoveMap().data.mouseMove.startPos;
-        Size targetSize = getTargetSize(m_frameSize, m_showSize);
+        Size ms = m_sessionContext ? m_sessionContext->mobileSize() : Size();
+        Size targetSize = getTargetSize(m_frameSize, m_showSize, ms);
         PointF randomStartPos = applyRandomOffset(mouseMoveStartPos, targetSize);
 
         m_state.fastTouchSeqId = FastTouchSeq::next();
@@ -112,7 +111,6 @@ void ViewportHandler::startTouch(const Size& frameSize, const Size& showSize)
         m_state.lastConverPos = randomStartPos;
         m_state.touching = true;
         m_smoothedDelta = {0, 0};
-        m_subPixelAccum = {0, 0};
     }
 }
 
@@ -153,7 +151,15 @@ void ViewportHandler::stopTouch()
 void ViewportHandler::resetView()
 {
     if (!m_keyMap) return;
-    if (m_state.waitingForCenterRepress || !m_state.touching) return;
+
+    if (m_state.waitingForCenterRepress) {
+        // 已在回中过程中：清除累计的 overshoot / 动量，确保落点在真正中心
+        m_state.pendingOvershoot = {0, 0};
+        m_smoothedDelta = {0, 0};
+        return;
+    }
+
+    if (!m_state.touching) return;
 
     // 已在中心附近则跳过，防止多个异步 resetView 产生无意义微触摸导致跳屏
     PointF centerPos = m_keyMap->getMouseMoveMap().data.mouseMove.startPos;
@@ -173,9 +179,7 @@ void ViewportHandler::resetView()
     m_state.centerRepressTimer.start();
 
     m_smoothedDelta = {0, 0};
-    m_subPixelAccum = {0, 0};
 }
-
 
 void ViewportHandler::onMouseMoveTimer()
 {
@@ -200,22 +204,18 @@ void ViewportHandler::processMove(const PointF& delta)
 {
     if (!m_keyMap) return;
 
-    // 管线: 亚像素累积 → 抖动过滤 → EMA 平滑 → 边界处理
-    PointF rawDelta = delta + m_subPixelAccum;
-    double magnitude = std::sqrt(rawDelta.x * rawDelta.x + rawDelta.y * rawDelta.y);
-    if (magnitude < JITTER_THRESHOLD) {
-        m_subPixelAccum = rawDelta;
-        return;
-    }
-    m_subPixelAccum = {0, 0};
+    // 自适应 EMA：低速强平滑（消锯齿），高速弱平滑（不拖沓）
+    double speed = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+    double t = std::clamp((speed - SPEED_LOW) / (SPEED_HIGH - SPEED_LOW), 0.0, 1.0);
+    double factor = FACTOR_LOW + t * (FACTOR_HIGH - FACTOR_LOW);
 
-    m_smoothedDelta.x = SMOOTH_FACTOR * rawDelta.x + (1.0 - SMOOTH_FACTOR) * m_smoothedDelta.x;
-    m_smoothedDelta.y = SMOOTH_FACTOR * rawDelta.y + (1.0 - SMOOTH_FACTOR) * m_smoothedDelta.y;
+    m_smoothedDelta.x = factor * delta.x + (1.0 - factor) * m_smoothedDelta.x;
+    m_smoothedDelta.y = factor * delta.y + (1.0 - factor) * m_smoothedDelta.y;
 
     PointF newPos = m_state.lastConverPos + m_smoothedDelta;
 
     PointF centerPos = m_keyMap->getMouseMoveMap().data.mouseMove.startPos;
-    constexpr double EDGE_MIN = 0.05, EDGE_MAX = 0.95;
+    constexpr double EDGE_MIN = 0.02, EDGE_MAX = 0.98;
 
     auto isOutOfBounds = [](const PointF& p) {
         return p.x < EDGE_MIN || p.x > EDGE_MAX || p.y < EDGE_MIN || p.y > EDGE_MAX;
@@ -247,34 +247,27 @@ void ViewportHandler::onCenterRepressTimer()
         return;
     }
 
-    constexpr double EDGE_MIN = 0.05, EDGE_MAX = 0.95;
-
-    Size targetSize = getTargetSize(m_frameSize, m_showSize);
+    Size ms = m_sessionContext ? m_sessionContext->mobileSize() : Size();
+    Size targetSize = getTargetSize(m_frameSize, m_showSize, ms);
     PointF randomCenterPos = applyRandomOffset(m_state.pendingCenterPos, targetSize);
 
     m_state.fastTouchSeqId = FastTouchSeq::next();
 
-    // 限制 overshoot 幅度，防止回中后第一帧跳屏
-    constexpr double MAX_OVERSHOOT = 0.005;
-    double overshootMag = std::sqrt(m_state.pendingOvershoot.x * m_state.pendingOvershoot.x +
-                                    m_state.pendingOvershoot.y * m_state.pendingOvershoot.y);
-    if (overshootMag > MAX_OVERSHOOT)
-        m_state.pendingOvershoot *= MAX_OVERSHOOT / overshootMag;
-
     sendFastTouch(FTA_DOWN, randomCenterPos);
     m_state.touching = true;
-
-    PointF newCenterPos = randomCenterPos + m_state.pendingOvershoot;
-    newCenterPos.x = std::clamp(newCenterPos.x, EDGE_MIN, EDGE_MAX);
-    newCenterPos.y = std::clamp(newCenterPos.y, EDGE_MIN, EDGE_MAX);
-
-    sendFastTouch(FTA_MOVE, newCenterPos);
-    m_state.lastConverPos = newCenterPos;
+    m_state.lastConverPos = randomCenterPos;
 
     m_state.waitingForCenterRepress = false;
+
+    // 将 overshoot 回灌到正常管线，由自适应 EMA 平滑消化
+    // 不再一次性 MOVE，避免单帧大跳步
+    m_pendingMoveDelta += m_state.pendingOvershoot;
     m_state.pendingOvershoot = {0, 0};
-    m_smoothedDelta = {0, 0};
-    m_subPixelAccum = {0, 0};
+    m_smoothedDelta = {0, 0}; // 全新触摸序列，清空 EMA 历史
+
+    if (!m_pendingMoveDelta.isNull()) {
+        scheduleMoveSend();
+    }
 
     if (!m_state.idleCenterCompleted)
         m_state.idleCenterTimer.start();

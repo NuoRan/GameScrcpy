@@ -1190,6 +1190,16 @@ KeyMap::ParsedKey KeyMap::getItemKey(const nlohmann::json &node, const std::stri
 
     }
 
+    // 最后 fallback：使用 displayNameToKeyWithModifiers 解析短名称（Esc, Space, Tab, F1-F12 等）
+    if (key == -1) {
+        auto [dnKey, dnMods] = displayNameToKeyWithModifiers(value);
+        if (dnKey != GameKey::Key_unknown && dnKey != -1) {
+            result.type = AT_KEY;
+            result.key = dnKey;
+            result.modifiers = dnMods;
+            return result;
+        }
+    }
 
 
     if (key != -1) {
