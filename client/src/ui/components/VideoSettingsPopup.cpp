@@ -131,7 +131,7 @@ void VideoSettingsPopup::setupUI()
         auto* col = new QVBoxLayout;
         col->setSpacing(4);
         auto* fpsLabel = makeFormLabel(tr("帧率"));
-        m_fpsBox = new QComboBox;
+        m_fpsBox = new Fluent::FluentComboBox;
         m_fpsBox->addItems({QStringLiteral("5"), QStringLiteral("10"), QStringLiteral("20"),
                             QStringLiteral("30"), QStringLiteral("60"), QStringLiteral("90"),
                             QStringLiteral("120"), QStringLiteral("144"), QStringLiteral("165"),
@@ -149,7 +149,7 @@ void VideoSettingsPopup::setupUI()
         auto* col = new QVBoxLayout;
         col->setSpacing(4);
         auto* sizeLabel = makeFormLabel(tr("分辨率"));
-        m_maxSizeBox = new QComboBox;
+        m_maxSizeBox = new Fluent::FluentComboBox;
         m_maxSizeBox->addItems({QStringLiteral("320"), QStringLiteral("480"), QStringLiteral("640"),
                                 QStringLiteral("720"), QStringLiteral("1080")});
         m_maxSizeBox->addItem(tr("原始"));
@@ -245,6 +245,26 @@ void VideoSettingsPopup::setupUI()
                 m_lastTipOpacity = val;
                 qsc::ConfigCenter::instance().setScriptTipOpacity(val);
                 emit tipOpacityChanged(val);
+            }
+        });
+    }
+
+    // 画面锐化
+    {
+        m_sharpenSlider = new FluentSlider;
+        m_sharpenSlider->setRange(0, 100);
+        m_sharpenSlider->setSuffix(QStringLiteral("%"));
+        auto* sr = new SettingRow;
+        sr->setTitle(tr("画面锐化"));
+        sr->setDescription(tr("增强画面边缘清晰度 (CAS 算法)"));
+        sr->setWidget(m_sharpenSlider);
+        ol->addWidget(sr);
+
+        connect(m_sharpenSlider, &FluentSlider::valueChanged, this, [this](int val) {
+            if (val != m_lastSharpenStrength) {
+                m_lastSharpenStrength = val;
+                qsc::ConfigCenter::instance().setSharpenStrength(val);
+                emit sharpenStrengthChanged(val);
             }
         });
     }
@@ -469,6 +489,11 @@ void VideoSettingsPopup::syncFromConfig()
     m_tipOpacitySlider->blockSignals(true);
     m_tipOpacitySlider->setValue(m_lastTipOpacity);
     m_tipOpacitySlider->blockSignals(false);
+
+    m_lastSharpenStrength = cc.sharpenStrength();
+    m_sharpenSlider->blockSignals(true);
+    m_sharpenSlider->setValue(m_lastSharpenStrength);
+    m_sharpenSlider->blockSignals(false);
 
     // 息屏 / 视频传输 (从 ConfigCenter 持久化读取)
     m_lastScreenOff = cc.screenOff();

@@ -5,7 +5,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QMouseEvent>
-#include <QComboBox>
+#include "FluentComboBox.h"
 #include <QPushButton>
 #include <QPointer>
 #include <QEvent>
@@ -75,7 +75,7 @@ private:
 
     Ui::ToolForm *ui;
     QPoint m_dragPosition; QString m_serial; bool m_showTouch = false; bool m_isHost = false; bool m_isKeyMapMode = false;
-    QComboBox* m_configComboBox = nullptr;
+    Fluent::FluentComboBox* m_configComboBox = nullptr;
     QPushButton* m_saveBtn = nullptr;
     QPushButton* m_newConfigBtn = nullptr;
     QPushButton* m_refreshBtn = nullptr;

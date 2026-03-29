@@ -11,7 +11,7 @@
 
 static thread_local std::mt19937 t_rng{std::random_device{}()};
 
-// 应用随机偏移（防检测）
+// 应用随机偏移
 static PointF applyRandomOffset(const PointF& pos, const Size& targetSize) {
     int offsetLevel = qsc::ConfigCenter::instance().randomOffset();
     if (offsetLevel <= 0 || targetSize.isEmpty()) {
@@ -46,7 +46,7 @@ static Size getTargetSize(const Size& frameSize, const Size& showSize, const Siz
 ViewportHandler::ViewportHandler()
 {
     m_state.centerRepressTimer.setSingleShot(true);
-    m_state.centerRepressTimer.setInterval(20);
+    m_state.centerRepressTimer.setInterval(0);
     m_state.centerRepressTimer.setCallback([this]() { onCenterRepressTimer(); });
 
     m_state.idleCenterTimer.setSingleShot(true);
@@ -92,7 +92,6 @@ void ViewportHandler::reset()
     stopTouch();
     m_pendingMoveDelta = {0, 0};
     m_moveSendScheduled = false;
-    m_smoothedDelta = {0, 0};
 }
 
 void ViewportHandler::startTouch(const Size& frameSize, const Size& showSize)
@@ -102,6 +101,16 @@ void ViewportHandler::startTouch(const Size& frameSize, const Size& showSize)
 
     if (!m_state.touching && m_keyMap) {
         PointF mouseMoveStartPos = m_keyMap->getMouseMoveMap().data.mouseMove.startPos;
+        auto& mmStart = m_keyMap->getMouseMoveMap().data.mouseMove;
+        double sMinX = 0.02, sMaxX = 0.98, sMinY = 0.02, sMaxY = 0.98;
+        if (mmStart.areaMode) {
+            sMinX = std::max(0.0, mmStart.areaX);
+            sMinY = std::max(0.0, mmStart.areaY);
+            sMaxX = std::min(1.0, mmStart.areaX + mmStart.areaW);
+            sMaxY = std::min(1.0, mmStart.areaY + mmStart.areaH);
+        }
+        mouseMoveStartPos.x = std::clamp(mouseMoveStartPos.x, sMinX, sMaxX);
+        mouseMoveStartPos.y = std::clamp(mouseMoveStartPos.y, sMinY, sMaxY);
         Size ms = m_sessionContext ? m_sessionContext->mobileSize() : Size();
         Size targetSize = getTargetSize(m_frameSize, m_showSize, ms);
         PointF randomStartPos = applyRandomOffset(mouseMoveStartPos, targetSize);
@@ -110,7 +119,6 @@ void ViewportHandler::startTouch(const Size& frameSize, const Size& showSize)
         sendFastTouch(FTA_DOWN, randomStartPos);
         m_state.lastConverPos = randomStartPos;
         m_state.touching = true;
-        m_smoothedDelta = {0, 0};
     }
 }
 
@@ -153,43 +161,58 @@ void ViewportHandler::resetView()
     if (!m_keyMap) return;
 
     if (m_state.waitingForCenterRepress) {
-        // 已在回中过程中：清除累计的 overshoot / 动量，确保落点在真正中心
         m_state.pendingOvershoot = {0, 0};
-        m_smoothedDelta = {0, 0};
         return;
     }
 
     if (!m_state.touching) return;
 
-    // 已在中心附近则跳过，防止多个异步 resetView 产生无意义微触摸导致跳屏
     PointF centerPos = m_keyMap->getMouseMoveMap().data.mouseMove.startPos;
+    auto& mm = m_keyMap->getMouseMoveMap().data.mouseMove;
+    {
+        double rMinX = 0.02, rMaxX = 0.98, rMinY = 0.02, rMaxY = 0.98;
+        if (mm.areaMode) {
+            rMinX = std::max(0.0, mm.areaX);
+            rMinY = std::max(0.0, mm.areaY);
+            rMaxX = std::min(1.0, mm.areaX + mm.areaW);
+            rMaxY = std::min(1.0, mm.areaY + mm.areaH);
+        }
+        centerPos.x = std::clamp(centerPos.x, rMinX, rMaxX);
+        centerPos.y = std::clamp(centerPos.y, rMinY, rMaxY);
+    }
     double dx = m_state.lastConverPos.x - centerPos.x;
     double dy = m_state.lastConverPos.y - centerPos.y;
     if (std::sqrt(dx * dx + dy * dy) < 0.02) return;
 
     m_state.idleCenterTimer.stop();
 
-    sendFastTouch(FTA_UP, m_state.lastConverPos);
-    m_state.touching = false;
+    // 双指交替回中心：新手指先按下中心，旧手指再抬起
+    Size ms = m_sessionContext ? m_sessionContext->mobileSize() : Size();
+    Size targetSize = getTargetSize(m_frameSize, m_showSize, ms);
+    PointF randomCenterPos = applyRandomOffset(centerPos, targetSize);
+    uint32_t oldSeqId = m_state.fastTouchSeqId;
+    PointF oldPos = m_state.lastConverPos;
 
-    // 5ms 快速回中（与边缘回中同机制）
-    m_state.waitingForCenterRepress = true;
-    m_state.pendingCenterPos = centerPos;
-    m_state.pendingOvershoot = {0, 0};
-    m_state.centerRepressTimer.start();
+    m_state.fastTouchSeqId = FastTouchSeq::next();
+    sendFastTouch(FTA_DOWN, randomCenterPos);
 
-    m_smoothedDelta = {0, 0};
+    // 旧手指抬起
+    {
+        uint16_t ex = static_cast<uint16_t>(std::clamp(oldPos.x, 0.0, 1.0) * 65535);
+        uint16_t ey = static_cast<uint16_t>(std::clamp(oldPos.y, 0.0, 1.0) * 65535);
+        char buf[10];
+        FastTouchEvent evt(oldSeqId, FTA_UP, ex, ey);
+        int len = FastMsg::serializeTouchInto(buf, evt);
+        m_controller->postFastMsg(buf, len);
+    }
+
+    m_state.lastConverPos = randomCenterPos;
+    // touching 保持 true
 }
 
 void ViewportHandler::onMouseMoveTimer()
 {
     m_moveSendScheduled = false;
-
-    if (m_state.waitingForCenterRepress) {
-        m_state.pendingOvershoot += m_pendingMoveDelta;
-        m_pendingMoveDelta = {0, 0};
-        return;
-    }
 
     if (m_pendingMoveDelta.isNull()) return;
 
@@ -204,37 +227,60 @@ void ViewportHandler::processMove(const PointF& delta)
 {
     if (!m_keyMap) return;
 
-    // 自适应 EMA：低速强平滑（消锯齿），高速弱平滑（不拖沓）
-    double speed = std::sqrt(delta.x * delta.x + delta.y * delta.y);
-    double t = std::clamp((speed - SPEED_LOW) / (SPEED_HIGH - SPEED_LOW), 0.0, 1.0);
-    double factor = FACTOR_LOW + t * (FACTOR_HIGH - FACTOR_LOW);
-
-    m_smoothedDelta.x = factor * delta.x + (1.0 - factor) * m_smoothedDelta.x;
-    m_smoothedDelta.y = factor * delta.y + (1.0 - factor) * m_smoothedDelta.y;
-
-    PointF newPos = m_state.lastConverPos + m_smoothedDelta;
+    PointF newPos = m_state.lastConverPos + delta;
 
     PointF centerPos = m_keyMap->getMouseMoveMap().data.mouseMove.startPos;
-    constexpr double EDGE_MIN = 0.02, EDGE_MAX = 0.98;
 
-    auto isOutOfBounds = [](const PointF& p) {
-        return p.x < EDGE_MIN || p.x > EDGE_MAX || p.y < EDGE_MIN || p.y > EDGE_MAX;
-    };
+    // 区域模式：使用自定义边界；否则使用全屏 0.02–0.98
+    auto& mm = m_keyMap->getMouseMoveMap().data.mouseMove;
+    double edgeMinX = 0.02, edgeMaxX = 0.98;
+    double edgeMinY = 0.02, edgeMaxY = 0.98;
+    if (mm.areaMode) {
+        edgeMinX = std::max(0.0, mm.areaX);
+        edgeMinY = std::max(0.0, mm.areaY);
+        edgeMaxX = std::min(1.0, mm.areaX + mm.areaW);
+        edgeMaxY = std::min(1.0, mm.areaY + mm.areaH);
+    }
+    // 始终确保 centerPos 在边界内，否则回正落在界外 → 立即又越界 → 死循环
+    // 典型场景：centerPos 为 {0,0} 时回正到左上角，后续任何移动都 OOB
+    centerPos.x = std::clamp(centerPos.x, edgeMinX, edgeMaxX);
+    centerPos.y = std::clamp(centerPos.y, edgeMinY, edgeMaxY);
 
-    if (isOutOfBounds(newPos) && m_state.touching) {
-        m_state.idleCenterTimer.stop();
+    bool oobX = (newPos.x < edgeMinX || newPos.x > edgeMaxX);
+    bool oobY = (newPos.y < edgeMinY || newPos.y > edgeMaxY);
 
-        PointF edgePos(std::clamp(newPos.x, EDGE_MIN, EDGE_MAX), std::clamp(newPos.y, EDGE_MIN, EDGE_MAX));
+    if ((oobX || oobY) && m_state.touching) {
+        // 双指交替回正：新手指先按下中心，旧手指再抬起
+        // 游戏始终有一根手指在触摸，不会看到"所有手指抬起"的间隙
+
+        // 1) 旧手指移动到钳制后的边缘位置
+        PointF edgePos(std::clamp(newPos.x, edgeMinX, edgeMaxX),
+                       std::clamp(newPos.y, edgeMinY, edgeMaxY));
         sendFastTouch(FTA_MOVE, edgePos);
-        sendFastTouch(FTA_UP, edgePos);
-        m_state.touching = false;
 
-        m_state.waitingForCenterRepress = true;
-        m_state.pendingCenterPos = centerPos;
-        m_state.pendingOvershoot = newPos - edgePos;
-        m_state.centerRepressTimer.start();
+        // 2) 新手指按下中心（此刻两根手指同时存在）
+        Size ms = m_sessionContext ? m_sessionContext->mobileSize() : Size();
+        Size targetSize = getTargetSize(m_frameSize, m_showSize, ms);
+        PointF randomCenterPos = applyRandomOffset(centerPos, targetSize);
+        uint32_t oldSeqId = m_state.fastTouchSeqId;
+        m_state.fastTouchSeqId = FastTouchSeq::next();
+        sendFastTouch(FTA_DOWN, randomCenterPos);
+
+        // 3) 旧手指抬起（现在只剩新手指在中心）
+        {
+            uint16_t ex = static_cast<uint16_t>(std::clamp(edgePos.x, 0.0, 1.0) * 65535);
+            uint16_t ey = static_cast<uint16_t>(std::clamp(edgePos.y, 0.0, 1.0) * 65535);
+            char buf[10];
+            FastTouchEvent evt(oldSeqId, FTA_UP, ex, ey);
+            int len = FastMsg::serializeTouchInto(buf, evt);
+            m_controller->postFastMsg(buf, len);
+        }
+
+        m_state.lastConverPos = randomCenterPos;
+        // touching 保持 true，下一帧继续从中心移动
         return;
     }
+
     m_state.lastConverPos = newPos;
     if (m_state.touching) {
         sendFastTouch(FTA_MOVE, m_state.lastConverPos);
@@ -259,11 +305,9 @@ void ViewportHandler::onCenterRepressTimer()
 
     m_state.waitingForCenterRepress = false;
 
-    // 将 overshoot 回灌到正常管线，由自适应 EMA 平滑消化
-    // 不再一次性 MOVE，避免单帧大跳步
+    // 将 overshoot 回灌并立即处理，不丢失任何移动量
     m_pendingMoveDelta += m_state.pendingOvershoot;
     m_state.pendingOvershoot = {0, 0};
-    m_smoothedDelta = {0, 0}; // 全新触摸序列，清空 EMA 历史
 
     if (!m_pendingMoveDelta.isNull()) {
         scheduleMoveSend();
@@ -278,15 +322,42 @@ void ViewportHandler::onIdleCenterTimer()
     if (m_state.waitingForCenterRepress || !m_keyMap || !m_state.touching) return;
 
     PointF centerPos = m_keyMap->getMouseMoveMap().data.mouseMove.startPos;
+    auto& mmIdle = m_keyMap->getMouseMoveMap().data.mouseMove;
+    {
+        double iMinX = 0.02, iMaxX = 0.98, iMinY = 0.02, iMaxY = 0.98;
+        if (mmIdle.areaMode) {
+            iMinX = std::max(0.0, mmIdle.areaX);
+            iMinY = std::max(0.0, mmIdle.areaY);
+            iMaxX = std::min(1.0, mmIdle.areaX + mmIdle.areaW);
+            iMaxY = std::min(1.0, mmIdle.areaY + mmIdle.areaH);
+        }
+        centerPos.x = std::clamp(centerPos.x, iMinX, iMaxX);
+        centerPos.y = std::clamp(centerPos.y, iMinY, iMaxY);
+    }
 
-    sendFastTouch(FTA_UP, m_state.lastConverPos);
-    m_state.touching = false;
+    // 双指交替空闲回正：新手指先按下中心，旧手指再抬起
+    Size ms = m_sessionContext ? m_sessionContext->mobileSize() : Size();
+    Size targetSize = getTargetSize(m_frameSize, m_showSize, ms);
+    PointF randomCenterPos = applyRandomOffset(centerPos, targetSize);
+    uint32_t oldSeqId = m_state.fastTouchSeqId;
+    PointF oldPos = m_state.lastConverPos;
+
+    m_state.fastTouchSeqId = FastTouchSeq::next();
+    sendFastTouch(FTA_DOWN, randomCenterPos);
+
+    // 旧手指抬起
+    {
+        uint16_t ex = static_cast<uint16_t>(std::clamp(oldPos.x, 0.0, 1.0) * 65535);
+        uint16_t ey = static_cast<uint16_t>(std::clamp(oldPos.y, 0.0, 1.0) * 65535);
+        char buf[10];
+        FastTouchEvent evt(oldSeqId, FTA_UP, ex, ey);
+        int len = FastMsg::serializeTouchInto(buf, evt);
+        m_controller->postFastMsg(buf, len);
+    }
+
+    m_state.lastConverPos = randomCenterPos;
     m_state.idleCenterCompleted = true;
-
-    m_state.waitingForCenterRepress = true;
-    m_state.pendingCenterPos = centerPos;
-    m_state.pendingOvershoot = {0, 0};
-    m_state.centerRepressTimer.start();
+    // touching 保持 true
 }
 
 void ViewportHandler::sendFastTouch(uint8_t action, const PointF& pos)

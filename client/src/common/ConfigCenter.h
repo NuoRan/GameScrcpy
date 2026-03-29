@@ -156,6 +156,10 @@ public:
     bool screenOff() const;
     void setScreenOff(bool off);
 
+    // 锐化强度 (0~100, 0=关闭, 100=最大)
+    int sharpenStrength() const;
+    void setSharpenStrength(int value);
+
     // --- 设备专属配置 ---
     std::string nickName(const std::string& serial) const;
     void setNickName(const std::string& serial, const std::string& name);

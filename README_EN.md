@@ -5,8 +5,8 @@
 <h3 align="center">🎮 Powerful Android Screen Mirroring & Control Tool</h3>
 
 <p align="center">
-  <a href="../../releases"><img src="https://img.shields.io/github/v/release/nicenick14/GameScrcpy?style=flat-square&color=blue" alt="Release"></a>
-  <img src="https://img.shields.io/badge/Version-1.3.3-blue?style=flat-square" alt="Version">
+  <a href="../../releases"><img src="https://img.shields.io/github/v/release/NuoRan/GameScrcpy?style=flat-square&color=blue" alt="Release"></a>
+  <img src="https://img.shields.io/badge/Version-1.3.4-blue?style=flat-square" alt="Version">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11-blue?style=flat-square" alt="Platform">
   <img src="https://img.shields.io/badge/Qt-6.x-41CD52?style=flat-square&logo=qt" alt="Qt Version">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License"></a>

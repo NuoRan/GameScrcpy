@@ -125,13 +125,13 @@ bool AoaHidBackend::sendTouch(TouchAction action, uint8_t touchId,
     // 横屏旋转: 显示坐标系 → 物理触摸板坐标系
     uint16_t rx = x, ry = y;
     switch (m_displayRotation) {
-    case 90:   // 横屏 (90° CCW)
-        rx = 65535 - y;
-        ry = x;
-        break;
-    case 270:  // 横屏 (90° CW)
+    case 90:
         rx = y;
         ry = 65535 - x;
+        break;
+    case 270:
+        rx = 65535 - y;
+        ry = x;
         break;
     case 180:
         rx = 65535 - x;

@@ -225,7 +225,7 @@ void KeyMapSidePanel::setupUI()
     auto* configInner = new QVBoxLayout();
     configInner->setSpacing(4);
 
-    m_configCombo = new QComboBox();
+    m_configCombo = new Fluent::FluentComboBox();
     m_configCombo->setMinimumHeight(26);
     m_configCombo->setStyleSheet(
         QString("QComboBox{background:%1;color:%2;border:1px solid %3;border-radius:5px;"

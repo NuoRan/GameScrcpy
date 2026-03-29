@@ -16,7 +16,7 @@
 
 #include <QDialog>
 #include <QLineEdit>
-#include <QComboBox>
+#include "FluentComboBox.h"
 
 namespace Fluent {
 class FluentSlider;
@@ -42,6 +42,7 @@ signals:
     void tipOpacityChanged(int opacity);         // 0-100
     void screenOffChanged(bool off);
     void videoStreamingChanged(bool streaming);  // true=播放, false=暂停
+    void sharpenStrengthChanged(int strength);   // 0-100
 
 protected:
     void paintEvent(QPaintEvent*) override;
@@ -57,13 +58,14 @@ private:
 
     // 视频参数
     QLineEdit* m_bitRateEdit = nullptr;
-    QComboBox* m_fpsBox      = nullptr;
-    QComboBox* m_maxSizeBox  = nullptr;
+    Fluent::FluentComboBox* m_fpsBox      = nullptr;
+    Fluent::FluentComboBox* m_maxSizeBox  = nullptr;
 
     // 显示选项
     Fluent::FluentToggle* m_overlayToggle = nullptr;
     Fluent::FluentSlider* m_overlayOpacitySlider = nullptr;
     Fluent::FluentSlider* m_tipOpacitySlider = nullptr;
+    Fluent::FluentSlider* m_sharpenSlider = nullptr;
 
     // 设备控制
     Fluent::FluentToggle* m_screenOffToggle  = nullptr;
@@ -76,6 +78,7 @@ private:
     bool    m_lastOverlayVisible = true;
     int     m_lastOverlayOpacity = 80;
     int     m_lastTipOpacity = 100;
+    int     m_lastSharpenStrength = 0;
     bool    m_lastScreenOff = false;
     bool    m_lastStreaming  = true;
 };

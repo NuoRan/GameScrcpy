@@ -28,6 +28,7 @@
 #include <QEventLoop>
 #include <QMetaEnum>
 #include <QByteArray>
+#include <QWindowStateChangeEvent>
 #include "FluentDialog.h"
 #include "ThemeManager.h"
 #include "OnboardingOverlay.h"
@@ -494,6 +495,7 @@ void VideoForm::initUI() {
     // 初始化视频渲染控件 (D3D11)
     m_videoWidget = new D3D11VideoWidget();
     m_videoWidget->hide();
+    m_videoWidget->setSharpenStrength(qsc::ConfigCenter::instance().sharpenStrength());
 
 
     // 设置保持比例容器
@@ -666,6 +668,20 @@ void VideoForm::initUI() {
     m_settingsPopup = new VideoSettingsPopup(this);
     m_settingsPopup->hide();
 
+    // === 横竖屏切换 (对调分辨率 W↔H，实时更新 mobileSize + 虚拟画布) ===
+    connect(m_bottomBar, &VideoBottomBar::rotateClicked, this, [this]() {
+        if (m_serial.isEmpty()) return;
+        auto& cc = qsc::ConfigCenter::instance();
+        int w = cc.get<int>("user/aoaResWidth", 1080);
+        int h = cc.get<int>("user/aoaResHeight", 2400);
+        Size newSize(w, h);
+        // 更新运行中的 InputManager mobileSize
+        qsc::IDeviceManage::getInstance().updateDeviceResolution(
+            strutil::fromQ(m_serial), newSize);
+        // 更新虚拟画布显示
+        enableVirtualCanvas(QSize(w, h));
+    });
+
     connect(m_bottomBar, &VideoBottomBar::settingsClicked, this, [this]() {
         if (!m_settingsPopup) return;
         // 模态弹窗，每次打开同步配置
@@ -700,6 +716,11 @@ void VideoForm::initUI() {
     connect(m_settingsPopup, &VideoSettingsPopup::tipOpacityChanged, this, [this](int opacity) {
         ScriptTipWidget::instance()->setOpacityLevel(opacity);
         if (m_sidePanel) m_sidePanel->setTipOpacity(opacity);
+    });
+
+    // 画面锐化 → D3D11VideoWidget
+    connect(m_settingsPopup, &VideoSettingsPopup::sharpenStrengthChanged, this, [this](int strength) {
+        if (m_videoWidget) m_videoWidget->setSharpenStrength(strength);
     });
 
     // 息屏 → DeviceSession (关闭/开启设备屏幕)
@@ -1007,6 +1028,7 @@ void VideoForm::loadKeyMap(const QString& filename, bool runAutoStart) {
                     item->setNormalizedPos(QPointF(x, y), sz);
 
                     if (auto* w = dynamic_cast<KeyMapItemSteerWheel*>(item)) w->updateSubItemsPos();
+                    if (auto* c = dynamic_cast<KeyMapItemCamera*>(item)) c->ensureAreaRectIfNeeded();
                 }
             }
         }
@@ -1136,7 +1158,6 @@ void VideoForm::saveKeyMap() {
     // 3. 序列化并保存
     nlohmann::json root = m_currentConfigBase;
     nlohmann::json nodes = nlohmann::json::array();
-    nlohmann::json mouseMoveMap = nlohmann::json::object();
 
     for (auto g : items) {
         if (auto* item = dynamic_cast<KeyMapItemBase*>(g)) {
@@ -1146,7 +1167,8 @@ void VideoForm::saveKeyMap() {
     }
 
     root["keyMapNodes"] = nodes;
-    root["mouseMoveMap"] = mouseMoveMap;
+    // mouseMoveMap 保留 m_currentConfigBase 中的原始值，不覆盖
+    // KMT_CAMERA_MOVE 在 keyMapNodes 中优先级更高，不受影响
 
     std::ofstream ofs(("keymap/" + m_currentKeyMapFile).toStdString(), std::ios::binary);
     if (ofs) {
@@ -1176,8 +1198,8 @@ void VideoForm::mousePressEvent(QMouseEvent *e) {
         auto ev = fromQMouseEvent(e, m_videoWidget, this);
         m_session->mouseEvent(ev, typeconv::fromQ(m_frameSize), typeconv::fromQ(m_videoWidget->size()));
     } else {
-        // 在视频区域外：处理窗口拖拽
-        if (e->button()==Qt::LeftButton) {
+        // 在视频区域外：处理窗口拖拽（全屏模式下禁止拖拽）
+        if (e->button()==Qt::LeftButton && !isFullScreen()) {
 #if (QT_VERSION < QT_VERSION_CHECK(6, 0, 0))
             m_dragPosition = e->globalPos() - frameGeometry().topLeft();
 #else
@@ -1314,6 +1336,10 @@ void VideoForm::onKeyMapEditModeToggled(bool active) {
 
     // 退出编辑时，应用键位配置到底层并获取焦点
     if (!active) {
+        // 重置所有输入状态（防止编辑模式残留导致视角控制/按键卡住）
+        if (m_session) {
+            m_session->onWindowFocusLost();
+        }
         // 编辑模式下保存时跳过了 updateScript，退出时统一应用
         if (!m_currentKeyMapFile.isEmpty()) {
             loadKeyMap(m_currentKeyMapFile, true);
@@ -1733,19 +1759,18 @@ bool VideoForm::nativeEvent(const QByteArray &eventType, void *message, qintptr 
         // 全屏模式不允许缩放
         if (isFullScreen()) break;
 
-        // 只允许四个边角缩放
+        // 四个边角 + 四条边均可缩放（等比例由 WM_SIZING 保证）
         if (nearTop    && nearLeft)  { *result = HTTOPLEFT;     return true; }
         if (nearTop    && nearRight) { *result = HTTOPRIGHT;    return true; }
         if (nearBottom && nearLeft)  { *result = HTBOTTOMLEFT;  return true; }
         if (nearBottom && nearRight) { *result = HTBOTTOMRIGHT; return true; }
+        if (nearLeft)                { *result = HTLEFT;        return true; }
+        if (nearRight)               { *result = HTRIGHT;       return true; }
+        if (nearTop)                 { *result = HTTOP;         return true; }
+        if (nearBottom)              { *result = HTBOTTOM;      return true; }
 
         if (!m_skin) {
-            // 有边框模式：拦截边缘缩放，改为客户区
             auto def = DefWindowProc(msg->hwnd, msg->message, msg->wParam, msg->lParam);
-            if (def == HTLEFT || def == HTRIGHT || def == HTTOP || def == HTBOTTOM) {
-                *result = HTCLIENT;
-                return true;
-            }
             *result = def;
             return true;
         }
@@ -1756,37 +1781,73 @@ bool VideoForm::nativeEvent(const QByteArray &eventType, void *message, qintptr 
         if (m_widthHeightRatio <= 0.0f || isFullScreen()) break;
 
         RECT *rc = reinterpret_cast<RECT *>(msg->lParam);
-        int w = rc->right - rc->left;
 
         // 动态计算窗口到 keepRatioWidget 之间的开销（包含皮肤边距 + 侧边栏/底部栏）
         int overW = width() - ui->keepRatioWidget->width();
         int overH = height() - ui->keepRatioWidget->height();
-
         float ratio = m_widthHeightRatio;
-        int videoW = w - overW;
-        if (videoW < 100) videoW = 100;
 
-        // 以宽度为准，按比例计算高度
-        int h = static_cast<int>(videoW / ratio) + overH;
+        auto calcHeightFromWidth = [&](int w) -> int {
+            int videoW = w - overW;
+            if (videoW < 100) videoW = 100;
+            return static_cast<int>(videoW / ratio) + overH;
+        };
+        auto calcWidthFromHeight = [&](int h) -> int {
+            int videoH = h - overH;
+            if (videoH < 100) videoH = 100;
+            return static_cast<int>(videoH * ratio) + overW;
+        };
 
         switch (msg->wParam) {
-        case WMSZ_TOPLEFT:
+        case WMSZ_LEFT: {
+            int h = calcHeightFromWidth(rc->right - rc->left);
+            rc->bottom = rc->top + h;
+            break;
+        }
+        case WMSZ_RIGHT: {
+            int h = calcHeightFromWidth(rc->right - rc->left);
+            rc->bottom = rc->top + h;
+            break;
+        }
+        case WMSZ_TOP: {
+            int w = calcWidthFromHeight(rc->bottom - rc->top);
+            rc->right = rc->left + w;
+            break;
+        }
+        case WMSZ_BOTTOM: {
+            int w = calcWidthFromHeight(rc->bottom - rc->top);
+            rc->right = rc->left + w;
+            break;
+        }
+        case WMSZ_TOPLEFT: {
+            int w = rc->right - rc->left;
+            int h = calcHeightFromWidth(w);
             rc->left = rc->right - w;
             rc->top  = rc->bottom - h;
             break;
-        case WMSZ_TOPRIGHT:
+        }
+        case WMSZ_TOPRIGHT: {
+            int w = rc->right - rc->left;
+            int h = calcHeightFromWidth(w);
             rc->right = rc->left + w;
             rc->top   = rc->bottom - h;
             break;
-        case WMSZ_BOTTOMLEFT:
+        }
+        case WMSZ_BOTTOMLEFT: {
+            int w = rc->right - rc->left;
+            int h = calcHeightFromWidth(w);
             rc->left   = rc->right - w;
             rc->bottom = rc->top + h;
             break;
+        }
         case WMSZ_BOTTOMRIGHT:
-        default:
+        default: {
+            int w = rc->right - rc->left;
+            int h = calcHeightFromWidth(w);
             rc->right  = rc->left + w;
             rc->bottom = rc->top + h;
             break;
+        }
         }
 
         *result = TRUE;
@@ -1901,6 +1962,22 @@ void VideoForm::closeEvent(QCloseEvent *e) {
 void VideoForm::changeEvent(QEvent *event) {
     QWidget::changeEvent(event);
 
+    if (event->type() == QEvent::WindowStateChange) {
+        // 检测从全屏状态被动退出（如拖动窗口导致OS退出全屏）
+        auto* stateEvent = static_cast<QWindowStateChangeEvent*>(event);
+        if ((stateEvent->oldState() & Qt::WindowFullScreen) && !isFullScreen()) {
+            // 从全屏状态退出，恢复UI元素
+            ui->keepRatioWidget->setScaleMode(KeepRatioWidget::FitMode);
+            if (m_widthHeightRatio > 1.0f) ui->keepRatioWidget->setWidthHeightRatio(m_widthHeightRatio);
+            if (m_skin) updateStyleSheet(m_frameSize.height() > m_frameSize.width());
+            showToolForm(this->show_toolbar);
+            if (m_bottomBar) m_bottomBar->setVisible(this->show_toolbar);
+#ifdef Q_OS_WIN32
+            ::SetThreadExecutionState(ES_CONTINUOUS);
+#endif
+        }
+    }
+
     if (event->type() == QEvent::ActivationChange) {
         if (!isActiveWindow() && m_session) {
             // 窗口失去焦点，通知底层重置输入状态
@@ -1980,6 +2057,16 @@ void VideoForm::updateKeyMapOverlay() {
         } else if (auto* camera = dynamic_cast<KeyMapItemCamera*>(base)) {
             info.type = "camera";
             info.label = "视角";
+            // 区域模式可视化
+            nlohmann::json cjson = camera->toJson();
+            if (cjson.value("areaMode", false)) {
+                info.areaMode = true;
+                if (cjson.contains("areaRect") && cjson["areaRect"].is_object()) {
+                    auto& ar = cjson["areaRect"];
+                    info.areaRect = QRectF(ar.value("x", 0.3), ar.value("y", 0.3),
+                                           ar.value("w", 0.4), ar.value("h", 0.4));
+                }
+            }
         } else if (auto* freeLook = dynamic_cast<KeyMapItemFreeLook*>(base)) {
             info.type = "freeLook";
             info.label = freeLook->getKey();

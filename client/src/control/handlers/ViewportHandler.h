@@ -17,7 +17,7 @@ class SessionContext;
  * - 鼠标移动转换为触摸滑动 / Mouse movement to touch swipe conversion
  * - 边缘回中机制 / Edge re-centering mechanism
  * - 空闲回中机制 / Idle re-centering mechanism
- * - 随机偏移（防检测）/ Random offset (anti-detection)
+ * - 随机偏移/ Random offset (anti-detection)
  */
 class ViewportHandler : public IInputHandler
 {
@@ -84,7 +84,7 @@ private:
         bool touching = false;
         uint32_t fastTouchSeqId = 0;
 
-        // 边缘回中延迟状态
+        // 边缘回中延迟状态（仅用于 resetView / 空闲回正）
         bool waitingForCenterRepress = false;
         PointF pendingCenterPos;
         PointF pendingOvershoot;
@@ -98,15 +98,6 @@ private:
     // 鼠标移动发送
     PointF m_pendingMoveDelta;
     bool m_moveSendScheduled = false;
-
-    // ========== 自适应 EMA 平滑 ==========
-    // 低速：强平滑消除锯齿；高速：弱平滑保持响应
-    static constexpr double SPEED_LOW  = 0.001;   // 低速阈值
-    static constexpr double SPEED_HIGH = 0.008;   // 高速阈值
-    static constexpr double FACTOR_LOW  = 0.5;    // 低速 EMA 系数（强平滑）
-    static constexpr double FACTOR_HIGH = 0.95;   // 高速 EMA 系数（弱平滑）
-
-    PointF m_smoothedDelta = {0, 0};   // EMA 平滑状态
 };
 
 #endif // VIEWPORTHANDLER_H

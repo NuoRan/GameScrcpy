@@ -23,6 +23,8 @@ public:
     void setAudioVisible(bool visible);
     void setCompanionConnected(bool connected);
 
+    void setLandscapeMode(bool landscape);
+
 signals:
     void goBack();
     void goHome();
@@ -32,6 +34,7 @@ signals:
     void settingsClicked();
     void audioToggled(bool muted);
     void companionClicked();
+    void rotateClicked();
 
 protected:
     void paintEvent(QPaintEvent*) override;
@@ -47,8 +50,10 @@ private:
     Fluent::FluentButton* m_audioBtn = nullptr;
     Fluent::FluentButton* m_settingsBtn = nullptr;
     Fluent::FluentButton* m_companionBtn = nullptr;
+    Fluent::FluentButton* m_rotateBtn = nullptr;
     bool m_keyMapActive = false;
     bool m_audioMuted = false;  // 音频启用时默认播放
+    bool m_isLandscape = false;
 };
 
 #endif

@@ -101,6 +101,11 @@ public:
      */
     GrayFrame grabGrayFrame();
 
+    /**
+     * @brief 设置锐化强度 (0=关闭, 100=最大)
+     */
+    void setSharpenStrength(int strength);
+
     // =========================================================================
     // 状态
     // =========================================================================
@@ -129,6 +134,7 @@ private:
     // D3D11 渲染器
     std::unique_ptr<qsc::D3D11Renderer> m_renderer;
     bool m_rendererInitialized = false;
+    int m_pendingSharpenStrength = 0;  // 渲染器初始化前缓存的锐化值
 
     // 帧尺寸
     QSize m_frameSize = { -1, -1 };

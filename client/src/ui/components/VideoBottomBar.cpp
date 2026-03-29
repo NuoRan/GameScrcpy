@@ -5,6 +5,7 @@
 #include "VideoBottomBar.h"
 #include "FluentButton.h"
 #include "ThemeManager.h"
+#include "ConfigCenter.h"
 
 #include <QVBoxLayout>
 #include <QPainter>
@@ -154,11 +155,36 @@ void VideoBottomBar::setupUI()
     });
     m_companionBtn  = makeBtn(companionIcon,  tr("手机伴侣"));
 
+    // 横竖屏切换 ⟳ 旋转图标
+    QIcon rotateIcon = makeIcon(24, [fg](QPainter& p, int s) {
+        p.setPen(QPen(fg, 1.8));
+        p.setBrush(Qt::NoBrush);
+        // 手机外框 (竖屏)
+        p.drawRoundedRect(QRectF(s*0.18, s*0.14, s*0.34, s*0.52), 3, 3);
+        // 旋转箭头弧线
+        p.drawArc(QRectF(s*0.42, s*0.38, s*0.42, s*0.42), 30*16, 240*16);
+        // 箭头头部
+        QPointF arrowTip(s*0.82, s*0.52);
+        QPolygonF arrow;
+        arrow << arrowTip << QPointF(s*0.74, s*0.44) << QPointF(s*0.74, s*0.60);
+        p.setPen(Qt::NoPen);
+        p.setBrush(fg);
+        p.drawPolygon(arrow);
+    });
+
+    // 判断当前是否横屏 (w > h)
+    int curW = qsc::ConfigCenter::instance().get<int>("user/aoaResWidth", 1080);
+    int curH = qsc::ConfigCenter::instance().get<int>("user/aoaResHeight", 2400);
+    m_isLandscape = (curW > curH);
+
+    m_rotateBtn = makeBtn(rotateIcon, m_isLandscape ? tr("切换竖屏") : tr("切换横屏"));
+
     layout->addWidget(m_backBtn);
     layout->addWidget(m_homeBtn);
     layout->addWidget(m_appSwitchBtn);
     layout->addStretch();
     layout->addWidget(m_companionBtn);
+    layout->addWidget(m_rotateBtn);
     layout->addWidget(m_settingsBtn);
     layout->addWidget(m_audioBtn);
     layout->addWidget(m_fullScreenBtn);
@@ -170,6 +196,18 @@ void VideoBottomBar::setupUI()
     connect(m_fullScreenBtn, &QPushButton::clicked, this, &VideoBottomBar::fullScreen);
     connect(m_settingsBtn,   &QPushButton::clicked, this, &VideoBottomBar::settingsClicked);
     connect(m_companionBtn,  &QPushButton::clicked, this, &VideoBottomBar::companionClicked);
+
+    connect(m_rotateBtn, &QPushButton::clicked, this, [this]() {
+        // 读取当前分辨率并对调 W↔H
+        auto& cc = qsc::ConfigCenter::instance();
+        int w = cc.get<int>("user/aoaResWidth", 1080);
+        int h = cc.get<int>("user/aoaResHeight", 2400);
+        cc.set("user/aoaResWidth", h);
+        cc.set("user/aoaResHeight", w);
+        m_isLandscape = (h > w);
+        m_rotateBtn->setToolTip(m_isLandscape ? tr("切换竖屏") : tr("切换横屏"));
+        emit rotateClicked();
+    });
 
     connect(m_audioBtn, &QPushButton::clicked, this, [this]() {
         m_audioMuted = !m_audioMuted;
@@ -306,4 +344,11 @@ void VideoBottomBar::setCompanionConnected(bool connected)
         m_companionBtn->setStyleSheet(QString());
         m_companionBtn->setToolTip(tr("手机伴侣"));
     }
+}
+
+void VideoBottomBar::setLandscapeMode(bool landscape)
+{
+    m_isLandscape = landscape;
+    if (m_rotateBtn)
+        m_rotateBtn->setToolTip(landscape ? tr("切换竖屏") : tr("切换横屏"));
 }

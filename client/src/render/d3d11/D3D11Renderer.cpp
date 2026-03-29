@@ -123,6 +123,41 @@ float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_TARGET {
 }
 )";
 
+/**
+ * CAS (Contrast Adaptive Sharpening) 像素着色器
+ *
+ * 基于 AMD FidelityFX CAS 算法简化版:
+ *   - 采样中心像素及上下左右 4 邻域
+ *   - 计算局部对比度自适应锐化权重
+ *   - strength 控制锐化强度 (0=关闭, 1=最大)
+ *
+ * cbuffer 传入 texelSize (1/width, 1/height) 和 strength
+ */
+static const char* k_sharpenPS = R"(
+Texture2D    tex : register(t0);
+SamplerState sam : register(s0);
+
+cbuffer SharpenParams : register(b0) {
+    float2 texelSize;  // 1.0 / textureSize
+    float  strength;   // 0.0 ~ 1.0
+    float  _pad;
+};
+
+float4 main(float4 pos : SV_POSITION, float2 uv : TEXCOORD0) : SV_TARGET {
+    float3 c  = tex.Sample(sam, uv).rgb;
+    float3 t  = tex.Sample(sam, uv + float2( 0, -texelSize.y)).rgb;
+    float3 b  = tex.Sample(sam, uv + float2( 0,  texelSize.y)).rgb;
+    float3 l  = tex.Sample(sam, uv + float2(-texelSize.x,  0)).rgb;
+    float3 r  = tex.Sample(sam, uv + float2( texelSize.x,  0)).rgb;
+
+    // Unsharp Mask: 中心像素与邻域均值的差值即为细节
+    float3 avg = (t + b + l + r) * 0.25;
+    float3 sharpened = c + (c - avg) * strength * 3.0;
+
+    return float4(saturate(sharpened), 1.0);
+}
+)";
+
 // =============================================================================
 // 着色器编译辅助
 // =============================================================================
@@ -394,6 +429,24 @@ bool D3D11Renderer::compileShaders()
         nullptr, &m_psNV12);
     if (FAILED(hr)) return false;
 
+    // CAS 锐化像素着色器
+    auto psSharpenBlob = compileShaderFromSource(k_sharpenPS, "main", "ps_5_0");
+    if (!psSharpenBlob) return false;
+
+    hr = m_device->CreatePixelShader(
+        psSharpenBlob->GetBufferPointer(), psSharpenBlob->GetBufferSize(),
+        nullptr, &m_psSharpen);
+    if (FAILED(hr)) return false;
+
+    // 锐化常量缓冲区
+    D3D11_BUFFER_DESC cbDesc = {};
+    cbDesc.ByteWidth = 16;  // float2 + float + pad = 16 bytes
+    cbDesc.Usage = D3D11_USAGE_DYNAMIC;
+    cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    cbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    hr = m_device->CreateBuffer(&cbDesc, nullptr, &m_sharpenCB);
+    if (FAILED(hr)) return false;
+
     return true;
 }
 
@@ -443,6 +496,11 @@ void D3D11Renderer::resize(int width, int height)
     m_grabStagingTex.Reset();
     m_grabStagingWidth  = 0;
     m_grabStagingHeight = 0;
+    m_sharpenTex.Reset();
+    m_sharpenSRV.Reset();
+    m_sharpenRTV.Reset();
+    m_sharpenTexWidth  = 0;
+    m_sharpenTexHeight = 0;
 
     HRESULT hr = m_swapChain->ResizeBuffers(
         0,                                  // 保持缓冲区数量
@@ -487,6 +545,11 @@ void D3D11Renderer::shutdown()
     m_sampler.Reset();
     m_psNV12.Reset();
     m_psYUV420P.Reset();
+    m_psSharpen.Reset();
+    m_sharpenTex.Reset();
+    m_sharpenSRV.Reset();
+    m_sharpenRTV.Reset();
+    m_sharpenCB.Reset();
     m_vertexShader.Reset();
     m_rtv.Reset();
     m_swapChain.Reset();
@@ -508,6 +571,8 @@ void D3D11Renderer::shutdown()
     m_hwStagingHeight = 0;
     m_grabStagingWidth = 0;
     m_grabStagingHeight = 0;
+    m_sharpenTexWidth = 0;
+    m_sharpenTexHeight = 0;
 
     {
         std::lock_guard<std::mutex> lock(m_yuvMutex);
@@ -727,6 +792,18 @@ void D3D11Renderer::setupViewportAndRenderTarget()
     vp.MinDepth = 0.0f;
     vp.MaxDepth = 1.0f;
     m_context->RSSetViewports(1, &vp);
+
+    // 锐化启用时渲染到中间纹理，否则直接渲染到 back buffer
+    if (m_sharpenStrength > 0.001f && m_psSharpen) {
+        ensureSharpenResources();
+        if (m_sharpenRTV) {
+            m_context->OMSetRenderTargets(1, m_sharpenRTV.GetAddressOf(), nullptr);
+            const float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
+            m_context->ClearRenderTargetView(m_sharpenRTV.Get(), clearColor);
+            return;
+        }
+    }
+
     m_context->OMSetRenderTargets(1, m_rtv.GetAddressOf(), nullptr);
 
     const float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -765,6 +842,93 @@ void D3D11Renderer::cacheYPlane(
             );
         }
     }
+}
+
+// =============================================================================
+// 锐化
+// =============================================================================
+
+void D3D11Renderer::setSharpenStrength(float strength)
+{
+    m_sharpenStrength = std::clamp(strength, 0.0f, 1.0f);
+}
+
+void D3D11Renderer::ensureSharpenResources()
+{
+    if (m_sharpenTexWidth == m_windowWidth && m_sharpenTexHeight == m_windowHeight)
+        return;
+
+    m_sharpenTex.Reset();
+    m_sharpenSRV.Reset();
+    m_sharpenRTV.Reset();
+
+    D3D11_TEXTURE2D_DESC desc = {};
+    desc.Width  = (UINT)m_windowWidth;
+    desc.Height = (UINT)m_windowHeight;
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format    = DXGI_FORMAT_R8G8B8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage     = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+
+    HRESULT hr = m_device->CreateTexture2D(&desc, nullptr, &m_sharpenTex);
+    if (FAILED(hr)) return;
+
+    hr = m_device->CreateShaderResourceView(m_sharpenTex.Get(), nullptr, &m_sharpenSRV);
+    if (FAILED(hr)) { m_sharpenTex.Reset(); return; }
+
+    hr = m_device->CreateRenderTargetView(m_sharpenTex.Get(), nullptr, &m_sharpenRTV);
+    if (FAILED(hr)) { m_sharpenTex.Reset(); m_sharpenSRV.Reset(); return; }
+
+    m_sharpenTexWidth  = m_windowWidth;
+    m_sharpenTexHeight = m_windowHeight;
+}
+
+void D3D11Renderer::applySharpenPass()
+{
+    static int sharpenPassCount = 0;
+    if (++sharpenPassCount <= 3) {
+        LOG_I("[D3D11] applySharpenPass #%d: strength=%.3f, texSize=%dx%d, rtv=%p, srv=%p",
+              sharpenPassCount, m_sharpenStrength,
+              m_sharpenTexWidth, m_sharpenTexHeight,
+              m_rtv.Get(), m_sharpenSRV.Get());
+    }
+
+    // 切换渲染目标到 swap chain back buffer
+    m_context->OMSetRenderTargets(1, m_rtv.GetAddressOf(), nullptr);
+
+    D3D11_VIEWPORT vp = {};
+    vp.Width    = (float)m_windowWidth;
+    vp.Height   = (float)m_windowHeight;
+    vp.MinDepth = 0.0f;
+    vp.MaxDepth = 1.0f;
+    m_context->RSSetViewports(1, &vp);
+
+    // 更新常量缓冲区
+    D3D11_MAPPED_SUBRESOURCE mapped;
+    HRESULT hr = m_context->Map(m_sharpenCB.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped);
+    if (SUCCEEDED(hr)) {
+        float* data = static_cast<float*>(mapped.pData);
+        data[0] = 1.0f / m_windowWidth;   // texelSize.x
+        data[1] = 1.0f / m_windowHeight;  // texelSize.y
+        data[2] = m_sharpenStrength;       // strength
+        data[3] = 0.0f;                   // pad
+        m_context->Unmap(m_sharpenCB.Get(), 0);
+    }
+
+    // 绑定中间纹理作为输入
+    m_context->PSSetShader(m_psSharpen.Get(), nullptr, 0);
+    m_context->PSSetShaderResources(0, 1, m_sharpenSRV.GetAddressOf());
+    m_context->PSSetConstantBuffers(0, 1, m_sharpenCB.GetAddressOf());
+
+    drawFullscreenTriangle();
+
+    // 解绑
+    ID3D11ShaderResourceView* nullSRV = nullptr;
+    m_context->PSSetShaderResources(0, 1, &nullSRV);
+    ID3D11Buffer* nullCB = nullptr;
+    m_context->PSSetConstantBuffers(0, 1, &nullCB);
 }
 
 // =============================================================================
@@ -815,6 +979,11 @@ void D3D11Renderer::renderYUV420P(
     // 解绑 SRV (防止 D3D11 WARNING)
     ID3D11ShaderResourceView* nullSRVs[3] = { nullptr, nullptr, nullptr };
     m_context->PSSetShaderResources(0, 3, nullSRVs);
+
+    // 锐化后处理
+    if (m_sharpenStrength > 0.001f && m_sharpenSRV) {
+        applySharpenPass();
+    }
 }
 
 // =============================================================================
@@ -861,6 +1030,11 @@ void D3D11Renderer::renderNV12(
     // 解绑 SRV
     ID3D11ShaderResourceView* nullSRVs[2] = { nullptr, nullptr };
     m_context->PSSetShaderResources(0, 2, nullSRVs);
+
+    // 锐化后处理
+    if (m_sharpenStrength > 0.001f && m_sharpenSRV) {
+        applySharpenPass();
+    }
 }
 
 // =============================================================================
@@ -913,6 +1087,11 @@ bool D3D11Renderer::renderHWFrame(ID3D11Texture2D* texture, int index)
     ID3D11ShaderResourceView* nullSRVs[2] = { nullptr, nullptr };
     m_context->PSSetShaderResources(0, 2, nullSRVs);
 
+    // 锐化后处理
+    if (m_sharpenStrength > 0.001f && m_sharpenSRV) {
+        applySharpenPass();
+    }
+
     return true;
 }
 
@@ -957,6 +1136,7 @@ void D3D11Renderer::rePresent()
         drawFullscreenTriangle();
         ID3D11ShaderResourceView* nullSRVs[3] = { nullptr, nullptr, nullptr };
         m_context->PSSetShaderResources(0, 3, nullSRVs);
+        if (m_sharpenStrength > 0.001f && m_sharpenSRV) applySharpenPass();
     } else if (m_srvNV12_Y.Get() && m_srvNV12_UV.Get()) {
         // NV12 模式
         setupViewportAndRenderTarget();
@@ -966,6 +1146,7 @@ void D3D11Renderer::rePresent()
         drawFullscreenTriangle();
         ID3D11ShaderResourceView* nullSRVs[2] = { nullptr, nullptr };
         m_context->PSSetShaderResources(0, 2, nullSRVs);
+        if (m_sharpenStrength > 0.001f && m_sharpenSRV) applySharpenPass();
     } else if (m_srvHW_Y.Get() && m_srvHW_UV.Get()) {
         // HW 零拷贝模式
         setupViewportAndRenderTarget();
@@ -975,6 +1156,7 @@ void D3D11Renderer::rePresent()
         drawFullscreenTriangle();
         ID3D11ShaderResourceView* nullSRVs[2] = { nullptr, nullptr };
         m_context->PSSetShaderResources(0, 2, nullSRVs);
+        if (m_sharpenStrength > 0.001f && m_sharpenSRV) applySharpenPass();
     } else {
         return;  // 没有纹理可用
     }

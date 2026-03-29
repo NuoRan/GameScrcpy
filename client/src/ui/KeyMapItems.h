@@ -22,12 +22,54 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
-#include <QComboBox>
+#include "FluentComboBox.h"
 #include <QTextEdit>
 #include <QPushButton>
 #include <QInputDialog>
 #include <QCheckBox>
 #include <QPointer>
+#include <QSlider>
+#include <QGroupBox>
+#include <QGridLayout>
+#include <QDoubleSpinBox>
+
+class KeyMapItemCamera; // forward declaration
+
+// ---------------------------------------------------------
+// 视角控制区域矩形 (可视化拖拽调整)
+// 始终以视角控制组件为中心，仅支持四角对称缩放
+// ---------------------------------------------------------
+class KeyMapAreaRect : public QGraphicsObject
+{
+    Q_OBJECT
+public:
+    KeyMapAreaRect(KeyMapItemCamera* owner, QGraphicsItem* parent = nullptr);
+
+    void setNormalizedSize(double w, double h);
+    void syncToScene();   // 根据 owner 位置和场景大小更新像素位置/尺寸
+
+    QRectF boundingRect() const override;
+    void paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) override;
+
+protected:
+    void mousePressEvent(QGraphicsSceneMouseEvent* event) override;
+    void mouseMoveEvent(QGraphicsSceneMouseEvent* event) override;
+    void mouseReleaseEvent(QGraphicsSceneMouseEvent* event) override;
+    void hoverMoveEvent(QGraphicsSceneHoverEvent* event) override;
+
+private:
+    enum DragMode { None, TopLeft, TopRight, BottomLeft, BottomRight };
+    DragMode hitTest(const QPointF& localPos) const;
+    void commitToOwner();
+
+    KeyMapItemCamera* m_owner;
+    double m_nw, m_nh;              // 归一化宽高（以 owner 为中心）
+    qreal m_pixW, m_pixH;           // 当前场景像素尺寸
+    DragMode m_dragMode = None;
+    QPointF m_dragStart;
+    qreal m_dragStartW, m_dragStartH;
+    static constexpr qreal HANDLE = 8.0;
+};
 
 // ---------------------------------------------------------
 // 辅助工具类：类型与字符串的转换 / Helper: Type-String Conversion
@@ -188,15 +230,21 @@ public:
         if(dir==2) m_subLeft->setConflicted(conflicted); if(dir==3) m_subRight->setConflicted(conflicted);
     }
 
+    // 速度倍率
+    double speedMultiplier() const { return m_speedMultiplier; }
+    void setSpeedMultiplier(double v) { m_speedMultiplier = v; }
+
     // 序列化支持
     nlohmann::json toJson() const override; void fromJson(const nlohmann::json& json) override;
     void resize(qreal w, qreal h);
+    void openSpeedDialog();
 protected:
     QRectF boundingRect() const override { return m_rect; }
     void paint(QPainter *p, const QStyleOptionGraphicsItem *, QWidget *) override;
     QPainterPath shape() const override;
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override {
         if (event->button() == Qt::LeftButton) {
+            // 关闭按钮
             QRectF closeRect(-4, -18, 12, 12);
             if (closeRect.contains(event->pos()) && scene()) {
                 QGraphicsScene* s = scene();
@@ -209,6 +257,13 @@ protected:
                 event->accept();
                 return;
             }
+            // 齿轮按钮 (中心上方偏右)
+            QRectF gearRect(8, -18, 12, 12);
+            if (gearRect.contains(event->pos())) {
+                openSpeedDialog();
+                event->accept();
+                return;
+            }
         }
         KeyMapItemBase::mousePressEvent(event);
     }
@@ -216,6 +271,7 @@ private:
     QRectF m_rect; SteerWheelSubItem* m_subUp; SteerWheelSubItem* m_subDown;
     SteerWheelSubItem* m_subLeft; SteerWheelSubItem* m_subRight;
     double m_leftOffset = 0.15; double m_rightOffset = 0.15; double m_upOffset = 0.15; double m_downOffset = 0.15;
+    double m_speedMultiplier = 1.0;  // 轮盘速度倍率
 };
 
 // ---------------------------------------------------------
@@ -549,6 +605,13 @@ public:
         json["key"] = m_key.toStdString();
         json["speedRatioX"] = m_speedX;
         json["speedRatioY"] = m_speedY;
+        if (m_areaMode) {
+            json["areaMode"] = true;
+            // areaX/Y 由 camera 中心位置减去半宽高自动计算
+            double ax = std::round((r.x() - m_areaW / 2.0) * 10000.0) / 10000.0;
+            double ay = std::round((r.y() - m_areaH / 2.0) * 10000.0) / 10000.0;
+            json["areaRect"] = {{"x", ax}, {"y", ay}, {"w", m_areaW}, {"h", m_areaH}};
+        }
         return json;
     }
 
@@ -556,12 +619,34 @@ public:
         if (json.contains("key")) m_key = QString::fromStdString(json["key"].get<std::string>());
         if (json.contains("speedRatioX")) m_speedX = json["speedRatioX"].get<double>();
         if (json.contains("speedRatioY")) m_speedY = json["speedRatioY"].get<double>();
+        if (json.contains("areaMode")) m_areaMode = json["areaMode"].get<bool>();
+        if (json.contains("areaRect") && json["areaRect"].is_object()) {
+            auto& ar = json["areaRect"];
+            // 只读取宽高，位置由 camera center 自动确定
+            if (ar.contains("w")) m_areaW = ar["w"].get<double>();
+            if (ar.contains("h")) m_areaH = ar["h"].get<double>();
+        }
     }
 
     QString getKey() const override { return m_key; }
 
 protected:
     QRectF boundingRect() const override { return QRectF(-60, -25, 120, 50); }
+
+    QVariant itemChange(GraphicsItemChange change, const QVariant& value) override {
+        if (change == ItemSceneChange) {
+            // 即将被移出场景时隐藏区域矩形
+            QGraphicsScene* newScene = value.value<QGraphicsScene*>();
+            if (!newScene) hideAreaRect();
+        } else if (change == ItemSceneHasChanged) {
+            // 加入新场景后恢复区域矩形
+            ensureAreaRectIfNeeded();
+        } else if (change == ItemPositionHasChanged) {
+            // camera 被拖动时，区域矩形跟随
+            syncAreaRect();
+        }
+        return KeyMapItemBase::itemChange(change, value);
+    }
 
     void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget) override {
         Q_UNUSED(option); Q_UNUSED(widget);
@@ -610,12 +695,43 @@ protected:
         QString t = (m_isEditing && m_editMode == Edit_Key) ? (KeyMapHelper::keyToDisplay(m_displayKey) + (m_showCursor?"|":"")) : KeyMapHelper::keyToDisplay(m_key);
         painter->drawText(QRectF(-20, -25, 40, 50), Qt::AlignCenter, t.isEmpty()?"?":t);
         drawCloseButton(painter, boundingRect());
+
+        // 齿轮图标 (区域设置按钮)
+        {
+            QRectF gearRect(8, -18, 12, 12);
+            painter->setPen(QPen(QColor(tm.textSecondary()), 1.2));
+            painter->setBrush(Qt::NoBrush);
+            QPointF gc = gearRect.center();
+            painter->drawEllipse(gc, 3.5, 3.5);
+            for (int i = 0; i < 6; ++i) {
+                double a = i * 3.14159265 / 3.0;
+                painter->drawLine(QPointF(gc.x()+3.0*std::cos(a), gc.y()+3.0*std::sin(a)),
+                                  QPointF(gc.x()+5.5*std::cos(a), gc.y()+5.5*std::sin(a)));
+            }
+        }
+
+        // 区域模式标签
+        if (m_areaMode) {
+            font.setPointSize(7);
+            painter->setFont(font);
+            painter->setPen(QColor(tm.accentPrimary()));
+            painter->drawText(QRectF(-60, 18, 120, 12), Qt::AlignCenter, QObject::tr("区域"));
+        }
     }
 
     void mousePressEvent(QGraphicsSceneMouseEvent *event) override {
         // 关闭按钮优先于编辑状态检查，确保编辑中也能删除
         if (event->button() == Qt::LeftButton && handleCloseButtonClick(event->pos())) {
             event->accept(); return;
+        }
+        // 齿轮按钮 — 打开区域模式设置
+        if (event->button() == Qt::LeftButton) {
+            QPointF p = event->pos();
+            QRectF gearRect(8, -18, 12, 12);
+            if (gearRect.contains(p)) {
+                openAreaSettings();
+                event->accept(); return;
+            }
         }
         if (m_isEditing) {
             event->ignore();
@@ -625,8 +741,91 @@ protected:
     }
 
 private:
+    void openAreaSettings() {
+        auto* dlg = new QDialog(scene()->views().first());
+        dlg->setWindowTitle(QObject::tr("视角控制设置"));
+        dlg->setFixedWidth(260);
+        auto* layout = new QVBoxLayout(dlg);
+
+        // 模式切换
+        auto* modeLayout = new QHBoxLayout;
+        auto* modeLabel = new QLabel(QObject::tr("控制模式:"));
+        auto* modeCombo = new Fluent::FluentComboBox;
+        modeCombo->addItem(QObject::tr("全屏"));
+        modeCombo->addItem(QObject::tr("区域"));
+        modeCombo->setCurrentIndex(m_areaMode ? 1 : 0);
+        modeLayout->addWidget(modeLabel);
+        modeLayout->addWidget(modeCombo, 1);
+        layout->addLayout(modeLayout);
+
+        auto* okBtn = new QPushButton(QObject::tr("确定"));
+        layout->addWidget(okBtn);
+
+        QObject::connect(okBtn, &QPushButton::clicked, dlg, [=]() {
+            bool newAreaMode = (modeCombo->currentIndex() == 1);
+            if (newAreaMode != m_areaMode) {
+                m_areaMode = newAreaMode;
+                if (m_areaMode) {
+                    showAreaRect();
+                } else {
+                    hideAreaRect();
+                }
+                update();
+            }
+            dlg->accept();
+        });
+
+        dlg->exec();
+        dlg->deleteLater();
+    }
+
+    void showAreaRect() {
+        if (m_areaRectItem || !scene()) return;
+        m_areaRectItem = new KeyMapAreaRect(this);
+        scene()->addItem(m_areaRectItem);
+        m_areaRectItem->setNormalizedSize(m_areaW, m_areaH);
+        m_areaRectItem->syncToScene();
+    }
+
+    void hideAreaRect() {
+        if (m_areaRectItem) {
+            if (m_areaRectItem->scene()) {
+                m_areaRectItem->scene()->removeItem(m_areaRectItem);
+            }
+            delete m_areaRectItem;
+            m_areaRectItem = nullptr;
+        }
+    }
+
+public:
+    // 当场景添加后 / fromJson 后初始化区域矩形
+    void ensureAreaRectIfNeeded() {
+        if (m_areaMode && !m_areaRectItem && scene()) {
+            showAreaRect();
+        }
+    }
+
+    // 清理（删除 camera item 时同步删除区域矩形）
+    ~KeyMapItemCamera() {
+        hideAreaRect();
+    }
+
+    // 由 KeyMapAreaRect 回调更新归一化宽高
+    void setAreaSize(double w, double h) {
+        m_areaW = w; m_areaH = h;
+    }
+
+    // 场景大小改变时同步区域矩形
+    void syncAreaRect() {
+        if (m_areaRectItem) m_areaRectItem->syncToScene();
+    }
+
+private:
     double m_speedX = 1.0;
     double m_speedY = 1.0;
+    bool m_areaMode = false;
+    double m_areaW = 0.4, m_areaH = 0.4;
+    KeyMapAreaRect* m_areaRectItem = nullptr;
     bool m_isEditing = false; bool m_showCursor = false;
     EditMode m_editMode = Edit_None;
     QString m_displayKey;
@@ -1021,7 +1220,7 @@ inline void KeyMapItemSteerWheel::paint(QPainter *p, const QStyleOptionGraphicsI
     QColor centerColor(tm.accentPrimary());
     centerColor.setAlpha(isSelected() ? 200 : 120);
     p->setBrush(centerColor); p->setPen(Qt::NoPen); p->drawEllipse(QPointF(0,0), 10, 10);
-    // 关闭按钮（中心点右上方）
+    // 关闭按钮（中心点左上方）
     QRectF closeRect(-4, -18, 12, 12);
     p->save();
     p->setPen(Qt::NoPen);
@@ -1032,6 +1231,74 @@ inline void KeyMapItemSteerWheel::paint(QPainter *p, const QStyleOptionGraphicsI
     p->drawLine(QPointF(cx - r, cy - r), QPointF(cx + r, cy + r));
     p->drawLine(QPointF(cx + r, cy - r), QPointF(cx - r, cy + r));
     p->restore();
+    // 齿轮按钮（中心点右上方）
+    QRectF gearRect(8, -18, 12, 12);
+    p->save();
+    p->setPen(Qt::NoPen);
+    p->setBrush(QColor(tm.textSecondary()));
+    p->drawRoundedRect(gearRect, 3, 3);
+    // 画简易齿轮图标
+    double gcx = gearRect.center().x(), gcy = gearRect.center().y();
+    p->setPen(Qt::NoPen);
+    p->setBrush(Qt::white);
+    p->drawEllipse(QPointF(gcx, gcy), 3.5, 3.5);
+    p->setBrush(QColor(tm.textSecondary()));
+    p->drawEllipse(QPointF(gcx, gcy), 1.5, 1.5);
+    // 齿轮齿（6个小矩形）
+    for (int i = 0; i < 6; ++i) {
+        double angle = i * 60.0 * M_PI / 180.0;
+        double tx = gcx + 3.0 * std::cos(angle);
+        double ty = gcy + 3.0 * std::sin(angle);
+        p->save();
+        p->translate(tx, ty);
+        p->rotate(i * 60.0);
+        p->setBrush(Qt::white);
+        p->drawRect(QRectF(-1, -0.7, 2, 1.4));
+        p->restore();
+    }
+    p->restore();
+    // 速度倍率标签（齿轮下方）
+    if (std::abs(m_speedMultiplier - 1.0) > 0.001) {
+        p->save();
+        QFont f = p->font(); f.setPointSizeF(6); f.setBold(true); p->setFont(f);
+        p->setPen(QColor(tm.accentPrimary()));
+        QString speedText = QString("x%1").arg(m_speedMultiplier, 0, 'f', 1);
+        p->drawText(QRectF(4, -6, 20, 10), Qt::AlignCenter, speedText);
+        p->restore();
+    }
+}
+inline void KeyMapItemSteerWheel::openSpeedDialog() {
+    QDialog dlg;
+    dlg.setWindowTitle(QObject::tr("轮盘速度设置"));
+    dlg.setFixedSize(280, 120);
+    auto* layout = new QVBoxLayout(&dlg);
+    auto* label = new QLabel(QObject::tr("速度倍率 (0.1 ~ 5.0):"));
+    layout->addWidget(label);
+    auto* slider = new QSlider(Qt::Horizontal);
+    slider->setRange(10, 500); // 0.1x ~ 5.0x
+    slider->setValue(static_cast<int>(m_speedMultiplier * 100));
+    auto* valueLabel = new QLabel(QString::number(m_speedMultiplier, 'f', 1) + "x");
+    valueLabel->setAlignment(Qt::AlignCenter);
+    QObject::connect(slider, &QSlider::valueChanged, [valueLabel](int v) {
+        valueLabel->setText(QString::number(v / 100.0, 'f', 1) + "x");
+    });
+    auto* hbox = new QHBoxLayout();
+    hbox->addWidget(slider);
+    hbox->addWidget(valueLabel);
+    layout->addLayout(hbox);
+    auto* btnLayout = new QHBoxLayout();
+    auto* okBtn = new QPushButton(QObject::tr("确定"));
+    auto* cancelBtn = new QPushButton(QObject::tr("取消"));
+    btnLayout->addStretch();
+    btnLayout->addWidget(okBtn);
+    btnLayout->addWidget(cancelBtn);
+    layout->addLayout(btnLayout);
+    QObject::connect(okBtn, &QPushButton::clicked, &dlg, &QDialog::accept);
+    QObject::connect(cancelBtn, &QPushButton::clicked, &dlg, &QDialog::reject);
+    if (dlg.exec() == QDialog::Accepted) {
+        m_speedMultiplier = slider->value() / 100.0;
+        update();
+    }
 }
 inline nlohmann::json KeyMapItemSteerWheel::toJson() const {
     nlohmann::json json;
@@ -1041,6 +1308,7 @@ inline nlohmann::json KeyMapItemSteerWheel::toJson() const {
     json["leftOffset"]=m_leftOffset; json["rightOffset"]=m_rightOffset; json["upOffset"]=m_upOffset; json["downOffset"]=m_downOffset;
     json["leftKey"]=m_subLeft->getKey().toStdString(); json["rightKey"]=m_subRight->getKey().toStdString();
     json["upKey"]=m_subUp->getKey().toStdString(); json["downKey"]=m_subDown->getKey().toStdString();
+    if (std::abs(m_speedMultiplier - 1.0) > 0.001) json["speedMultiplier"]=m_speedMultiplier;
     return json;
 }
 inline void KeyMapItemSteerWheel::fromJson(const nlohmann::json& json) {
@@ -1048,6 +1316,7 @@ inline void KeyMapItemSteerWheel::fromJson(const nlohmann::json& json) {
     if(json.contains("rightOffset")) m_rightOffset = json["rightOffset"].get<double>();
     if(json.contains("upOffset")) m_upOffset = json["upOffset"].get<double>();
     if(json.contains("downOffset")) m_downOffset = json["downOffset"].get<double>();
+    if(json.contains("speedMultiplier")) m_speedMultiplier = json["speedMultiplier"].get<double>();
 
     if(json.contains("leftKey")) m_subLeft->setKey(QString::fromStdString(json["leftKey"].get<std::string>()));
     if(json.contains("rightKey")) m_subRight->setKey(QString::fromStdString(json["rightKey"].get<std::string>()));
@@ -1075,5 +1344,168 @@ public:
         }
     }
 };
+
+// ---------------------------------------------------------
+// KeyMapAreaRect 实现 (必须在 KeyMapItemCamera 定义之后)
+// 始终以 owner (KeyMapItemCamera) 为中心，四角对称缩放
+// ---------------------------------------------------------
+inline KeyMapAreaRect::KeyMapAreaRect(KeyMapItemCamera* owner, QGraphicsItem* parent)
+    : QGraphicsObject(parent), m_owner(owner),
+      m_nw(0.4), m_nh(0.4), m_pixW(100), m_pixH(100)
+{
+    setAcceptHoverEvents(true);
+    setZValue(-1); // 在键位组件之下
+}
+
+inline void KeyMapAreaRect::setNormalizedSize(double w, double h)
+{
+    m_nw = w; m_nh = h;
+}
+
+inline void KeyMapAreaRect::syncToScene()
+{
+    if (!scene() || !m_owner) return;
+    QRectF sr = scene()->sceneRect();
+    if (sr.isEmpty()) return;
+    prepareGeometryChange();
+    m_pixW = m_nw * sr.width();
+    m_pixH = m_nh * sr.height();
+    // 以 owner 的场景位置为中心
+    QPointF ownerCenter = m_owner->pos();
+    setPos(ownerCenter.x() - m_pixW / 2.0, ownerCenter.y() - m_pixH / 2.0);
+}
+
+inline QRectF KeyMapAreaRect::boundingRect() const
+{
+    return QRectF(-HANDLE, -HANDLE, m_pixW + HANDLE * 2, m_pixH + HANDLE * 2);
+}
+
+inline void KeyMapAreaRect::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*)
+{
+    painter->setRenderHint(QPainter::Antialiasing);
+    QRectF rect(0, 0, m_pixW, m_pixH);
+
+    // 半透明填充
+    painter->setBrush(QColor(100, 149, 237, 25));
+    painter->setPen(QPen(QColor(100, 149, 237, 180), 1.5, Qt::DashLine));
+    painter->drawRect(rect);
+
+    // 四角手柄
+    QColor handleColor(100, 149, 237, 220);
+    painter->setBrush(handleColor);
+    painter->setPen(Qt::NoPen);
+    const qreal hs = HANDLE;
+    painter->drawEllipse(QPointF(0, 0), hs / 2, hs / 2);
+    painter->drawEllipse(QPointF(m_pixW, 0), hs / 2, hs / 2);
+    painter->drawEllipse(QPointF(0, m_pixH), hs / 2, hs / 2);
+    painter->drawEllipse(QPointF(m_pixW, m_pixH), hs / 2, hs / 2);
+
+    // 中心十字（应与 owner 位置对齐）
+    QPointF c(m_pixW / 2, m_pixH / 2);
+    painter->setPen(QPen(QColor(100, 149, 237, 120), 1));
+    painter->drawLine(QPointF(c.x() - 8, c.y()), QPointF(c.x() + 8, c.y()));
+    painter->drawLine(QPointF(c.x(), c.y() - 8), QPointF(c.x(), c.y() + 8));
+
+    // 标签
+    painter->setPen(QColor(100, 149, 237, 200));
+    QFont f = painter->font();
+    f.setPointSize(8);
+    painter->setFont(f);
+    painter->drawText(rect, Qt::AlignTop | Qt::AlignHCenter, QObject::tr("视角区域"));
+}
+
+inline KeyMapAreaRect::DragMode KeyMapAreaRect::hitTest(const QPointF& p) const
+{
+    const qreal r = HANDLE;
+    if (QPointF(p.x(), p.y()).manhattanLength() < r) return TopLeft;
+    if (QPointF(p.x() - m_pixW, p.y()).manhattanLength() < r) return TopRight;
+    if (QPointF(p.x(), p.y() - m_pixH).manhattanLength() < r) return BottomLeft;
+    if (QPointF(p.x() - m_pixW, p.y() - m_pixH).manhattanLength() < r) return BottomRight;
+    return None;
+}
+
+inline void KeyMapAreaRect::mousePressEvent(QGraphicsSceneMouseEvent* event)
+{
+    if (event->button() != Qt::LeftButton) { event->ignore(); return; }
+    m_dragMode = hitTest(event->pos());
+    if (m_dragMode == None) { event->ignore(); return; }
+    m_dragStart = event->scenePos();
+    m_dragStartW = m_pixW;
+    m_dragStartH = m_pixH;
+    event->accept();
+}
+
+inline void KeyMapAreaRect::mouseMoveEvent(QGraphicsSceneMouseEvent* event)
+{
+    if (m_dragMode == None || !m_owner) return;
+    if (!scene()) return;
+    QRectF sr = scene()->sceneRect();
+    QPointF delta = event->scenePos() - m_dragStart;
+    QPointF ownerCenter = m_owner->pos();
+
+    // 四个角都对称缩放：拖角时改变对应方向的宽/高
+    // delta 映射到宽/高变化(对称，所以 ×2)
+    qreal dw = 0, dh = 0;
+    switch (m_dragMode) {
+    case TopLeft:     dw = -delta.x() * 2; dh = -delta.y() * 2; break;
+    case TopRight:    dw =  delta.x() * 2; dh = -delta.y() * 2; break;
+    case BottomLeft:  dw = -delta.x() * 2; dh =  delta.y() * 2; break;
+    case BottomRight: dw =  delta.x() * 2; dh =  delta.y() * 2; break;
+    default: break;
+    }
+
+    qreal newW = m_dragStartW + dw;
+    qreal newH = m_dragStartH + dh;
+
+    // 最小尺寸
+    if (newW < 30) newW = 30;
+    if (newH < 30) newH = 30;
+
+    // 约束：矩形不能超出场景
+    qreal maxW = qMin(ownerCenter.x(), sr.width() - ownerCenter.x()) * 2.0;
+    qreal maxH = qMin(ownerCenter.y(), sr.height() - ownerCenter.y()) * 2.0;
+    if (newW > maxW) newW = maxW;
+    if (newH > maxH) newH = maxH;
+
+    prepareGeometryChange();
+    m_pixW = newW;
+    m_pixH = newH;
+    setPos(ownerCenter.x() - m_pixW / 2.0, ownerCenter.y() - m_pixH / 2.0);
+
+    // 更新归一化值
+    m_nw = m_pixW / sr.width();
+    m_nh = m_pixH / sr.height();
+
+    commitToOwner();
+    update();
+}
+
+inline void KeyMapAreaRect::mouseReleaseEvent(QGraphicsSceneMouseEvent* event)
+{
+    Q_UNUSED(event);
+    m_dragMode = None;
+}
+
+inline void KeyMapAreaRect::hoverMoveEvent(QGraphicsSceneHoverEvent* event)
+{
+    DragMode m = hitTest(event->pos());
+    switch (m) {
+    case TopLeft:
+    case BottomRight:
+        setCursor(Qt::SizeFDiagCursor); break;
+    case TopRight:
+    case BottomLeft:
+        setCursor(Qt::SizeBDiagCursor); break;
+    default:
+        setCursor(Qt::ArrowCursor); break;
+    }
+}
+
+inline void KeyMapAreaRect::commitToOwner()
+{
+    if (m_owner) {
+        m_owner->setAreaSize(m_nw, m_nh);
+    }
+}
 
 #endif // KEYMAPITEMS_H

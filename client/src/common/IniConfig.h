@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <map>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -90,4 +91,6 @@ private:
     std::filesystem::path m_filePath;
     mutable std::recursive_mutex m_mutex;
     bool m_dirty = false;
+    // Track which keys were modified by this instance (for merge-on-sync)
+    std::set<std::pair<std::string, std::string>> m_dirtyKeys;
 };

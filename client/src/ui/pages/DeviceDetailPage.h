@@ -11,7 +11,7 @@
 #include <QWidget>
 #include <QLabel>
 #include <QLineEdit>
-#include <QComboBox>
+#include "FluentComboBox.h"
 #include <QSpinBox>
 #include <QPushButton>
 
@@ -81,10 +81,10 @@ private:
     // 投屏控制
     QLabel* m_streamTitle = nullptr;
     QLineEdit* m_bitRateEdit = nullptr;
-    QComboBox* m_bitRateUnit = nullptr;
+    Fluent::FluentComboBox* m_bitRateUnit = nullptr;
     QSpinBox* m_fpsSpinBox = nullptr;
-    QComboBox* m_maxSizeBox = nullptr;
-    QComboBox* m_codecBox = nullptr;
+    Fluent::FluentComboBox* m_maxSizeBox = nullptr;
+    Fluent::FluentComboBox* m_codecBox = nullptr;
     QLabel* m_bitrateLabel = nullptr;
     QLabel* m_fpsLabel = nullptr;
     QLabel* m_sizeLabel = nullptr;
@@ -103,7 +103,7 @@ private:
 
     // 键位配置区
     QLabel* m_keymapTitle = nullptr;
-    QComboBox* m_keymapCombo = nullptr;
+    Fluent::FluentComboBox* m_keymapCombo = nullptr;
     QPushButton* m_keymapNewBtn = nullptr;
     QPushButton* m_keymapRefreshBtn = nullptr;
     QPushButton* m_keymapFolderBtn = nullptr;

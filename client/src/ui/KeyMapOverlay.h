@@ -24,6 +24,8 @@ public:
         QPointF pos;        // 归一化位置 (0-1)
         QSizeF size;        // 归一化大小 (可选，用于轮盘等)
         QList<KeyInfo> subKeys;  // 子按键 (用于轮盘的 WASD)
+        bool areaMode = false;  // 视角区域模式
+        QRectF areaRect;        // 归一化区域矩形 (areaMode=true 时有效)
     };
 
     explicit KeyMapOverlay(QWidget *parent = nullptr);

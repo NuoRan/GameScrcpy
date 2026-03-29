@@ -1,33 +1,33 @@
-# GameScrcpy Client - 重构后的 CMakeLists.txt
-# 目录结构:
-#   src/app       - 应用入口
-#   src/ui        - 用户界面
-#   src/control   - 控制模块
-#   src/transport - 传输模块 (KCP/TCP/ADB)
-#   src/decoder   - 解码模块
-#   src/render    - 渲染模块
-#   src/common    - 通用模块
-#   env/          - 环境依赖 (FFmpeg, ADB)
+# GameScrcpy Client - éćĺç CMakeLists.txt
+# çŽĺ˝çťć:
+#   src/app       - ĺşç¨ĺĽĺŁ
+#   src/ui        - ç¨ćˇçé˘
+#   src/control   - ć§ĺść¨Ąĺ
+#   src/transport - äź čžć¨Ąĺ (KCP/TCP/ADB)
+#   src/decoder   - č§Łç ć¨Ąĺ
+#   src/render    - ć¸˛ćć¨Ąĺ
+#   src/common    - éç¨ć¨Ąĺ
+#   env/          - çŻĺ˘äžčľ (FFmpeg, ADB)
 
 cmake_minimum_required(VERSION 3.19 FATAL_ERROR)
 
 #
-# 项目配置
+# éĄšçŽéç˝Ž
 #
 set(QC_PROJECT_NAME "GameScrcpy")
-set(QC_PROJECT_VERSION "1.3.3")
+set(QC_PROJECT_VERSION "1.3.4")
 
 project(${QC_PROJECT_NAME} VERSION ${QC_PROJECT_VERSION} LANGUAGES C CXX)
 message(STATUS "[${PROJECT_NAME}] Project ${PROJECT_NAME} ${PROJECT_VERSION}")
 
-# 架构检�?
+# ćśććŁćľ?
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(QC_CPU_ARCH x64)
 else()
     set(QC_CPU_ARCH x86)
 endif()
 
-# MacOS 架构
+# MacOS ćść
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     if(NOT CMAKE_OSX_ARCHITECTURES)
         set(CMAKE_OSX_ARCHITECTURES arm64)
@@ -40,7 +40,7 @@ endif()
 message(STATUS "[${PROJECT_NAME}] CPU_ARCH: ${QC_CPU_ARCH}")
 
 #
-# 编译器配�?
+# çźčŻĺ¨éç˝?
 #
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_CXX_STANDARD 17)
@@ -56,21 +56,21 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 message(STATUS "[${PROJECT_NAME}] BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
 
-# MSVC 配置
+# MSVC éç˝Ž
 if(MSVC)
     add_compile_options(/W3 /WX /wd4566 /utf-8)
     add_compile_definitions(NOMINMAX WIN32_LEAN_AND_MEAN _SILENCE_STDEXT_ARR_ITERS_DEPRECATION_WARNING)
     add_link_options(/SAFESEH:NO /MAP)
 endif()
 
-# GCC/Clang 配置
+# GCC/Clang éç˝Ž
 if(NOT MSVC)
     add_compile_options(-Wall -Wextra -pedantic -Werror)
     add_compile_options(-Wno-nested-anon-types -Wno-c++17-extensions -Wno-overloaded-virtual)
 endif()
 
 #
-# Qt 配置
+# Qt éç˝Ž
 #
 find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Core)
 set(QT_DESIRED_VERSION ${QT_VERSION_MAJOR})
@@ -102,7 +102,7 @@ if(NOT QT_DESIRED_VERSION MATCHES 6)
 endif()
 
 #
-# OpenCV 配置 (可�?
+# OpenCV éç˝Ž (ĺŻé?
 #
 set(OPENCV_LOCAL_DIR "${CMAKE_CURRENT_SOURCE_DIR}/env/opencv/build/x64/vc16/lib")
 if(EXISTS "${OPENCV_LOCAL_DIR}/OpenCVConfig.cmake")
@@ -116,24 +116,24 @@ if(OpenCV_FOUND)
     set(ENABLE_IMAGE_MATCHING ON)
     list(APPEND LINK_LIBS ${OpenCV_LIBS})
 
-    # opencv_matching �?(模板匹配)
+    # opencv_matching ĺş?(ć¨Ąćżĺšé)
     set(OPENCV_MATCHING_DIR "${CMAKE_CURRENT_SOURCE_DIR}/env/opencv_matching")
     if(EXISTS "${OPENCV_MATCHING_DIR}/include/matcher.h")
         include_directories(${OPENCV_MATCHING_DIR}/include)
         include_directories(${OPENCV_MATCHING_DIR}/matcher)
         include_directories(${OPENCV_MATCHING_DIR}/matcher/base_matcher)
         include_directories(${OPENCV_MATCHING_DIR}/matcher/Pattern_Matching)
-        # spdlog 日志�?(opencv_matching 依赖)
+        # spdlog ćĽĺżĺş?(opencv_matching äžčľ)
         include_directories(${OPENCV_MATCHING_DIR}/3rdParty/spdlog/include)
         message(STATUS "[${PROJECT_NAME}] opencv_matching found")
 
-        # 添加 opencv_matching 源文�?
+        # ćˇťĺ  opencv_matching ćşćäť?
         set(SRC_OPENCV_MATCHING
             ${OPENCV_MATCHING_DIR}/matcher/matcher.cpp
             ${OPENCV_MATCHING_DIR}/matcher/base_matcher/base_matcher.cpp
             ${OPENCV_MATCHING_DIR}/matcher/Pattern_Matching/PatternMatching.cpp
         )
-        # 禁用 opencv_matching 的警告当错误（第三方代码�?
+        # çŚç¨ opencv_matching çč­Śĺĺ˝éčŻŻďźçŹŹä¸ćšäťŁç ďź?
         if(MSVC)
             set_source_files_properties(${SRC_OPENCV_MATCHING} PROPERTIES COMPILE_FLAGS "/W0")
         endif()
@@ -148,10 +148,10 @@ else()
 endif()
 
 #
-# 源文�?
+# ćşćäť?
 #
 
-# app - 应用入口
+# app - ĺşç¨ĺĽĺŁ
 set(SRC_APP
     src/app/main.cpp
     src/app/config.cpp
@@ -186,9 +186,9 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     )
 endif()
 
-# ui - 用户界面
+# ui - ç¨ćˇçé˘
 set(SRC_UI
-    # 旧文�?(部分保留用于 VideoForm �?
+    # ć§ćäť?(é¨ĺäżçç¨äş VideoForm ç­?
     src/ui/dialog.cpp
     src/ui/dialog.h
     src/ui/dialog.ui
@@ -225,16 +225,16 @@ set(SRC_UI
     src/ui/widgets/magneticwidget.h
     src/ui/widgets/iconhelper.cpp
     src/ui/widgets/iconhelper.h
-    # ===== Fluent UI 新架�?=====
-    # 主窗�?
+    # ===== Fluent UI ć°ćść?=====
+    # ä¸ťçŞĺ?
     src/ui/MainWindow.h
     src/ui/MainWindow.cpp
-    # 主题基础设施
+    # ä¸ťé˘ĺşçĄčŽžć˝
     src/ui/theme/DesignTokens.h
     src/ui/theme/MotionTokens.h
     src/ui/theme/ThemeManager.h
     src/ui/theme/ThemeManager.cpp
-    # 组件�?
+    # çťäťśĺş?
     src/ui/components/FluentCard.h
     src/ui/components/FluentCard.cpp
     src/ui/components/FluentButton.h
@@ -275,12 +275,12 @@ set(SRC_UI
     src/ui/components/OnboardingOverlay.cpp
     src/ui/components/HelpDialog.h
     src/ui/components/HelpDialog.cpp
-    # 键位编辑
+    # éŽä˝çźčž
     src/ui/keymap/KeyMapPropertyPanel.h
     src/ui/keymap/KeyMapPropertyPanel.cpp
     src/ui/keymap/KeyConflictIndicator.h
     src/ui/keymap/KeyConflictIndicator.cpp
-    # 页面
+    # éĄľé˘
     src/ui/pages/HomePage.h
     src/ui/pages/HomePage.cpp
     src/ui/pages/SettingsPage.h
@@ -291,7 +291,7 @@ set(SRC_UI
     src/ui/pages/DeviceDetailPage.cpp
 )
 
-# control - 控制模块
+# control - ć§ĺść¨Ąĺ
 set(SRC_CONTROL
     src/control/controller.cpp
     src/control/controller.h
@@ -325,7 +325,7 @@ set(SRC_CONTROL
     src/control/input/fastmsg.h
     src/control/input/keymap.cpp
     src/control/input/keymap.h
-    # script - 脚本引擎
+    # script - čćŹĺźć
     src/control/script/ScriptEngine.cpp
     src/control/script/ScriptEngine.h
     src/control/script/ScriptSandbox.cpp
@@ -346,12 +346,12 @@ set(SRC_CONTROL
     src/control/hid/UhidTouchBackend.cpp
 )
 
-# transport - 传输模块
+# transport - äź čžć¨Ąĺ
 set(SRC_TRANSPORT
     # server
     src/transport/server/server.cpp
     src/transport/server/server.h
-    # device.cpp/h 已删除，�?core/service/DeviceAdapter 替代
+    # device.cpp/h ĺˇ˛ĺ é¤ďźč˘?core/service/DeviceAdapter ćżäťŁ
     src/transport/server/devicemanage.cpp
     src/transport/server/devicemanage.h
     # tcp
@@ -397,10 +397,10 @@ set(SRC_TRANSPORT
     src/transport/companion/CompanionClient.h
 )
 
-# 确保 ikcp.c 使用 C 编译�?
+# çĄŽäż ikcp.c ä˝żç¨ C çźčŻĺ?
 set_source_files_properties(src/transport/kcp/ikcp.c PROPERTIES LANGUAGE C)
 
-# decoder - 解码模块
+# decoder - č§Łç ć¨Ąĺ
 set(SRC_DECODER
     src/decoder/demuxer.cpp
     src/decoder/demuxer.h
@@ -419,7 +419,7 @@ set(SRC_DECODER
     src/decoder/WasapiPlayer.cpp
 )
 
-# render - 渲染模块
+# render - ć¸˛ćć¨Ąĺ
 set(SRC_RENDER
     src/render/IVideoRenderer.h
     src/render/d3d11/D3D11Renderer.h
@@ -428,7 +428,7 @@ set(SRC_RENDER
     src/render/d3d11/D3D11VideoWidget.cpp
 )
 
-# common - 通用模块
+# common - éç¨ć¨Ąĺ
 set(SRC_COMMON
     src/common/compat.h
     src/common/input.h
@@ -452,7 +452,7 @@ set(SRC_COMMON
     src/common/NativeTimer.cpp
 )
 
-# QuickJS - 嵌入�?JavaScript 引擎 (C 源码)
+# QuickJS - ĺľĺĽĺź?JavaScript ĺźć (C ćşç )
 # QuickJS C files compiled as a separate static library with relaxed flags
 set(QUICKJS_SOURCES
     env/quickjs/quickjs.c
@@ -499,21 +499,21 @@ set(SRC_QUICKJS
     src/control/script/JsBindings.cpp
 )
 
-# core - 核心�?(新架�?
+# core - ć ¸ĺżĺą?(ć°ćść?
 set(SRC_CORE
-    # infra - 基础设施
+    # infra - ĺşçĄčŽžć˝
     src/core/infra/FrameData.h
     src/core/infra/SessionParams.h
     src/core/infra/FramePool.h
     src/core/infra/FramePool.cpp
     src/core/infra/FrameQueue.h
-    # interfaces - 接口定义
+    # interfaces - ćĽĺŁĺŽäš
     src/core/interfaces/IDecoder.h
     src/core/interfaces/IVideoChannel.h
     src/core/interfaces/IControlChannel.h
     src/core/interfaces/IRenderer.h
     src/core/interfaces/IInputProcessor.h
-    # impl - 接口实现 (适配�?
+    # impl - ćĽĺŁĺŽç° (ééĺ?
     src/core/impl/TcpVideoChannel.h
     src/core/impl/TcpVideoChannel.cpp
     src/core/impl/KcpVideoChannel.h
@@ -526,10 +526,10 @@ set(SRC_CORE
     src/core/impl/FFmpegDecoderImpl.cpp
     src/core/impl/GameInputProcessor.h
     src/core/impl/GameInputProcessor.cpp
-    # impl - 零拷贝组�?
+    # impl - éśćˇč´çťäť?
     src/core/impl/ZeroCopyDecoder.h
     src/core/impl/ZeroCopyDecoder.cpp
-    # service - 服务�?
+    # service - ćĺĄĺą?
     src/core/service/ConnectionManager.h
     src/core/service/ConnectionManager.cpp
     src/core/service/DeviceSession.h
@@ -542,23 +542,23 @@ set(SRC_CORE
     src/core/service/ScriptEngine.h
     src/core/service/ScriptEngine.cpp
     src/core/service/InputManager.cpp
-    # service - 零拷贝流管理
+    # service - éśćˇč´ćľçŽĄç
     src/core/service/ZeroCopyStreamManager.h
     src/core/service/ZeroCopyStreamManager.cpp
 )
 
-# imagematch (总是编译，辅助函数不依赖 OpenCV)
+# imagematch (ćťćŻçźčŻďźčžĺŠĺ˝ć°ä¸äžčľ OpenCV)
 set(SRC_IMAGEMATCH
     src/common/imagematcher.cpp
     src/common/imagematcher.h
 )
 
-# 资源文件
+# čľćşćäťś
 set(SRC_RESOURCES
     src/ui/resources/res.qrc
 )
 
-# 平台特定文件
+# ĺšłĺ°çšĺŽćäťś
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(SRC_PLATFORM src/ui/resources/GameScrcpy.rc)
 endif()
@@ -566,7 +566,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(SRC_PLATFORM src/ui/resources/GameScrcpy.icns)
 endif()
 
-# 所有源文件
+# ćććşćäťś
 set(ALL_SOURCES
     ${SRC_APP}
     ${SRC_UI}
@@ -583,7 +583,7 @@ set(ALL_SOURCES
     ${SRC_PLATFORM}
 )
 
-# 源文件分�?(IDE 中显�?
+# ćşćäťśĺçť?(IDE ä¸­ćžç¤?
 source_group(app FILES ${SRC_APP})
 source_group(ui FILES ${SRC_UI})
 source_group(control FILES ${SRC_CONTROL})
@@ -595,7 +595,7 @@ source_group(core FILES ${SRC_CORE})
 source_group(quickjs FILES ${SRC_QUICKJS})
 
 #
-# 可执行文�?
+# ĺŻć§čĄćäť?
 #
 if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(QC_RUNTIME_TYPE MACOSX_BUNDLE)
@@ -610,7 +610,7 @@ add_executable(${PROJECT_NAME} ${QC_RUNTIME_TYPE} ${ALL_SOURCES})
 target_link_libraries(${PROJECT_NAME} PRIVATE quickjs)
 
 #
-# Include 路径
+# Include čˇŻĺž
 #
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/app
@@ -640,7 +640,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common
     ${CMAKE_CURRENT_SOURCE_DIR}/src/common/third_party
     ${CMAKE_CURRENT_SOURCE_DIR}/env/quickjs
-    # core - 新架�?
+    # core - ć°ćść?
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/interfaces
     ${CMAKE_CURRENT_SOURCE_DIR}/src/core/infra
@@ -652,7 +652,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/env/ffmpeg/include)
 
 #
-# 输出目录
+# čžĺşçŽĺ˝
 #
 set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/../output/${QC_CPU_ARCH}/${CMAKE_BUILD_TYPE}/$<0:>"
@@ -662,7 +662,7 @@ get_target_property(QSC_BIN_OUTPUT_PATH ${PROJECT_NAME} RUNTIME_OUTPUT_DIRECTORY
 set(QSC_DEPLOY_PATH ${QSC_BIN_OUTPUT_PATH})
 
 #
-# 平台特定配置
+# ĺšłĺ°çšĺŽéç˝Ž
 #
 
 # Windows
@@ -671,10 +671,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     target_link_directories(${PROJECT_NAME} PUBLIC ${FFMPEG_LIB_PATH})
     target_link_libraries(${PROJECT_NAME} PRIVATE avformat avcodec avutil swscale swresample)
 
-    # d3d11/dxgi/d3dcompiler: D3D11 渲染, winmm: 高精度定时器, avrt: MMCSS 实时调度
+    # d3d11/dxgi/d3dcompiler: D3D11 ć¸˛ć, winmm: éŤç˛žĺşŚĺŽćśĺ¨, avrt: MMCSS ĺŽćśč°ĺşŚ
     target_link_libraries(${PROJECT_NAME} PRIVATE d3d11 dxgi d3dcompiler winmm avrt)
 
-    # 复制 DLL 和工�?
+    # ĺ¤ĺś DLL ĺĺˇĽĺ?
     set(FFMPEG_BIN_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/ffmpeg/bin")
     set(ADB_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/adb/win")
     set(OPENCV_BIN_PATH "${CMAKE_CURRENT_SOURCE_DIR}/env/opencv/build/x64/vc16/bin")
@@ -686,20 +686,20 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_BIN_PATH}/avutil-60.dll" "${QSC_DEPLOY_PATH}"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_BIN_PATH}/swscale-9.dll" "${QSC_DEPLOY_PATH}"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${FFMPEG_BIN_PATH}/swresample-6.dll" "${QSC_DEPLOY_PATH}"
-        # ============ ADB 工具 ============
+        # ============ ADB ĺˇĽĺˇ ============
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ADB_PATH}/adb.exe" "${QSC_DEPLOY_PATH}"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ADB_PATH}/AdbWinApi.dll" "${QSC_DEPLOY_PATH}"
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${ADB_PATH}/AdbWinUsbApi.dll" "${QSC_DEPLOY_PATH}"
         # ============ scrcpy-server ============
         COMMAND ${CMAKE_COMMAND} -E copy_if_different "${CMAKE_CURRENT_SOURCE_DIR}/env/scrcpy-server" "${QSC_DEPLOY_PATH}"
-        # ============ OpenCV DLLs (如果存在) ============
+        # ============ OpenCV DLLs (ĺŚćĺ­ĺ¨) ============
         COMMAND ${CMAKE_COMMAND} -E $<IF:$<BOOL:${OpenCV_FOUND}>,copy_if_different,true> "$<IF:$<BOOL:${OpenCV_FOUND}>,${OPENCV_BIN_PATH}/opencv_world4120.dll,>" "$<IF:$<BOOL:${OpenCV_FOUND}>,${QSC_DEPLOY_PATH},>"
         COMMAND ${CMAKE_COMMAND} -E $<IF:$<BOOL:${OpenCV_FOUND}>,copy_if_different,true> "$<IF:$<BOOL:${OpenCV_FOUND}>,${OPENCV_BIN_PATH}/opencv_videoio_ffmpeg4120_64.dll,>" "$<IF:$<BOOL:${OpenCV_FOUND}>,${QSC_DEPLOY_PATH},>"
         COMMENT "Deploying runtime dependencies to ${QSC_DEPLOY_PATH}"
     )
 
-    # ============ windeployqt: 自动收集 Qt 运行�?DLL ============
-    # 查找 windeployqt 工具
+    # ============ windeployqt: čŞĺ¨ćśé Qt čżčĄć?DLL ============
+    # ćĽćž windeployqt ĺˇĽĺˇ
     find_program(WINDEPLOYQT_EXECUTABLE windeployqt HINTS "${_qt_bin_dir}" "${QT${QT_DESIRED_VERSION}_DIR}/../../../bin")
     if(WINDEPLOYQT_EXECUTABLE)
         add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
@@ -753,11 +753,11 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 endif()
 
 #
-# 链接�?
+# éžćĽĺş?
 #
 target_link_libraries(${PROJECT_NAME} PRIVATE ${LINK_LIBS})
 
-# 编译定义
+# çźčŻĺŽäš
 if(ENABLE_IMAGE_MATCHING)
     target_compile_definitions(${PROJECT_NAME} PRIVATE ENABLE_IMAGE_MATCHING)
 endif()

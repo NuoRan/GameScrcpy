@@ -273,12 +273,12 @@ void InputDispatcher::keyEvent(const InputEvent& from, const Size& frameSize, co
         }
     }
 
-    const KeyMap::KeyMapNode &node = *pNode;
-
     updateSize(frameSize, showSize);
     if (from.isAutoRepeat) {
         return;
     }
+
+    const KeyMap::KeyMapNode &node = *pNode;
 
     // 使用 HandlerChain 处理事件
     if (m_handlerChain && m_handlerChain->dispatchKeyEvent(from, frameSize, showSize)) {

@@ -20,6 +20,7 @@
 #include <QThread>
 #include <QResizeEvent>
 #include <QShowEvent>
+#include <algorithm>
 
 // =============================================================================
 // 构造 / 析构
@@ -218,6 +219,14 @@ GrayFrame D3D11VideoWidget::grabGrayFrame()
     return frame;
 }
 
+void D3D11VideoWidget::setSharpenStrength(int strength)
+{
+    m_pendingSharpenStrength = std::clamp(strength, 0, 100);
+    if (m_renderer) {
+        m_renderer->setSharpenStrength(m_pendingSharpenStrength / 100.0f);
+    }
+}
+
 void D3D11VideoWidget::cacheFramePlanes(
     uint8_t* dataY, uint8_t* dataU, uint8_t* dataV,
     int width, int height,
@@ -404,6 +413,11 @@ void D3D11VideoWidget::ensureRenderer()
     if (m_renderer->initialize(hwnd, pw, ph)) {
         m_rendererInitialized = true;
         LOG_I("[D3D11Widget] Renderer initialized (%dx%d, logical=%dx%d, dpr=%.2f)", pw, ph, w, h, dpr);
+
+        // 应用渲染器初始化前缓存的锐化强度
+        if (m_pendingSharpenStrength > 0) {
+            m_renderer->setSharpenStrength(m_pendingSharpenStrength / 100.0f);
+        }
     } else {
         LOG_E("[D3D11Widget] Failed to initialize renderer");
         // 释放失败的 renderer 以便下次重试

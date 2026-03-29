@@ -66,7 +66,7 @@ private:
     void getDelayQueue(const PointF& start, const PointF& end,
                        double distanceStep, double posStep,
                        uint32_t lowestTimer, uint32_t highestTimer,
-                       std::deque<PointF>& queuePos, std::deque<uint32_t>& queueTimer);
+                       std::deque<PointF>& queuePos, uint32_t& stepTimerMs);
 
     KeyMap* m_keyMap = nullptr;
     Size m_frameSize;
@@ -97,7 +97,7 @@ private:
             PointF currentPos;
             NativeTimer timer;
             std::deque<PointF> queuePos;
-            std::deque<uint32_t> queueTimer;
+            uint32_t stepTimerMs = 0;
             int pressedNum = 0;
         } delayData;
 

@@ -35,6 +35,7 @@ bool IniConfig::load(const std::wstring& filePath) {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
     m_filePath = filePath;
     m_data.clear();
+    m_dirtyKeys.clear();
     m_dirty = false;
 
     std::ifstream file(m_filePath, std::ios::binary);
@@ -92,6 +93,29 @@ bool IniConfig::sync() {
     std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
     if (m_filePath.empty()) return false;
+
+    // Merge with disk: reload current file contents, then overlay our dirty keys.
+    // This prevents two IniConfig instances writing the same file from
+    // clobbering each other's changes.
+    if (!m_dirtyKeys.empty()) {
+        // Save dirty values
+        std::map<std::pair<std::string,std::string>, std::string> saved;
+        for (auto& sk : m_dirtyKeys) {
+            auto sit = m_data.find(sk.first);
+            if (sit != m_data.end()) {
+                auto kit = sit->second.find(sk.second);
+                if (kit != sit->second.end())
+                    saved[sk] = kit->second;
+            }
+        }
+        // Reload disk contents
+        load(m_filePath.wstring());
+        // Re-apply dirty values on top
+        for (auto& [sk, val] : saved) {
+            m_data[sk.first][sk.second] = val;
+        }
+        m_dirtyKeys.clear();
+    }
 
     // Ensure parent directory exists
     auto parentDir = m_filePath.parent_path();
@@ -214,6 +238,7 @@ void IniConfig::setString(const std::string& fullKey, const std::string& value) 
     std::string section, key;
     splitKey(fullKey, section, key);
     m_data[section][key] = value;
+    m_dirtyKeys.insert({section, key});
     m_dirty = true;
 }
 

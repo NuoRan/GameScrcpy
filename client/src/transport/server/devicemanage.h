@@ -45,6 +45,7 @@ public:
     const std::string& serial() const { return m_params.serial; }
     core::DeviceSession* session() const { return m_session.get(); }
     bool isReversePort(uint16_t port) const;
+    void updateResolution(const Size& size);
 
     Signal<bool, const std::string&, const std::string&, const Size&> connected;
     Signal<const std::string&> disconnected;
@@ -88,6 +89,7 @@ public:
     bool disconnectDevice(const std::string &serial) override;
     void disconnectAllDevice() override;
     core::DeviceSession* getSession(const std::string& serial) override;
+    void updateDeviceResolution(const std::string& serial, const Size& size);
 
     // 回调注册
     int addDeviceConnectedListener(DeviceConnectedCb cb) override;

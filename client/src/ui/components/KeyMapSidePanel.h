@@ -13,7 +13,7 @@
 
 #include <QWidget>
 #include <QPropertyAnimation>
-#include <QComboBox>
+#include "FluentComboBox.h"
 #include <QPushButton>
 #include <QLabel>
 
@@ -73,7 +73,7 @@ private:
     QPropertyAnimation* m_expandAnim = nullptr;
 
     // 配置管理
-    QComboBox* m_configCombo = nullptr;
+    Fluent::FluentComboBox* m_configCombo = nullptr;
     QPushButton* m_newBtn = nullptr;
     QPushButton* m_refreshBtn = nullptr;
     QPushButton* m_folderBtn = nullptr;

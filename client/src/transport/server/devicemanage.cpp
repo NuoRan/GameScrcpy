@@ -222,8 +222,7 @@ bool DeviceController::startPureAoa()
     // 从配置读取设备分辨率和方向
     int resW = ConfigCenter::instance().get<int>("user/aoaResWidth", 1080);
     int resH = ConfigCenter::instance().get<int>("user/aoaResHeight", 2400);
-    bool landscape = ConfigCenter::instance().get<bool>("user/aoaLandscape", false);
-    Size mobileSize = landscape ? Size(resH, resW) : Size(resW, resH);
+    Size mobileSize(resW, resH);
     inputMgr->setMobileSize(mobileSize);
 
     // 创建 TouchRouter
@@ -249,8 +248,9 @@ bool DeviceController::startPureAoa()
         return false;
     }
 
-    if (landscape) {
-        backend->setDisplayRotation(90);
+    // 横屏: 画布X轴对应手机物理Y(竖屏长轴)，Y轴对应物理X(竖屏短轴反向)
+    if (resW > resH) {
+        backend->setDisplayRotation(270);
     }
 
     // 启动发送器（用于 FastMsg 队列处理）
@@ -288,8 +288,7 @@ bool DeviceController::startPureEsp32()
 
     int resW = ConfigCenter::instance().get<int>("user/aoaResWidth", 1080);
     int resH = ConfigCenter::instance().get<int>("user/aoaResHeight", 2400);
-    bool landscape = ConfigCenter::instance().get<bool>("user/aoaLandscape", false);
-    Size mobileSize = landscape ? Size(resH, resW) : Size(resW, resH);
+    Size mobileSize(resW, resH);
     inputMgr->setMobileSize(mobileSize);
 
     m_touchRouter = new TouchRouter();
@@ -308,8 +307,9 @@ bool DeviceController::startPureEsp32()
         return false;
     }
 
-    if (landscape) {
-        backend->setDisplayRotation(90);
+    // 横屏: 画布X轴对应手机物理Y，Y轴对应物理X反向
+    if (resW > resH) {
+        backend->setDisplayRotation(270);
     }
 
     inputMgr->start();
@@ -374,6 +374,31 @@ void DeviceController::stop()
 bool DeviceController::isReversePort(uint16_t port) const
 {
     return m_server && m_server->isReverse() && m_params.localPort == port;
+}
+
+void DeviceController::updateResolution(const Size& size)
+{
+    m_mobileSize = size;
+    if (m_session && m_session->inputManager()) {
+        m_session->inputManager()->setMobileSize(size);
+    }
+    // 横屏(w>h)时用270°旋转: rx=65535-y, ry=x
+    // 竖屏(w<=h)时不旋转
+    int rotation = (size.width > size.height) ? 270 : 0;
+#ifdef HAVE_AOA_HID
+    auto* aoa = dynamic_cast<AoaHidBackend*>(m_hidBackend);
+    if (aoa) {
+        aoa->setDisplayRotation(rotation);
+    }
+#endif
+#ifdef HAVE_ESP32_HID
+    auto* esp32 = dynamic_cast<Esp32HidBackend*>(m_hidBackend);
+    if (esp32) {
+        esp32->setDisplayRotation(rotation);
+    }
+#endif
+    LOGI() << "[DeviceController] Resolution updated: " << size.width << "x" << size.height
+           << ", rotation=" << rotation << "°";
 }
 
 void DeviceController::onServerStart(bool success, const std::string& deviceName, const Size& size)
@@ -503,6 +528,9 @@ void DeviceController::onServerStart(bool success, const std::string& deviceName
             auto* backend = new Esp32HidBackend();
             std::string port = ConfigCenter::instance().get<std::string>("user/esp32Port", "");
             backend->setPortName(port);
+            // 初始默认 0，后续由 onAdbSizeResult() 按系统旋转更新。
+            backend->setDisplayRotation(0);
+            LOGI() << "[DeviceController] ESP32 initial rotation=0, waiting adb rotation update";
             m_hidBackend = backend;
             m_touchRouter->setHidBackend(backend);
             if (!backend->open()) {
@@ -513,9 +541,10 @@ void DeviceController::onServerStart(bool success, const std::string& deviceName
         }
 #endif
 
-        // 异步获取手机分辨率
+        // 异步获取手机分辨率 + 显示旋转
         if (m_adbSizeProcess) {
-            std::vector<std::string> args = {"shell", "wm", "size"};
+            // 优先使用 dumpsys input 的 SurfaceOrientation，兼容 Android 新版本。
+            std::vector<std::string> args = {"shell", "wm size; dumpsys input; dumpsys window"};
             m_adbSizeProcess->execute(m_params.serial, args);
         }
     } else if (!controlEnabled) {
@@ -577,12 +606,14 @@ void DeviceController::onAdbSizeResult(AdbProcess::ADB_EXEC_RESULT processResult
         return;
     }
 
-    if (AdbProcess::AER_SUCCESS_EXEC != processResult) {
-        LOGW() << "[DeviceController] ADB wm size failed";
-        return;
-    }
-
     std::string output = m_adbSizeProcess->getStdOut();
+    if (AdbProcess::AER_SUCCESS_EXEC != processResult) {
+        if (output.empty()) {
+            LOGW() << "[DeviceController] ADB wm size failed";
+            return;
+        }
+        LOGW() << "[DeviceController] ADB exec not success, but stdout exists, continue parsing";
+    }
     if (output.empty()) return;
 
     std::regex regexOverride("Override size:\\s*(\\d+)x(\\d+)");
@@ -605,6 +636,65 @@ void DeviceController::onAdbSizeResult(AdbProcess::ADB_EXEC_RESULT processResult
                 m_session->inputManager()->setMobileSize(m_mobileSize);
             }
         }
+    }
+
+    // 解析显示旋转 (同 UHID server 端 getWindowManager().getRotation())
+    std::regex regexRotationInput("SurfaceOrientation:\\s*(\\d+)");
+    std::regex regexRotationViewport("DisplayViewport\\{[^\\n]*orientation=(\\d+)");
+    std::regex regexRotationWindow("mCurrentRotation=(\\d+)");
+    std::smatch rotMatch;
+    int androidRotation = -1;
+    const char* rotationSource = "none";
+    if (std::regex_search(output, rotMatch, regexRotationInput)) {
+        androidRotation = std::stoi(rotMatch[1].str());
+        rotationSource = "dumpsys input";
+    } else if (std::regex_search(output, rotMatch, regexRotationViewport)) {
+        androidRotation = std::stoi(rotMatch[1].str());
+        rotationSource = "dumpsys input viewport";
+    } else if (std::regex_search(output, rotMatch, regexRotationWindow)) {
+        androidRotation = std::stoi(rotMatch[1].str());
+        rotationSource = "dumpsys window";
+    }
+
+    if (androidRotation >= 0) {
+        int degrees = androidRotation * 90; // 0/1/2/3 → 0/90/180/270
+         LOGD() << "[DeviceController] Display rotation:" << androidRotation
+             << " (" << degrees << "°), source=" << rotationSource;
+#ifdef HAVE_ESP32_HID
+        auto* esp32 = dynamic_cast<Esp32HidBackend*>(m_hidBackend);
+        if (esp32) {
+            esp32->setDisplayRotation(degrees);
+            LOGI() << "[DeviceController] ESP32 rotation updated: " << degrees << "°";
+        }
+#endif
+#ifdef HAVE_AOA_HID
+        auto* aoa = dynamic_cast<AoaHidBackend*>(m_hidBackend);
+        if (aoa) {
+            aoa->setDisplayRotation(degrees);
+            LOGI() << "[DeviceController] AOA rotation updated: " << degrees << "°";
+        }
+#endif
+    } else {
+        LOGW() << "[DeviceController] Display rotation not found in dumpsys output";
+
+#ifdef HAVE_ESP32_HID
+        auto* esp32 = dynamic_cast<Esp32HidBackend*>(m_hidBackend);
+        if (esp32) {
+            int touchMethodIdx = ConfigCenter::instance().get<int>("user/touchMode", 0);
+            auto touchMethod = static_cast<TouchMethod>(touchMethodIdx);
+            bool videoEnabled = ConfigCenter::instance().get<bool>("user/videoChannelEnabled", true);
+
+            if (videoEnabled && methodUsesEsp32(touchMethod)) {
+                int fallback = ConfigCenter::instance().get<int>("user/esp32FallbackRotation", 270);
+                if (fallback != 0 && fallback != 90 && fallback != 180 && fallback != 270) {
+                    fallback = 270;
+                }
+                esp32->setDisplayRotation(fallback);
+                LOGW() << "[DeviceController] ESP32 fallback rotation applied: " << fallback
+                       << "° (set user/esp32FallbackRotation to 90 or 270 if needed)";
+            }
+        }
+#endif
     }
 }
 
@@ -633,6 +723,14 @@ core::DeviceSession* DeviceManage::getSession(const std::string &serial)
         return nullptr;
     }
     return it->second->session();
+}
+
+void DeviceManage::updateDeviceResolution(const std::string& serial, const Size& size)
+{
+    auto it = m_devices.find(serial);
+    if (it != m_devices.end() && it->second) {
+        it->second->updateResolution(size);
+    }
 }
 
 bool DeviceManage::connectDevice(DeviceParams params)

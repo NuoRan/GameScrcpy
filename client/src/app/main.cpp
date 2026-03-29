@@ -771,12 +771,61 @@ int main(int argc, char *argv[])
     // ---------------------------------------------------------
     // 设置环境变量
     // 在Windows下指定ADB、Server、Keymap和配置文件的路径
+    // 使用可执行文件所在目录的绝对路径，确保从任意工作目录启动均可正确定位
     // ---------------------------------------------------------
 #ifdef Q_OS_WIN32
-    qputenv("KZSCRCPY_ADB_PATH", "../env/adb/win/adb.exe");
-    qputenv("KZSCRCPY_SERVER_PATH", "../env/scrcpy-server");
-    qputenv("KZSCRCPY_KEYMAP_PATH", "../../../keymap");
-    qputenv("KZSCRCPY_CONFIG_PATH", "../../../config");
+    {
+        std::string exeDir = strutil::appDirPath();
+        // 尝试两种目录结构: 开发环境 (exe在build子目录) 和发布环境 (exe在根目录)
+        namespace fs = std::filesystem;
+        auto exeDirW = strutil::toWide(exeDir);
+
+        // ADB: 优先查找 exe同级目录/adb.exe, 其次 ../env/adb/win/adb.exe
+        std::string adbPath;
+        if (fs::is_regular_file(fs::path(exeDirW) / L"adb.exe")) {
+            adbPath = exeDir + "/adb.exe";
+        } else if (fs::is_regular_file(fs::path(exeDirW) / L"../env/adb/win/adb.exe")) {
+            adbPath = (fs::path(exeDirW) / L"../env/adb/win/adb.exe").u8string();
+        }
+        if (!adbPath.empty()) {
+            qputenv("KZSCRCPY_ADB_PATH", QByteArray::fromStdString(adbPath));
+        }
+
+        // Server: 优先 exe同级/scrcpy-server, 其次 ../env/scrcpy-server
+        std::string serverPath;
+        if (fs::is_regular_file(fs::path(exeDirW) / L"scrcpy-server")) {
+            serverPath = exeDir + "/scrcpy-server";
+        } else if (fs::is_regular_file(fs::path(exeDirW) / L"../env/scrcpy-server")) {
+            serverPath = (fs::path(exeDirW) / L"../env/scrcpy-server").u8string();
+        }
+        if (!serverPath.empty()) {
+            qputenv("KZSCRCPY_SERVER_PATH", QByteArray::fromStdString(serverPath));
+        }
+
+        // Keymap: 优先 exe同级/keymap, 其次 ../../../keymap
+        std::string keymapPath;
+        if (fs::is_directory(fs::path(exeDirW) / L"keymap")) {
+            keymapPath = exeDir + "/keymap";
+        } else if (fs::is_directory(fs::path(exeDirW) / L"../../../keymap")) {
+            keymapPath = (fs::path(exeDirW) / L"../../../keymap").u8string();
+        }
+        if (!keymapPath.empty()) {
+            qputenv("KZSCRCPY_KEYMAP_PATH", QByteArray::fromStdString(keymapPath));
+        }
+
+        // Config: 优先 exe同级/config, 其次 ../../../config
+        std::string configPath;
+        if (fs::is_directory(fs::path(exeDirW) / L"config")) {
+            configPath = exeDir + "/config";
+        } else if (fs::is_directory(fs::path(exeDirW) / L"../../../config")) {
+            configPath = (fs::path(exeDirW) / L"../../../config").u8string();
+        } else {
+            // 如果都不存在，创建 exe同级/config 目录供持久化使用
+            configPath = exeDir + "/config";
+            fs::create_directories(fs::path(strutil::toWide(configPath)));
+        }
+        qputenv("KZSCRCPY_CONFIG_PATH", QByteArray::fromStdString(configPath));
+    }
 
     // --------------------------------------------------
     // 强制使用 FreeType 字体引擎 (防止 DirectWrite 崩溃)

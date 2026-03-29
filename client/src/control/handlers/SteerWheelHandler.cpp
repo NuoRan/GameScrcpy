@@ -141,7 +141,7 @@ void SteerWheelHandler::reset()
     m_state.isFirstPress = true;
     m_state.delayData.pressedNum = 0;
     m_state.delayData.queuePos.clear();
-    m_state.delayData.queueTimer.clear();
+    m_state.delayData.stepTimerMs = 0;
 }
 
 void SteerWheelHandler::setCoefficient(double up, double down, double left, double right)
@@ -154,8 +154,8 @@ void SteerWheelHandler::setCoefficient(double up, double down, double left, doub
             const KeyMap::KeyMapNode* node = m_keyMap->getSteerWheelNode();
             if (node) {
                 m_state.delayData.timer.stop();
-                m_state.delayData.queueTimer.clear();
                 m_state.delayData.queuePos.clear();
+                m_state.delayData.stepTimerMs = 0;
                 executeMove(*node);
             }
         }
@@ -186,8 +186,8 @@ void SteerWheelHandler::resetWheel()
     if (m_state.delayData.timer.isActive()) {
         m_state.delayData.timer.stop();
     }
-    m_state.delayData.queueTimer.clear();
     m_state.delayData.queuePos.clear();
+    m_state.delayData.stepTimerMs = 0;
 
     // 2. 释放当前触摸（如果有）
     if (m_state.fastTouchSeqId != 0) {
@@ -220,9 +220,18 @@ void SteerWheelHandler::onSteerWheelTimer()
         return;
     }
 
-    m_state.delayData.currentPos = m_state.delayData.queuePos.front();
-    m_state.delayData.queuePos.pop_front();
-    sendFastTouch(FTA_MOVE, m_state.delayData.currentPos);
+    int batchSize = 1;
+    if (m_state.delayData.queuePos.size() > 12) {
+        batchSize = 3;
+    } else if (m_state.delayData.queuePos.size() > 6) {
+        batchSize = 2;
+    }
+
+    for (int i = 0; i < batchSize && !m_state.delayData.queuePos.empty(); ++i) {
+        m_state.delayData.currentPos = m_state.delayData.queuePos.front();
+        m_state.delayData.queuePos.pop_front();
+        sendFastTouch(FTA_MOVE, m_state.delayData.currentPos);
+    }
 
     if (m_state.delayData.queuePos.empty() && m_state.delayData.pressedNum == 0) {
         sendFastTouch(FTA_UP, m_state.delayData.currentPos);
@@ -231,9 +240,7 @@ void SteerWheelHandler::onSteerWheelTimer()
     }
 
     if (!m_state.delayData.queuePos.empty()) {
-        auto nextTimer = m_state.delayData.queueTimer.front();
-        m_state.delayData.queueTimer.pop_front();
-        m_state.delayData.timer.start(nextTimer);
+        m_state.delayData.timer.start(static_cast<int>(std::max<uint32_t>(1, m_state.delayData.stepTimerMs)));
     }
 }
 
@@ -324,6 +331,7 @@ void SteerWheelHandler::processSteerWheel(const KeyMap::KeyMapNode& node, const 
     // 所有键都松开了
     if (pressedNum == 0) {
         m_state.firstPressTimer.stop();
+        m_state.humanizeTimer.stop();
         m_state.isFirstPress = true;
 
         // 取消 resetWheel 延迟 re-trigger
@@ -334,9 +342,9 @@ void SteerWheelHandler::processSteerWheel(const KeyMap::KeyMapNode& node, const 
 
         if (m_state.delayData.timer.isActive()) {
             m_state.delayData.timer.stop();
-            m_state.delayData.queueTimer.clear();
-            m_state.delayData.queuePos.clear();
         }
+        m_state.delayData.queuePos.clear();
+        m_state.delayData.stepTimerMs = 0;
 
         if (m_state.fastTouchSeqId != 0) {
             sendFastTouch(FTA_UP, m_state.delayData.currentPos);
@@ -350,17 +358,9 @@ void SteerWheelHandler::processSteerWheel(const KeyMap::KeyMapNode& node, const 
         return;
     }
 
-    // 首次按下：等待检测组合键
+    // 首次按下：直接执行，不等待组合键检测
     if (m_state.isFirstPress && flag) {
-        m_state.pendingNode = &node;
         m_state.isFirstPress = false;
-        m_state.firstPressTimer.start();
-        return;
-    }
-
-    // 首次延迟定时器还在运行
-    if (m_state.firstPressTimer.isActive()) {
-        return;
     }
 
     executeMove(node);
@@ -431,8 +431,13 @@ void SteerWheelHandler::executeMove(const KeyMap::KeyMapNode& node)
     offset *= m_state.currentLengthFactor;
 
     m_state.delayData.timer.stop();
-    m_state.delayData.queueTimer.clear();
     m_state.delayData.queuePos.clear();
+    m_state.delayData.stepTimerMs = 0;
+
+    // 判断是否需要插值动画
+    int smoothLevel = qsc::ConfigCenter::instance().steerWheelSmooth();
+    int curveLevel = qsc::ConfigCenter::instance().steerWheelCurve();
+    bool directMode = (smoothLevel == 0 && curveLevel == 0);
 
     // 如果还没开始触摸，先按下（应用随机偏移）
     if (m_state.fastTouchSeqId == 0) {
@@ -443,19 +448,31 @@ void SteerWheelHandler::executeMove(const KeyMap::KeyMapNode& node)
         m_state.delayData.currentPos = randomCenterPos;
         sendFastTouch(FTA_DOWN, randomCenterPos);
 
-        getDelayQueue(randomCenterPos, randomCenterPos + offset,
-                      0.01, 0.002, 2, 8,
-                      m_state.delayData.queuePos,
-                      m_state.delayData.queueTimer);
+        PointF targetPos = randomCenterPos + offset;
+        if (directMode) {
+            sendFastTouch(FTA_MOVE, targetPos);
+            m_state.delayData.currentPos = targetPos;
+        } else {
+            getDelayQueue(randomCenterPos, targetPos,
+                          0.01, 0.002, 1, 5,
+                          m_state.delayData.queuePos,
+                          m_state.delayData.stepTimerMs);
+        }
     } else {
-        getDelayQueue(m_state.delayData.currentPos, node.data.steerWheel.centerPos + offset,
-                      0.01, 0.002, 2, 8,
-                      m_state.delayData.queuePos,
-                      m_state.delayData.queueTimer);
+        PointF targetPos = node.data.steerWheel.centerPos + offset;
+        if (directMode) {
+            sendFastTouch(FTA_MOVE, targetPos);
+            m_state.delayData.currentPos = targetPos;
+        } else {
+            getDelayQueue(m_state.delayData.currentPos, targetPos,
+                          0.01, 0.002, 1, 5,
+                          m_state.delayData.queuePos,
+                          m_state.delayData.stepTimerMs);
+        }
     }
 
     if (!m_state.delayData.queuePos.empty()) {
-        m_state.delayData.timer.start();
+        m_state.delayData.timer.start(static_cast<int>(std::max<uint32_t>(1, m_state.delayData.stepTimerMs)));
     }
 
     // 所有按键都松开，停止间隙波动定时器
@@ -481,7 +498,7 @@ void SteerWheelHandler::sendFastTouch(uint8_t action, const PointF& pos)
 void SteerWheelHandler::getDelayQueue(const PointF& start, const PointF& end,
                                       double distanceStep, double posStep,
                                       uint32_t lowestTimer, uint32_t highestTimer,
-                                      std::deque<PointF>& queuePos, std::deque<uint32_t>& queueTimer)
+                                      std::deque<PointF>& queuePos, uint32_t& stepTimerMs)
 {
     (void)posStep;
 
@@ -500,16 +517,23 @@ void SteerWheelHandler::getDelayQueue(const PointF& start, const PointF& end,
 
     if (distance < 0.0001) {
         queuePos.push_back(end);
-        queueTimer.push_back(lowestTimer);
+        stepTimerMs = lowestTimer;
         return;
     }
 
-    // 根据平滑度计算步数：平滑度越高，步数越多
-    double smoothMultiplier = 1.0 + (smoothLevel / 100.0) * 4.0;
-    double adjustedDistanceStep = distanceStep / smoothMultiplier;
+    // smooth=0 且 curve=0 时，一步到位，不做任何插值动画
+    if (smoothLevel == 0 && curveLevel == 0) {
+        queuePos.push_back(end);
+        stepTimerMs = 1;
+        return;
+    }
 
-    int steps = static_cast<int>(distance / adjustedDistanceStep);
-    if (steps < 1) steps = 1;
+    double smoothRatio = smoothLevel / 100.0;
+    double curveRatio = curveLevel / 100.0;
+    int baseSteps = static_cast<int>(std::ceil(distance / std::max(distanceStep, 0.0001)));
+    int maxSteps = 10 + static_cast<int>(std::round(curveRatio * 14.0));
+    int steps = std::clamp(static_cast<int>(std::round(baseSteps * (1.2 + curveRatio * 1.8))),
+                           1, std::max(1, maxSteps));
 
     // 垂直方向向量（用于曲线偏移）
     double perpX = -dy / distance;
@@ -536,9 +560,11 @@ void SteerWheelHandler::getDelayQueue(const PointF& start, const PointF& end,
     double secondPhase = randomDouble() * M_PI;   // 0 ~ π
     double microPhase = randomDouble() * M_PI * 2; // 0 ~ 2π
 
-    // 计算延迟时间（基于平滑度）
-    uint32_t baseDelay = (lowestTimer + highestTimer) / 2;
-    uint32_t stepDelay = static_cast<uint32_t>(baseDelay * (1.0 + smoothLevel / 50.0));
+    // 曲线只影响轨迹点位密度；节奏只由平滑控制。
+    double totalDuration = 6.0 + distance * 28.0 + smoothRatio * 36.0;
+    stepTimerMs = static_cast<uint32_t>(std::clamp(std::round(totalDuration / steps),
+                                                   static_cast<double>(lowestTimer),
+                                                   static_cast<double>(highestTimer)));
 
     for (int i = 1; i <= steps; i++) {
         double t = static_cast<double>(i) / steps;
@@ -571,6 +597,5 @@ void SteerWheelHandler::getDelayQueue(const PointF& start, const PointF& end,
         double finalY = baseY + perpY * totalOffset;
 
         queuePos.push_back(PointF(finalX, finalY));
-        queueTimer.push_back(stepDelay);
     }
 }

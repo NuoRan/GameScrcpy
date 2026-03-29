@@ -118,7 +118,7 @@ void SettingsPage::setupUI()
     m_fpsLabel = makeFormLabel();
     m_fpsLabel->setFixedWidth(50);
     m_fpsLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    m_fpsBox = new QComboBox;
+    m_fpsBox = new Fluent::FluentComboBox;
     m_fpsBox->addItems({"5", "10", "20", "30", "60", "90", "120", "144", "165", "240"});
     m_fpsBox->setMinimumSize(85, 36);
     m_fpsBox->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
@@ -154,7 +154,7 @@ void SettingsPage::setupUI()
     m_sizeLabel = makeFormLabel();
     m_sizeLabel->setFixedWidth(50);
     m_sizeLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    m_maxSizeBox = new QComboBox;
+    m_maxSizeBox = new Fluent::FluentComboBox;
     m_maxSizeBox->addItems({"320", "480", "640", "720", "1080"});
     m_maxSizeBox->setMinimumSize(90, 36);
     m_maxSizeBox->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
@@ -163,7 +163,7 @@ void SettingsPage::setupUI()
     m_codecLabel = makeFormLabel();
     m_codecLabel->setFixedWidth(50);
     m_codecLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-    m_codecBox = new QComboBox;
+    m_codecBox = new Fluent::FluentComboBox;
     m_codecBox->addItems({"H.264", "H.265"});
     m_codecBox->setMinimumSize(90, 36);
 
@@ -278,7 +278,7 @@ void SettingsPage::setupUI()
         touchLabel->setProperty("_role", "touchModeLabel");
         touchLabel->setFixedWidth(70);
         touchLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        m_touchModeBox = new QComboBox;
+        m_touchModeBox = new Fluent::FluentComboBox;
         m_touchModeBox->setMinimumSize(180, 36);
 
         auto *leftPart = new QHBoxLayout;
@@ -297,7 +297,8 @@ void SettingsPage::setupUI()
         m_esp32PortEdit = new QLineEdit;
         m_esp32PortEdit->setFixedWidth(120);
         m_esp32PortEdit->setMinimumHeight(36);
-        m_esp32PortEdit->setPlaceholderText("COM3");
+        m_esp32PortEdit->setPlaceholderText("COM3 / 192.168.1.100");
+        m_esp32PortEdit->setFixedWidth(180);
 
         auto *rightPart = new QHBoxLayout;
         rightPart->setSpacing(6);
@@ -333,7 +334,7 @@ void SettingsPage::setupUI()
         resLabel->setFixedWidth(70);
         resLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
-        m_aoaResBox = new QComboBox;
+        m_aoaResBox = new Fluent::FluentComboBox;
         m_aoaResBox->setMinimumSize(160, 36);
         m_aoaResBox->setEditable(true);
         m_aoaResBox->lineEdit()->setPlaceholderText("1080x2400");
@@ -376,27 +377,10 @@ void SettingsPage::setupUI()
             }
         };
 
-        auto *leftPart = new QHBoxLayout;
-        leftPart->setSpacing(6);
-        leftPart->addWidget(resLabel);
-        leftPart->addWidget(m_aoaResBox);
-
-        // 横屏开关
-        auto *landLabel = makeFormLabel();
-        landLabel->setProperty("_role", "aoaLandscapeLabel");
-        landLabel->setFixedWidth(70);
-        landLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-
-        m_aoaLandscapeToggle = new FluentToggle;
-
-        auto *rightPart = new QHBoxLayout;
-        rightPart->setSpacing(6);
-        rightPart->addWidget(landLabel);
-        rightPart->addWidget(m_aoaLandscapeToggle);
-        rightPart->addStretch();
-
-        row->addLayout(leftPart, 1);
-        row->addLayout(rightPart, 1);
+        row->setSpacing(6);
+        row->addWidget(resLabel);
+        row->addWidget(m_aoaResBox);
+        row->addStretch();
 
         tl->addLayout(row);
 
@@ -406,9 +390,7 @@ void SettingsPage::setupUI()
         connect(m_aoaResBox->lineEdit(), &QLineEdit::editingFinished, this, [saveResolution]() {
             saveResolution();
         });
-        connect(m_aoaLandscapeToggle, &FluentToggle::toggled, this, [](bool on) {
-            qsc::ConfigCenter::instance().set("user/aoaLandscape", on);
-        });
+
     }
 
     main->addWidget(touchCard);
@@ -430,13 +412,13 @@ void SettingsPage::setupUI()
         auto *themeLabel = makeFormLabel();
         themeLabel->setProperty("_role", "themeLabel");
         themeLabel->setFixedWidth(48);
-        m_themeBox = new QComboBox;
+        m_themeBox = new Fluent::FluentComboBox;
         m_themeBox->setMinimumSize(110, 36);
 
         auto *accentLabel = makeFormLabel();
         accentLabel->setProperty("_role", "accentLabel");
         accentLabel->setFixedWidth(48);
-        m_accentBox = new QComboBox;
+        m_accentBox = new Fluent::FluentComboBox;
         m_accentBox->setMinimumSize(110, 36);
 
         row->addWidget(themeLabel);
@@ -478,7 +460,7 @@ void SettingsPage::setupUI()
         m_ipLabel->setFixedWidth(40);
         m_ipLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
-        m_ipEdit = new QComboBox;
+        m_ipEdit = new Fluent::FluentComboBox;
         m_ipEdit->setEditable(true);
         m_ipEdit->setMinimumHeight(36);
         m_ipEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -493,7 +475,7 @@ void SettingsPage::setupUI()
         colon->setFixedWidth(8);
         colon->setAlignment(Qt::AlignCenter);
 
-        m_portEdit = new QComboBox;
+        m_portEdit = new Fluent::FluentComboBox;
         m_portEdit->setEditable(true);
         m_portEdit->setFixedSize(96, 36);
         m_portEdit->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
@@ -578,6 +560,25 @@ void SettingsPage::setupUI()
     m_ipEdit->addItems(normalizeHistoryItems(strutil::toQList(Config::getInstance().getIpHistory())));
     m_portEdit->clear();
     m_portEdit->addItems(normalizeHistoryItems(strutil::toQList(Config::getInstance().getPortHistory())));
+
+    // ---- 视频参数 & 显示选项 立即持久化 ----
+    auto save = [this]() { saveToConfig(); };
+    connect(m_fpsBox,     QOverload<int>::of(&QComboBox::currentIndexChanged), this, save);
+    connect(m_maxSizeBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, save);
+    connect(m_codecBox,   QOverload<int>::of(&QComboBox::currentIndexChanged), this, save);
+    connect(m_bitRateEdit, &QLineEdit::editingFinished, this, save);
+    connect(m_reverseToggle,  &FluentToggle::toggled, this, save);
+    connect(m_toolbarToggle,  &FluentToggle::toggled, this, save);
+    connect(m_framelessToggle,&FluentToggle::toggled, this, save);
+    connect(m_fpsToggle,      &FluentToggle::toggled, this, save);
+
+    // ---- 外观持久化 ----
+    connect(m_themeBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [](int idx) {
+        qsc::ConfigCenter::instance().set("user/themeIndex", idx);
+    });
+    connect(m_accentBox, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [](int idx) {
+        qsc::ConfigCenter::instance().set("user/accentIndex", idx);
+    });
 }
 
 void SettingsPage::retranslateUi()
@@ -642,22 +643,31 @@ void SettingsPage::retranslateUi()
             if (l->property("_role").toString() == "touchModeLabel")
                 l->setText(tr("触控模式"));
             if (l->property("_role").toString() == "esp32PortLabel")
-                l->setText(tr("ESP32 串口"));
+                l->setText(tr("ESP32 地址"));
             if (l->property("_role").toString() == "aoaResLabel")
                 l->setText(tr("设备分辨率"));
-            if (l->property("_role").toString() == "aoaLandscapeLabel")
-                l->setText(tr("横屏"));
+
         }
     }
 
     m_appearTitle->setText(tr("外观"));
-    // 主题下拉
-    m_themeBox->clear();
-    m_themeBox->addItems({tr("深色"), tr("浅色"), tr("跟随系统")});
-    m_themeBox->setCurrentIndex(0); // default dark
-    // 强调色下拉
-    m_accentBox->clear();
-    m_accentBox->addItems({tr("靛蓝"), tr("蓝色"), tr("紫罗兰"), tr("玫瑰"), tr("翡翠"), tr("琥珀")});
+    // 主题下拉 — 保留当前选中
+    {
+        int savedTheme = m_themeBox->currentIndex();
+        int savedAccent = m_accentBox->currentIndex();
+        m_themeBox->blockSignals(true);
+        m_accentBox->blockSignals(true);
+        m_themeBox->clear();
+        m_themeBox->addItems({tr("深色"), tr("浅色"), tr("跟随系统")});
+        m_accentBox->clear();
+        m_accentBox->addItems({tr("靛蓝"), tr("蓝色"), tr("紫罗兰"), tr("玫瑰"), tr("翡翠"), tr("琥珀")});
+        if (savedTheme >= 0 && savedTheme < m_themeBox->count())
+            m_themeBox->setCurrentIndex(savedTheme);
+        if (savedAccent >= 0 && savedAccent < m_accentBox->count())
+            m_accentBox->setCurrentIndex(savedAccent);
+        m_themeBox->blockSignals(false);
+        m_accentBox->blockSignals(false);
+    }
 
     for (auto *l : findChildren<QLabel *>()) {
         QString role = l->property("_role").toString();
@@ -690,6 +700,7 @@ void SettingsPage::saveToConfig()
     cfg.videoCodecIndex    = getVideoCodecIndex();
     cfg.maxFps             = getMaxFps();
     cfg.bitRate            = getBitRate();
+    cfg.maxSizeIndex       = m_maxSizeBox->currentIndex();
     cfg.reverseConnect     = isReverseConnect();
     cfg.showToolbar        = showToolbar();
     cfg.framelessWindow    = isFrameless();
@@ -699,6 +710,16 @@ void SettingsPage::saveToConfig()
 
 void SettingsPage::syncFromConfig()
 {
+    // 加载配置时阻止信号，避免反向触发 saveToConfig
+    const QWidgetList blockedWidgets = {
+        m_fpsBox, m_maxSizeBox, m_codecBox, m_bitRateEdit,
+        m_reverseToggle, m_toolbarToggle, m_framelessToggle, m_fpsToggle,
+        m_themeBox, m_accentBox,
+        m_videoChannelToggle, m_audioChannelToggle, m_controlChannelToggle, m_auxChannelToggle,
+        m_touchModeBox, m_aoaResBox, m_esp32PortEdit
+    };
+    for (auto *w : blockedWidgets) if (w) w->blockSignals(true);
+
     auto cfg = Config::getInstance().getUserBootConfig();
     // 码率：统一用 Mbps
     m_bitRateEdit->setText(QString::number(qMax(1u, cfg.bitRate / 1000000)));
@@ -753,9 +774,25 @@ void SettingsPage::syncFromConfig()
         else
             m_aoaResBox->setCurrentText(text);
     }
-    if (m_aoaLandscapeToggle) {
-        m_aoaLandscapeToggle->setChecked(cc.get<bool>("user/aoaLandscape", false));
+
+
+    // 外观
+    {
+        int themeIdx = cc.get<int>("user/themeIndex", 0);
+        int accentIdx = cc.get<int>("user/accentIndex", 0);
+        if (themeIdx >= 0 && themeIdx < m_themeBox->count())
+            m_themeBox->setCurrentIndex(themeIdx);
+        if (accentIdx >= 0 && accentIdx < m_accentBox->count())
+            m_accentBox->setCurrentIndex(accentIdx);
+        // 应用持久化的主题
+        auto &t = ThemeManager::instance();
+        if (themeIdx == 0) t.setTheme(Theme::Dark);
+        else if (themeIdx == 1) t.setTheme(Theme::Light);
+        else t.setTheme(Theme::System);
+        t.setAccentColor(static_cast<AccentColor>(qBound(0, accentIdx, 5)));
     }
+
+    for (auto *w : blockedWidgets) if (w) w->blockSignals(false);
 }
 
 // ═══════════ Getters ═══════════

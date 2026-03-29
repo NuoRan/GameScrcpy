@@ -2,7 +2,7 @@
 
 [中文](SCRIPT_API.md) | **English**
 
-> **Version**: 1.3.3
+> **Version**: 1.3.4
 > **Runtime**: QuickJS (ES2023)
 > **Built-in Object**: `mapi`
 

@@ -232,8 +232,30 @@ void KeyMapOverlay::drawCameraKey(QPainter& painter, const KeyInfo& info, const 
     painter.setFont(font);
 
     QString label = info.label.isEmpty() ? "视角" : info.label;
+    if (info.areaMode) label += " [区域]";
     QRect textRect(center.x() - radius - 10, center.y() - radius, (radius + 10) * 2, radius * 2);
     painter.drawText(textRect, Qt::AlignCenter, label);
+
+    // 区域模式：绘制可视化矩形
+    if (info.areaMode && info.areaRect.isValid()) {
+        QSize ws = size();
+        QRectF areaPixel(info.areaRect.x() * ws.width(),
+                         info.areaRect.y() * ws.height(),
+                         info.areaRect.width() * ws.width(),
+                         info.areaRect.height() * ws.height());
+
+        painter.save();
+        painter.setBrush(QColor(100, 149, 237, 30));
+        painter.setPen(QPen(QColor(100, 149, 237, 150), 1.5, Qt::DashLine));
+        painter.drawRect(areaPixel);
+
+        // 区域中心十字
+        QPointF ac = areaPixel.center();
+        painter.setPen(QPen(QColor(100, 149, 237, 120), 1));
+        painter.drawLine(QPointF(ac.x() - 8, ac.y()), QPointF(ac.x() + 8, ac.y()));
+        painter.drawLine(QPointF(ac.x(), ac.y() - 8), QPointF(ac.x(), ac.y() + 8));
+        painter.restore();
+    }
 }
 
 void KeyMapOverlay::drawFreeLookKey(QPainter& painter, const KeyInfo& info, const QPoint& center)

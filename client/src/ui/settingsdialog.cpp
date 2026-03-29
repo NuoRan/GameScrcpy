@@ -43,7 +43,7 @@ void SettingsDialog::setupUI()
     m_bitRateEdit->setAlignment(Qt::AlignCenter);
     m_bitRateEdit->setValidator(new QIntValidator(1, 99999, this));
 
-    m_bitRateUnit = new QComboBox();
+    m_bitRateUnit = new Fluent::FluentComboBox();
     m_bitRateUnit->addItems({"Mbps", "Kbps"});
     m_bitRateUnit->setMinimumSize(85, 38);
 
@@ -59,7 +59,7 @@ void SettingsDialog::setupUI()
     m_sizeLabel = new QLabel();
     m_sizeLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
-    m_maxSizeBox = new QComboBox();
+    m_maxSizeBox = new Fluent::FluentComboBox();
     m_maxSizeBox->addItems({"320", "480", "640", "720", "1080"});
     // "原始" will be added in retranslateUi()
     m_maxSizeBox->setMinimumSize(90, 38);
@@ -67,7 +67,7 @@ void SettingsDialog::setupUI()
     m_codecLabel = new QLabel();
     m_codecLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
-    m_codecBox = new QComboBox();
+    m_codecBox = new Fluent::FluentComboBox();
     m_codecBox->addItems({"H.264"});
     m_codecBox->setMinimumSize(90, 38);
 
@@ -119,7 +119,7 @@ void SettingsDialog::setupUI()
     m_ipLabel->setFixedWidth(50);
     m_ipLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
 
-    m_ipEdit = new QComboBox();
+    m_ipEdit = new Fluent::FluentComboBox();
     m_ipEdit->setEditable(true);
     m_ipEdit->setMinimumHeight(38);
     m_ipEdit->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -132,7 +132,7 @@ void SettingsDialog::setupUI()
     colonLabel->setFixedWidth(10);
     colonLabel->setAlignment(Qt::AlignCenter);
 
-    m_portEdit = new QComboBox();
+    m_portEdit = new Fluent::FluentComboBox();
     m_portEdit->setEditable(true);
     m_portEdit->setFixedSize(96, 38);
     if (m_portEdit->lineEdit()) {

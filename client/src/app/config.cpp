@@ -163,7 +163,15 @@ const std::string &Config::getConfigPath()
         }
         namespace fs = std::filesystem;
         if (s_configPath.empty() || !fs::is_directory(strutil::toWide(s_configPath))) {
-            s_configPath = "config";
+            // 使用可执行文件目录下的 config 子目录
+            std::string exeConfig = strutil::appDirPath() + "/config";
+            if (fs::is_directory(strutil::toWide(exeConfig))) {
+                s_configPath = exeConfig;
+            } else {
+                // 最终回退: 创建 exe 同级 config 目录
+                fs::create_directories(fs::path(strutil::toWide(exeConfig)));
+                s_configPath = exeConfig;
+            }
         }
     }
     return s_configPath;

@@ -154,6 +154,13 @@ public:
     int windowHeight() const { return m_windowHeight; }
 
     /**
+     * @brief 设置锐化强度
+     * @param strength 0.0 = 关闭, 1.0 = 最大锐化 (CAS)
+     */
+    void setSharpenStrength(float strength);
+    float sharpenStrength() const { return m_sharpenStrength; }
+
+    /**
      * @brief 获取 D3D11 设备
      *
      * 用于硬解集成: 将此设备传给 FFmpeg 的 av_hwdevice_ctx,
@@ -202,6 +209,10 @@ private:
     void releaseRenderTarget();
     void cacheYPlane(const uint8_t* dataY, int linesizeY, int width, int height);
 
+    // 锐化后处理
+    void ensureSharpenResources();
+    void applySharpenPass();
+
 private:
     bool m_initialized = false;
     HWND m_hwnd = nullptr;
@@ -210,6 +221,7 @@ private:
     int m_frameWidth = 0;
     int m_frameHeight = 0;
     bool m_nv12SrvSupported = false;
+    float m_sharpenStrength = 0.0f;
 
     // -------------------------------------------------------
     // D3D11 核心对象
@@ -230,6 +242,17 @@ private:
     // 采样器
     // -------------------------------------------------------
     ComPtr<ID3D11SamplerState>  m_sampler;
+
+    // -------------------------------------------------------
+    // 锐化后处理资源 (CAS — Contrast Adaptive Sharpening)
+    // -------------------------------------------------------
+    ComPtr<ID3D11PixelShader>        m_psSharpen;
+    ComPtr<ID3D11Texture2D>          m_sharpenTex;
+    ComPtr<ID3D11ShaderResourceView> m_sharpenSRV;
+    ComPtr<ID3D11RenderTargetView>   m_sharpenRTV;
+    ComPtr<ID3D11Buffer>             m_sharpenCB;
+    int m_sharpenTexWidth = 0;
+    int m_sharpenTexHeight = 0;
 
     // -------------------------------------------------------
     // YUV420P 纹理 (Y, U, V — 各 R8_UNORM, DYNAMIC)

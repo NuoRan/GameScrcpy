@@ -2,7 +2,7 @@
 #define SETTINGSPAGE_H
 
 #include <QWidget>
-#include <QComboBox>
+#include "FluentComboBox.h"
 #include <QLineEdit>
 #include <QCheckBox>
 #include <QPushButton>
@@ -74,9 +74,9 @@ private:
     QLabel    *m_codecLabel   = nullptr;
     QLineEdit *m_bitRateEdit  = nullptr;
     QLabel    *m_bitRateUnitLabel = nullptr;
-    QComboBox *m_fpsBox       = nullptr;
-    QComboBox *m_maxSizeBox   = nullptr;
-    QComboBox *m_codecBox     = nullptr;
+    Fluent::FluentComboBox *m_fpsBox       = nullptr;
+    Fluent::FluentComboBox *m_maxSizeBox   = nullptr;
+    Fluent::FluentComboBox *m_codecBox     = nullptr;
 
     // 显示选项
     QLabel    *m_optionsTitle    = nullptr;
@@ -94,21 +94,20 @@ private:
 
     // 触控设置
     QLabel    *m_touchTitle     = nullptr;
-    QComboBox *m_touchModeBox   = nullptr;
+    Fluent::FluentComboBox *m_touchModeBox   = nullptr;
     QLineEdit *m_esp32PortEdit  = nullptr;
-    QComboBox *m_aoaResBox      = nullptr;
-    Fluent::FluentToggle *m_aoaLandscapeToggle = nullptr;
+    Fluent::FluentComboBox *m_aoaResBox      = nullptr;
 
     // 外观
     QLabel    *m_appearTitle = nullptr;
-    QComboBox *m_themeBox    = nullptr;
-    QComboBox *m_accentBox   = nullptr;
+    Fluent::FluentComboBox *m_themeBox    = nullptr;
+    Fluent::FluentComboBox *m_accentBox   = nullptr;
 
     // WiFi
     QLabel    *m_wifiTitle   = nullptr;
     QLabel    *m_ipLabel     = nullptr;
-    QComboBox *m_ipEdit      = nullptr;
-    QComboBox *m_portEdit    = nullptr;
+    Fluent::FluentComboBox *m_ipEdit      = nullptr;
+    Fluent::FluentComboBox *m_portEdit    = nullptr;
     Fluent::FluentButton *m_connectBtn    = nullptr;
     Fluent::FluentButton *m_disconnectBtn = nullptr;
     QPushButton *m_getIpBtn  = nullptr;

@@ -262,6 +262,7 @@ void KeyMapEditView::updateSize(const QSize& size)
     for (auto& pair : ratios) {
         pair.first->setPos(pair.second.x()*size.width(), pair.second.y()*size.height());
         if (auto* w = dynamic_cast<KeyMapItemSteerWheel*>(pair.first)) w->updateSubItemsPos();
+        if (auto* c = dynamic_cast<KeyMapItemCamera*>(pair.first)) c->syncAreaRect();
     }
 }
 

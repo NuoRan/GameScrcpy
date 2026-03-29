@@ -1,0 +1,839 @@
+{
+    "schemaVersion": 2,
+    "capabilityVersion": 1,
+    "assetId": "sample.find.click",
+    "name": "Sample Find Click",
+    "description": "Blueprint V2 sample asset for runtime pipeline validation.",
+    "category": "Samples",
+    "author": "GitHub Copilot",
+    "version": "1.0.0",
+    "engineMinVersion": "1.3.4",
+    "entryGraphId": "graph.main",
+    "graphs": [
+        {
+            "graphId": "graph.main",
+            "graphType": "EventGraph",
+            "name": "Main",
+            "description": "Auto-start initialization and press-triggered image click sample.",
+            "nodes": [
+                {
+                    "nodeId": "event.auto",
+                    "nodeType": "core.event.onAutoStart",
+                    "title": "OnAutoStart",
+                    "category": "Flow Control",
+                    "pins": [
+                        {
+                            "pinId": "execOut",
+                            "direction": "output",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Exec",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        }
+                    ],
+                    "properties": {},
+                    "flags": {
+                        "pure": false,
+                        "latent": false,
+                        "deprecated": false
+                    },
+                    "ui": {
+                        "x": 40.0,
+                        "y": 40.0,
+                        "width": 260.0,
+                        "collapsed": false,
+                        "comment": ""
+                    }
+                },
+                {
+                    "nodeId": "mode.set",
+                    "nodeType": "lib.mapi.setGlobal",
+                    "title": "setGlobal",
+                    "category": "Libraries/mapi",
+                    "pins": [
+                        {
+                            "pinId": "execIn",
+                            "direction": "input",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Exec",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        },
+                        {
+                            "pinId": "key",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "string",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Key",
+                            "defaultValue": "bp.mode",
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "value",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "any",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Value",
+                            "defaultValue": "armed",
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "execOut",
+                            "direction": "output",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Exec",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        }
+                    ],
+                    "properties": {
+                        "key": "bp.mode",
+                        "value": "armed"
+                    },
+                    "flags": {
+                        "pure": false,
+                        "latent": false,
+                        "deprecated": false
+                    },
+                    "ui": {
+                        "x": 320.0,
+                        "y": 40.0,
+                        "width": 280.0,
+                        "collapsed": false,
+                        "comment": ""
+                    }
+                },
+                {
+                    "nodeId": "event.press",
+                    "nodeType": "core.event.onPress",
+                    "title": "OnPress",
+                    "category": "Flow Control",
+                    "pins": [
+                        {
+                            "pinId": "execOut",
+                            "direction": "output",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Exec",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        }
+                    ],
+                    "properties": {},
+                    "flags": {
+                        "pure": false,
+                        "latent": false,
+                        "deprecated": false
+                    },
+                    "ui": {
+                        "x": 40.0,
+                        "y": 220.0,
+                        "width": 260.0,
+                        "collapsed": false,
+                        "comment": ""
+                    }
+                },
+                {
+                    "nodeId": "find.enemy",
+                    "nodeType": "lib.mapi.findImageByRegion",
+                    "title": "findImageByRegion",
+                    "category": "Libraries/mapi",
+                    "pins": [
+                        {
+                            "pinId": "execIn",
+                            "direction": "input",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Exec",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        },
+                        {
+                            "pinId": "imageName",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "string",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Image Name",
+                            "defaultValue": "enemy.png",
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "regionId",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "int",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Region Id",
+                            "defaultValue": 1,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "threshold",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "number",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Threshold",
+                            "defaultValue": 0.85,
+                            "allowMultipleLinks": false,
+                            "optional": true,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "execOut",
+                            "direction": "output",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Exec",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        },
+                        {
+                            "pinId": "result",
+                            "direction": "output",
+                            "kind": "data",
+                            "dataType": "object",
+                            "container": "scalar",
+                            "structType": "FindImageResult",
+                            "displayName": "Result",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        }
+                    ],
+                    "properties": {
+                        "imageName": "enemy.png",
+                        "regionId": 1,
+                        "threshold": 0.85
+                    },
+                    "flags": {
+                        "pure": false,
+                        "latent": false,
+                        "deprecated": false
+                    },
+                    "ui": {
+                        "x": 320.0,
+                        "y": 220.0,
+                        "width": 320.0,
+                        "collapsed": false,
+                        "comment": ""
+                    }
+                },
+                {
+                    "nodeId": "field.found",
+                    "nodeType": "core.struct.getField",
+                    "title": "Get Field",
+                    "category": "Struct/Object",
+                    "pins": [
+                        {
+                            "pinId": "target",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "object",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Target",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "value",
+                            "direction": "output",
+                            "kind": "data",
+                            "dataType": "any",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Value",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        }
+                    ],
+                    "properties": {
+                        "fieldName": "found"
+                    },
+                    "flags": {
+                        "pure": true,
+                        "latent": false,
+                        "deprecated": false
+                    },
+                    "ui": {
+                        "x": 680.0,
+                        "y": 180.0,
+                        "width": 260.0,
+                        "collapsed": false,
+                        "comment": ""
+                    }
+                },
+                {
+                    "nodeId": "branch.found",
+                    "nodeType": "core.flow.branch",
+                    "title": "Branch",
+                    "category": "Flow Control",
+                    "pins": [
+                        {
+                            "pinId": "execIn",
+                            "direction": "input",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Exec",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        },
+                        {
+                            "pinId": "condition",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "bool",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Condition",
+                            "defaultValue": false,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "true",
+                            "direction": "output",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "True",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        },
+                        {
+                            "pinId": "false",
+                            "direction": "output",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "False",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        }
+                    ],
+                    "properties": {},
+                    "flags": {
+                        "pure": false,
+                        "latent": false,
+                        "deprecated": false
+                    },
+                    "ui": {
+                        "x": 680.0,
+                        "y": 260.0,
+                        "width": 260.0,
+                        "collapsed": false,
+                        "comment": ""
+                    }
+                },
+                {
+                    "nodeId": "field.x",
+                    "nodeType": "core.struct.getField",
+                    "title": "Get Field",
+                    "category": "Struct/Object",
+                    "pins": [
+                        {
+                            "pinId": "target",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "object",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Target",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "value",
+                            "direction": "output",
+                            "kind": "data",
+                            "dataType": "any",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Value",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        }
+                    ],
+                    "properties": {
+                        "fieldName": "x"
+                    },
+                    "flags": {
+                        "pure": true,
+                        "latent": false,
+                        "deprecated": false
+                    },
+                    "ui": {
+                        "x": 980.0,
+                        "y": 180.0,
+                        "width": 260.0,
+                        "collapsed": false,
+                        "comment": ""
+                    }
+                },
+                {
+                    "nodeId": "field.y",
+                    "nodeType": "core.struct.getField",
+                    "title": "Get Field",
+                    "category": "Struct/Object",
+                    "pins": [
+                        {
+                            "pinId": "target",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "object",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Target",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "value",
+                            "direction": "output",
+                            "kind": "data",
+                            "dataType": "any",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Value",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        }
+                    ],
+                    "properties": {
+                        "fieldName": "y"
+                    },
+                    "flags": {
+                        "pure": true,
+                        "latent": false,
+                        "deprecated": false
+                    },
+                    "ui": {
+                        "x": 980.0,
+                        "y": 300.0,
+                        "width": 260.0,
+                        "collapsed": false,
+                        "comment": ""
+                    }
+                },
+                {
+                    "nodeId": "click.enemy",
+                    "nodeType": "lib.mapi.click",
+                    "title": "click",
+                    "category": "Libraries/mapi",
+                    "pins": [
+                        {
+                            "pinId": "execIn",
+                            "direction": "input",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Exec",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        },
+                        {
+                            "pinId": "x",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "number",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "X",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": true,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "y",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "number",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Y",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": true,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "execOut",
+                            "direction": "output",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Exec",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        }
+                    ],
+                    "properties": {},
+                    "flags": {
+                        "pure": false,
+                        "latent": false,
+                        "deprecated": false
+                    },
+                    "ui": {
+                        "x": 1280.0,
+                        "y": 240.0,
+                        "width": 260.0,
+                        "collapsed": false,
+                        "comment": ""
+                    }
+                },
+                {
+                    "nodeId": "toast.ok",
+                    "nodeType": "lib.mapi.toast",
+                    "title": "toast",
+                    "category": "Libraries/mapi",
+                    "pins": [
+                        {
+                            "pinId": "execIn",
+                            "direction": "input",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Exec",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        },
+                        {
+                            "pinId": "message",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "string",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Message",
+                            "defaultValue": "enemy clicked",
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "durationMs",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "int",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Duration",
+                            "defaultValue": 800,
+                            "allowMultipleLinks": false,
+                            "optional": true,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "execOut",
+                            "direction": "output",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Exec",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        }
+                    ],
+                    "properties": {
+                        "message": "enemy clicked",
+                        "durationMs": 800
+                    },
+                    "flags": {
+                        "pure": false,
+                        "latent": false,
+                        "deprecated": false
+                    },
+                    "ui": {
+                        "x": 1600.0,
+                        "y": 220.0,
+                        "width": 280.0,
+                        "collapsed": false,
+                        "comment": ""
+                    }
+                },
+                {
+                    "nodeId": "toast.fail",
+                    "nodeType": "lib.mapi.toast",
+                    "title": "toast",
+                    "category": "Libraries/mapi",
+                    "pins": [
+                        {
+                            "pinId": "execIn",
+                            "direction": "input",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Exec",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        },
+                        {
+                            "pinId": "message",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "string",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Message",
+                            "defaultValue": "enemy not found",
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "durationMs",
+                            "direction": "input",
+                            "kind": "data",
+                            "dataType": "int",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Duration",
+                            "defaultValue": 800,
+                            "allowMultipleLinks": false,
+                            "optional": true,
+                            "supportsInlineEditor": true
+                        },
+                        {
+                            "pinId": "execOut",
+                            "direction": "output",
+                            "kind": "exec",
+                            "dataType": "exec",
+                            "container": "scalar",
+                            "structType": "",
+                            "displayName": "Exec",
+                            "defaultValue": null,
+                            "allowMultipleLinks": false,
+                            "optional": false,
+                            "supportsInlineEditor": false
+                        }
+                    ],
+                    "properties": {
+                        "message": "enemy not found",
+                        "durationMs": 800
+                    },
+                    "flags": {
+                        "pure": false,
+                        "latent": false,
+                        "deprecated": false
+                    },
+                    "ui": {
+                        "x": 980.0,
+                        "y": 420.0,
+                        "width": 280.0,
+                        "collapsed": false,
+                        "comment": ""
+                    }
+                }
+            ],
+            "links": [
+                {
+                    "linkId": "l1",
+                    "fromNodeId": "event.auto",
+                    "fromPinId": "execOut",
+                    "toNodeId": "mode.set",
+                    "toPinId": "execIn"
+                },
+                {
+                    "linkId": "l2",
+                    "fromNodeId": "event.press",
+                    "fromPinId": "execOut",
+                    "toNodeId": "find.enemy",
+                    "toPinId": "execIn"
+                },
+                {
+                    "linkId": "l3",
+                    "fromNodeId": "find.enemy",
+                    "fromPinId": "result",
+                    "toNodeId": "field.found",
+                    "toPinId": "target"
+                },
+                {
+                    "linkId": "l4",
+                    "fromNodeId": "field.found",
+                    "fromPinId": "value",
+                    "toNodeId": "branch.found",
+                    "toPinId": "condition"
+                },
+                {
+                    "linkId": "l5",
+                    "fromNodeId": "find.enemy",
+                    "fromPinId": "execOut",
+                    "toNodeId": "branch.found",
+                    "toPinId": "execIn"
+                },
+                {
+                    "linkId": "l6",
+                    "fromNodeId": "branch.found",
+                    "fromPinId": "true",
+                    "toNodeId": "click.enemy",
+                    "toPinId": "execIn"
+                },
+                {
+                    "linkId": "l7",
+                    "fromNodeId": "branch.found",
+                    "fromPinId": "false",
+                    "toNodeId": "toast.fail",
+                    "toPinId": "execIn"
+                },
+                {
+                    "linkId": "l8",
+                    "fromNodeId": "find.enemy",
+                    "fromPinId": "result",
+                    "toNodeId": "field.x",
+                    "toPinId": "target"
+                },
+                {
+                    "linkId": "l9",
+                    "fromNodeId": "find.enemy",
+                    "fromPinId": "result",
+                    "toNodeId": "field.y",
+                    "toPinId": "target"
+                },
+                {
+                    "linkId": "l10",
+                    "fromNodeId": "field.x",
+                    "fromPinId": "value",
+                    "toNodeId": "click.enemy",
+                    "toPinId": "x"
+                },
+                {
+                    "linkId": "l11",
+                    "fromNodeId": "field.y",
+                    "fromPinId": "value",
+                    "toNodeId": "click.enemy",
+                    "toPinId": "y"
+                },
+                {
+                    "linkId": "l12",
+                    "fromNodeId": "click.enemy",
+                    "fromPinId": "execOut",
+                    "toNodeId": "toast.ok",
+                    "toPinId": "execIn"
+                }
+            ],
+            "ui": {
+                "zoom": 1.0,
+                "viewX": 0.0,
+                "viewY": 0.0
+            }
+        }
+    ],
+    "variables": [],
+    "functions": [],
+    "macros": [],
+    "structTypes": [],
+    "dependencies": {
+        "regions": [
+            1
+        ],
+        "buttons": [],
+        "swipes": [],
+        "images": [
+            "enemy.png"
+        ],
+        "modules": []
+    },
+    "permissions": [
+        "screen.capture",
+        "runtime.global",
+        "input.touch",
+        "ui.feedback"
+    ],
+    "editorState": {
+        "activeGraphId": "graph.main",
+        "viewport": {
+            "zoom": 1.0,
+            "x": 0.0,
+            "y": 0.0
+        },
+        "expandedSections": [],
+        "favorites": []
+    },
+    "shareMeta": {
+        "sample": true
+    }
+}

@@ -1,5 +1,45 @@
 # 更新日志 / Changelog
 
+## v1.3.4 (2026-03-29)
+
+> 新增画面锐化、ESP32 WiFi 触控、视角区域模式与横竖屏切换优化
+
+### 🎮 输入控制与键位映射
+
+- **视角控制支持区域模式**：`mouseMoveMap` 新增 `areaMode` 与 `areaRect`，视角移动可限制在自定义区域内，避免回中落点越界
+- **双指交替回中/回正**：`ViewportHandler` 的边缘回正、空闲回中与 `resetView()` 改为“新手指先按下、旧手指再抬起”，减少视角控制中触摸断帧
+- **轮盘直达模式**：当平滑度与曲线都为 0 时，`SteerWheelHandler` 直接发送 `MOVE`，不再走插值队列，提升瞬时响应
+- **轮盘速度倍率解析**：`steerWheel` 新增 `speedMultiplier` 默认值与解析逻辑，避免旧配置缺省值异常
+- **视角区域可视化**：`KeyMapOverlay` 支持显示 Camera 键位的区域矩形与中心标记，编辑态支持拖拽调整区域大小
+
+### 📱 HID 触控与设备方向
+
+- **ESP32 HID 支持 WiFi TCP**：ESP32 地址现在支持串口名或 IP 地址，自动切换串口/TCP 模式
+- **显示旋转自动同步**：`DeviceController` 在启动后解析 `wm size` / `dumpsys input` / `dumpsys window`，自动更新 AOA/ESP32 触控旋转角度
+- **修正横屏触控坐标**：AOA 与 ESP32 后端统一修复 `90°/270°` 旋转映射，横屏点击与拖动位置更准确
+- **运行中分辨率热更新**：新增 `updateDeviceResolution()`，切换横竖屏时可实时更新 `mobileSize` 与 HID 旋转
+
+### 🖥 渲染与视频窗口
+
+- **新增画面锐化**：D3D11 渲染器增加锐化强度控制，`VideoSettingsPopup` 可实时调节并持久化保存
+- **视频窗口等比缩放增强**：支持四边和四角拖拽，同时继续保持画面比例约束
+- **全屏退出恢复优化**：窗口被系统动作为退出全屏后，会自动恢复工具栏、皮肤与节能状态
+- **编辑模式退出清理输入状态**：退出键位编辑时主动重置输入状态，减少视角控制或按键残留
+
+### ⚙️ 设置与界面
+
+- **设置页统一 FluentComboBox**：`SettingsPage`、`DeviceDetailPage`、`SettingsDialog`、`ToolForm`、`VideoSettingsPopup` 的关键下拉框统一为 Fluent 组件
+- **ESP32 配置项改为地址语义**：设置页“ESP32 串口”调整为“ESP32 地址”，占位提示支持 `COM` 口和 IP 地址
+- **移除旧横屏开关**：AOA 分辨率不再依赖 `aoaLandscape` 开关，横竖屏由分辨率与运行时旋转统一决定
+- **主题与视频参数立即持久化**：主题、强调色以及视频/显示参数修改后立即保存，重新打开页面不会丢失
+- **底部栏新增横竖屏切换按钮**：`VideoBottomBar` 增加一键对调宽高的旋转入口
+
+### 🧹 文档与示例
+
+- **新增 Blueprint 示例发布基线**：`sample_find_click.bp.json` 的 `engineMinVersion` 升级到 `1.3.4`
+- **清理过时内部文档**：移除多份历史审计/规划文档，保留面向用户的说明文档
+- **脚本文档措辞收敛**：`SCRIPT_API` 中将“防检测”表述调整为中性技术说明
+
 ## v1.3.3 (2026-03-15)
 
 > 新增 Companion App、多触控后端路由、视角自适应平滑、帮助中心等

@@ -8,6 +8,7 @@
 
 #include <thread>
 #include <chrono>
+#include <QDebug>
 
 // ---------------------------------------------------------
 // 回调数据结构 — 传递给 CreateTimerQueueTimer
@@ -132,7 +133,13 @@ void NativeTimer::stop()
     // 2. 删除定时器并等待当前正在执行的回调完成
     //    INVALID_HANDLE_VALUE 使调用阻塞直到所有回调结束
     //    安全：timerQueueCallback 运行在线程池线程，stop() 运行在主线程，不会死锁
+    auto t0 = std::chrono::steady_clock::now();
     DeleteTimerQueueTimer(nullptr, m_timerHandle, INVALID_HANDLE_VALUE);
+    auto dt = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now() - t0).count();
+    if (dt > 1) {
+        qWarning("[NativeTimer] DeleteTimerQueueTimer blocked for %lldms", dt);
+    }
 
     // 3. 释放回调数据
     //    此时保证没有 timerQueueCallback 在访问 data

@@ -126,7 +126,7 @@ void DeviceDetailPage::setupUI()
         m_bitRateEdit->setMinimumHeight(36);
         m_bitRateEdit->setAlignment(Qt::AlignCenter);
         m_bitRateEdit->setValidator(new QIntValidator(1, 99999, this));
-        m_bitRateUnit = new QComboBox;
+        m_bitRateUnit = new Fluent::FluentComboBox;
         m_bitRateUnit->addItems({"Mbps", "Kbps"});
         m_bitRateUnit->setMinimumSize(85, 36);
         row->addWidget(m_bitrateLabel);
@@ -148,13 +148,13 @@ void DeviceDetailPage::setupUI()
 
         m_sizeLabel = new QLabel;
         m_sizeLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        m_maxSizeBox = new QComboBox;
+        m_maxSizeBox = new Fluent::FluentComboBox;
         m_maxSizeBox->addItems({"320", "480", "640", "720", "1080"});
         m_maxSizeBox->setMinimumSize(90, 36);
 
         m_codecLabel = new QLabel;
         m_codecLabel->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
-        m_codecBox = new QComboBox;
+        m_codecBox = new Fluent::FluentComboBox;
         m_codecBox->addItems({"H.264"});
         m_codecBox->setMinimumSize(90, 36);
 
@@ -229,7 +229,7 @@ void DeviceDetailPage::setupUI()
         row->setSpacing(8);
         auto* cfgLabel = new QLabel(tr("配置"));
         cfgLabel->setFixedWidth(40);
-        m_keymapCombo = new QComboBox;
+        m_keymapCombo = new Fluent::FluentComboBox;
         m_keymapCombo->setMinimumSize(160, 36);
         m_keymapNewBtn = new QPushButton("+");
         m_keymapNewBtn->setFixedSize(36, 36);

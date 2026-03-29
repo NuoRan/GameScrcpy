@@ -2,7 +2,7 @@
 #define SETTINGSDIALOG_H
 
 #include <QDialog>
-#include <QComboBox>
+#include "FluentComboBox.h"
 #include <QLineEdit>
 #include <QCheckBox>
 #include <QPushButton>
@@ -82,10 +82,10 @@ private:
 
     // 视频参数
     QLineEdit *m_bitRateEdit;
-    QComboBox *m_bitRateUnit;
+    Fluent::FluentComboBox *m_bitRateUnit;
     QSpinBox *m_fpsSpinBox;
-    QComboBox *m_maxSizeBox;
-    QComboBox *m_codecBox;
+    Fluent::FluentComboBox *m_maxSizeBox;
+    Fluent::FluentComboBox *m_codecBox;
 
     // 显示选项
     QCheckBox *m_reverseCheck;
@@ -94,8 +94,8 @@ private:
     QCheckBox *m_fpsCheck;
 
     // 无线连接
-    QComboBox *m_ipEdit;
-    QComboBox *m_portEdit;
+    Fluent::FluentComboBox *m_ipEdit;
+    Fluent::FluentComboBox *m_portEdit;
     QPushButton *m_connectBtn;
     QPushButton *m_disconnectBtn;
     QPushButton *m_getIpBtn;

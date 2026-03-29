@@ -265,7 +265,8 @@ void KeyMap::loadKeyMap(const std::string &json)
 
         keyMapNode.type = KMT_MOUSE_MOVE;
 
-
+        // DATA union 已由 memset 清零，需要设置非零默认值
+        keyMapNode.data.mouseMove.speedRatio = { 1.0f, 1.0f };
 
         bool have_speedRatio = false;
 
@@ -371,6 +372,9 @@ void KeyMap::loadKeyMap(const std::string &json)
 
                 keyMapNode.type = type;
 
+                // DATA union 已由 memset 清零，设置速度倍率默认值
+                keyMapNode.data.steerWheel.speedMultiplier = 1.0;
+
                 keyMapNode.data.steerWheel.left = { leftKey.type, leftKey.key, leftKey.modifiers, PointF(0, 0), PointF(0, 0), getItemDouble(node, "leftOffset") };
 
                 keyMapNode.data.steerWheel.right = { rightKey.type, rightKey.key, rightKey.modifiers, PointF(0, 0), PointF(0, 0), getItemDouble(node, "rightOffset") };
@@ -380,6 +384,11 @@ void KeyMap::loadKeyMap(const std::string &json)
                 keyMapNode.data.steerWheel.down = { downKey.type, downKey.key, downKey.modifiers, PointF(0, 0), PointF(0, 0), getItemDouble(node, "downOffset") };
 
                 keyMapNode.data.steerWheel.centerPos = getItemPos(node, "centerPos");
+
+                // 加载速度倍率（可选，默认1.0）
+                if (node.contains("speedMultiplier") && node["speedMultiplier"].is_number()) {
+                    keyMapNode.data.steerWheel.speedMultiplier = node["speedMultiplier"].get<double>();
+                }
 
                 m_idxSteerWheel = static_cast<int>(m_keyMapNodes.size());
 
@@ -479,13 +488,36 @@ void KeyMap::loadKeyMap(const std::string &json)
 
                 keyMapNode.type = KMT_MOUSE_MOVE;
 
-
+                // DATA union 已由 memset 清零，需要设置非零默认值
+                keyMapNode.data.mouseMove.speedRatio = { 1.0f, 1.0f };
 
                 keyMapNode.data.mouseMove.startPos = getItemPos(node, "pos");
 
-                keyMapNode.data.mouseMove.speedRatio.x = getItemDouble(node, "speedRatioX");
+                // 灵敏度：只在 JSON 中存在时才覆盖默认值 {1.0, 1.0}
+                // getItemDouble 对缺失字段返回 0.0，会导致 speedRatio={0,0}，view 完全不动
+                if (checkItemDouble(node, "speedRatio")) {
+                    float ratio = static_cast<float>(getItemDouble(node, "speedRatio"));
+                    keyMapNode.data.mouseMove.speedRatio.x = ratio;
+                    keyMapNode.data.mouseMove.speedRatio.y = ratio / 2.25f;
+                }
+                if (checkItemDouble(node, "speedRatioX")) {
+                    keyMapNode.data.mouseMove.speedRatio.x = static_cast<float>(getItemDouble(node, "speedRatioX"));
+                }
+                if (checkItemDouble(node, "speedRatioY")) {
+                    keyMapNode.data.mouseMove.speedRatio.y = static_cast<float>(getItemDouble(node, "speedRatioY"));
+                }
 
-                keyMapNode.data.mouseMove.speedRatio.y = getItemDouble(node, "speedRatioY");
+                // 区域模式
+                if (node.contains("areaMode") && node["areaMode"].is_boolean()) {
+                    keyMapNode.data.mouseMove.areaMode = node["areaMode"].get<bool>();
+                }
+                if (node.contains("areaRect") && node["areaRect"].is_object()) {
+                    auto& ar = node["areaRect"];
+                    if (ar.contains("x")) keyMapNode.data.mouseMove.areaX = ar["x"].get<double>();
+                    if (ar.contains("y")) keyMapNode.data.mouseMove.areaY = ar["y"].get<double>();
+                    if (ar.contains("w")) keyMapNode.data.mouseMove.areaW = ar["w"].get<double>();
+                    if (ar.contains("h")) keyMapNode.data.mouseMove.areaH = ar["h"].get<double>();
+                }
 
 
 

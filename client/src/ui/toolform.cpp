@@ -101,7 +101,7 @@ void ToolForm::initKeyMapPalette() {
     layout->setSpacing(8);
 
     // 配置选择下拉框 - 固定宽度，避免展开时撑大侧边栏
-    m_configComboBox = new QComboBox(ui->page_keymap);
+    m_configComboBox = new Fluent::FluentComboBox(ui->page_keymap);
     m_configComboBox->setMinimumHeight(32);
     m_configComboBox->setFixedWidth(100);  // 固定宽度
     m_configComboBox->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);

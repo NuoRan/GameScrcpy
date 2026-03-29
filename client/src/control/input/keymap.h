@@ -162,6 +162,8 @@ public:
 
                 KeyNode left, right, up, down;
 
+                double speedMultiplier = 1.0;  // 轮盘速度倍率
+
             } steerWheel;
 
 
@@ -173,6 +175,9 @@ public:
                 PointF startPos   = { 0.0, 0.0 };
 
                 PointF speedRatio = { 1.0, 1.0 };
+
+                bool areaMode = false;  // true=区域模式, false=全屏模式
+                double areaX = 0.3, areaY = 0.3, areaW = 0.4, areaH = 0.4;  // 归一化区域矩形
 
             } mouseMove;
 
@@ -210,7 +215,7 @@ public:
 
             } freeLook;
 
-            DATA() {}
+            DATA() { memset(this, 0, sizeof(DATA)); }
 
             ~DATA() {}
 

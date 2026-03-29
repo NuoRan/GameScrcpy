@@ -286,26 +286,31 @@ void AdbProcessImpl::emitResult(qsc::AdbProcess::ADB_EXEC_RESULT result)
 const std::string &AdbProcessImpl::getAdbPath()
 {
     if (s_adbPath.empty()) {
-        // Get application directory via Win32
+        // Get application directory via Win32 (Unicode-safe)
         wchar_t exePath[MAX_PATH]{};
         GetModuleFileNameW(nullptr, exePath, MAX_PATH);
-        std::string appDir = std::filesystem::path(exePath).parent_path().string();
+        std::string appDir = strutil::fromWide(std::filesystem::path(exePath).parent_path().wstring());
 
         // Potential ADB paths
         std::vector<std::string> potentialPaths;
+        // 1. 环境变量指定的路径
         char *envPath = nullptr;
         size_t envLen = 0;
         if (_dupenv_s(&envPath, &envLen, "KZSCRCPY_ADB_PATH") == 0 && envPath) {
             potentialPaths.push_back(envPath);
             free(envPath);
         }
+        // 2. 代码设置的路径
         if (!g_adbPath.empty()) potentialPaths.push_back(g_adbPath);
+        // 3. exe同级目录
         potentialPaths.push_back(appDir + "/adb.exe");
 
         namespace fs = std::filesystem;
         for (const std::string &path : potentialPaths) {
             if (!path.empty() && fs::is_regular_file(fs::path(strutil::toWide(path)))) {
-                s_adbPath = path;
+                // 存储绝对路径，避免 CWD 变化后失效
+                auto absPath = fs::absolute(fs::path(strutil::toWide(path)));
+                s_adbPath = strutil::fromWide(absPath.wstring());
                 break;
             }
         }
@@ -313,8 +318,7 @@ const std::string &AdbProcessImpl::getAdbPath()
         if (s_adbPath.empty()) {
             LOGW() << "ADB路径未找到";
         } else {
-            auto absPath = fs::absolute(fs::path(strutil::toWide(s_adbPath)));
-            LOG_I("adb path: %s", absPath.string().c_str());
+            LOG_I("adb path: %s", s_adbPath.c_str());
         }
     }
     return s_adbPath;

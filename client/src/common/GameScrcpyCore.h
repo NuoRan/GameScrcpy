@@ -42,6 +42,7 @@ public:
     virtual bool disconnectDevice(const std::string &serial) = 0;
     virtual void disconnectAllDevice() = 0;
     virtual qsc::core::DeviceSession* getSession(const std::string& serial) = 0;
+    virtual void updateDeviceResolution(const std::string& serial, const Size& size) = 0;
 
 protected:
     IDeviceManage() = default;

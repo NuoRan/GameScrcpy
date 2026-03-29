@@ -152,9 +152,17 @@ void ConfigCenter::registerDefaults()
     m_defaults["user/keyMapOverlayOpacity"] = 60;  // 键位提示层透明度 0~100
     m_defaults["user/keyMapOverlayVisible"] = false;  // 键位提示层是否显示
     m_defaults["user/scriptTipOpacity"] = 70;  // 脚本弹窗透明度 0~100
+    m_defaults["user/sharpenStrength"] = 0;     // 锐化强度 0~100
     m_defaults["user/aoaResWidth"] = 1080;
     m_defaults["user/aoaResHeight"] = 2400;
-    m_defaults["user/aoaLandscape"] = false;
+    m_defaults["user/esp32FallbackRotation"] = 270;
+    m_defaults["user/touchMode"] = 0;
+    m_defaults["user/themeIndex"] = 0;
+    m_defaults["user/accentIndex"] = 0;
+    m_defaults["user/videoChannelEnabled"] = true;
+    m_defaults["user/audioChannelEnabled"] = false;
+    m_defaults["user/controlChannelEnabled"] = true;
+    m_defaults["user/auxChannelEnabled"] = true;
 }
 
 bool ConfigCenter::initialize(const std::string& configPath, const std::string& userDataPath)
@@ -360,6 +368,9 @@ void ConfigCenter::setVideoStreaming(bool streaming) { set("user/videoStreaming"
 
 bool ConfigCenter::screenOff() const { return get<bool>("user/screenOff", false); }
 void ConfigCenter::setScreenOff(bool off) { set("user/screenOff", off); }
+
+int ConfigCenter::sharpenStrength() const { return get<int>("user/sharpenStrength", 0); }
+void ConfigCenter::setSharpenStrength(int value) { set("user/sharpenStrength", std::clamp(value, 0, 100)); }
 
 // --- 设备专属配置 ---
 std::string ConfigCenter::deviceKey(const std::string& serial, const std::string& key) const
