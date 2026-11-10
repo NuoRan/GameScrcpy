@@ -1,13 +1,21 @@
 #include "AoaSession.h"
 
+#include "HardwareClaims.h"
+
 #include <QMetaObject>
 #include <QtLogging>
 
+#include <format>
 #include <utility>
 
 namespace gs::app {
 
 namespace {
+
+std::string usbResourceOf(const platform::UsbPhone& phone)
+{
+    return std::format("usb:{:04X}:{:04X}:{}", phone.vendorId, phone.productId, phone.serial);
+}
 
 const char* failureName(platform::UsbFailure failure) noexcept
 {
@@ -56,14 +64,32 @@ void AoaSession::start(const platform::UsbPhone& phone, int rotation, QSize canv
     m_failure = platform::UsbFailure::None;
     m_portState = AoaState::Starting;
     enter(session::SessionPhase::Connecting);
-    std::unique_ptr<AoaLink> link = openAoaLink(phone, m_failure);
+    std::string reason;
+    if (HardwareClaims* claims = HardwareClaims::instance()) {
+        const std::string resource = usbResourceOf(phone);
+        const std::string holder = "app:aoa:" + phone.serial;
+        const exthost::ClaimResult claimed =
+            claims->claim(resource, ClaimHolder{holder, QStringLiteral("GameScrcpy"), {}}, false);
+        if (claimed == exthost::ClaimResult::Claimed) {
+            m_resource = resource;
+            m_holder = holder;
+        } else if (claimed == exthost::ClaimResult::Busy) {
+            m_failure = platform::UsbFailure::Busy;
+            reason = "in use by " + claims->holderName(resource).toStdString();
+        }
+    }
+    std::unique_ptr<AoaLink> link = reason.empty() ? openAoaLink(phone, m_failure) : nullptr;
     if (link == nullptr) {
-        qWarning("AOA on %s: the phone cannot be opened over USB, %s", qUtf8Printable(m_name), failureName(m_failure));
+        if (reason.empty()) {
+            reason = failureName(m_failure);
+        }
+        qWarning("AOA on %s: the phone cannot be opened over USB, %s", qUtf8Printable(m_name), reason.c_str());
+        release();
         session::SessionFailure failure;
         failure.kind = m_failure == platform::UsbFailure::NotFound ? session::FailureKind::DeviceNotFound
                                                                    : session::FailureKind::ConnectFailed;
         failure.phase = session::SessionPhase::Connecting;
-        failure.detail = failureName(m_failure);
+        failure.detail = reason;
         enter(session::SessionPhase::Failed, failure);
         return;
     }
@@ -171,6 +197,13 @@ void AoaSession::release()
     m_channel->detach();
     m_sink.reset();
     m_port.reset();
+    if (!m_resource.empty()) {
+        if (HardwareClaims* claims = HardwareClaims::instance()) {
+            claims->release(m_resource, m_holder);
+        }
+        m_resource.clear();
+        m_holder.clear();
+    }
 }
 
 }

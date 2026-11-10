@@ -39,6 +39,9 @@ extern "C" {
 /* A contribution whose data is a gs_ext_device_provider. */
 #define GS_EXT_KIND_DEVICE_PROVIDER "device-provider"
 
+/* A flag of claim: ask whoever has the hardware to let it go, and wait up to 3 seconds for it. */
+#define GS_EXT_CLAIM_WAIT 1u
+
 /* What a node parameter or result holds. The names in the manifest's contributes.native are the same types. */
 enum gs_ext_type {
     /* No value: the result of a node that gives nothing back. */
@@ -73,6 +76,8 @@ enum gs_ext_status {
     GS_EXT_DENIED = 3,
     /* An argument has the wrong type or is out of range. */
     GS_EXT_BAD_ARGUMENT = 4,
+    /* The hardware is in use by someone else. */
+    GS_EXT_BUSY = 5,
 };
 
 /* How important a log line is. */
@@ -484,7 +489,7 @@ struct gs_ext_device_provider {
     const char* name;
     /* Passed back to list and act. */
     void* context;
-    /* Puts the devices that can be used now into out as a JSON array with set_text, each { id, name, kind, summary, state, stateText, touchMethod, capture, actions }: kind "touchBox" for a box that touches a phone without showing its picture, state one of "ready", "busy", "problem" and "offline", touchMethod the name of one of the extension's touch methods, capture true when a capture card may show the picture, and actions the extra buttons of its card, each { id, title } with panel or job naming one of the extension's panels or jobs. GameScrcpy calls it when the extension turns on and after devices_changed; answer within 100 ms. */
+    /* Puts the devices that can be used now into out as a JSON array with set_text, each { id, name, kind, summary, state, stateText, touchMethod, resource, capture, actions }: kind "touchBox" for a box that touches a phone without showing its picture, state one of "ready", "busy", "problem" and "offline", touchMethod the name of one of the extension's touch methods, resource the hardware it talks through, named as for claim, so that its card says who is using it, capture true when a capture card may show the picture, and actions the extra buttons of its card, each { id, title } with panel or job naming one of the extension's panels or jobs. GameScrcpy calls it when the extension turns on and after devices_changed; answer within 100 ms. */
     int32_t (*list)(void* context, gs_ext_result* out);
     /* Does an action of a device that names neither a panel nor a job, such as disconnecting. May be NULL. */
     int32_t (*act)(void* context, const char* device, size_t device_size, const char* action, size_t action_size);
@@ -514,7 +519,7 @@ struct gs_ext_host {
     int32_t (*set_text)(gs_ext_result* result, uint32_t type, const char* text, size_t size);
     /* Says why a node failed; the script that called it gets the text in its error. */
     int32_t (*set_error)(gs_ext_result* result, const char* text, size_t size);
-    /* 1 when this GameScrcpy has the feature, such as "jobs" or "events", otherwise 0; ask before using a function that a later version added. */
+    /* 1 when this GameScrcpy has the feature, such as "jobs", "events", "settings" or "claims", otherwise 0; ask before using a function that a later version added. */
     int32_t (*supports)(void* context, const char* feature);
     /* Tells how far a job got: fraction from 0 to 1, or -1 when it cannot tell, and a short UTF-8 line about the step it is on. GameScrcpy passes on at most 20 a second and drops the others in between. */
     int32_t (*job_progress)(void* context, uint64_t job, double fraction, const char* text, size_t size);
@@ -530,6 +535,10 @@ struct gs_ext_host {
     int32_t (*setting_get)(void* context, const char* key, size_t key_size, const char* phone, size_t phone_size, gs_ext_result* value);
     /* Tells GameScrcpy that the devices of one of the DLL's providers changed, so that it calls list again. */
     int32_t (*devices_changed)(void* context, const char* provider, size_t size);
+    /* Claims hardware before opening it, named "serial:COM9", "ble:AA:BB:CC:DD:EE:FF", "hid:" and the path that CreateFile opens, or "usb:" and its vendor id, product id and serial number as in "usb:2341:0043:A1B2"; case does not matter. GS_EXT_OK when the extension has it now or had it already, GS_EXT_BUSY when someone else has it. With GS_EXT_CLAIM_WAIT the one who has it is asked first and, when it agrees, GameScrcpy waits up to 3 seconds for it to let go; that takes time, so pass the flag only from a job or a thread of the DLL's own, never from a node, an action, a touch method or an attachment. */
+    int32_t (*claim)(void* context, const char* resource, size_t size, uint32_t flags);
+    /* Lets go of hardware the extension claimed. GameScrcpy lets go of all of it when the extension stops. */
+    int32_t (*release)(void* context, const char* resource, size_t size);
 };
 
 /* One thing a DLL offers. */
@@ -560,6 +569,8 @@ struct gs_ext_plugin {
     void (*unload)(void* context);
     /* Called on a GameScrcpy thread after the user changed settings of the extension, with the changed keys as a UTF-8 JSON array; read the new values with setting_get. May be NULL. */
     void (*settings_changed)(void* context, const char* keys, size_t size);
+    /* Called on a GameScrcpy thread when someone else wants hardware the DLL claimed: resource names it as the DLL did and by says who, in UTF-8. Answer within a second: return GS_EXT_OK and call release within 3 seconds to let it go, or anything else to keep it. May be NULL, which keeps it. */
+    int32_t (*claim_wanted)(void* context, const char* resource, size_t size, const char* by, size_t by_size);
 };
 
 /* The function a native extension DLL exports. GameScrcpy calls it once after loading the DLL: set *plugin to the DLL's own description and return GS_EXT_OK, or GS_EXT_UNSUPPORTED when host->abi_version is not one the DLL supports. The description, and everything it points to, has to stay valid until unload is called; GameScrcpy never writes to it. */

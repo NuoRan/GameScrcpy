@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <string>
 
 namespace gs::app {
 
@@ -60,6 +61,8 @@ private:
     AoaState m_portState = AoaState::Starting;
     std::uint16_t m_videoSession = 0;
     QSize m_canvas;
+    std::string m_resource;
+    std::string m_holder;
 };
 
 }

@@ -24,6 +24,8 @@ bool g_breakTouch = false;
 std::string g_changed = "[]";
 std::string g_boxes = "[]";
 std::string g_acted;
+bool g_yield = false;
+std::string g_wanted;
 
 void appendNumber(std::string& out, double value)
 {
@@ -275,12 +277,76 @@ int32_t lastAction(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
     return giveText(result, GS_EXT_TYPE_STRING, acted);
 }
 
+int32_t claimNode(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number =
+        g_host->claim(g_host->context, args[0].text, args[0].size, args[1].flag != 0 ? GS_EXT_CLAIM_WAIT : 0u);
+    return GS_EXT_OK;
+}
+
+int32_t releaseNode(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number = g_host->release(g_host->context, args[0].text, args[0].size);
+    return GS_EXT_OK;
+}
+
+int32_t supportsNode(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    const std::string name(args[0].text, args[0].size);
+    return giveFlag(result, g_host->supports(g_host->context, name.c_str()) != 0);
+}
+
+int32_t yieldClaims(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    {
+        const std::scoped_lock lock(g_mutex);
+        g_yield = args[0].flag != 0;
+    }
+    return giveFlag(result, true);
+}
+
+int32_t lastWanted(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    std::string wanted;
+    {
+        const std::scoped_lock lock(g_mutex);
+        wanted = g_wanted;
+    }
+    return giveText(result, GS_EXT_TYPE_STRING, wanted);
+}
+
+int32_t claimWanted(void*, const char* resource, size_t size, const char* by, size_t bySize)
+{
+    bool yields = false;
+    {
+        const std::scoped_lock lock(g_mutex);
+        g_wanted = std::string(resource, size) + " by " + std::string(by, bySize);
+        yields = g_yield;
+    }
+    if (!yields) {
+        return GS_EXT_FAILED;
+    }
+    g_host->release(g_host->context, resource, size);
+    return GS_EXT_OK;
+}
+
 int32_t openTouch(void*, const gs_ext_touch_open* info, void** session)
 {
+    constexpr char kClaim[] = "{\"claim\":\"";
+    const std::string options = info->options != nullptr && info->options_size > 0
+                                    ? std::string(info->options, info->options_size)
+                                    : std::string("null");
+    if (options.starts_with(kClaim) && options.ends_with("\"}")) {
+        const std::string resource = options.substr(sizeof(kClaim) - 1, options.size() - (sizeof(kClaim) - 1) - 2);
+        if (g_host->claim(g_host->context, resource.data(), resource.size(), 0) != GS_EXT_OK) {
+            return GS_EXT_BUSY;
+        }
+    }
     const std::scoped_lock lock(g_mutex);
     g_device = info->device != nullptr ? info->device : "";
-    g_options = info->options != nullptr && info->options_size > 0 ? std::string(info->options, info->options_size)
-                                                                   : std::string("null");
+    g_options = options;
     appendEntry("\"open\"");
     *session = &g_device;
     return GS_EXT_OK;
@@ -358,6 +424,8 @@ const uint32_t kOneJson[] = {GS_EXT_TYPE_JSON};
 const uint32_t kOneDuration[] = {GS_EXT_TYPE_DURATION};
 const uint32_t kMirrored[] = {GS_EXT_TYPE_POINT, GS_EXT_TYPE_REGION, GS_EXT_TYPE_COLOR,
                               GS_EXT_TYPE_DURATION, GS_EXT_TYPE_JSON, GS_EXT_TYPE_BOOLEAN};
+const uint32_t kStringAndFlag[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_BOOLEAN};
+const uint32_t kOneFlag[] = {GS_EXT_TYPE_BOOLEAN};
 
 const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "add", kTwoNumbers, 2, GS_EXT_TYPE_NUMBER, nullptr, &add},
@@ -379,6 +447,11 @@ const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "changedKeys", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &changedKeys},
     {sizeof(gs_ext_node), "setBoxes", kOneJson, 1, GS_EXT_TYPE_NUMBER, nullptr, &setBoxes},
     {sizeof(gs_ext_node), "lastAction", nullptr, 0, GS_EXT_TYPE_STRING, nullptr, &lastAction},
+    {sizeof(gs_ext_node), "claim", kStringAndFlag, 2, GS_EXT_TYPE_NUMBER, nullptr, &claimNode},
+    {sizeof(gs_ext_node), "release", kOneString, 1, GS_EXT_TYPE_NUMBER, nullptr, &releaseNode},
+    {sizeof(gs_ext_node), "supports", kOneString, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &supportsNode},
+    {sizeof(gs_ext_node), "yieldClaims", kOneFlag, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &yieldClaims},
+    {sizeof(gs_ext_node), "lastWanted", nullptr, 0, GS_EXT_TYPE_STRING, nullptr, &lastWanted},
 };
 
 const gs_ext_device_provider kBoxes = {sizeof(gs_ext_device_provider), "boxes", nullptr, &listBoxes, &actOnBox};
@@ -649,6 +722,11 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "changedKeys", &kNodes[16]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "setBoxes", &kNodes[17]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "lastAction", &kNodes[18]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "claim", &kNodes[19]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "release", &kNodes[20]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "supports", &kNodes[21]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "yieldClaims", &kNodes[22]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "lastWanted", &kNodes[23]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_DEVICE_PROVIDER, "boxes", &kBoxes},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_ATTACHMENT, "shift", &kShift},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_BEHAVIOR, "tap", &kTap},
@@ -664,6 +742,7 @@ const gs_ext_plugin kPlugin = {
     kContributions,
     &unloadAll,
     &settingsChanged,
+    &claimWanted,
 };
 
 }

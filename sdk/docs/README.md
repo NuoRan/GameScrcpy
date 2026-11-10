@@ -1640,6 +1640,14 @@ An allowed device: the id to open it with, its kind and name and, in hardware.li
 type HardwareInfo = { readonly id: string; readonly kind: HardwareKind; readonly name: string; readonly present?: boolean };
 ```
 
+### HardwareClaimOptions
+
+wait asks whoever holds the hardware to let it go and waits up to 3 seconds for it. onWanted is called with the name of whoever wants the hardware this logic holds; return true to let it go, and it is released for them.
+
+```ts
+type HardwareClaimOptions = { readonly wait?: boolean; readonly onWanted?: (by: string) => boolean | Promise<boolean> };
+```
+
 ### HardwareBytes
 
 Bytes to send: a Uint8Array, another typed array or a list of numbers from 0 to 255.

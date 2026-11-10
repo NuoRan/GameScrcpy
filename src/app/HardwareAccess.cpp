@@ -1,6 +1,7 @@
 #include "HardwareAccess.h"
 
 #include "ExtensionHost.h"
+#include "HardwareClaims.h"
 
 #include <gs/base/Log.h>
 #include <gs/ext/Manifest.h>
@@ -35,13 +36,34 @@ constexpr std::size_t kMostNameLength = 256;
 constexpr qsizetype kMostNamePrefix = 64;
 constexpr qsizetype kMostServices = 16;
 constexpr std::string_view kPermission = "hardware";
-constexpr std::array<std::string_view, 2> kCalls{"hardware.list", "hardware.input"};
-constexpr std::array<std::string_view, 6> kRequests{"hardware.request", "hardware.open",  "hardware.write",
-                                                    "hardware.control", "hardware.close", "hardware.forget"};
+constexpr std::array<std::string_view, 3> kCalls{"hardware.list", "hardware.input", "hardware.release"};
+constexpr std::array<std::string_view, 7> kRequests{"hardware.request", "hardware.open",   "hardware.write",
+                                                    "hardware.control", "hardware.close",  "hardware.forget",
+                                                    "hardware.claim"};
 
 QString fromView(std::string_view value)
 {
     return QString::fromUtf8(value.data(), static_cast<qsizetype>(value.size()));
+}
+
+std::string logicHolder(std::uint64_t logic)
+{
+    return "logic:" + std::to_string(logic);
+}
+
+std::string resourceOf(const hardware::DeviceInfo& device)
+{
+    constexpr std::string_view kPortPrefix = "\\\\.\\";
+    std::string resource;
+    if (device.kind == hardware::Kind::Serial) {
+        const std::string_view path(device.path);
+        resource = "serial:" + std::string(path.starts_with(kPortPrefix) ? path.substr(kPortPrefix.size()) : path);
+    } else if (device.kind == hardware::Kind::Ble) {
+        resource = "ble:" + device.path;
+    } else {
+        resource = device.id;
+    }
+    return exthost::validResource(resource) ? resource : std::string();
 }
 
 QString compactJson(const QJsonDocument& document)
@@ -90,6 +112,12 @@ QString notOpen()
 QString invalidWith(const QString& what)
 {
     return QStringLiteral("GS-API-085 ") + what;
+}
+
+QString badResource()
+{
+    return invalidWith(QStringLiteral("the resource names hardware as serial:COM9, ble:AA:BB:CC:DD:EE:FF, hid: and the "
+                                      "device path, or usb:vid:pid:serial number"));
 }
 
 QString displayName(const hardware::DeviceInfo& device)
@@ -607,6 +635,16 @@ script::ServiceAnswer HardwareAccess::callWith(const std::shared_ptr<Shared>& sh
         shared->post([caller, name, act, value](HardwareAccess& self) { self.deliverInput(caller, name, act, value); });
         return {"null", {}, {}};
     }
+    if (service == "hardware.release") {
+        const std::string resource = body.value(u"resource").toString().toStdString();
+        if (!exthost::validResource(resource)) {
+            return refused(badResource());
+        }
+        if (HardwareClaims* claims = HardwareClaims::instance()) {
+            claims->release(resource, logicHolder(caller.logic));
+        }
+        return {"null", {}, {}};
+    }
     return {"null", "GS-API-070", "no part of GameScrcpy answers the service " + std::string(service) + " at once"};
 }
 
@@ -628,6 +666,8 @@ void HardwareAccess::request(const LogicCaller& caller, std::string_view service
         closeDevice(caller, id, json);
     } else if (service == "hardware.forget") {
         forgetDevice(caller, id, json);
+    } else if (service == "hardware.claim") {
+        claimHardware(caller, id, json);
     } else {
         refuse(caller.logic, id, QStringLiteral("GS-API-070 no part of GameScrcpy offers the service %1").arg(fromView(service)));
     }
@@ -672,6 +712,9 @@ void HardwareAccess::endLogic(std::uint64_t logic)
     }
     for (const QString& handle : closing) {
         closeHandle(handle, QStringLiteral("ended"), {}, false);
+    }
+    if (HardwareClaims* claims = HardwareClaims::instance()) {
+        claims->releaseAll(logicHolder(logic));
     }
     if (front) {
         showNextPick();
@@ -921,8 +964,23 @@ void HardwareAccess::opened(const QString& handle, std::shared_ptr<hardware::Ope
         refuse(opening.logic, opening.request, stillGranted ? noPermission() : notGranted());
         return;
     }
-    m_handles.insert_or_assign(
-        handle, Handle{opening.logic, opening.owner, opening.device, std::move(result->device), {}});
+    std::string claimed;
+    if (HardwareClaims* claims = HardwareClaims::instance()) {
+        const std::string resource = resourceOf(opening.device);
+        const std::string holder = logicHolder(opening.logic);
+        if (!resource.empty() && !claims->holds(resource, holder)) {
+            if (claims->claim(resource, ClaimHolder{holder, claimerName(opening.owner), {}}, false) !=
+                exthost::ClaimResult::Claimed) {
+                refuse(opening.logic, opening.request,
+                       failedWith(displayName(opening.device).toStdString() + " is in use by " +
+                                  claims->holderName(resource).toStdString()));
+                return;
+            }
+            claimed = resource;
+        }
+    }
+    m_handles.insert_or_assign(handle, Handle{opening.logic, opening.owner, opening.device, std::move(result->device),
+                                              {}, std::move(claimed)});
     QJsonObject made = grantJson({opening.device.id, opening.device.kind, displayName(opening.device).toStdString()});
     made.insert(QStringLiteral("handle"), handle);
     answer(opening.logic, opening.request, compactJson(QJsonDocument(made)));
@@ -1025,6 +1083,11 @@ void HardwareAccess::closeHandle(const QString& handle, const QString& reason, c
         tell(open.logic, handle, compactJson(QJsonDocument(event)));
     }
     open.link.reset();
+    if (!open.claimed.empty()) {
+        if (HardwareClaims* claims = HardwareClaims::instance()) {
+            claims->release(open.claimed, logicHolder(open.logic));
+        }
+    }
 }
 
 void HardwareAccess::showNextPick()
@@ -1220,6 +1283,14 @@ void HardwareAccess::openDevice(const LogicCaller& caller, quint64 id, const QSt
     if (std::ranges::any_of(m_handles, busy) || std::ranges::any_of(m_openings, busy)) {
         refuse(caller.logic, id, failedWith(grant->name + " is already open"));
         return;
+    }
+    if (const HardwareClaims* claims = HardwareClaims::instance()) {
+        const std::string resource = resourceOf(info);
+        const QString holder = resource.empty() ? QString() : claims->holderName(resource);
+        if (!holder.isEmpty() && !claims->holds(resource, logicHolder(caller.logic))) {
+            refuse(caller.logic, id, failedWith(grant->name + " is in use by " + holder.toStdString()));
+            return;
+        }
     }
     const auto ofLogic = [&caller](const auto& entry) { return entry.second.logic == caller.logic; };
     if (static_cast<std::size_t>(std::ranges::count_if(m_handles, ofLogic) + std::ranges::count_if(m_openings, ofLogic)) >=
@@ -1442,6 +1513,60 @@ QString HardwareAccess::requesterOf(const LogicCaller& caller) const
     }
     const auto found = m_extensionNames.find(caller.extension);
     return found != m_extensionNames.end() && !found->second.isEmpty() ? found->second : caller.extension;
+}
+
+QString HardwareAccess::claimerName(const QString& owner) const
+{
+    if (owner.isEmpty() || owner == fromView(kOwnLogic)) {
+        return tr("your logic");
+    }
+    const auto found = m_extensionNames.find(owner);
+    return found != m_extensionNames.end() && !found->second.isEmpty() ? found->second : owner;
+}
+
+void HardwareAccess::claimHardware(const LogicCaller& caller, quint64 id, const QString& json)
+{
+    const QJsonObject body = objectOf(json.toUtf8());
+    const std::string resource = body.value(u"resource").toString().toStdString();
+    if (!exthost::validResource(resource)) {
+        refuse(caller.logic, id, badResource());
+        return;
+    }
+    HardwareClaims* claims = HardwareClaims::instance();
+    if (claims == nullptr) {
+        answer(caller.logic, id, QStringLiteral("false"));
+        return;
+    }
+    ClaimHolder holder{logicHolder(caller.logic), claimerName(ownerOf(caller)), {}};
+    if (body.value(u"yields").toBool()) {
+        holder.wanted = [shared = m_shared, logic = caller.logic](const std::string& held, const QString& by) {
+            shared->post([logic, held = QString::fromStdString(held), by](HardwareAccess& self) {
+                self.tell(logic, QString(),
+                          compactJson(QJsonDocument(QJsonObject{{QStringLiteral("type"), QStringLiteral("claimWanted")},
+                                                                {QStringLiteral("resource"), held},
+                                                                {QStringLiteral("by"), by}})));
+            });
+            return true;
+        };
+    }
+    if (!body.value(u"wait").toBool()) {
+        const bool claimed = claims->claim(resource, holder, false) == exthost::ClaimResult::Claimed;
+        answer(caller.logic, id, claimed ? QStringLiteral("true") : QStringLiteral("false"));
+        return;
+    }
+    claims->claimLater(resource, std::move(holder),
+                       [shared = m_shared, logic = caller.logic, id, resource](exthost::ClaimResult result) {
+                           const bool claimed = result == exthost::ClaimResult::Claimed;
+                           shared->post([logic, id, resource, claimed](HardwareAccess& self) {
+                               if (claimed && self.m_endedLogic.contains(logic)) {
+                                   if (HardwareClaims* held = HardwareClaims::instance()) {
+                                       held->release(resource, logicHolder(logic));
+                                   }
+                                   return;
+                               }
+                               self.answer(logic, id, claimed ? QStringLiteral("true") : QStringLiteral("false"));
+                           });
+                       });
 }
 
 }

@@ -2325,6 +2325,22 @@ inline constexpr std::array<std::string_view, 14> kPreludeParts{
         }
     };
     const hardwareDevices = new Map();
+    const hardwareClaims = new Map();
+    const hardwareResourceOf = (value) => {
+        if (typeof value !== "string" || value.length > 260 || !/^(serial|ble|hid|usb):[^\u0000-\u001f]+$/i.test(value)) {
+            throw new TypeError("GS-API-085 the resource names hardware as serial:COM9, ble:AA:BB:CC:DD:EE:FF, " +
+                "hid: and the device path, or usb:vid:pid:serial number");
+        }
+        return value;
+    };
+    const releaseClaim = (name) => {
+        const entry = hardwareClaims.get(name);
+        if (entry?.listener) {
+            entry.listener.active = false;
+        }
+        hardwareClaims.delete(name);
+        hardwareCall("hardware.release", { resource: name });
+    };
     const deviceStates = new WeakMap();
     const deviceState = (device) => {
         const state = deviceStates.get(device);
@@ -2529,6 +2545,13 @@ inline constexpr std::array<std::string_view, 14> kPreludeParts{
         freeze(kind.prototype);
     }
     serviceEvents.set("hardware", (handle, value) => {
+        if (value?.type === "claimWanted") {
+            const entry = hardwareClaims.get(String(value.resource ?? ""));
+            if (entry?.listener) {
+                react(entry.listener, { by: String(value.by ?? "") });
+            }
+            return;
+        }
         const state = hardwareDevices.get(handle);
         if (state === undefined || value === null || typeof value !== "object") {
             return;
@@ -2634,6 +2657,44 @@ inline constexpr std::array<std::string_view, 14> kPreludeParts{
         },
         "hardware.forget": function forget(id) {
             return hardwareRequest("hardware.forget", { id: hardwareText(id, "the device id") }).then(() => undefined);
+        },
+        "hardware.claim": function claim(resource, options) {
+            const name = hardwareResourceOf(resource);
+            if (options !== undefined && options !== null && typeof options !== "object") {
+                throw new TypeError("GS-API-085 the options must be an object");
+            }
+            const onWanted = options?.onWanted;
+            if (onWanted !== undefined && typeof onWanted !== "function") {
+                throw new TypeError("GS-API-008 the handler must be a function");
+            }
+            return hardwareRequest("hardware.claim", { resource: name, wait: options?.wait === true,
+                yields: onWanted !== undefined }).then((claimed) => {
+                if (claimed !== true) {
+                    return false;
+                }
+                const entry = { listener: null };
+                if (onWanted !== undefined) {
+                    entry.listener = makeListener(async ({ by }) => {
+                        if ((await onWanted(by)) === true && hardwareClaims.get(name) === entry) {
+                            releaseClaim(name);
+                        }
+                    }, { again: "ignore" }, "hardware.claim");
+                }
+                const previous = hardwareClaims.get(name);
+                if (previous?.listener) {
+                    previous.listener.active = false;
+                }
+                hardwareClaims.set(name, entry);
+                own(() => {
+                    if (hardwareClaims.get(name) === entry) {
+                        releaseClaim(name);
+                    }
+                });
+                return true;
+            });
+        },
+        "hardware.release": function release(resource) {
+            releaseClaim(hardwareResourceOf(resource));
         },
         "input.source": function source(name) {
             if (typeof name !== "string" || !/^[a-z0-9-]{1,32}$/.test(name)) {

@@ -20,6 +20,7 @@ struct ProvidedDevice {
     QString icon;
     QString iconPath;
     std::string touchMethod;
+    std::string resource;
     bool capture = false;
     QVariantList actions;
 

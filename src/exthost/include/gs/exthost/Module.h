@@ -29,6 +29,13 @@ inline constexpr std::array<std::string_view, 8> kValueTypeNames{"boolean", "num
 [[nodiscard]] bool validColor(std::string_view text) noexcept;
 [[nodiscard]] bool validUtf8(std::string_view text) noexcept;
 
+inline constexpr std::size_t kMostResourceBytes = 260;
+inline constexpr std::size_t kMostClaimerBytes = 512;
+
+enum class ClaimResult : std::int32_t { Claimed = 0, Unsupported = 2, BadArgument = 4, Busy = 5 };
+
+[[nodiscard]] bool validResource(std::string_view resource) noexcept;
+
 struct Value {
     ValueType type = ValueType::None;
     bool flag = false;
@@ -254,6 +261,8 @@ public:
     [[nodiscard]] virtual bool notify(std::string_view title, std::string_view text) = 0;
     virtual void emitted(std::string_view, std::string_view) {}
     virtual void devicesChanged(std::string_view) {}
+    [[nodiscard]] virtual ClaimResult claim(std::string_view, bool) { return ClaimResult::Unsupported; }
+    virtual void release(std::string_view) {}
 };
 
 class Module
@@ -285,6 +294,7 @@ public:
     virtual void setSettings(std::string_view) {}
     [[nodiscard]] virtual CallResult listDevices(std::size_t) { return {}; }
     [[nodiscard]] virtual CallResult actOnDevice(std::size_t, std::string_view, std::string_view) { return {}; }
+    [[nodiscard]] virtual bool claimWanted(std::string_view, std::string_view) { return false; }
 };
 
 }

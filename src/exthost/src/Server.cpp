@@ -5,12 +5,14 @@
 
 #include "gs/exthost/InProcess.h"
 
+#include <chrono>
 #include <condition_variable>
 #include <cstdlib>
 #include <deque>
 #include <filesystem>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -22,6 +24,8 @@ namespace gs::exthost {
 namespace {
 
 constexpr DWORD kStartWaitMs = 10'000;
+constexpr auto kClaimAnswerWait = std::chrono::seconds(2);
+constexpr auto kClaimWaitedWait = std::chrono::seconds(6);
 constexpr std::size_t kMostPathBytes = 4096;
 constexpr std::size_t kMostPermissionBytes = 64;
 enum Exit : int { kDone = 0, kUsage = 2, kBroken = 3, kNoStart = 4, kNotLoaded = 5 };
@@ -34,9 +38,90 @@ std::filesystem::path pathOf(const std::string& text)
 class Link final : public HostServices
 {
 public:
-    explicit Link(detail::Channel& channel) noexcept
+    Link(detail::Channel& channel, HANDLE parent) noexcept
         : m_channel(channel)
+        , m_parent(parent)
+        , m_main(std::this_thread::get_id())
     {
+    }
+
+    ClaimResult claim(std::string_view resource, bool wait) override
+    {
+        detail::WireWriter out;
+        out.text(resource);
+        out.u32(wait ? 1U : 0U);
+        std::uint64_t id = 0;
+        {
+            const std::scoped_lock lock(m_claimMutex);
+            if (m_closed) {
+                return ClaimResult::Busy;
+            }
+            id = ++m_lastClaim;
+            m_answers.emplace(id, std::nullopt);
+        }
+        send(detail::Kind::Claim, id, out.bytes());
+        const auto deadline = std::chrono::steady_clock::now() + (wait ? kClaimWaitedWait : kClaimAnswerWait);
+        if (std::this_thread::get_id() == m_main) {
+            pump(id, deadline);
+        }
+        std::unique_lock lock(m_claimMutex);
+        m_answered.wait_until(lock, deadline, [this, id] { return m_closed || m_answers[id].has_value(); });
+        const std::optional<ClaimResult> result = m_answers[id];
+        m_answers.erase(id);
+        lock.unlock();
+        if (!result) {
+            release(resource);
+            return ClaimResult::Busy;
+        }
+        return *result;
+    }
+
+    void release(std::string_view resource) override
+    {
+        detail::WireWriter out;
+        out.text(resource);
+        send(detail::Kind::Release, 0, out.bytes());
+    }
+
+    void answered(const detail::Message& message)
+    {
+        detail::WireReader in(message.payload);
+        std::uint32_t status = 0;
+        ClaimResult result = ClaimResult::Busy;
+        if (in.u32(status) && in.done() &&
+            (status == static_cast<std::uint32_t>(ClaimResult::Claimed) ||
+             status == static_cast<std::uint32_t>(ClaimResult::Unsupported) ||
+             status == static_cast<std::uint32_t>(ClaimResult::BadArgument))) {
+            result = static_cast<ClaimResult>(status);
+        }
+        {
+            const std::scoped_lock lock(m_claimMutex);
+            const auto found = m_answers.find(message.id);
+            if (found == m_answers.end()) {
+                return;
+            }
+            found->second = result;
+        }
+        m_answered.notify_all();
+    }
+
+    [[nodiscard]] std::optional<detail::Message> deferred()
+    {
+        if (m_deferred.empty()) {
+            return std::nullopt;
+        }
+        detail::Message message = std::move(m_deferred.front());
+        m_deferred.pop_front();
+        return message;
+    }
+
+    void close()
+    {
+        {
+            const std::scoped_lock lock(m_claimMutex);
+            m_closed = true;
+        }
+        m_answered.notify_all();
     }
 
     void send(detail::Kind kind, std::uint64_t id, std::string_view payload)
@@ -80,8 +165,53 @@ public:
     }
 
 private:
+    void pump(std::uint64_t id, std::chrono::steady_clock::time_point deadline)
+    {
+        for (;;) {
+            {
+                const std::scoped_lock lock(m_claimMutex);
+                if (m_closed || m_answers[id].has_value()) {
+                    return;
+                }
+            }
+            detail::Message message;
+            const detail::ReadResult read = m_channel.toHost().read(message);
+            if (read == detail::ReadResult::Broken) {
+                close();
+                return;
+            }
+            if (read == detail::ReadResult::Read) {
+                if (message.kind == detail::Kind::ClaimAnswer) {
+                    answered(message);
+                } else {
+                    m_deferred.push_back(std::move(message));
+                }
+                continue;
+            }
+            const auto left = std::chrono::ceil<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now());
+            if (left.count() <= 0) {
+                return;
+            }
+            const HANDLE waits[] = {m_channel.toHostEvent(), m_parent};
+            const DWORD waited =
+                WaitForMultipleObjects(m_parent != nullptr ? 2 : 1, waits, FALSE, static_cast<DWORD>(left.count()));
+            if (waited != WAIT_OBJECT_0 && waited != WAIT_TIMEOUT) {
+                close();
+                return;
+            }
+        }
+    }
+
     detail::Channel& m_channel;
+    HANDLE m_parent = nullptr;
+    std::thread::id m_main;
     std::mutex m_mutex;
+    std::mutex m_claimMutex;
+    std::condition_variable m_answered;
+    std::map<std::uint64_t, std::optional<ClaimResult>> m_answers;
+    std::uint64_t m_lastClaim = 0;
+    bool m_closed = false;
+    std::deque<detail::Message> m_deferred;
 };
 
 class Worker
@@ -137,6 +267,16 @@ private:
     {
         if (message.kind == detail::Kind::DeviceList || message.kind == detail::Kind::DeviceAct) {
             reply(message.id, provided(message));
+            return;
+        }
+        if (message.kind == detail::Kind::ClaimWanted) {
+            detail::WireReader in(message.payload);
+            std::string resource;
+            std::string by;
+            const bool yields = in.text(resource, kMostResourceBytes) && in.text(by, kMostClaimerBytes) &&
+                                in.done() && m_module.claimWanted(resource, by);
+            reply(message.id, yields ? CallResult{CallStatus::Ok, {}, {}}
+                                     : CallResult{CallStatus::Unavailable, {}, "the extension keeps the hardware"});
             return;
         }
         detail::WireReader in(message.payload);
@@ -523,7 +663,7 @@ int serve(int argc, wchar_t** argv)
     if (!start) {
         return kBroken;
     }
-    Link link(*channel);
+    Link link(*channel, parent);
     std::string problem;
     std::unique_ptr<InProcessModule> module = InProcessModule::load({.dll = pathOf(start->dll),
                                                                      .store = pathOf(start->store),
@@ -546,24 +686,33 @@ int serve(int argc, wchar_t** argv)
     int status = kDone;
     {
         Worker worker(*module, link);
+        Worker claims(*module, link);
         std::map<std::uint64_t, std::uint64_t> sessions;
         std::map<std::uint64_t, std::uint64_t> instances;
         bool running = true;
         while (running) {
             detail::Message message;
-            const detail::ReadResult read = channel->toHost().read(message);
-            if (read == detail::ReadResult::Broken) {
-                status = kBroken;
-                break;
+            if (std::optional<detail::Message> held = link.deferred()) {
+                message = std::move(*held);
+            } else {
+                const detail::ReadResult read = channel->toHost().read(message);
+                if (read == detail::ReadResult::Broken) {
+                    status = kBroken;
+                    break;
+                }
+                if (read == detail::ReadResult::Empty) {
+                    const HANDLE waits[] = {channel->toHostEvent(), parent};
+                    const DWORD waited = WaitForMultipleObjects(parent != nullptr ? 2 : 1, waits, FALSE, INFINITE);
+                    running = waited == WAIT_OBJECT_0;
+                    continue;
+                }
             }
-            if (read == detail::ReadResult::Empty) {
-                const HANDLE waits[] = {channel->toHostEvent(), parent};
-                const DWORD waited = WaitForMultipleObjects(parent != nullptr ? 2 : 1, waits, FALSE, INFINITE);
-                running = waited == WAIT_OBJECT_0;
-                continue;
-            }
-            if (message.kind == detail::Kind::Call || message.kind == detail::Kind::DeviceList ||
-                message.kind == detail::Kind::DeviceAct) {
+            if (message.kind == detail::Kind::ClaimAnswer) {
+                link.answered(message);
+            } else if (message.kind == detail::Kind::ClaimWanted) {
+                claims.push(std::move(message));
+            } else if (message.kind == detail::Kind::Call || message.kind == detail::Kind::DeviceList ||
+                       message.kind == detail::Kind::DeviceAct) {
                 worker.push(std::move(message));
             } else if (message.kind == detail::Kind::Stop) {
                 running = false;
@@ -579,6 +728,7 @@ int serve(int argc, wchar_t** argv)
                 touched(*module, link, sessions, message);
             }
         }
+        link.close();
         for (const auto& [id, session] : sessions) {
             module->closeTouch(session);
         }

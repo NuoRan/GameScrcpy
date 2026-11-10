@@ -1,4 +1,5 @@
 #include "HardwareAccess.h"
+#include "HardwareClaims.h"
 
 #include <gs/hardware/FakeBackend.h>
 #include <gs/input/InputSource.h>
@@ -13,11 +14,15 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -85,6 +90,19 @@ hardware::DeviceInfo belt()
 QString text(const char* json)
 {
     return QString::fromUtf8(json);
+}
+
+bool pumpUntil(const std::function<bool()>& done)
+{
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    while (!done()) {
+        if (std::chrono::steady_clock::now() > deadline) {
+            return false;
+        }
+        QCoreApplication::processEvents();
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    return true;
 }
 
 struct Told {
@@ -440,4 +458,100 @@ TEST_CASE("SCR-026: Bluetooth is looked for only while a Bluetooth request is sh
     fixture.access->request(kOwn, "hardware.request", 51, text(R"({"kind":"usb"})"));
     REQUIRE(fixture.refusals.size() == 1);
     CHECK(fixture.refusals[0].second.startsWith(QStringLiteral("GS-API-085 ")));
+}
+
+TEST_CASE("ADR-0112: a device a logic opens is claimed until it closes, and one that someone else holds does not open")
+{
+    gs::app::HardwareClaims claims;
+    Fixture fixture;
+    fixture.access->setExtensionNames({{QStringLiteral("com.example.deck"), QStringLiteral("Deck")}});
+    const gs::app::ClaimHolder box{"native:box#1", QStringLiteral("Box"), {}};
+    fixture.grant(kDeck, 1, R"({"kind":"serial"})", {QStringLiteral("serial:board")});
+    REQUIRE(claims.claim("serial:com7", box, false) == gs::exthost::ClaimResult::Claimed);
+    fixture.access->request(kDeck, "hardware.open", 2, text(R"({"id":"serial:board"})"));
+    Fixture::settle();
+    REQUIRE_FALSE(fixture.refusals.empty());
+    CHECK(fixture.refusals.back().first == 2);
+    CHECK(fixture.refusals.back().second == QStringLiteral("GS-API-083 Board is in use by Box"));
+    CHECK(fixture.access->openCount() == 0);
+    claims.releaseAll("native:box#1");
+
+    static_cast<void>(fixture.open(kDeck, 3, R"({"id":"serial:board"})"));
+    CHECK(claims.holderName("serial:COM7") == "Deck");
+    CHECK(claims.claim("serial:COM7", box, false) == gs::exthost::ClaimResult::Busy);
+    fixture.access->request(kDeck, "hardware.close", 4, text(R"({"handle":"d1"})"));
+    Fixture::settle();
+    CHECK(claims.holderName("serial:COM7").isEmpty());
+
+    fixture.access->request(kDeck, "hardware.open", 5, text(R"({"id":"serial:board"})"));
+    REQUIRE(claims.claim("serial:COM7", box, false) == gs::exthost::ClaimResult::Claimed);
+    Fixture::settle();
+    CHECK(fixture.refusals.back().first == 5);
+    CHECK(fixture.refusals.back().second == QStringLiteral("GS-API-083 Board is in use by Box"));
+    CHECK(fixture.access->openCount() == 0);
+    CHECK(claims.holderName("serial:COM7") == "Box");
+}
+
+TEST_CASE("ADR-0112: a logic claims hardware by name, lets it go when asked if it offered to, and lets go of all of "
+          "it when it ends")
+{
+    gs::app::HardwareClaims claims;
+    Fixture fixture;
+    const auto answered = [&fixture](quint64 request) {
+        return std::ranges::any_of(fixture.answers, [request](const auto& entry) { return entry.first == request; });
+    };
+    const auto answerOf = [&fixture](quint64 request) {
+        for (const auto& [id, json] : fixture.answers) {
+            if (id == request) {
+                return json;
+            }
+        }
+        return QString();
+    };
+    fixture.access->request(kOwn, "hardware.claim", 1, text(R"({"resource":"serial:COM9"})"));
+    CHECK(answerOf(1) == QStringLiteral("true"));
+    CHECK(claims.holderName("serial:COM9") == "your logic");
+    fixture.access->request(kDeck, "hardware.claim", 2, text(R"({"resource":"SERIAL:com9"})"));
+    CHECK(answerOf(2) == QStringLiteral("false"));
+    fixture.access->request(kDeck, "hardware.claim", 3, text(R"({"resource":"COM9"})"));
+    REQUIRE_FALSE(fixture.refusals.empty());
+    CHECK(fixture.refusals.back().first == 3);
+    CHECK(fixture.refusals.back().second.startsWith(QStringLiteral("GS-API-085 ")));
+    fixture.access->request(kOther, "hardware.claim", 4, text(R"({"resource":"serial:COM3"})"));
+    CHECK(fixture.refusals.back().first == 4);
+    CHECK(fixture.refusals.back().second.startsWith(QStringLiteral("GS-API-080 ")));
+    CHECK(fixture.access->call(kDeck, "hardware.release", R"({"resource":"serial:COM9"})").code.empty());
+    CHECK(claims.holderName("serial:COM9") == "your logic");
+    CHECK(fixture.access->call(kDeck, "hardware.release", R"({"resource":"COM9"})").code == "GS-API-085");
+    CHECK(fixture.access->call(kOther, "hardware.release", R"({"resource":"serial:COM9"})").code == "GS-API-080");
+    CHECK(fixture.access->call(kOwn, "hardware.release", R"({"resource":"serial:com9"})").code.empty());
+    CHECK(claims.holderName("serial:COM9").isEmpty());
+
+    fixture.access->request(kOwn, "hardware.claim", 5, text(R"({"resource":"serial:COM9","yields":true})"));
+    CHECK(answerOf(5) == QStringLiteral("true"));
+    gs::exthost::ClaimResult waited = gs::exthost::ClaimResult::Unsupported;
+    std::thread box([&claims, &waited] {
+        waited = claims.claim("serial:com9", gs::app::ClaimHolder{"native:box#1", QStringLiteral("Box"), {}}, true);
+    });
+    const bool told = pumpUntil([&fixture] {
+        return std::ranges::any_of(fixture.told, [](const Told& each) {
+            return each.kind == QStringLiteral("hardware") && each.id.isEmpty() &&
+                   each.json == QStringLiteral(R"({"by":"Box","resource":"serial:COM9","type":"claimWanted"})");
+        });
+    });
+    CHECK(fixture.access->call(kOwn, "hardware.release", R"({"resource":"serial:COM9"})").code.empty());
+    box.join();
+    REQUIRE(told);
+    CHECK(waited == gs::exthost::ClaimResult::Claimed);
+    CHECK(claims.holderName("serial:COM9") == "Box");
+
+    fixture.access->request(kDeck, "hardware.claim", 6, text(R"({"resource":"serial:COM9","wait":true})"));
+    REQUIRE(pumpUntil([&] { return answered(6); }));
+    CHECK(answerOf(6) == QStringLiteral("false"));
+
+    fixture.access->request(kOwn, "hardware.claim", 7, text(R"({"resource":"serial:COM3"})"));
+    CHECK(answerOf(7) == QStringLiteral("true"));
+    fixture.access->endLogic(kOwn.logic);
+    CHECK(claims.holderName("serial:COM3").isEmpty());
+    CHECK(claims.holderName("serial:COM9") == "Box");
 }

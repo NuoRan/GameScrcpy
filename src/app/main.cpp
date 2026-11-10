@@ -17,6 +17,7 @@
 #include "ExtensionPanels.h"
 #include "GridWindow.h"
 #include "HardwareAccess.h"
+#include "HardwareClaims.h"
 #include "HelpLibrary.h"
 #include "InputReadGrants.h"
 #include "JsSequence.h"
@@ -390,6 +391,7 @@ int main(int argc, char* argv[])
         settings.countLaunch();
     }
     gs::app::CrashReport crashes(settings, data / "crashes");
+    gs::app::HardwareClaims hardwareClaims;
     gs::app::ComponentDefaults componentDefaults(data / "component-defaults.json");
     QTranslator translator;
     loadTranslation(translator, settings.interfaceLanguage());

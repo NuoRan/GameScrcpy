@@ -132,6 +132,7 @@ private:
         hardware::DeviceInfo device;
         std::unique_ptr<hardware::Device> link;
         std::set<quint64> waiting;
+        std::string claimed;
     };
 
     struct HeldInput {
@@ -165,6 +166,8 @@ private:
     void controlDevice(const LogicCaller& caller, quint64 id, const QString& json);
     void closeDevice(const LogicCaller& caller, quint64 id, const QString& json);
     void forgetDevice(const LogicCaller& caller, quint64 id, const QString& json);
+    void claimHardware(const LogicCaller& caller, quint64 id, const QString& json);
+    [[nodiscard]] QString claimerName(const QString& owner) const;
 
     [[nodiscard]] Handle* handleOf(std::uint64_t logic, const QString& handle);
     [[nodiscard]] hardware::Completion completion(const QString& handle, quint64 request) const;

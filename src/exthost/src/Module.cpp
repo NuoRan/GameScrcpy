@@ -38,6 +38,21 @@ bool validTopic(std::string_view topic) noexcept
            });
 }
 
+bool validResource(std::string_view resource) noexcept
+{
+    constexpr std::array<std::string_view, 4> kKinds{"serial:", "ble:", "hid:", "usb:"};
+    if (resource.size() > kMostResourceBytes || !validUtf8(resource) ||
+        std::ranges::any_of(resource, [](char c) { return static_cast<unsigned char>(c) < 0x20; })) {
+        return false;
+    }
+    return std::ranges::any_of(kKinds, [resource](std::string_view kind) {
+        return resource.size() > kind.size() &&
+               std::ranges::equal(resource.substr(0, kind.size()), kind, [](char given, char wanted) {
+                   return (given >= 'A' && given <= 'Z' ? static_cast<char>(given - 'A' + 'a') : given) == wanted;
+               });
+    });
+}
+
 bool validUtf8(std::string_view text) noexcept
 {
     std::size_t at = 0;

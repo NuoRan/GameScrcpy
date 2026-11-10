@@ -272,6 +272,8 @@ qt_add_qml_module(GameScrcpy
         GridWindow.h
         HardwareAccess.cpp
         HardwareAccess.h
+        HardwareClaims.cpp
+        HardwareClaims.h
         HelpLibrary.cpp
         HelpLibrary.h
         HelpMarkdown.cpp

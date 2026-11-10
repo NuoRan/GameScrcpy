@@ -426,6 +426,7 @@ if(GS_BUILD_APP)
             unit/app/GamepadPassthroughTests.cpp
             unit/app/GridTests.cpp
             unit/app/HardwareAccessTests.cpp
+            unit/app/HardwareClaimsTests.cpp
             unit/app/HelpLibraryTests.cpp
             unit/app/HelpMarkdownTests.cpp
             unit/app/HidReports.h
@@ -603,6 +604,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/GridLayout.h"
             "${PROJECT_SOURCE_DIR}/src/app/HardwareAccess.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/HardwareAccess.h"
+            "${PROJECT_SOURCE_DIR}/src/app/HardwareClaims.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/HardwareClaims.h"
             "${PROJECT_SOURCE_DIR}/src/app/HelpLibrary.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/HelpLibrary.h"
             "${PROJECT_SOURCE_DIR}/src/app/HelpMarkdown.cpp"

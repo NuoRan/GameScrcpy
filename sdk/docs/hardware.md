@@ -92,3 +92,50 @@ Errors:
 ```ts
 await hardware.forget(device.id);
 ```
+
+## hardware.claim(resource, options?)
+
+Tells other extensions and GameScrcpy's own sessions that this logic is using the hardware, so that they leave it alone. Resolves with false when someone else holds it. Devices opened with hardware.open() are claimed while they are open. A claim made in a task ends with the task, one made at the top level when the logic stops.
+
+```ts
+hardware.claim(resource: string, options?: HardwareClaimOptions): Promise<boolean>
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `resource` | `string` | The hardware: serial:COM9, ble:AA:BB:CC:DD:EE:FF, hid: and the device path, or usb:vid:pid:serial number in hexadecimal, such as usb:2341:0043:A1B2. |
+| `options` (optional) | `HardwareClaimOptions` | Whether to wait for whoever holds it, and how to let it go to others. |
+
+Returns `Promise<boolean>`. stable since API 1.
+
+Errors:
+
+- `GS-API-085` when the resource does not name hardware, or the options are not an object. Name it as serial:, ble:, hid: or usb: and the rest, as the resource parameter describes.
+- `GS-API-080` when the logic belongs to an extension whose manifest does not ask for the permission hardware. Add "hardware" to the permissions in the extension's manifest.
+
+```ts
+if (await hardware.claim("serial:COM9", { onWanted: () => true })) log.info("the board is ours");
+```
+
+## hardware.release(resource)
+
+Lets go of hardware claimed with hardware.claim().
+
+```ts
+hardware.release(resource: string): void
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `resource` | `string` | The hardware, named as for hardware.claim(). |
+
+Returns `void`. stable since API 1.
+
+Errors:
+
+- `GS-API-085` when the resource does not name hardware, or the options are not an object. Name it as serial:, ble:, hid: or usb: and the rest, as the resource parameter describes.
+- `GS-API-080` when the logic belongs to an extension whose manifest does not ask for the permission hardware. Add "hardware" to the permissions in the extension's manifest.
+
+```ts
+hardware.release("serial:COM9");
+```

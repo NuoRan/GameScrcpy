@@ -2,6 +2,7 @@
 #include "ExtensionHost.h"
 #include "ExtensionModules.h"
 #include "ExtensionTouchSink.h"
+#include "HardwareClaims.h"
 #include "NativeEvents.h"
 #include "NativeExtensions.h"
 #include "NativeJobs.h"
@@ -932,6 +933,206 @@ TEST_CASE("ADR-0112: the registry lists the devices of an extension allowed to a
 
     setBoxes("[]");
     CHECK(registry.providedDevices().empty());
+}
+
+TEST_CASE("ADR-0112: a DLL claims hardware, lets it go and is asked for it, in GameScrcpy and in gs-exthost.exe")
+{
+    struct Claims final : exthost::HostServices {
+        std::mutex mutex;
+        std::vector<std::string> said;
+        exthost::ClaimResult answer = exthost::ClaimResult::Claimed;
+
+        void log(int, std::string_view) override {}
+        bool notify(std::string_view, std::string_view) override { return false; }
+        exthost::ClaimResult claim(std::string_view resource, bool wait) override
+        {
+            const std::scoped_lock lock(mutex);
+            said.push_back((wait ? "wait " : "claim ") + std::string(resource));
+            return answer;
+        }
+        void release(std::string_view resource) override
+        {
+            const std::scoped_lock lock(mutex);
+            said.push_back("release " + std::string(resource));
+        }
+        void answerWith(exthost::ClaimResult next)
+        {
+            const std::scoped_lock lock(mutex);
+            answer = next;
+        }
+        std::vector<std::string> seen()
+        {
+            const std::scoped_lock lock(mutex);
+            return said;
+        }
+    };
+    const auto text = [](std::string value) { return textValue(exthost::ValueType::String, std::move(value)); };
+    const auto flag = [](bool on) {
+        exthost::Value made;
+        made.type = exthost::ValueType::Boolean;
+        made.flag = on;
+        return made;
+    };
+    const auto touches = [](exthost::Module& module) {
+        const exthost::CallResult seen = callNode(module, "touches");
+        REQUIRE_MESSAGE(seen.ok(), seen.problem);
+        return nlohmann::json::parse(seen.value.text)["seen"];
+    };
+    Scratch scratch;
+    std::string problem;
+    Claims inside;
+    const std::unique_ptr<exthost::InProcessModule> loaded = exthost::InProcessModule::load(
+        {.dll = kTestDll, .store = scratch / "inside.json", .granted = {}, .services = &inside}, problem);
+    REQUIRE_MESSAGE(loaded != nullptr, problem);
+    Claims outside;
+    std::atomic<int> lost{0};
+    exthost::HostedOptions options = hostedOptions(scratch);
+    options.claim = [&outside](const std::string& resource, bool wait,
+                               std::function<void(exthost::ClaimResult)> answer) {
+        answer(outside.claim(resource, wait));
+    };
+    options.release = [&outside](const std::string& resource) { outside.release(resource); };
+    options.touchLost = [&lost](std::uint64_t) { ++lost; };
+    const std::unique_ptr<exthost::HostedModule> hosted = exthost::HostedModule::start(std::move(options), problem);
+    REQUIRE_MESSAGE(hosted != nullptr, problem);
+    const std::array<std::pair<exthost::Module*, Claims*>, 2> modules{
+        {{loaded.get(), &inside}, {hosted.get(), &outside}}};
+    for (const auto& [module, claims] : modules) {
+        CAPTURE(module == loaded.get());
+        CHECK(callNode(*module, "supports", {text("claims")}).value.flag);
+        CHECK(callNode(*module, "claim", {text("serial:COM9"), flag(false)}).value.number == GS_EXT_OK);
+        claims->answerWith(exthost::ClaimResult::Busy);
+        CHECK(callNode(*module, "claim", {text("ble:AA:BB:CC:DD:EE:FF"), flag(true)}).value.number == GS_EXT_BUSY);
+        CHECK(callNode(*module, "claim", {text("COM9"), flag(false)}).value.number == GS_EXT_BAD_ARGUMENT);
+        CHECK(callNode(*module, "claim", {text("serial:COM\n9"), flag(false)}).value.number == GS_EXT_BAD_ARGUMENT);
+        CHECK(callNode(*module, "release", {text("serial:")}).value.number == GS_EXT_BAD_ARGUMENT);
+        CHECK(callNode(*module, "release", {text("serial:COM9")}).value.number == GS_EXT_OK);
+        REQUIRE(eventually([&] {
+            return claims->seen() ==
+                   std::vector<std::string>{"claim serial:COM9", "wait ble:AA:BB:CC:DD:EE:FF", "release serial:COM9"};
+        }));
+
+        static_cast<void>(touches(*module));
+        const std::uint64_t refused = module->openTouch(0, "phone-1", R"({"claim":"serial:COM7"})");
+        if (module == loaded.get()) {
+            CHECK(refused == 0);
+        } else {
+            REQUIRE(eventually([&] { return lost.load() == 1; }));
+        }
+        CHECK(touches(*module).empty());
+        claims->answerWith(exthost::ClaimResult::Claimed);
+        const std::uint64_t session = module->openTouch(0, "phone-1", R"({"claim":"serial:COM7"})");
+        REQUIRE(session != 0);
+        const nlohmann::json opened = touches(*module);
+        REQUIRE(opened.size() == 1);
+        CHECK(opened[0] == "open");
+        CHECK(claims->seen() == std::vector<std::string>{"claim serial:COM9", "wait ble:AA:BB:CC:DD:EE:FF",
+                                                          "release serial:COM9", "claim serial:COM7",
+                                                          "claim serial:COM7"});
+        module->closeTouch(session);
+
+        CHECK_FALSE(module->claimWanted("serial:COM7", "Someone"));
+        CHECK(callNode(*module, "lastWanted").value.text == "serial:COM7 by Someone");
+        REQUIRE(callNode(*module, "yieldClaims", {flag(true)}).ok());
+        CHECK(module->claimWanted("serial:COM7", "Someone else"));
+        REQUIRE(eventually([&] { return claims->seen().back() == "release serial:COM7"; }));
+        CHECK(callNode(*module, "lastWanted").value.text == "serial:COM7 by Someone else");
+        CHECK_FALSE(module->claimWanted("COM7", "Someone"));
+        REQUIRE(callNode(*module, "yieldClaims", {flag(false)}).ok());
+    }
+}
+
+TEST_CASE("ADR-0112: when gs-exthost.exe stops, GameScrcpy lets go of what its DLL claimed")
+{
+    Scratch scratch;
+    std::mutex mutex;
+    std::vector<std::string> released;
+    exthost::HostedOptions options = hostedOptions(scratch);
+    options.claim = [](const std::string&, bool, std::function<void(exthost::ClaimResult)> answer) {
+        answer(exthost::ClaimResult::Claimed);
+    };
+    options.release = [&mutex, &released](const std::string& resource) {
+        const std::scoped_lock lock(mutex);
+        released.push_back(resource);
+    };
+    const auto releasedSoFar = [&mutex, &released] {
+        const std::scoped_lock lock(mutex);
+        return released;
+    };
+    std::string problem;
+    const std::unique_ptr<exthost::HostedModule> hosted = exthost::HostedModule::start(std::move(options), problem);
+    REQUIRE_MESSAGE(hosted != nullptr, problem);
+    const auto text = [](std::string value) { return textValue(exthost::ValueType::String, std::move(value)); };
+    exthost::Value no;
+    no.type = exthost::ValueType::Boolean;
+    REQUIRE(callNode(*hosted, "claim", {text("serial:COM9"), no}).value.number == GS_EXT_OK);
+    REQUIRE(callNode(*hosted, "claim", {text("hid:pad"), no}).value.number == GS_EXT_OK);
+    REQUIRE(callNode(*hosted, "release", {text("hid:pad")}).value.number == GS_EXT_OK);
+    REQUIRE(eventually([&] { return releasedSoFar() == std::vector<std::string>{"hid:pad"}; }));
+    crashOnce(*hosted, 1);
+    REQUIRE(eventually([&] { return releasedSoFar() == std::vector<std::string>{"hid:pad", "serial:COM9"}; }));
+}
+
+TEST_CASE("ADR-0112: two extensions share hardware through GameScrcpy: one waits for it and the other lets it go")
+{
+    ApplicationScope application;
+    app::HardwareClaims claims;
+    Scratch scratch;
+    const fs::path insideFolder = scratch / "gstest.inside/1.0.0";
+    const fs::path outsideFolder = scratch / "gstest.outside/1.0.0";
+    for (const fs::path& folder : {insideFolder, outsideFolder}) {
+        fs::create_directories(folder);
+        fs::copy_file(kTestDll, folder / "native.dll");
+    }
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    const auto declared = [](app::NativeWanted wanted, const char* id, const char* name, bool official) {
+        wanted.id = id;
+        wanted.name = QString::fromUtf8(name);
+        wanted.official = official;
+        wanted.native.nodes = {{.name = "claim",
+                                .params = {{"resource", "string"}, {"wait", "boolean"}},
+                                .returns = "number",
+                                .description = {},
+                                .permissions = {}},
+                               {.name = "yieldClaims",
+                                .params = {{"on", "boolean"}},
+                                .returns = "boolean",
+                                .description = {},
+                                .permissions = {}},
+                               {.name = "lastWanted", .params = {}, .returns = "string", .description = {},
+                                .permissions = {}}};
+        return wanted;
+    };
+    const app::NativeWanted inside = declared(testWanted(insideFolder), "gstest.inside", "Inside", true);
+    const app::NativeWanted outside = declared(testWanted(outsideFolder), "gstest.outside", "Outside", false);
+    registry.apply({inside, outside});
+    REQUIRE(eventually([&] {
+        QCoreApplication::processEvents();
+        return registry.loaded("gstest.inside") && registry.loaded("gstest.outside");
+    }));
+    const auto text = [](const char* value) { return script::NodeValue{.type = script::NodeType::String, .text = value}; };
+    const auto flag = [](bool on) { return script::NodeValue{.type = script::NodeType::Boolean, .flag = on}; };
+    const auto claim = [&](const char* id, const char* resource, bool wait) {
+        double status = -1;
+        std::thread([&] { status = registry.call(id, "claim", {text(resource), flag(wait)}).value.number; }).join();
+        return status;
+    };
+
+    CHECK(claim("gstest.outside", "serial:COM9", false) == GS_EXT_OK);
+    CHECK(claims.holderName("serial:COM9") == "Outside");
+    CHECK(claim("gstest.inside", "serial:com9", false) == GS_EXT_BUSY);
+    CHECK(claim("gstest.inside", "serial:com9", true) == GS_EXT_BUSY);
+    CHECK(registry.call("gstest.outside", "lastWanted", {}).value.text == "serial:COM9 by Inside");
+    REQUIRE(registry.call("gstest.outside", "yieldClaims", {flag(true)}).problem.empty());
+    CHECK(claim("gstest.inside", "serial:com9", true) == GS_EXT_OK);
+    CHECK(claims.holderName("serial:COM9") == "Inside");
+    CHECK(claim("gstest.outside", "serial:COM9", false) == GS_EXT_BUSY);
+
+    registry.apply({outside});
+    CHECK(claims.holderName("serial:COM9").isEmpty());
+    CHECK(claim("gstest.outside", "serial:COM9", false) == GS_EXT_OK);
+    registry.apply({});
+    CHECK(claims.holderName("serial:COM9").isEmpty());
 }
 
 TEST_CASE("ADR-0112: an extension's events reach that extension's own logic and no other")

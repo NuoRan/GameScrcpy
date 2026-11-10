@@ -24,6 +24,7 @@
 #include "GridLayout.h"
 #include "GridWindow.h"
 #include "HardwareAccess.h"
+#include "HardwareClaims.h"
 #include "InputController.h"
 #include "KeyHintModel.h"
 #include "KeymapBackgrounds.h"
@@ -432,6 +433,18 @@ DeviceManager::DeviceManager(adb::AdbClient adb, std::filesystem::path adbExecut
     connect(&m_settings, &AppSettings::wirelessChanged, this, &DeviceManager::nameConnections);
     connect(&m_settings, &AppSettings::valuesChanged, this, &DeviceManager::applyLiveSettings);
     connect(&m_settings, &AppSettings::devicesChanged, this, &DeviceManager::applyLiveSettings);
+    if (HardwareClaims* claims = HardwareClaims::instance()) {
+        connect(
+            claims, &HardwareClaims::changed, this,
+            [this] {
+                for (std::size_t index = 0; index < m_rows.size(); ++index) {
+                    if (m_rows[index].provided && !m_rows[index].provided->resource.empty()) {
+                        rowChanged(static_cast<int>(index));
+                    }
+                }
+            },
+            Qt::QueuedConnection);
+    }
     m_input = new InputController(this);
     connect(m_input, &InputController::keymapChanged, this, [this](bool on) {
         qInfo("key mapping %s", on ? "on" : "off");
@@ -10232,6 +10245,16 @@ void DeviceManager::runDeviceAction(const QString& serial, const QString& action
     }
 }
 
+namespace {
+
+QString claimedBy(const ProvidedDevice& device)
+{
+    const HardwareClaims* claims = HardwareClaims::instance();
+    return claims != nullptr && !device.resource.empty() ? claims->holderName(device.resource) : QString();
+}
+
+}
+
 QVariantMap DeviceManager::providedState(const Row& row) const
 {
     if (!row.provided) {
@@ -10239,6 +10262,7 @@ QVariantMap DeviceManager::providedState(const Row& row) const
     }
     const ProvidedDevice& device = *row.provided;
     return {{QStringLiteral("isProvided"), true},
+            {QStringLiteral("claimedBy"), claimedBy(device)},
             {QStringLiteral("extension"), QString::fromStdString(device.extension)},
             {QStringLiteral("extensionName"), device.extensionName},
             {QStringLiteral("provider"), QString::fromStdString(device.provider)},
@@ -10278,6 +10302,9 @@ DevicePresentation DeviceManager::providedPresentation(const Row& row) const
     }
     if (!row.listed) {
         return DevicePresentation::of(phase, row.session.failure, false, adb::DeviceState::Unknown);
+    }
+    if (const QString holder = claimedBy(*row.provided); !holder.isEmpty()) {
+        return {tr("In use by %1").arg(holder), DevicePresentation::Tone::Warn, -1, false, 2};
     }
     if (row.provided->state == u"busy") {
         return {tr("In use"), DevicePresentation::Tone::Warn, -1, false, 2};

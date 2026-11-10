@@ -30,6 +30,8 @@ struct HostedOptions {
     std::function<void(const std::string& title, const std::string& text)> notify;
     std::function<void(const std::string& topic, const std::string& json)> event;
     std::function<void(const std::string& provider)> devicesChanged;
+    std::function<void(const std::string& resource, bool wait, std::function<void(ClaimResult)> answer)> claim;
+    std::function<void(const std::string& resource)> release;
     std::string settings;
     std::function<void(std::uint64_t session)> touchLost;
     std::function<void()> restarted;
@@ -70,6 +72,7 @@ public:
     [[nodiscard]] CallResult listDevices(std::size_t provider) override;
     [[nodiscard]] CallResult actOnDevice(std::size_t provider, std::string_view device,
                                          std::string_view action) override;
+    [[nodiscard]] bool claimWanted(std::string_view resource, std::string_view by) override;
 
     [[nodiscard]] int crashes() const;
     [[nodiscard]] bool waitReady(std::chrono::milliseconds limit) const;

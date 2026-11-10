@@ -2,6 +2,7 @@
 
 #include "ExtensionIcons.h"
 #include "ExtensionTouchSink.h"
+#include "HardwareClaims.h"
 
 #include <gs/base/Log.h>
 #include <gs/exthost/Hosted.h>
@@ -16,6 +17,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <iterator>
 #include <map>
 #include <optional>
@@ -119,6 +121,11 @@ std::optional<ProvidedDevice> providedOf(const NativeWanted& wanted, const ext::
     const std::optional<std::string> state = textIn(device, "state", 16);
     const std::optional<std::string> stateText = textIn(device, "stateText", 200);
     const std::optional<std::string> method = textIn(device, "touchMethod", 64);
+    const std::optional<std::string> resource = textIn(device, "resource", exthost::kMostResourceBytes);
+    if (!resource || (!resource->empty() && !exthost::validResource(*resource))) {
+        problem = "its resource is not the name of hardware such as serial:COM9";
+        return std::nullopt;
+    }
     if (!id || id->empty() || !name || name->empty()) {
         problem = "it has no id or no name";
         return std::nullopt;
@@ -179,6 +186,7 @@ std::optional<ProvidedDevice> providedOf(const NativeWanted& wanted, const ext::
                           .icon = builtinIconName(icon) ? QString::fromStdString(icon) : QString(),
                           .iconPath = iconPath,
                           .touchMethod = method->empty() ? std::string() : wanted.id + "/" + *method,
+                          .resource = *resource,
                           .capture = capture.is_boolean() && capture.get<bool>(),
                           .actions = std::move(actions)};
 }
@@ -264,14 +272,58 @@ struct NativeExtensions::Shared {
 
 namespace {
 
+std::atomic<std::uint64_t> g_lastHolder{0};
+
+struct ModuleSlot {
+    std::mutex mutex;
+    std::weak_ptr<exthost::Module> module;
+
+    void set(const std::shared_ptr<exthost::Module>& made)
+    {
+        const std::scoped_lock lock(mutex);
+        module = made;
+    }
+
+    [[nodiscard]] bool wanted(const std::string& resource, const QString& by)
+    {
+        std::shared_ptr<exthost::Module> alive;
+        {
+            const std::scoped_lock lock(mutex);
+            alive = module.lock();
+        }
+        return alive != nullptr && alive->claimWanted(resource, by.toStdString());
+    }
+};
+
+void releaseClaims(const std::string& holder)
+{
+    if (HardwareClaims* claims = HardwareClaims::instance()) {
+        claims->releaseAll(holder);
+    }
+}
+
 class EntryServices final : public exthost::HostServices
 {
 public:
-    EntryServices(std::string id, QString name, std::weak_ptr<NativeExtensions::Shared> shared)
+    EntryServices(std::string id, QString name, std::weak_ptr<NativeExtensions::Shared> shared, ClaimHolder claimer)
         : m_id(std::move(id))
         , m_name(std::move(name))
         , m_shared(std::move(shared))
+        , m_claimer(std::move(claimer))
     {
+    }
+
+    exthost::ClaimResult claim(std::string_view resource, bool wait) override
+    {
+        HardwareClaims* claims = HardwareClaims::instance();
+        return claims != nullptr ? claims->claim(resource, m_claimer, wait) : exthost::ClaimResult::Unsupported;
+    }
+
+    void release(std::string_view resource) override
+    {
+        if (HardwareClaims* claims = HardwareClaims::instance()) {
+            claims->release(resource, m_claimer.id);
+        }
     }
 
     void log(int level, std::string_view text) override { writeLog(m_id, level, text); }
@@ -304,6 +356,7 @@ private:
     std::string m_id;
     QString m_name;
     std::weak_ptr<NativeExtensions::Shared> m_shared;
+    ClaimHolder m_claimer;
 };
 
 }
@@ -451,8 +504,13 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
     const std::filesystem::path store =
         m_options.storeRoot.empty() ? std::filesystem::path() : m_options.storeRoot / pathOf(wanted.id + ".json");
     std::string problem;
+    const std::string holder = "native:" + wanted.id + "#" + std::to_string(++g_lastHolder);
+    auto slot = std::make_shared<ModuleSlot>();
+    const ClaimHolder claimer{holder, wanted.name, [slot](const std::string& resource, const QString& by) {
+                                  return slot->wanted(resource, by);
+                              }};
     if (wanted.official) {
-        auto services = std::make_shared<EntryServices>(wanted.id, wanted.name, m_shared);
+        auto services = std::make_shared<EntryServices>(wanted.id, wanted.name, m_shared, claimer);
         std::unique_ptr<exthost::InProcessModule> module =
             exthost::InProcessModule::load({.dll = dll,
                                             .store = store,
@@ -461,8 +519,11 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
                                             .settings = wanted.settings},
                                            problem);
         if (module != nullptr) {
-            entry->module = std::shared_ptr<exthost::Module>(module.release(),
-                                                             [services](exthost::Module* done) { delete done; });
+            entry->module = std::shared_ptr<exthost::Module>(module.release(), [services, holder](exthost::Module* done) {
+                delete done;
+                releaseClaims(holder);
+            });
+            slot->set(entry->module);
         }
     } else {
         const std::weak_ptr<Shared> shared = m_shared;
@@ -489,6 +550,22 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
         options.devicesChanged = [shared, id](const std::string&) {
             if (const std::shared_ptr<Shared> alive = shared.lock()) {
                 alive->devicesChanged(id);
+            }
+        };
+        options.claim = [claimer](const std::string& resource, bool wait,
+                                  std::function<void(exthost::ClaimResult)> answer) {
+            HardwareClaims* claims = HardwareClaims::instance();
+            if (claims == nullptr) {
+                answer(exthost::ClaimResult::Unsupported);
+            } else if (!wait) {
+                answer(claims->claim(resource, claimer, false));
+            } else {
+                claims->claimLater(resource, claimer, std::move(answer));
+            }
+        };
+        options.release = [holder](const std::string& resource) {
+            if (HardwareClaims* claims = HardwareClaims::instance()) {
+                claims->release(resource, holder);
             }
         };
         options.touchLost = [shared, id](std::uint64_t session) {
@@ -521,7 +598,13 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
         std::unique_ptr<exthost::HostedModule> hosted =
             exthost::HostedModule::start(std::move(options), problem);
         const bool waiting = hosted != nullptr && !hosted->ready();
-        entry->module = std::move(hosted);
+        if (hosted != nullptr) {
+            entry->module = std::shared_ptr<exthost::Module>(hosted.release(), [holder](exthost::Module* done) {
+                delete done;
+                releaseClaims(holder);
+            });
+            slot->set(entry->module);
+        }
         *made = entry->module.get();
         if (waiting) {
             entry->pending = true;

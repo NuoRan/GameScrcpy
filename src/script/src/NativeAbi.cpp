@@ -22,6 +22,8 @@ constexpr Constant kConstants[] = {
     {"GS_EXT_KIND_BEHAVIOR", "\"behavior\"", "A contribution whose data is a gs_ext_behavior."},
     {"GS_EXT_KIND_JOB", "\"job\"", "A contribution whose data is a gs_ext_job."},
     {"GS_EXT_KIND_DEVICE_PROVIDER", "\"device-provider\"", "A contribution whose data is a gs_ext_device_provider."},
+    {"GS_EXT_CLAIM_WAIT", "1u",
+     "A flag of claim: ask whoever has the hardware to let it go, and wait up to 3 seconds for it."},
 };
 
 constexpr Enumerator kTypes[] = {
@@ -42,6 +44,7 @@ constexpr Enumerator kStatuses[] = {
     {"GS_EXT_UNSUPPORTED", 2, "The other side does not support what was asked, such as another interface version."},
     {"GS_EXT_DENIED", 3, "The user has not allowed the extension the permission this needs."},
     {"GS_EXT_BAD_ARGUMENT", 4, "An argument has the wrong type or is out of range."},
+    {"GS_EXT_BUSY", 5, "The hardware is in use by someone else."},
 };
 
 constexpr Enumerator kLogLevels[] = {
@@ -351,9 +354,10 @@ constexpr Field kDeviceProviderFields[] = {
     {"void* context", "Passed back to list and act."},
     {"int32_t (*list)(void* context, gs_ext_result* out)",
      "Puts the devices that can be used now into out as a JSON array with set_text, each { id, name, kind, summary, "
-     "state, stateText, touchMethod, capture, actions }: kind \"touchBox\" for a box that touches a phone without "
-     "showing its picture, state one of \"ready\", \"busy\", \"problem\" and \"offline\", touchMethod the name of one "
-     "of the extension's touch methods, capture true when a capture card may show the picture, and actions the extra "
+     "state, stateText, touchMethod, resource, capture, actions }: kind \"touchBox\" for a box that touches a phone "
+     "without showing its picture, state one of \"ready\", \"busy\", \"problem\" and \"offline\", touchMethod the name "
+     "of one of the extension's touch methods, resource the hardware it talks through, named as for claim, so that "
+     "its card says who is using it, capture true when a capture card may show the picture, and actions the extra "
      "buttons of its card, each { id, title } with panel or job naming one of the extension's panels or jobs. "
      "GameScrcpy calls it when the extension turns on and after devices_changed; answer within 100 ms."},
     {"int32_t (*act)(void* context, const char* device, size_t device_size, const char* action, size_t action_size)",
@@ -382,8 +386,8 @@ constexpr Field kHostFields[] = {
     {"int32_t (*set_error)(gs_ext_result* result, const char* text, size_t size)",
      "Says why a node failed; the script that called it gets the text in its error."},
     {"int32_t (*supports)(void* context, const char* feature)",
-     "1 when this GameScrcpy has the feature, such as \"jobs\" or \"events\", otherwise 0; ask before using a "
-     "function that a later version added."},
+     "1 when this GameScrcpy has the feature, such as \"jobs\", \"events\", \"settings\" or \"claims\", otherwise 0; "
+     "ask before using a function that a later version added."},
     {"int32_t (*job_progress)(void* context, uint64_t job, double fraction, const char* text, size_t size)",
      "Tells how far a job got: fraction from 0 to 1, or -1 when it cannot tell, and a short UTF-8 line about the step "
      "it is on. GameScrcpy passes on at most 20 a second and drops the others in between."},
@@ -406,6 +410,15 @@ constexpr Field kHostFields[] = {
      "none. GS_EXT_BAD_ARGUMENT for a key the manifest does not declare."},
     {"int32_t (*devices_changed)(void* context, const char* provider, size_t size)",
      "Tells GameScrcpy that the devices of one of the DLL's providers changed, so that it calls list again."},
+    {"int32_t (*claim)(void* context, const char* resource, size_t size, uint32_t flags)",
+     "Claims hardware before opening it, named \"serial:COM9\", \"ble:AA:BB:CC:DD:EE:FF\", \"hid:\" and the path that "
+     "CreateFile opens, or \"usb:\" and its vendor id, product id and serial number as in \"usb:2341:0043:A1B2\"; "
+     "case does not matter. GS_EXT_OK when the extension has it now or had it already, GS_EXT_BUSY when someone else "
+     "has it. With GS_EXT_CLAIM_WAIT the one who has it is asked first and, when it agrees, GameScrcpy waits up to 3 "
+     "seconds for it to let go; that takes time, so pass the flag only from a job or a thread of the DLL's own, never "
+     "from a node, an action, a touch method or an attachment."},
+    {"int32_t (*release)(void* context, const char* resource, size_t size)",
+     "Lets go of hardware the extension claimed. GameScrcpy lets go of all of it when the extension stops."},
 };
 
 constexpr Field kContributionFields[] = {
@@ -428,6 +441,10 @@ constexpr Field kPluginFields[] = {
     {"void (*settings_changed)(void* context, const char* keys, size_t size)",
      "Called on a GameScrcpy thread after the user changed settings of the extension, with the changed keys as a "
      "UTF-8 JSON array; read the new values with setting_get. May be NULL."},
+    {"int32_t (*claim_wanted)(void* context, const char* resource, size_t size, const char* by, size_t by_size)",
+     "Called on a GameScrcpy thread when someone else wants hardware the DLL claimed: resource names it as the DLL "
+     "did and by says who, in UTF-8. Answer within a second: return GS_EXT_OK and call release within 3 seconds to "
+     "let it go, or anything else to keep it. May be NULL, which keeps it."},
 };
 
 constexpr Structure kStructures[] = {

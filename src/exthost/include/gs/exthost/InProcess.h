@@ -51,6 +51,7 @@ public:
     [[nodiscard]] CallResult listDevices(std::size_t provider) override;
     [[nodiscard]] CallResult actOnDevice(std::size_t provider, std::string_view device,
                                          std::string_view action) override;
+    [[nodiscard]] bool claimWanted(std::string_view resource, std::string_view by) override;
 
     struct Impl;
 

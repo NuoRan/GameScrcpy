@@ -3740,6 +3740,18 @@ constexpr Failure kHardwareForgetFailures[] = {
     {"GS-API-085", "the id is not a string that is not empty", "Pass the id of a device from hardware.list()."},
     kHardwarePermissionFailure,
 };
+constexpr Param kHardwareClaimParams[] = {
+    {"resource", "string",
+     "The hardware: serial:COM9, ble:AA:BB:CC:DD:EE:FF, hid: and the device path, or usb:vid:pid:serial number in "
+     "hexadecimal, such as usb:2341:0043:A1B2."},
+    {"options", "HardwareClaimOptions", "Whether to wait for whoever holds it, and how to let it go to others.", true},
+};
+constexpr Param kHardwareReleaseParams[] = {{"resource", "string", "The hardware, named as for hardware.claim()."}};
+constexpr Failure kHardwareClaimFailures[] = {
+    {"GS-API-085", "the resource does not name hardware, or the options are not an object",
+     "Name it as serial:, ble:, hid: or usb: and the rest, as the resource parameter describes."},
+    kHardwarePermissionFailure,
+};
 
 constexpr Function kHardware[] = {
     {"request", kHardwareRequestParams, "Promise<HardwareInfo[]>",
@@ -3761,6 +3773,14 @@ constexpr Function kHardware[] = {
      "Gives up the permission to use a device, as its remove button on the Extensions page does; the device closes "
      "if it is open.",
      "await hardware.forget(device.id);", nullptr, 0, kHardwareForgetFailures},
+    {"claim", kHardwareClaimParams, "Promise<boolean>",
+     "Tells other extensions and GameScrcpy's own sessions that this logic is using the hardware, so that they leave "
+     "it alone. Resolves with false when someone else holds it. Devices opened with hardware.open() are claimed "
+     "while they are open. A claim made in a task ends with the task, one made at the top level when the logic stops.",
+     "if (await hardware.claim(\"serial:COM9\", { onWanted: () => true })) log.info(\"the board is ours\");", nullptr,
+     0, kHardwareClaimFailures},
+    {"release", kHardwareReleaseParams, "void", "Lets go of hardware claimed with hardware.claim().",
+     "hardware.release(\"serial:COM9\");", nullptr, 0, kHardwareClaimFailures},
 };
 
 constexpr Param kAiAskParams[] = {
@@ -4230,6 +4250,10 @@ constexpr Type kTypes[] = {
      "{ readonly id: string; readonly kind: HardwareKind; readonly name: string; readonly present?: boolean }",
      "An allowed device: the id to open it with, its kind and name and, in hardware.list(), whether it is connected "
      "now."},
+    {"HardwareClaimOptions",
+     "{ readonly wait?: boolean; readonly onWanted?: (by: string) => boolean | Promise<boolean> }",
+     "wait asks whoever holds the hardware to let it go and waits up to 3 seconds for it. onWanted is called with the "
+     "name of whoever wants the hardware this logic holds; return true to let it go, and it is released for them."},
     {"HardwareBytes", "Uint8Array | ArrayBuffer | ArrayBufferView | readonly number[]",
      "Bytes to send: a Uint8Array, another typed array or a list of numbers from 0 to 255."},
     {"SerialOptions",

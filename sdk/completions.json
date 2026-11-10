@@ -1015,6 +1015,20 @@
     "insertText": "hardware.forget(${1:id})"
   },
   {
+    "label": "hardware.claim",
+    "kind": "function",
+    "detail": "hardware.claim(resource: string, options?: HardwareClaimOptions): Promise<boolean>",
+    "documentation": "Tells other extensions and GameScrcpy's own sessions that this logic is using the hardware, so that they leave it alone. Resolves with false when someone else holds it. Devices opened with hardware.open() are claimed while they are open. A claim made in a task ends with the task, one made at the top level when the logic stops.",
+    "insertText": "hardware.claim(${1:resource})"
+  },
+  {
+    "label": "hardware.release",
+    "kind": "function",
+    "detail": "hardware.release(resource: string): void",
+    "documentation": "Lets go of hardware claimed with hardware.claim().",
+    "insertText": "hardware.release(${1:resource})"
+  },
+  {
     "label": "window",
     "kind": "namespace",
     "detail": "window",
@@ -4380,6 +4394,13 @@
     "detail": "type HardwareInfo",
     "documentation": "An allowed device: the id to open it with, its kind and name and, in hardware.list(), whether it is connected now.",
     "insertText": "HardwareInfo"
+  },
+  {
+    "label": "HardwareClaimOptions",
+    "kind": "type",
+    "detail": "type HardwareClaimOptions",
+    "documentation": "wait asks whoever holds the hardware to let it go and waits up to 3 seconds for it. onWanted is called with the name of whoever wants the hardware this logic holds; return true to let it go, and it is released for them.",
+    "insertText": "HardwareClaimOptions"
   },
   {
     "label": "HardwareBytes",

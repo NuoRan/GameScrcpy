@@ -423,6 +423,7 @@ QT_TRANSLATE_NOOP("ScriptApi", "The kinds of device logic can use: serial ports,
 QT_TRANSLATE_NOOP("ScriptApi", "What a listed device must have: USB vendor and product ids and HID usage page and usage (0 to 65535), one of the Bluetooth service UUIDs, and how its name starts (up to 64 characters). A device is listed when it matches any one filter.");
 QT_TRANSLATE_NOOP("ScriptApi", "Which devices hardware.request() lists: one kind and up to 16 filters.");
 QT_TRANSLATE_NOOP("ScriptApi", "An allowed device: the id to open it with, its kind and name and, in hardware.list(), whether it is connected now.");
+QT_TRANSLATE_NOOP("ScriptApi", "wait asks whoever holds the hardware to let it go and waits up to 3 seconds for it. onWanted is called with the name of whoever wants the hardware this logic holds; return true to let it go, and it is released for them.");
 QT_TRANSLATE_NOOP("ScriptApi", "Bytes to send: a Uint8Array, another typed array or a list of numbers from 0 to 255.");
 QT_TRANSLATE_NOOP("ScriptApi", "How a serial port talks: 115200 baud (50 to 4000000), 8 data bits, no parity, 1 stop bit and no flow control unless given, with the DTR and RTS lines on.");
 QT_TRANSLATE_NOOP("ScriptApi", "The DTR and RTS lines of a serial port to turn on or off; the lines left out stay as they are.");
@@ -757,6 +758,13 @@ QT_TRANSLATE_NOOP("ScriptApi", "Gives up the permission to use a device, as its 
 QT_TRANSLATE_NOOP("ScriptApi", "The id of an allowed device.");
 QT_TRANSLATE_NOOP("ScriptApi", "Pass the id of a device from hardware.list().");
 QT_TRANSLATE_NOOP("ScriptApi", "the id is not a string that is not empty");
+QT_TRANSLATE_NOOP("ScriptApi", "Tells other extensions and GameScrcpy's own sessions that this logic is using the hardware, so that they leave it alone. Resolves with false when someone else holds it. Devices opened with hardware.open() are claimed while they are open. A claim made in a task ends with the task, one made at the top level when the logic stops.");
+QT_TRANSLATE_NOOP("ScriptApi", "The hardware: serial:COM9, ble:AA:BB:CC:DD:EE:FF, hid: and the device path, or usb:vid:pid:serial number in hexadecimal, such as usb:2341:0043:A1B2.");
+QT_TRANSLATE_NOOP("ScriptApi", "Whether to wait for whoever holds it, and how to let it go to others.");
+QT_TRANSLATE_NOOP("ScriptApi", "Name it as serial:, ble:, hid: or usb: and the rest, as the resource parameter describes.");
+QT_TRANSLATE_NOOP("ScriptApi", "the resource does not name hardware, or the options are not an object");
+QT_TRANSLATE_NOOP("ScriptApi", "Lets go of hardware claimed with hardware.claim().");
+QT_TRANSLATE_NOOP("ScriptApi", "The hardware, named as for hardware.claim().");
 QT_TRANSLATE_NOOP("ScriptApi", "Whether the phone's mirror window is the active window, the one that gets the keyboard; false while another window is in front or the mirror window is closed.");
 QT_TRANSLATE_NOOP("ScriptApi", "Starts a task each time the phone's mirror window becomes the active window.");
 QT_TRANSLATE_NOOP("ScriptApi", "What to run when the phone's mirror window becomes the active window.");

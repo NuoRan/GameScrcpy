@@ -12,6 +12,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 using gs::script::ControlInfo;
@@ -333,4 +334,57 @@ export function play() {
                                    R"(hardware.input {"source":"deck","key":"knob","action":"axis","x":0.5})",
                                    R"(hardware.input {"source":"deck","key":"knob","action":"axis","x":-1,"y":0.25})",
                                    R"(hardware.input {"source":"deck","key":"k1","action":"release"})"});
+}
+
+TEST_CASE("ADR-0112: hardware.claim and release go through the service channel, and onWanted lets the claim go")
+{
+    Fixture fixture;
+    const ScriptId script = fixture.load(R"js(
+export async function hold() {
+    log.info("claimed", await hardware.claim("serial:COM9", { onWanted: (by) => { log.info("wanted", by); return true; } }));
+    log.info("again", await hardware.claim("ble:AA:BB:CC:DD:EE:FF", { wait: true }));
+    log.info("busy", await hardware.claim("usb:2341:0043:A1B2"));
+    hardware.release("ble:AA:BB:CC:DD:EE:FF");
+    try {
+        await hardware.claim("COM9");
+    } catch (error) {
+        log.info("name", error.message.split(" ")[0], error.name);
+    }
+    try {
+        await hardware.claim("serial:COM9", { onWanted: 1 });
+    } catch (error) {
+        log.info("handler", error.message.split(" ")[0]);
+    }
+    await sleep(30000);
+}
+)js");
+    const TaskId task = fixture.host->start(script, "hold");
+    const Asked first = fixture.asked(0, "hardware.claim");
+    CHECK(first.json == R"({"resource":"serial:COM9","wait":false,"yields":true})");
+    fixture.host->answer(first.id, "true");
+    const Asked second = fixture.asked(1, "hardware.claim");
+    CHECK(second.json == R"({"resource":"ble:AA:BB:CC:DD:EE:FF","wait":true,"yields":false})");
+    fixture.host->answer(second.id, "true");
+    const Asked third = fixture.asked(2, "hardware.claim");
+    CHECK(third.json == R"({"resource":"usb:2341:0043:A1B2","wait":false,"yields":false})");
+    fixture.host->answer(third.id, "false");
+    REQUIRE(fixture.recorder.waitFor(logged("handler GS-API-008")).has_value());
+    CHECK(fixture.recorder.count(logged("claimed true")) == 1);
+    CHECK(fixture.recorder.count(logged("again true")) == 1);
+    CHECK(fixture.recorder.count(logged("busy false")) == 1);
+    CHECK(fixture.recorder.count(logged("name GS-API-085 TypeError")) == 1);
+
+    fixture.host->event("hardware", "", R"({"type":"claimWanted","resource":"serial:COM9","by":"Box"})");
+    REQUIRE(fixture.recorder.waitFor(logged("wanted Box")).has_value());
+    const std::vector<std::string> released{R"(hardware.release {"resource":"ble:AA:BB:CC:DD:EE:FF"})",
+                                            R"(hardware.release {"resource":"serial:COM9"})"};
+    for (int round = 0; round < 3000 && fixture.services->calls() != released; ++round) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    CHECK(fixture.services->calls() == released);
+    fixture.host->event("hardware", "", R"({"type":"claimWanted","resource":"serial:COM9","by":"Box"})");
+    fixture.host->cancel(task);
+    CHECK(fixture.finish(task).kind == ReportKind::TaskCancelled);
+    CHECK(fixture.recorder.count(logged("wanted Box")) == 1);
+    CHECK(fixture.services->calls() == released);
 }

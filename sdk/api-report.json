@@ -1274,6 +1274,28 @@
             "GS-API-085",
             "GS-API-080"
           ]
+        },
+        {
+          "name": "claim",
+          "signature": "hardware.claim(resource: string, options?: HardwareClaimOptions): Promise<boolean>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-085",
+            "GS-API-080"
+          ]
+        },
+        {
+          "name": "release",
+          "signature": "hardware.release(resource: string): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-085",
+            "GS-API-080"
+          ]
         }
       ]
     },
@@ -3331,6 +3353,10 @@
     {
       "name": "HardwareInfo",
       "definition": "{ readonly id: string; readonly kind: HardwareKind; readonly name: string; readonly present?: boolean }"
+    },
+    {
+      "name": "HardwareClaimOptions",
+      "definition": "{ readonly wait?: boolean; readonly onWanted?: (by: string) => boolean | Promise<boolean> }"
     },
     {
       "name": "HardwareBytes",

@@ -14416,6 +14416,10 @@
         <translation>一台已允许的设备：用来打开它的 id、种类和名字，以及（在 hardware.list() 中）它现在是否已连接。</translation>
     </message>
     <message>
+        <source>wait asks whoever holds the hardware to let it go and waits up to 3 seconds for it. onWanted is called with the name of whoever wants the hardware this logic holds; return true to let it go, and it is released for them.</source>
+        <translation>wait 会请占用这件硬件的一方放手，并最多等它 3 秒。别人想用这份逻辑占着的硬件时会调用 onWanted，参数是对方的名字；返回 true 就放手，硬件随即交给对方。</translation>
+    </message>
+    <message>
         <source>Bytes to send: a Uint8Array, another typed array or a list of numbers from 0 to 255.</source>
         <translation>要发送的字节：Uint8Array、其他类型化数组，或由 0～255 的数字组成的列表。</translation>
     </message>
@@ -15950,6 +15954,34 @@
     <message>
         <source>the id is not a string that is not empty</source>
         <translation>id 不是非空字符串</translation>
+    </message>
+    <message>
+        <source>Tells other extensions and GameScrcpy&apos;s own sessions that this logic is using the hardware, so that they leave it alone. Resolves with false when someone else holds it. Devices opened with hardware.open() are claimed while they are open. A claim made in a task ends with the task, one made at the top level when the logic stops.</source>
+        <translation>告诉其他扩展和 GameScrcpy 自己的会话：这份逻辑正在用这件硬件，请别去动它。别人占着时结果为 false。用 hardware.open() 打开的设备在打开期间自动占用。在任务里占用的随任务结束放开，在顶层占用的在逻辑停止时放开。</translation>
+    </message>
+    <message>
+        <source>The hardware: serial:COM9, ble:AA:BB:CC:DD:EE:FF, hid: and the device path, or usb:vid:pid:serial number in hexadecimal, such as usb:2341:0043:A1B2.</source>
+        <translation>硬件的名字：serial:COM9、ble:AA:BB:CC:DD:EE:FF、hid: 加设备路径，或 usb: 加十六进制的厂商号、产品号和序列号，例如 usb:2341:0043:A1B2。</translation>
+    </message>
+    <message>
+        <source>Whether to wait for whoever holds it, and how to let it go to others.</source>
+        <translation>是否等占用方放手，以及怎样把它让给别人。</translation>
+    </message>
+    <message>
+        <source>Name it as serial:, ble:, hid: or usb: and the rest, as the resource parameter describes.</source>
+        <translation>按 resource 参数的说明，用 serial:、ble:、hid: 或 usb: 开头来命名。</translation>
+    </message>
+    <message>
+        <source>the resource does not name hardware, or the options are not an object</source>
+        <translation>resource 不是硬件的名字，或者 options 不是对象</translation>
+    </message>
+    <message>
+        <source>Lets go of hardware claimed with hardware.claim().</source>
+        <translation>放开用 hardware.claim() 占用的硬件。</translation>
+    </message>
+    <message>
+        <source>The hardware, named as for hardware.claim().</source>
+        <translation>硬件，命名方式与 hardware.claim() 相同。</translation>
     </message>
     <message>
         <source>the region is outside the picture</source>
@@ -21595,6 +21627,13 @@
         <translation>
             <numerusform>宫格 · %n 台</numerusform>
         </translation>
+    </message>
+</context>
+<context>
+    <name>gs::app::HardwareAccess</name>
+    <message>
+        <source>your logic</source>
+        <translation>你的逻辑</translation>
     </message>
 </context>
 <context>

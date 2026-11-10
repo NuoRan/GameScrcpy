@@ -574,7 +574,7 @@ int32_t hostSupports(void*, const char* feature)
         return 0;
     }
     const std::string_view name(feature, strnlen(feature, kMostNameBytes));
-    return name == "jobs" || name == "events" || name == "settings" ? 1 : 0;
+    return name == "jobs" || name == "events" || name == "settings" || name == "claims" ? 1 : 0;
 }
 
 int32_t hostSettingGet(void* context, const char* key, size_t keySize, const char* phone, size_t phoneSize,
@@ -622,6 +622,32 @@ int32_t hostDevicesChanged(void* context, const char* provider, size_t size)
     }
     if (impl.services != nullptr) {
         impl.services->devicesChanged(name);
+    }
+    return GS_EXT_OK;
+}
+
+int32_t hostClaim(void* context, const char* resource, size_t size, uint32_t flags)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if (resource == nullptr || size == 0 || (flags & ~GS_EXT_CLAIM_WAIT) != 0 ||
+        !validResource(std::string_view(resource, size))) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (impl.services == nullptr) {
+        return GS_EXT_UNSUPPORTED;
+    }
+    return static_cast<int32_t>(
+        impl.services->claim(std::string_view(resource, size), (flags & GS_EXT_CLAIM_WAIT) != 0));
+}
+
+int32_t hostRelease(void* context, const char* resource, size_t size)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if (resource == nullptr || size == 0 || !validResource(std::string_view(resource, size))) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (impl.services != nullptr) {
+        impl.services->release(std::string_view(resource, size));
     }
     return GS_EXT_OK;
 }
@@ -1045,6 +1071,8 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
     impl->host.emit_event = &hostEmitEvent;
     impl->host.setting_get = &hostSettingGet;
     impl->host.devices_changed = &hostDevicesChanged;
+    impl->host.claim = &hostClaim;
+    impl->host.release = &hostRelease;
     const gs_ext_plugin* plugin = nullptr;
     const int32_t status = entry(&impl->host, &plugin);
     impl->entered = status == GS_EXT_OK;
@@ -1487,6 +1515,23 @@ CallResult InProcessModule::actOnDevice(std::size_t provider, std::string_view d
         return {CallStatus::Failed, {}, "the action failed with status " + std::to_string(status)};
     }
     return {CallStatus::Ok, {}, {}};
+}
+
+bool InProcessModule::claimWanted(std::string_view resource, std::string_view by)
+{
+    Impl& d = *m_impl;
+    if (d.described.claim_wanted == nullptr || !validResource(resource) || by.size() > kMostClaimerBytes ||
+        !validUtf8(by)) {
+        return false;
+    }
+    {
+        const std::scoped_lock lock(d.jobMutex);
+        if (d.stopping) {
+            return false;
+        }
+    }
+    return d.described.claim_wanted(d.described.context, resource.data(), resource.size(), by.data(), by.size()) ==
+           GS_EXT_OK;
 }
 
 }

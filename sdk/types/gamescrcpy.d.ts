@@ -349,6 +349,9 @@ type HardwareRequest = { readonly kind: HardwareKind; readonly filters?: readonl
 /** An allowed device: the id to open it with, its kind and name and, in hardware.list(), whether it is connected now. */
 type HardwareInfo = { readonly id: string; readonly kind: HardwareKind; readonly name: string; readonly present?: boolean };
 
+/** wait asks whoever holds the hardware to let it go and waits up to 3 seconds for it. onWanted is called with the name of whoever wants the hardware this logic holds; return true to let it go, and it is released for them. */
+type HardwareClaimOptions = { readonly wait?: boolean; readonly onWanted?: (by: string) => boolean | Promise<boolean> };
+
 /** Bytes to send: a Uint8Array, another typed array or a list of numbers from 0 to 255. */
 type HardwareBytes = Uint8Array | ArrayBuffer | ArrayBufferView | readonly number[];
 
@@ -3422,6 +3425,27 @@ declare namespace hardware {
      * @example await hardware.forget(device.id);
      */
     function forget(id: string): Promise<void>;
+
+    /**
+     * Tells other extensions and GameScrcpy's own sessions that this logic is using the hardware, so that they leave it alone. Resolves with false when someone else holds it. Devices opened with hardware.open() are claimed while they are open. A claim made in a task ends with the task, one made at the top level when the logic stops.
+     * @param resource The hardware: serial:COM9, ble:AA:BB:CC:DD:EE:FF, hid: and the device path, or usb:vid:pid:serial number in hexadecimal, such as usb:2341:0043:A1B2.
+     * @param options Whether to wait for whoever holds it, and how to let it go to others.
+     * @throws GS-API-085 when the resource does not name hardware, or the options are not an object. Name it as serial:, ble:, hid: or usb: and the rest, as the resource parameter describes.
+     * @throws GS-API-080 when the logic belongs to an extension whose manifest does not ask for the permission hardware. Add "hardware" to the permissions in the extension's manifest.
+     * @since 1 (stable)
+     * @example if (await hardware.claim("serial:COM9", { onWanted: () => true })) log.info("the board is ours");
+     */
+    function claim(resource: string, options?: HardwareClaimOptions): Promise<boolean>;
+
+    /**
+     * Lets go of hardware claimed with hardware.claim().
+     * @param resource The hardware, named as for hardware.claim().
+     * @throws GS-API-085 when the resource does not name hardware, or the options are not an object. Name it as serial:, ble:, hid: or usb: and the rest, as the resource parameter describes.
+     * @throws GS-API-080 when the logic belongs to an extension whose manifest does not ask for the permission hardware. Add "hardware" to the permissions in the extension's manifest.
+     * @since 1 (stable)
+     * @example hardware.release("serial:COM9");
+     */
+    function release(resource: string): void;
 }
 
 /** The phone's mirror window. */

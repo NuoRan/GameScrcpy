@@ -22,6 +22,7 @@ using Steady = std::chrono::steady_clock;
 
 constexpr DWORD kPollMs = 250;
 constexpr DWORD kStopWaitMs = 2'000;
+constexpr std::chrono::milliseconds kClaimWantedWait{1'000};
 constexpr UINT kStoppedExit = 9;
 constexpr int kWarning = 1;
 std::string utf8(const std::filesystem::path& path)
@@ -136,10 +137,15 @@ struct HostedModule::Impl {
         if (stepTimer == nullptr) {
             stepTimer = CreateWaitableTimerExW(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
         }
+        claimLink->impl = this;
     }
 
     ~Impl()
     {
+        {
+            const std::scoped_lock lock(claimLink->mutex);
+            claimLink->impl = nullptr;
+        }
         {
             const std::scoped_lock lock(mutex);
             closing = true;
@@ -417,8 +423,69 @@ struct HostedModule::Impl {
             }
             return;
         }
+        case detail::Kind::Claim: {
+            std::string resource;
+            std::uint32_t wait = 0;
+            std::uint64_t launch = 0;
+            {
+                const std::scoped_lock lock(mutex);
+                launch = launches;
+            }
+            if (!in.text(resource, kMostResourceBytes) || !in.u32(wait) || !in.done() || !validResource(resource)) {
+                answerClaim(message.id, resource, ClaimResult::BadArgument, launch);
+                return;
+            }
+            if (!options.claim) {
+                answerClaim(message.id, resource, ClaimResult::Unsupported, launch);
+                return;
+            }
+            options.claim(resource, wait != 0,
+                          [link = claimLink, id = message.id, resource, launch](ClaimResult result) {
+                              const std::scoped_lock lock(link->mutex);
+                              if (link->impl != nullptr) {
+                                  link->impl->answerClaim(id, resource, result, launch);
+                              }
+                          });
+            return;
+        }
+        case detail::Kind::Release: {
+            std::string resource;
+            if (!in.text(resource, kMostResourceBytes) || !in.done() || !validResource(resource)) {
+                return;
+            }
+            {
+                const std::scoped_lock lock(mutex);
+                held.erase(resource);
+            }
+            if (options.release) {
+                options.release(resource);
+            }
+            return;
+        }
         default:
             return;
+        }
+    }
+
+    void answerClaim(std::uint64_t id, const std::string& resource, ClaimResult result, std::uint64_t launch)
+    {
+        bool stale = false;
+        {
+            const std::scoped_lock lock(mutex);
+            stale = launch != launches || !channel;
+            if (!stale) {
+                if (result == ClaimResult::Claimed) {
+                    held.insert(resource);
+                }
+                detail::WireWriter out;
+                out.u32(static_cast<std::uint32_t>(result));
+                if (channel->toHost().write(detail::Kind::ClaimAnswer, id, out.bytes())) {
+                    SetEvent(channel->toHostEvent());
+                }
+            }
+        }
+        if (stale && result == ClaimResult::Claimed && options.release) {
+            options.release(resource);
         }
     }
 
@@ -443,6 +510,7 @@ struct HostedModule::Impl {
         bool gaveUp = false;
         bool failedLate = false;
         std::string why;
+        std::set<std::string> dropped;
         {
             const std::scoped_lock lock(mutex);
             if (process != nullptr) {
@@ -450,6 +518,7 @@ struct HostedModule::Impl {
                 process = nullptr;
             }
             channel.reset();
+            dropped.swap(held);
             if (closing || state == State::Stopped) {
                 return;
             }
@@ -488,6 +557,11 @@ struct HostedModule::Impl {
             }
         }
         changed.notify_all();
+        if (options.release) {
+            for (const std::string& resource : dropped) {
+                options.release(resource);
+            }
+        }
         for (const std::uint64_t session : lost) {
             if (options.touchLost) {
                 options.touchLost(session);
@@ -532,6 +606,7 @@ struct HostedModule::Impl {
                 channel = std::move(instance->channel);
                 process = instance->process;
                 launchedAt = Steady::now();
+                ++launches;
             }
         }
         if (failed) {
@@ -563,9 +638,11 @@ struct HostedModule::Impl {
         }
     }
 
-    CallResult ask(detail::Kind kind, const detail::WireWriter& payload, std::string_view what)
+    CallResult ask(detail::Kind kind, const detail::WireWriter& payload, std::string_view what,
+                   std::optional<std::chrono::milliseconds> limit = std::nullopt)
     {
         std::unique_lock lock(mutex);
+        const std::chrono::milliseconds budget = limit.value_or(options.budget);
         if (state != State::Ready || !channel) {
             return {CallStatus::Unavailable, {},
                     state == State::Stopped ? "the extension stopped working and was turned off"
@@ -578,11 +655,11 @@ struct HostedModule::Impl {
         answers.emplace(id, std::nullopt);
         outstanding.emplace(id, Steady::now());
         SetEvent(channel->toHostEvent());
-        const bool answered = changed.wait_for(lock, options.budget, [this, id] { return answers.at(id).has_value(); });
+        const bool answered = changed.wait_for(lock, budget, [this, id] { return answers.at(id).has_value(); });
         CallResult result = answered ? std::move(*answers.at(id))
                                      : CallResult{CallStatus::TooSlow, {},
                                                   std::string(what) + " did not answer within " +
-                                                      std::to_string(options.budget.count()) + " ms"};
+                                                      std::to_string(budget.count()) + " ms"};
         answers.erase(id);
         return result;
     }
@@ -618,6 +695,13 @@ struct HostedModule::Impl {
     std::uint64_t nextInstance = 0;
     std::map<std::uint64_t, Remote> instances;
     std::map<std::uint64_t, JobEvents> jobs;
+    struct ClaimLink {
+        std::mutex mutex;
+        Impl* impl = nullptr;
+    };
+    std::shared_ptr<ClaimLink> claimLink = std::make_shared<ClaimLink>();
+    std::set<std::string> held;
+    std::uint64_t launches = 0;
     std::jthread reader;
 };
 
@@ -1029,6 +1113,17 @@ CallResult HostedModule::actOnDevice(std::size_t provider, std::string_view devi
     payload.text(device);
     payload.text(action);
     return d.ask(detail::Kind::DeviceAct, payload, "the device provider");
+}
+
+bool HostedModule::claimWanted(std::string_view resource, std::string_view by)
+{
+    if (!validResource(resource) || by.size() > kMostClaimerBytes || !validUtf8(by)) {
+        return false;
+    }
+    detail::WireWriter payload;
+    payload.text(resource);
+    payload.text(by);
+    return m_impl->ask(detail::Kind::ClaimWanted, payload, "the extension", kClaimWantedWait).ok();
 }
 
 int HostedModule::crashes() const

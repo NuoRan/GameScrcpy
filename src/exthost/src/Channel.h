@@ -46,6 +46,10 @@ enum class Kind : std::uint32_t {
     DeviceList,
     DeviceAct,
     DevicesChanged,
+    Claim,
+    ClaimAnswer,
+    Release,
+    ClaimWanted,
 };
 
 struct Message {
