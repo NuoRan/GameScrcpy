@@ -583,16 +583,6 @@ add_custom_target(gs_builtin_tasks
 )
 add_dependencies(GameScrcpy gs_builtin_tasks)
 
-add_custom_target(gs_builtin_extensions ALL
-    COMMAND "${CMAKE_COMMAND}"
-        "-DSOURCE=${PROJECT_SOURCE_DIR}/examples/extensions"
-        "-DEXTRA=$<TARGET_FILE_DIR:gs_ext_esp32>"
-        "-DDESTINATION=$<TARGET_FILE_DIR:GameScrcpy>/extensions"
-        -P "${PROJECT_SOURCE_DIR}/cmake/CopyExtensions.cmake"
-    COMMENT "Placing the built-in extensions next to GameScrcpy.exe"
-    VERBATIM
-)
-add_dependencies(gs_builtin_extensions gs_ext_esp32)
 add_dependencies(GameScrcpy gs_exthost_program)
 add_dependencies(GameScrcpy gs_scripthost_program)
 

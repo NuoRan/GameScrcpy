@@ -5,12 +5,13 @@
 .DESCRIPTION
     Gathers what a release needs from build\msvc-release\bin into dist\GameScrcpy-<version>\: GameScrcpy.exe,
     gs.exe, gs-exthost.exe and gs-scripthost.exe, the Qt runtime that windeployqt placed there at build time, the phone apps, the
-    built-in extensions and components, the licenses and the bundled TypeScript. Adds the Visual C++ runtime from
+    built-in components, the licenses and the bundled TypeScript. Adds the Visual C++ runtime from
     Visual Studio's redistributable folder and adb from the Android platform-tools pinned in packaging\adb.json
     (downloaded once into deps\adb, checked against its SHA-256 and the Google signature). Test programs, PDBs and
-    the QML debugging plugins stay out. The PC clock sample is never built in: the packaged gs.exe and
-    cmake\PackSample.cmake pack its build (examples\pc-clock\package) under the developer id example.pc-clock into
-    sdk\samples\example.pc-clock-<version>.gsext, for developers to add with "Install from file...". cmake.exe is the one
+    the QML debugging plugins stay out. No extension is built in: the packaged gs.exe and cmake\PackSample.cmake pack
+    the samples (the PC clock build in examples\pc-clock\package, the CRT scanlines and the slate theme from
+    examples\extensions) under the developer ids example.pc-clock, example.crt-scanlines and example.slate-theme into
+    sdk\samples\<id>-<version>.gsext, for developers to add with "Install from file...". cmake.exe is the one
     named in the build's CMakeCache.txt, else the one on PATH.
 
     Every program and DLL in the folder must find what it imports in the folder or in Windows (the Visual C++
@@ -49,9 +50,12 @@ $bin = Join-Path $BuildDir 'bin'
 $Programs = @('GameScrcpy.exe', 'gs.exe', 'gs-exthost.exe', 'gs-scripthost.exe')
 $Needed = @('GameScrcpy.exe', 'gs.exe', 'gs-server.apk')
 $RootTypes = @('.dll', '.apk', '.json')
-$SkippedFolders = @('qmltooling', 'community')
-$SampleId = 'example.pc-clock'
-$SampleFolder = Join-Path $BuildDir 'examples\pc-clock\package'
+$SkippedFolders = @('qmltooling')
+$Samples = @(
+    @{ Id = 'example.pc-clock'; Folder = Join-Path $BuildDir 'examples\pc-clock\package' },
+    @{ Id = 'example.crt-scanlines'; Folder = Join-Path $root 'examples\extensions\crt-scanlines' },
+    @{ Id = 'example.slate-theme'; Folder = Join-Path $root 'examples\extensions\slate-theme' }
+)
 $DroppedTypes = @('.pdb', '.ilk', '.exp', '.lib')
 $Symbols = @('GameScrcpy.pdb', 'gs.pdb', 'gs-exthost.pdb', 'gs-scripthost.pdb')
 $ShippedOnly = '^(msvcp140.*|vcruntime140.*|concrt140|vccorlib140)\.dll$'
@@ -194,24 +198,27 @@ function Find-CMake {
     throw "cmake.exe was not found in $cache or on PATH"
 }
 
-function Add-Sample([string]$Stage) {
-    $manifest = Join-Path $SampleFolder 'manifest.json'
-    if (-not (Test-Path -LiteralPath $manifest)) { throw "$manifest is missing: build the msvc-release preset first" }
-    $sampleVersion = (Get-Content -Raw -Encoding UTF8 -LiteralPath $manifest | ConvertFrom-Json).version
-    $package = Join-Path $Stage "sdk\samples\$SampleId-$sampleVersion.gsext"
-    $arguments = @("-DGS=$(Join-Path $Stage 'gs.exe')", "-DSOURCE=$SampleFolder", "-DID=$SampleId", "-DOUT=$package",
-                   '-P', (Join-Path $root 'cmake\PackSample.cmake'))
-    & (Find-CMake) $arguments | Out-Host
-    Assert-ExitCode "packing the sample $SampleId"
-    $package
+function Add-Samples([string]$Stage) {
+    foreach ($sample in $Samples) {
+        $manifest = Join-Path $sample.Folder 'manifest.json'
+        if (-not (Test-Path -LiteralPath $manifest)) { throw "$manifest is missing: build the msvc-release preset first" }
+        $sampleVersion = (Get-Content -Raw -Encoding UTF8 -LiteralPath $manifest | ConvertFrom-Json).version
+        $package = Join-Path $Stage "sdk\samples\$($sample.Id)-$sampleVersion.gsext"
+        $arguments = @("-DGS=$(Join-Path $Stage 'gs.exe')", "-DSOURCE=$($sample.Folder)", "-DID=$($sample.Id)",
+                       "-DOUT=$package", '-P', (Join-Path $root 'cmake\PackSample.cmake'))
+        & (Find-CMake) $arguments | Out-Host
+        Assert-ExitCode "packing the sample $($sample.Id)"
+        $package
+    }
 }
 
-function Assert-Samples([string]$Stage, [string]$Package) {
-    $builtIn = Get-ChildItem -LiteralPath (Join-Path $Stage 'extensions') -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -like '*.pc-clock' } | Select-Object -First 1
-    if ($builtIn) { throw "the PC clock sample is never built in, but $($builtIn.FullName) is in the package" }
-    if (-not (Test-Path -LiteralPath $Package -PathType Leaf)) { throw "the sample package $Package was not written" }
-    Write-Host "samples: $(Split-Path $Package -Leaf) in sdk\samples"
+function Assert-Samples([string]$Stage, [string[]]$Packages) {
+    $builtIn = Join-Path $Stage 'extensions'
+    if (Test-Path -LiteralPath $builtIn) { throw "no extension is built in, but $builtIn is in the package" }
+    foreach ($package in $Packages) {
+        if (-not (Test-Path -LiteralPath $package -PathType Leaf)) { throw "the sample package $package was not written" }
+    }
+    Write-Host "samples: $(($Packages | ForEach-Object { Split-Path $_ -Leaf }) -join ', ') in sdk\samples"
 }
 
 function Get-PeImports([string]$Path) {
@@ -366,7 +373,7 @@ Reset-Directory $stage
 Copy-Release $stage
 Assert-NoCommunity $stage
 Copy-Item -Path (Join-Path (Find-VcRuntime) '*.dll') -Destination $stage
-Assert-Samples $stage (Add-Sample $stage)
+Assert-Samples $stage @(Add-Samples $stage)
 $adb = Get-Adb
 $adbFolder = Join-Path $stage 'adb'
 New-Item -ItemType Directory -Force $adbFolder | Out-Null
