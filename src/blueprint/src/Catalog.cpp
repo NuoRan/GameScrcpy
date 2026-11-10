@@ -460,6 +460,15 @@ private:
             entry.api = member.label;
             return;
         }
+        if (isName(member.returns, "ExtensionJob")) {
+            Entry& entry = add("job:" + member.label, member.name, english, member.label, std::move(group), "action",
+                               "loader-circle", EntryKind::Statement);
+            entry.inputs = inputsOf(member);
+            entry.api = member.label;
+            entry.groupTitle = extensionTitle(member.owner);
+            entry.keywords += " " + entry.groupTitle + " ext extension job " + d.say("badge:job");
+            return;
+        }
         const std::optional<PinType> output = outputOf(member);
         const bool pure = output && !awaitable(member.returns)
                        && (!isName(member.returns, "boolean") || valueSpace(member.owner) || member.label == "doN");

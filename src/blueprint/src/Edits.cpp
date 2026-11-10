@@ -2912,6 +2912,28 @@ public:
             }
             return made;
         }
+        if (id.starts_with("job:")) {
+            const std::string path(id.substr(4));
+            const ApiMember* member = api.find(path);
+            if (member == nullptr || !isName(member->returns, "ExtensionJob")) {
+                return std::nullopt;
+            }
+            std::string fields;
+            if (!member->params.empty()) {
+                for (const TypeProp& prop : propsOf(api, member->params.front().type)) {
+                    if (!prop.optional) {
+                        fields += (fields.empty() ? "" : ", ") + prop.name + ": "
+                                + defaultFor(TypeParam{.name = prop.name, .type = prop.type});
+                    }
+                }
+            }
+            const auto named = [&](std::string_view base) { return freeName(file, std::string(base), 0); };
+            made.code = path + "(" + (fields.empty() ? std::string("{}") : "{ " + fields + " }") + ").follow(async ("
+                      + named("fraction") + ", " + named("text") + ") => {\n}, async (" + named("result")
+                      + ") => {\n}, async (" + named("error") + ") => {\n})" + semi;
+            made.awaitable = true;
+            return made;
+        }
         if (id.starts_with("call:") || id.starts_with("pure:")) {
             const bool pure = id.starts_with("pure:");
             const std::string path(id.substr(5));
@@ -3161,7 +3183,22 @@ public:
             const bool body = from->role == Role::Entry || from->role == Role::Event || from->role == Role::ForEach
                            || from->role == Role::Repeat || from->role == Role::Fused
                            || from->role == Role::ForRange;
-            if (body) {
+            if (from->role == Role::Job) {
+                const Pin* exit = nullptr;
+                for (const Pin& output : from->outputs) {
+                    if (&output == out) {
+                        break;
+                    }
+                    if (output.type == PinType::Exec) {
+                        exit = &output;
+                    }
+                }
+                if (exit != nullptr && exit->branch != nullptr) {
+                    chain = exit->branch;
+                    anchor = from;
+                    chainPin = exit->name;
+                }
+            } else if (body) {
                 for (const Pin& output : from->outputs) {
                     if (output.branch != nullptr) {
                         chain = output.branch;

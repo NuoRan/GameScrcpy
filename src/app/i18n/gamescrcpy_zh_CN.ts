@@ -2443,6 +2443,30 @@
         <translation>完成</translation>
     </message>
     <message>
+        <source>Progress</source>
+        <translation>进度</translation>
+    </message>
+    <message>
+        <source>Failed</source>
+        <translation>失败</translation>
+    </message>
+    <message>
+        <source>Fraction</source>
+        <translation>比例</translation>
+    </message>
+    <message>
+        <source>Status</source>
+        <translation>状态</translation>
+    </message>
+    <message>
+        <source>Error</source>
+        <translation>错误</translation>
+    </message>
+    <message>
+        <source>Job</source>
+        <translation>任务</translation>
+    </message>
+    <message>
         <source>This Component&apos;s Position</source>
         <translation>本组件位置</translation>
     </message>
@@ -14018,10 +14042,6 @@
         <translation>变量里能放的值。</translation>
     </message>
     <message>
-        <source>A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; cancel asks it to stop. It is cancelled when the script stops.</source>
-        <translation>原生扩展运行的一项任务，比如写入固件。result 在任务结束时兑现，任务失败时抛出 GS-API-065，被取消时抛出 GS-API-066；onProgress 收听任务的进度，fraction 从 0 到 1，说不准时为 -1，每秒最多 20 次；onLog 收听任务的日志行，level 0 为信息、1 为警告、2 为错误；cancel 请任务停下。脚本停止时任务会被取消。</translation>
-    </message>
-    <message>
         <source>The options of a control&apos;s key events: again as for other events, and consume. With consume true (the default), the profile&apos;s logic takes the key of a tap, hold, long press, turbo, swipe or multi-press control it listens to: pressing the key no longer touches the phone, and the control touches only when the logic calls it, such as with press() or tap(), a few milliseconds later than its own touch would. consume: false keeps the control&apos;s own touch, which comes before the handler runs. Only the profile&apos;s own logic takes keys: tasks, extension scripts and scripts an AI client runs only listen, the event methods a component class overrides keep the built-in touch, and other controls always keep working.</source>
         <translation>组件按键事件的选项：again 同其他事件，另有 consume。consume 为 true（默认）时，方案的逻辑会拿走它监听的点击、按住、长按、连发、滑动、多点同按组件的键：按这个键不再触摸手机，组件只在逻辑调用它时（如 press() 或 tap()）才触摸，比它自己按晚几毫秒。consume: false 保留组件自己的触摸，它在处理函数运行之前发生。只有方案自己的逻辑会拿走按键：任务、扩展的脚本和 AI 运行的脚本只旁听，组件类改写的事件方法照常让本体先按，其他组件始终照常工作。</translation>
     </message>
@@ -15508,6 +15528,10 @@
     <message>
         <source>Keeps it as a template of the script&apos;s folder: res/&lt;name&gt;.png and an entry in res/resources.json, replacing the picture of a template with that name; resolves once both are written. Logic keeps running. Throws GS-API-038 when the name is not allowed; rejects with GS-API-038 when the files cannot be written and GS-API-037 when the image is no longer kept.</source>
         <translation>把它存成脚本文件夹里的模板：res/&lt;名字&gt;.png 加上 res/resources.json 里的一条，同名模板只换图片；两样都写好后兑现。逻辑不会因此重新加载。名字不合规则时抛出 GS-API-038；文件写不进去时以 GS-API-038 拒绝，这张图已经不在时以 GS-API-037 拒绝。</translation>
+    </message>
+    <message>
+        <source>A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; follow hears the progress, waits for the job and then runs done with the result or failed with the error, and without failed a failure throws as result does; cancel asks it to stop. It is cancelled when the script stops.</source>
+        <translation>原生扩展运行的一项任务，比如写入固件。result 在任务结束时兑现，任务失败时抛出 GS-API-065，被取消时抛出 GS-API-066；onProgress 收听任务的进度，fraction 从 0 到 1，说不准时为 -1，每秒最多 20 次；onLog 收听任务的日志行，level 0 为信息、1 为警告、2 为错误；follow 收听进度并等任务结束，然后带着结果运行 done，或带着错误运行 failed，没给 failed 时失败会像 result 一样抛出；cancel 请任务停下。脚本停止时任务会被取消。</translation>
     </message>
     <message>
         <source>Where to read (a region or a region name; the whole picture by default), the language as a tag such as &quot;zh-Hans&quot; or &quot;en&quot; (by default the first Windows display language that has text recognition, otherwise the first one this computer has; findText looks for text of English letters, digits and signs with English recognition when the computer has it) and how long to wait while there is no picture yet (2000 ms by default, at most 10000).</source>

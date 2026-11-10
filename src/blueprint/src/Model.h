@@ -250,6 +250,7 @@ enum class Role : std::uint8_t {
     MultiGate,
     ForRange,
     Default,
+    Job,
 };
 
 enum class Shape : std::uint8_t { Program, Braced, Expression, Single, Missing, Floating };

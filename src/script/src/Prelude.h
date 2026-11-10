@@ -8,7 +8,7 @@ namespace gs::script::detail {
 
 inline constexpr std::string_view kPreludeName = "<gs>";
 
-inline constexpr std::array<std::string_view, 13> kPreludeParts{
+inline constexpr std::array<std::string_view, 14> kPreludeParts{
     R"js(((host) => {
     "use strict";
     const defineProperty = Object.defineProperty;
@@ -2097,7 +2097,8 @@ inline constexpr std::array<std::string_view, 13> kPreludeParts{
             },
         }),
     });
-    const jobListeners = new Map();
+)js",
+    R"js(    const jobListeners = new Map();
     const jobOf = (extension, job, args) => {
         const started = host.call("native.jobStart", JSON.stringify({ extension, job, args }));
         const id = String(started.id);
@@ -2118,6 +2119,24 @@ inline constexpr std::array<std::string_view, 13> kPreludeParts{
                     listeners.log.push(listener);
                 }
                 return handle;
+            },
+            async follow(progress, done, failed) {
+                if (typeof progress === "function") {
+                    listeners.progress.push(progress);
+                }
+                let value;
+                try {
+                    value = await result;
+                } catch (error) {
+                    if (typeof failed !== "function") {
+                        throw error;
+                    }
+                    await failed(error);
+                    return;
+                }
+                if (typeof done === "function") {
+                    await done(value);
+                }
             },
             cancel() {
                 host.call("native.jobCancel", JSON.stringify({ id }));

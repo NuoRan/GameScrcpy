@@ -369,6 +369,56 @@ export async function stop() {
     CHECK(gs::script::nodeSignature(typed) == "flash(args: { port: string; at: PicturePoint }): ExtensionJob<number>");
 }
 
+TEST_CASE("ADR-0112: follow hears a job's progress and runs done with its result or failed with its error, and "
+          "without failed a failure throws")
+{
+    Fixture fixture;
+    const ScriptId script = fixture.load(R"js(
+export async function followed() {
+    const heard = [];
+    await ext.alice.netTools.flash({ port: "COM5", size: 3 }).follow(
+        async (fraction, text) => { heard.push(fraction + " " + text); },
+        async (result) => { heard.push("done " + JSON.stringify(result)); },
+        async (error) => { heard.push("failed " + error.message); });
+    log.info("followed", heard.join(","));
+}
+export async function failing() {
+    const heard = [];
+    await ext.alice.netTools.flash({ port: "COM6", size: 3 }).follow(undefined, () => heard.push("done"),
+                                                                    (error) => heard.push("failed " + error.message));
+    try {
+        await ext.alice.netTools.flash({ port: "COM7", size: 3 }).follow();
+    } catch (error) {
+        heard.push("thrown " + error.message.split(" ")[0]);
+    }
+    log.info("failing", heard.join(","));
+}
+)js");
+    const TaskId followed = fixture.host->start(script, "followed");
+    const std::optional<std::uint64_t> first = fixture.services->waitForRequest(0);
+    REQUIRE(first.has_value());
+    fixture.host->event("job", "5", R"({"kind":"progress","fraction":0.25,"text":"quarter"})");
+    fixture.host->answer(*first, R"({"ok":true})");
+    const auto ended = fixture.recorder.waitFor(taskEnded(followed));
+    REQUIRE(ended.has_value());
+    INFO(gs::script::describe(ended->report));
+    CHECK(ended->report.kind == ReportKind::TaskFinished);
+    CHECK(fixture.recorder.count(logged("followed 0.25 quarter,done {\"ok\":true}")) == 1);
+
+    const TaskId failing = fixture.host->start(script, "failing");
+    const std::optional<std::uint64_t> second = fixture.services->waitForRequest(1);
+    REQUIRE(second.has_value());
+    fixture.host->refuse(*second, "GS-API-065 asked to fail");
+    const std::optional<std::uint64_t> third = fixture.services->waitForRequest(2);
+    REQUIRE(third.has_value());
+    fixture.host->refuse(*third, "GS-API-065 the port is gone");
+    const auto stopped = fixture.recorder.waitFor(taskEnded(failing));
+    REQUIRE(stopped.has_value());
+    INFO(gs::script::describe(stopped->report));
+    CHECK(stopped->report.kind == ReportKind::TaskFinished);
+    CHECK(fixture.recorder.count(logged("failing failed GS-API-065 asked to fail,thrown GS-API-065")) == 1);
+}
+
 TEST_CASE("ADR-0097: installed nodes are typed in types/extensions.d.ts under interface Extensions")
 {
     CHECK(gs::script::nodePath("gamescrcpy.pc-clock", "now") == "ext.gamescrcpy.pcClock.now");

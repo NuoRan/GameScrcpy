@@ -545,6 +545,11 @@ const ClassInfo* classOfObjectItem(const Document::Impl& d, const Item* item)
     return found == d.classes.end() ? nullptr : &*found;
 }
 
+bool extensionSpace(std::string_view space) noexcept
+{
+    return space.starts_with("ext.") || space.starts_with("ext[");
+}
+
 Literal groupIcon(std::string_view space)
 {
     if (space == "touch") {
@@ -582,6 +587,9 @@ Literal groupIcon(std::string_view space)
     }
     if (space == "time") {
         return "timer";
+    }
+    if (extensionSpace(space)) {
+        return "plug";
     }
     return "zap";
 }
@@ -659,7 +667,7 @@ bool structure(Role role) noexcept
 {
     return role == Role::Branch || role == Role::Fused || role == Role::ForEach || role == Role::Repeat
         || role == Role::While || role == Role::Switch || role == Role::Sequence || role == Role::MultiGate
-        || role == Role::ForRange;
+        || role == Role::ForRange || role == Role::Job;
 }
 
 bool repeatShape(const Node* loop)
@@ -850,6 +858,9 @@ private:
     Chain* caseBody(Item& head, const std::string& pin, const Node* each, const Chain& outer);
     [[nodiscard]] bool workCall(const Node* call, std::string_view name) const;
     Item* workItem(Chain& target, std::size_t index, const Node* statement, const Node* call, Role role, Ordinals& ordinals);
+    [[nodiscard]] const Node* jobOf(const Node* call) const;
+    Item* jobItem(Chain& target, std::size_t index, const Node* statement, const Node* call, const Node* job,
+                  Ordinals& ordinals);
     Item* transitionItem(Chain& target, std::size_t index, const Node* statement, Ordinals& ordinals);
     [[nodiscard]] bool machineCall(const Node* call) const;
     Item* machineItem(Chain& target, std::size_t index, const Node* statement, const Node* call,
@@ -1210,6 +1221,19 @@ Resolved Builder::compute(const Node* node) const
             resolved.custom = root;
             resolved.page = join("fn:", root);
             resolved.callee = root;
+        }
+        return resolved;
+    }
+    if (root == "ext" && path.names.size() >= 2) {
+        std::string space(root);
+        for (std::size_t i = 0; i + 1 < path.names.size(); ++i) {
+            const std::string_view part = path.names[i];
+            space += identifierText(part) ? join(".", part) : join("[\"", part, "\"]");
+        }
+        if (const ApiMember* member = api.function(space, path.names.back())) {
+            resolved.known = true;
+            resolved.member = member;
+            resolved.callee = join(space, ".", path.names.back());
         }
         return resolved;
     }
@@ -2129,7 +2153,8 @@ void Builder::apiPins(Item& item, const Node* call, const ApiMember& member, con
         const bool function = isFunctionType(api, param.type);
         const TypeRef plain = withoutEmpty(param.type);
         std::optional<std::vector<TypeProp>> props;
-        if (param.name == "options" || (plain != nullptr && plain->name.ends_with("Options"))) {
+        if (param.name == "options" || (plain != nullptr && plain->name.ends_with("Options"))
+            || (item.role == Role::Job && p == 0)) {
             props = propsOf(api, param.type);
         }
         const bool options = props && !props->empty() && !function;
@@ -2152,7 +2177,7 @@ void Builder::apiPins(Item& item, const Node* call, const ApiMember& member, con
                 pin.name = join(param.name, ".", prop.name);
                 pin.label = labelOf(prop.name);
                 pin.type = type;
-                pin.optional = true;
+                pin.optional = item.role != Role::Job || prop.optional;
                 pin.choices = d.keep(m_choices);
                 express(pin, type);
                 pin.fallback = declaredDefault(plain != nullptr ? std::string_view(plain->name) : std::string_view(),
@@ -2415,7 +2440,7 @@ Item* Builder::callItem(Chain& target, std::size_t index, const Node* statement,
                                             : groupIcon(member.owner);
         std::string label = d.say.optional(member.label);
         if (label.empty()) {
-            label = resolved.owner.empty() ? member.label : member.name;
+            label = resolved.owner.empty() && !extensionSpace(member.owner) ? member.label : member.name;
         }
         item.title = wait ? say("node:wait") : resolved.owner.empty() ? label : resolved.owner + std::string(kDot) + label;
         execIn(item);
@@ -2942,6 +2967,82 @@ Item* Builder::workItem(Chain& target, std::size_t index, const Node* statement,
     return &item;
 }
 
+const Node* Builder::jobOf(const Node* call) const
+{
+    if (call == nullptr || call->kind != Kind::Call || call->items.size() > 3) {
+        return nullptr;
+    }
+    const Node* callee = unparen(call->target);
+    if (callee == nullptr || callee->kind != Kind::Member || callee->has(flag::kComputed) || callee->value == nullptr
+        || callee->value->text != "follow") {
+        return nullptr;
+    }
+    const Node* job = unparen(callee->target);
+    if (job == nullptr || job->kind != Kind::Call) {
+        return nullptr;
+    }
+    const Resolved& resolved = resolve(job->target);
+    if (resolved.member == nullptr || resolved.member->property || !isName(resolved.member->returns, "ExtensionJob")) {
+        return nullptr;
+    }
+    for (const Node* argument : call->items) {
+        const Node* bare = unparen(argument);
+        if (!syntax::isFunction(bare) && !undefinedNode(bare)) {
+            return nullptr;
+        }
+    }
+    return job;
+}
+
+Item* Builder::jobItem(Chain& target, std::size_t index, const Node* statement, const Node* call, const Node* job,
+                       Ordinals& ordinals)
+{
+    const Resolved& resolved = resolve(job->target);
+    const ApiMember& member = *resolved.member;
+    Item& item = statementBase(target, index, Role::Job, "j:" + resolved.callee, "action", ordinals);
+    item.tone = "action";
+    item.icon = "loader-circle";
+    item.title = member.name;
+    item.badge = say("badge:job");
+    item.api = member.label;
+    item.apiMember = &member;
+    item.callee = resolved.callee;
+    item.expression = call;
+    execIn(item);
+    apiPins(item, job, member, &target, {});
+    const TypeRef returned = member.returns->items.empty() ? nullptr : member.returns->items.front();
+    struct Exit {
+        std::string_view pin;
+        std::array<std::string_view, 2> labels;
+        std::array<PinType, 2> types;
+    };
+    const Exit exits[] = {
+        {"progress", {"pin:fraction", "pin:status"}, {PinType::Number, PinType::Text}},
+        {"done", {"pin:result", {}}, {returned != nullptr ? typeOf(returned, "") : PinType::Any, PinType::Any}},
+        {"failed", {"pin:error", {}}, {PinType::Any, PinType::Any}},
+    };
+    for (std::size_t a = 0; a < std::size(exits); ++a) {
+        const Exit& exit = exits[a];
+        const std::string pin(exit.pin);
+        const Node* arrow = a < call->items.size() ? unparen(call->items[a]) : nullptr;
+        if (arrow == nullptr || !syntax::isFunction(arrow)) {
+            continue;
+        }
+        execOut(item, pin, say(join("pin:", exit.pin)), true);
+        for (std::size_t p = 0; p < arrow->items.size() && p < exit.labels.size() && !exit.labels[p].empty(); ++p) {
+            const Node* param = arrow->items[p];
+            if (param->kind == Kind::AssignPattern) {
+                param = param->target;
+            }
+            produce(item, param, say(exit.labels[p]), exit.types[p]);
+        }
+        body(item, pin, arrow, arrow->body, false, &target, call);
+    }
+    execOut(item, "then", say("pin:then"), true);
+    finish(item, statement, statement);
+    return &item;
+}
+
 void collectReturns(const Node* node, std::vector<const Node*>& found)
 {
     if (node == nullptr || syntax::isFunction(node) || node->kind == Kind::Class) {
@@ -3254,6 +3355,9 @@ Item* Builder::statementItem(Chain& target, std::size_t& index, Ordinals& ordina
         }
         if (workCall(expression, "multiGate")) {
             return workItem(target, at, statement, expression, Role::MultiGate, ordinals);
+        }
+        if (const Node* job = jobOf(expression)) {
+            return jobItem(target, at, statement, expression, job, ordinals);
         }
         if (expression->kind == Kind::Call) {
             return callItem(target, at, statement, expression, waited, nullptr, ordinals);
