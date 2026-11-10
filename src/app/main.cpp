@@ -11,6 +11,7 @@
 #include "DemoFeed.h"
 #include "DeviceManager.h"
 #include "DiagnosticsBundle.h"
+#include "ExtensionHelp.h"
 #include "ExtensionHost.h"
 #include "ExtensionLogic.h"
 #include "ExtensionPanels.h"
@@ -417,6 +418,7 @@ int main(int argc, char* argv[])
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &extensions, &gs::app::ExtensionHost::finish);
     gs::app::ExtensionPanels extensionPanels(nullptr);
     extensionPanels.watch(extensions);
+    gs::app::watchExtensionHelp(help, extensions);
     gs::app::HardwareAccess hardware(parser.isSet(demoHardwareOption) ? demoHardware()
                                      : parser.isSet(smokeTest)        ? nullptr
                                                                       : gs::hardware::makeWindowsBackend(),

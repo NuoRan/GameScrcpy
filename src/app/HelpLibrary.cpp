@@ -2,6 +2,7 @@
 
 #include "AppSettings.h"
 
+#include <gs/ext/Archive.h>
 #include <gs/script/ApiFiles.h>
 
 #include <QDir>
@@ -213,6 +214,24 @@ QStringList wordsOf(const QString& query)
     return query.simplified().toCaseFolded().split(u' ', Qt::SkipEmptyParts);
 }
 
+constexpr const char* kExtensionsGroup = QT_TRANSLATE_NOOP("HelpLibrary", "Extensions");
+
+QVariantList withSafePictures(const QVariantList& blocks)
+{
+    QVariantList kept;
+    for (const QVariant& value : blocks) {
+        const QVariantMap block = value.toMap();
+        if (block.value(u"kind"_s).toString() == u"image"_s) {
+            const QString source = block.value(u"source"_s).toString();
+            if (source.contains(u':') || !ext::safeArchivePath(source.toStdString())) {
+                continue;
+            }
+        }
+        kept.append(value);
+    }
+    return kept;
+}
+
 }
 
 HelpLibrary::HelpLibrary(const AppSettings& settings, QString root, Translate translate, QObject* parent)
@@ -281,6 +300,66 @@ QUrl HelpLibrary::baseUrl() const
     return QUrl::fromLocalFile(QDir(m_root).absolutePath() + u'/');
 }
 
+void HelpLibrary::setExtensionTopics(std::vector<ExtensionHelp> topics)
+{
+    std::erase_if(m_topics, [](const HelpTopic& topic) { return !topic.extension.isEmpty(); });
+    if (!m_extensionGroup) {
+        HelpGroup group;
+        for (const QStringView language : kLanguages) {
+            group.titles.emplace(language.toString(), textIn(language.toString(), kExtensionsGroup));
+        }
+        m_extensionGroup = m_groups.size();
+        m_groups.push_back(std::move(group));
+    }
+    for (ExtensionHelp& wanted : topics) {
+        HelpTopic topic{.slug = u"ext/"_s + wanted.extension + u'/' + wanted.id,
+                        .icon = wanted.icon.isEmpty() && wanted.iconPath.isEmpty() ? u"puzzle"_s : wanted.icon,
+                        .tile = u"azure"_s,
+                        .group = *m_extensionGroup,
+                        .titles = std::move(wanted.titles),
+                        .meta = QVariantList{QVariantMap{{u"icon"_s, u"puzzle"_s}, {u"text"_s, wanted.extensionName}}},
+                        .extension = wanted.extension,
+                        .extensionName = wanted.extensionName,
+                        .iconPath = wanted.iconPath,
+                        .base = wanted.base};
+        if (find(topic.slug) != nullptr) {
+            continue;
+        }
+        for (const auto& [language, text] : wanted.texts) {
+            const QString body = split(text).body;
+            topic.texts.emplace(language, body);
+            HelpDocument document = parseHelpMarkdown(body);
+            document.blocks = withSafePictures(document.blocks);
+            topic.documents.emplace(language, std::move(document));
+        }
+        if (topic.texts.empty()) {
+            continue;
+        }
+        for (const QStringView language : kLanguages) {
+            const QString code = language.toString();
+            topic.searchable.emplace(code, searchableText(pick(topic.titles, code), pick(topic.texts, code)));
+        }
+        m_topics.push_back(std::move(topic));
+    }
+    m_contents = listed();
+    emit contentsChanged();
+}
+
+QString HelpLibrary::textIn(const QString& language, const char* text) const
+{
+    const QString english = QString::fromUtf8(text);
+    if (language == kFallback) {
+        return english;
+    }
+    QString found;
+    if (m_translate) {
+        found = m_translate(language, english);
+    } else if (QTranslator translator; translator.load(u"gamescrcpy_"_s + language, u":/i18n"_s)) {
+        found = translator.translate("HelpLibrary", text);
+    }
+    return found.isEmpty() ? english : found;
+}
+
 bool HelpLibrary::contains(const QString& slug) const
 {
     return find(slug) != nullptr;
@@ -304,7 +383,7 @@ QVariantMap HelpLibrary::article(const QString& slug, const QString& language) c
                        {u"reference"_s, topic->reference},
                        {u"layout"_s, layout},
                        {u"text"_s, pick(topic->texts, shown)},
-                       {u"baseUrl"_s, baseUrl()},
+                       {u"baseUrl"_s, topic->base.isEmpty() ? baseUrl() : topic->base},
                        {u"previous"_s, neighbour(*topic, -1, shown)},
                        {u"next"_s, neighbour(*topic, 1, shown)}};
     QVariantList meta;
@@ -388,6 +467,9 @@ QVariantMap HelpLibrary::home(const QString& language) const
     QVariantList guides;
     QVariantList reference;
     for (const HelpTopic& topic : m_topics) {
+        if (!topic.extension.isEmpty()) {
+            continue;
+        }
         if (topic.reference) {
             reference.append(QVariantMap{{u"slug"_s, topic.slug}, {u"title"_s, pick(topic.titles, shown)}});
             continue;
@@ -436,7 +518,7 @@ QVariantMap HelpLibrary::neighbour(const HelpTopic& topic, int step, const QStri
         return {};
     }
     const HelpTopic& next = m_topics[static_cast<std::size_t>(index)];
-    if (next.reference != topic.reference) {
+    if (next.reference != topic.reference || next.extension != topic.extension) {
         return {};
     }
     return {{u"slug"_s, next.slug}, {u"title"_s, pick(next.titles, language)}};
@@ -634,6 +716,7 @@ QVariantList HelpLibrary::listed() const
                                     {u"slug"_s, topic.slug},
                                     {u"title"_s, pick(topic.titles, m_language)},
                                     {u"icon"_s, topic.icon},
+                                    {u"iconPath"_s, topic.iconPath},
                                     {u"tile"_s, topic.tile}});
         const HelpDocument* document = pickOf(topic.documents, m_language);
         if (words.isEmpty() || document == nullptr) {

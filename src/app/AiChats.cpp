@@ -318,7 +318,9 @@ McpOutcome AiChatTools::readHelp(const QJsonObject& arguments) const
         if (text.size() > kMostHelpChars) {
             text = text.left(kMostHelpChars) + u"\n[Cut here.]"_s;
         }
-        return said(u"# %1\n\n%2"_s.arg(inLanguage(topic->titles, language), text));
+        const QString source =
+            topic->extension.isEmpty() ? QString() : u"From the extension %1.\n\n"_s.arg(topic->extensionName);
+        return said(u"# %1\n\n%2%3"_s.arg(inLanguage(topic->titles, language), source, text));
     }
     const QString query = arguments.value(u"query"_s).toString().simplified();
     QStringList lines;
@@ -328,7 +330,9 @@ McpOutcome AiChatTools::readHelp(const QJsonObject& arguments) const
             !inLanguage(topic.texts, language).contains(query, Qt::CaseInsensitive)) {
             continue;
         }
-        lines.append(u"- %1: %2"_s.arg(topic.slug, title));
+        lines.append(topic.extension.isEmpty() ? u"- %1: %2"_s.arg(topic.slug, title)
+                                               : u"- %1: %2 (from the extension %3)"_s.arg(topic.slug, title,
+                                                                                            topic.extensionName));
     }
     if (lines.isEmpty()) {
         return said(u"No help article mentions \"%1\"."_s.arg(query));

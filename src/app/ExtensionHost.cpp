@@ -62,6 +62,7 @@ const ext::HostApi& hostApi()
         offered.versions[ext::ExtensionPoint::Task] = {ext::Version{1, 0, 0}};
         offered.versions[ext::ExtensionPoint::Script] = {ext::Version{1, 0, 0}};
         offered.versions[ext::ExtensionPoint::Panel] = {ext::Version{1, 0, 0}};
+        offered.versions[ext::ExtensionPoint::Help] = {ext::Version{1, 0, 0}};
         return offered;
     }();
     return api;

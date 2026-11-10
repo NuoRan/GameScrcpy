@@ -65,6 +65,8 @@ Item {
             return qsTr("tasks")
         case "panel":
             return qsTr("panels in GameScrcpy windows")
+        case "help":
+            return qsTr("help articles")
         default:
             return point
         }
@@ -140,6 +142,8 @@ Item {
             return qsTr("Tasks")
         case "panel":
             return qsTr("Panels")
+        case "help":
+            return qsTr("Help")
         default:
             return point
         }

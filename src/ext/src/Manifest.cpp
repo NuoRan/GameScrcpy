@@ -418,6 +418,11 @@ std::pair<std::string_view, std::string_view> identity(const PanelContribution& 
     return {"name", entry.name};
 }
 
+std::pair<std::string_view, std::string_view> identity(const HelpContribution& entry)
+{
+    return {"id", entry.id};
+}
+
 std::pair<std::string_view, std::string_view> identity(const SettingDeclaration& entry)
 {
     return {"key", entry.key};
@@ -635,6 +640,47 @@ void checkEntry(const PanelContribution& panel, const std::string& path, Context
         } else if (std::ranges::find(panel.on.begin(), panel.on.begin() + static_cast<std::ptrdiff_t>(index),
                                      panel.on[index]) != panel.on.begin() + static_cast<std::ptrdiff_t>(index)) {
             context.report(Severity::Error, Code::Duplicate, indexed(path + ".on", index), panel.on[index]);
+        }
+    }
+}
+
+bool markdownFile(std::string_view file)
+{
+    if (file.size() < 4) {
+        return false;
+    }
+    std::string ending(file.substr(file.size() - 3));
+    std::ranges::transform(ending, ending.begin(), [](char c) { return c >= 'A' && c <= 'Z' ? char(c - 'A' + 'a') : c; });
+    return ending == ".md";
+}
+
+bool languageCode(std::string_view code)
+{
+    const auto lower = [](char c) { return c >= 'a' && c <= 'z'; };
+    const auto upper = [](char c) { return c >= 'A' && c <= 'Z'; };
+    const std::size_t split = code.find('_');
+    const std::string_view language = code.substr(0, split);
+    if (language.size() < 2 || language.size() > 3 || !std::ranges::all_of(language, lower)) {
+        return false;
+    }
+    if (split == std::string_view::npos) {
+        return true;
+    }
+    const std::string_view region = code.substr(split + 1);
+    return region.size() == 2 && std::ranges::all_of(region, upper);
+}
+
+void checkEntry(const HelpContribution& help, const std::string& path, Context& context)
+{
+    if (!help.file.empty() && !markdownFile(help.file)) {
+        context.report(Severity::Error, Code::PathInvalid, path + ".file", help.file);
+    }
+    for (const auto& [language, file] : help.locales) {
+        const std::string at = keyed(path + ".locales", language);
+        if (!languageCode(language)) {
+            context.report(Severity::Error, Code::OutOfRange, at, language);
+        } else if (!markdownFile(file)) {
+            context.report(Severity::Error, Code::PathInvalid, at, file);
         }
     }
 }
@@ -1750,6 +1796,7 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
         {"components", ExtensionPoint::Component, !contributes.components.empty()},
         {"tasks", ExtensionPoint::Task, !contributes.tasks.empty()},
         {"panels", ExtensionPoint::Panel, !contributes.panels.empty()},
+        {"help", ExtensionPoint::Help, !contributes.help.empty()},
     };
     for (const Contributed& entry : contributed) {
         if (entry.present && !manifest.declares(entry.point)) {

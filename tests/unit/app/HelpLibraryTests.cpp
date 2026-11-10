@@ -755,3 +755,93 @@ TEST_CASE("every text of the script API reference has a finished Chinese transla
     CHECK(help.article(QStringLiteral("api")).value(QStringLiteral("title")).toString() ==
           chinese.at(QStringLiteral("GameScrcpy script API")));
 }
+
+TEST_CASE("ADR-0112: extensions add help articles under their own group, found by the search, with pictures only from "
+          "their own folder")
+{
+    const QTemporaryDir data;
+    const QTemporaryDir root;
+    REQUIRE(data.isValid());
+    REQUIRE(root.isValid());
+    writeSmallLibrary(root.path());
+    AppSettings settings(data.path().toStdWString());
+    REQUIRE(settings.setValue(kLanguage, kEnglish));
+    HelpLibrary help(settings, root.path(), [](const QString& language, const QString& text) {
+        return language == kChinese && text == QStringLiteral("Extensions") ? QStringLiteral("扩展") : QString();
+    });
+    int contents = 0;
+    QObject::connect(&help, &HelpLibrary::contentsChanged, &help, [&contents] { ++contents; });
+    const QUrl folder = QUrl::fromLocalFile(QDir(root.path()).absolutePath() + QStringLiteral("/boards/"));
+    const QString setupSlug = QStringLiteral("ext/alice.boards/setup");
+    const QString faqSlug = QStringLiteral("ext/alice.boards/faq");
+    help.setExtensionTopics(
+        {{.extension = QStringLiteral("alice.boards"),
+          .extensionName = QStringLiteral("Alice boards"),
+          .id = QStringLiteral("setup"),
+          .titles = {{kEnglish, QStringLiteral("Setting up")}, {kChinese, QStringLiteral("设置")}},
+          .texts = {{kEnglish, QStringLiteral("# Setting up\n\nPlug the board into the phone.\n\n![The board](images/board.png)\n\n"
+                                              "![Away](../outside.png)\n\n![Web](https://example.com/a.png)\n")},
+                    {kChinese, QStringLiteral("把板子插到手机上。\n")}},
+          .icon = {},
+          .iconPath = QStringLiteral("M2 2 L22 22"),
+          .base = folder},
+         {.extension = QStringLiteral("alice.boards"),
+          .extensionName = QStringLiteral("Alice boards"),
+          .id = QStringLiteral("faq"),
+          .titles = {{kEnglish, QStringLiteral("Questions")}},
+          .texts = {{kEnglish, QStringLiteral("Why does the light blink?\n")}},
+          .icon = QStringLiteral("circle-help"),
+          .iconPath = {},
+          .base = folder},
+         {.extension = QStringLiteral("bob.tools"),
+          .extensionName = QStringLiteral("Bob tools"),
+          .id = QStringLiteral("intro"),
+          .titles = {{kEnglish, QStringLiteral("Intro")}},
+          .texts = {{kEnglish, QStringLiteral("Hello.\n")}}}});
+    CHECK(contents == 1);
+    CHECK(listed(help.contents(), QStringLiteral("slug")).mid(6) ==
+          QStringList{setupSlug, faqSlug, QStringLiteral("ext/bob.tools/intro")});
+    CHECK(help.article(faqSlug).value(QStringLiteral("next")).toMap().isEmpty());
+    CHECK(listed(help.contents(), QStringLiteral("label")) ==
+          QStringList{QStringLiteral("Guides"), QStringLiteral("Script API"), QStringLiteral("Extensions")});
+    CHECK(listed(help.contents(), QStringLiteral("iconPath")).contains(QStringLiteral("M2 2 L22 22")));
+
+    const QVariantMap setup = help.article(setupSlug);
+    CHECK(setup.value(QStringLiteral("title")).toString() == QStringLiteral("Setting up"));
+    CHECK(setup.value(QStringLiteral("group")).toString() == QStringLiteral("Extensions"));
+    CHECK(setup.value(QStringLiteral("baseUrl")).toUrl() == folder);
+    CHECK(setup.value(QStringLiteral("text")).toString().startsWith(QStringLiteral("Plug the board")));
+    CHECK(setup.value(QStringLiteral("meta")).toList().value(0).toMap().value(QStringLiteral("text")).toString() ==
+          QStringLiteral("Alice boards"));
+    QStringList pictures;
+    for (const QVariant& block : setup.value(QStringLiteral("blocks")).toList()) {
+        if (block.toMap().value(QStringLiteral("kind")).toString() == QStringLiteral("image")) {
+            pictures.append(block.toMap().value(QStringLiteral("source")).toString());
+        }
+    }
+    CHECK(pictures == QStringList{QStringLiteral("images/board.png")});
+    CHECK(setup.value(QStringLiteral("previous")).toMap().isEmpty());
+    CHECK(setup.value(QStringLiteral("next")).toMap().value(QStringLiteral("slug")).toString() == faqSlug);
+    CHECK(help.article(faqSlug).value(QStringLiteral("icon")).toString() == QStringLiteral("circle-help"));
+    CHECK(help.article(QStringLiteral("api/zebra")).value(QStringLiteral("next")).toMap().isEmpty());
+    QStringList guides;
+    for (const QVariant& guide : help.home().value(QStringLiteral("guides")).toList()) {
+        guides.append(guide.toMap().value(QStringLiteral("slug")).toString());
+    }
+    CHECK_FALSE(guides.contains(setupSlug));
+
+    help.setQuery(QStringLiteral("blink"));
+    CHECK(listed(help.contents(), QStringLiteral("slug")) == QStringList{faqSlug});
+    CHECK(listed(help.contents(), QStringLiteral("label")) == QStringList{QStringLiteral("Extensions")});
+    help.setQuery({});
+
+    REQUIRE(settings.setValue(kLanguage, kChinese));
+    CHECK(listed(help.contents(), QStringLiteral("label")).contains(QStringLiteral("扩展")));
+    CHECK(help.article(setupSlug).value(QStringLiteral("title")).toString() == QStringLiteral("设置"));
+    CHECK(help.article(setupSlug).value(QStringLiteral("text")).toString() == QStringLiteral("把板子插到手机上。\n"));
+    CHECK(help.article(faqSlug).value(QStringLiteral("title")).toString() == QStringLiteral("Questions"));
+
+    help.setExtensionTopics({});
+    CHECK_FALSE(help.contains(setupSlug));
+    CHECK_FALSE(listed(help.contents(), QStringLiteral("label")).contains(QStringLiteral("扩展")));
+}

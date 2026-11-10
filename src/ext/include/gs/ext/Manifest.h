@@ -23,12 +23,12 @@ inline constexpr std::size_t kMaxReasonLength = 120;
 inline constexpr std::string_view kReservedIdPrefix = "gamescrcpy.";
 
 enum class ExtensionPoint : std::uint8_t {
-    Profile, Theme, Filter, Script, Command, Preset, Native, Component, Task, Panel
+    Profile, Theme, Filter, Script, Command, Preset, Native, Component, Task, Panel, Help
 };
-inline constexpr std::array<std::string_view, 10> kExtensionPointNames{"profile", "theme",     "filter",
+inline constexpr std::array<std::string_view, 11> kExtensionPointNames{"profile", "theme",     "filter",
                                                                        "script",  "command",   "preset",
                                                                        "native",  "component", "task",
-                                                                       "panel"};
+                                                                       "panel",   "help"};
 
 inline constexpr std::array<std::string_view, 8> kNativeTypeNames{"boolean", "number", "string",   "point",
                                                                   "region",  "color",  "duration", "json"};
@@ -469,6 +469,28 @@ struct PanelContribution {
     friend bool operator==(const PanelContribution&, const PanelContribution&) = default;
 };
 
+inline constexpr std::size_t kMaxHelpTopics = 16;
+
+struct HelpContribution {
+    std::string id;
+    std::string title;
+    std::string file;
+    TextMap locales;
+    std::string icon;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("id", m.id, {.required = true, .maxLength = kMaxPanelNameLength, .format = TextFormat::PanelName});
+        v.text("title", m.title, {.required = true, .maxLength = 60});
+        v.text("file", m.file, {.required = true, .maxLength = 260, .format = TextFormat::PackagePath});
+        v.textMap("locales", m.locales, {.maxEntries = 8, .valueFormat = TextFormat::PackagePath, .maxLength = 260});
+        v.text("icon", m.icon, {.maxLength = 64});
+    }
+
+    friend bool operator==(const HelpContribution&, const HelpContribution&) = default;
+};
+
 struct Contributions {
     std::vector<FilterContribution> filters;
     std::vector<ThemeContribution> themes;
@@ -481,6 +503,7 @@ struct Contributions {
     std::vector<ComponentContribution> components;
     std::vector<TaskContribution> tasks;
     std::vector<PanelContribution> panels;
+    std::vector<HelpContribution> help;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -496,6 +519,7 @@ struct Contributions {
         v.objectList("components", m.components, 256);
         v.objectList("tasks", m.tasks, 256);
         v.objectList("panels", m.panels, kMaxPanels);
+        v.objectList("help", m.help, kMaxHelpTopics);
     }
 
     friend bool operator==(const Contributions&, const Contributions&) = default;

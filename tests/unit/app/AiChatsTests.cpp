@@ -404,6 +404,27 @@ TEST_CASE("ADR-0099 23:3x: the assistant reads the guides, reads the help and on
     CHECK(ran(lonely, u"read_profile"_s, {}).failed);
 }
 
+TEST_CASE("ADR-0112: read_help lists and reads the help of extensions and says which extension it comes from")
+{
+    gs::test::McpApplication application;
+    const QTemporaryDir data;
+    REQUIRE(data.isValid());
+    const gs::app::AppSettings settings(data.path().toStdWString());
+    gs::app::HelpLibrary help(settings);
+    help.setExtensionTopics({{.extension = u"alice.boards"_s,
+                              .extensionName = u"Alice boards"_s,
+                              .id = u"setup"_s,
+                              .titles = {{u"en"_s, u"Setting up"_s}},
+                              .texts = {{u"en"_s, u"Plug the board in.\n"_s}}}});
+    Runner base;
+    AiChatTools tools(&base, &help, {});
+    CHECK(textOf(ran(tools, u"read_help"_s, {}))
+              .contains(u"- ext/alice.boards/setup: Setting up (from the extension Alice boards)"));
+    CHECK(textOf(ran(tools, u"read_help"_s, {{u"topic"_s, u"ext/alice.boards/setup"_s}})) ==
+          u"# Setting up\n\nFrom the extension Alice boards.\n\nPlug the board in.\n");
+    CHECK_FALSE(textOf(ran(tools, u"read_help"_s, {{u"topic"_s, u"connecting"_s}})).contains(u"From the extension"));
+}
+
 TEST_CASE("ADR-0099 02:4x: the assistant looks up the blocks, the settings with how they are set and the commands "
           "with their shortcuts")
 {

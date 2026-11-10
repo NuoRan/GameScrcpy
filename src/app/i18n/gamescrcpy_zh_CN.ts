@@ -6363,6 +6363,10 @@
         <translation>GameScrcpy 窗口里的面板</translation>
     </message>
     <message>
+        <source>help articles</source>
+        <translation>帮助文章</translation>
+    </message>
+    <message>
         <source>Mirror window side panel</source>
         <translation>投屏窗口侧边面板</translation>
     </message>
@@ -6437,6 +6441,10 @@
     <message>
         <source>Panels</source>
         <translation>面板</translation>
+    </message>
+    <message>
+        <source>Help</source>
+        <translation>帮助</translation>
     </message>
     <message>
         <source>Extensions</source>
@@ -8160,6 +8168,13 @@
     <message>
         <source>Made from the program itself, so it always matches your version.</source>
         <translation>由程序本身生成，总和你用的版本一致。</translation>
+    </message>
+</context>
+<context>
+    <name>HelpLibrary</name>
+    <message>
+        <source>Extensions</source>
+        <translation>扩展</translation>
     </message>
 </context>
 <context>

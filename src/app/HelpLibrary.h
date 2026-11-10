@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <functional>
 #include <map>
+#include <optional>
 #include <vector>
 
 class QJSEngine;
@@ -37,10 +38,25 @@ struct HelpTopic {
     std::map<QString, QString> searchable;
     std::map<QString, HelpDocument> documents;
     QVariantList meta;
+    QString extension;
+    QString extensionName;
+    QString iconPath;
+    QUrl base;
 };
 
 struct HelpGroup {
     std::map<QString, QString> titles;
+};
+
+struct ExtensionHelp {
+    QString extension;
+    QString extensionName;
+    QString id;
+    std::map<QString, QString> titles;
+    std::map<QString, QString> texts;
+    QString icon;
+    QString iconPath;
+    QUrl base;
 };
 
 class HelpLibrary : public QObject
@@ -73,6 +89,7 @@ public:
     [[nodiscard]] const std::vector<HelpGroup>& groups() const noexcept { return m_groups; }
     [[nodiscard]] const HelpTopic* find(QStringView slug) const;
     [[nodiscard]] QUrl baseUrl() const;
+    void setExtensionTopics(std::vector<ExtensionHelp> topics);
 
     Q_INVOKABLE bool contains(const QString& slug) const;
     Q_INVOKABLE QVariantMap article(const QString& slug, const QString& language = {}) const;
@@ -92,6 +109,7 @@ private:
     [[nodiscard]] QVariantList listed() const;
     [[nodiscard]] QVariantMap neighbour(const HelpTopic& topic, int step, const QString& language) const;
     void decorate(QVariantList& blocks) const;
+    [[nodiscard]] QString textIn(const QString& language, const char* text) const;
 
     static inline HelpLibrary* s_instance = nullptr;
 
@@ -104,6 +122,7 @@ private:
     std::vector<HelpTopic> m_topics;
     QStringList m_popular;
     QVariantList m_contents;
+    std::optional<std::size_t> m_extensionGroup;
 };
 
 }

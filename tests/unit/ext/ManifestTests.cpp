@@ -797,7 +797,9 @@ TEST_CASE("panel contributions name a place, a script and a title, load and surv
           Json::array({"mirror", "menu", "status", "page", "device", "settings", "extension", "toolbar", "contextMenu",
                        "tray"}));
     CHECK(panelSchema["items"]["properties"]["title"]["maxLength"] == 40);
-    CHECK(schema["properties"]["requires"]["propertyNames"]["enum"].back() == "panel");
+    const Json points = schema["properties"]["requires"]["propertyNames"]["enum"];
+    CHECK(std::find(points.begin(), points.end(), Json("panel")) != points.end());
+    CHECK(points.back() == "help");
 }
 
 TEST_CASE("panel contributions are checked: names, places, titles, at most eight, one menu and both points "
@@ -1173,4 +1175,50 @@ TEST_CASE("ADR-0112: panels show for a device, in Settings, in the extension's s
     CHECK_FALSE(reports(loaded, Code::OutOfRange, "$.contributes.panels[4].on[0]"));
     json["contributes"]["panels"][4]["on"] = {"window"};
     CHECK(reports(load(json), Code::OutOfRange, "$.contributes.panels[4].on[0]"));
+}
+
+TEST_CASE("ADR-0112: an extension adds help articles in Markdown, a file for each language, under the help point")
+{
+    Json json = base();
+    json["id"] = "alice.helpful";
+    json["requires"] = {{"help", "^1.0"}};
+    json["contributes"] = {
+        {"help", Json::array({{{"id", "setup"},
+                               {"title", "Setting up"},
+                               {"file", "help/setup.md"},
+                               {"locales", {{"zh_CN", "help/setup.zh_CN.md"}}},
+                               {"icon", "svg:icons/board.svg"}},
+                              {{"id", "faq"}, {"title", "Questions"}, {"file", "help/faq.MD"}}})}};
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    REQUIRE(loaded.manifest.contributes.help.size() == 2);
+    const HelpContribution& setup = loaded.manifest.contributes.help[0];
+    CHECK(setup.id == "setup");
+    CHECK(setup.file == "help/setup.md");
+    CHECK(setup.locales.at("zh_CN") == "help/setup.zh_CN.md");
+    CHECK(setup.icon == "svg:icons/board.svg");
+    CHECK(loaded.manifest.declares(ExtensionPoint::Help));
+    CHECK(extensionPointNamed("help") == ExtensionPoint::Help);
+    CHECK(nameOf(ExtensionPoint::Help) == "help");
+    const Json saved = Json::parse(saveManifest(loaded.manifest))["contributes"]["help"];
+    CHECK(saved[0]["locales"]["zh_CN"] == "help/setup.zh_CN.md");
+    CHECK_FALSE(saved[1].contains("locales"));
+
+    json["contributes"]["help"][1]["id"] = "setup";
+    json["contributes"]["help"][0]["file"] = "help/setup.txt";
+    json["contributes"]["help"][0]["locales"] = {{"chinese", "help/a.md"}, {"ja", "help/ja.txt"}};
+    loaded = load(json);
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.help[1].id"));
+    CHECK(reports(loaded, Code::PathInvalid, "$.contributes.help[0].file"));
+    CHECK(reports(loaded, Code::OutOfRange, R"($.contributes.help[0].locales["chinese"])"));
+    CHECK(reports(loaded, Code::PathInvalid, R"($.contributes.help[0].locales["ja"])"));
+
+    json = base();
+    json["requires"] = {{"script", "^1.0"}};
+    json["contributes"] = {{"help", Json::array({{{"id", "setup"}, {"title", "Setting up"}, {"file", "a.md"}}})}};
+    loaded = load(json);
+    CHECK_FALSE(loaded.usable);
+    CHECK(undeclared(loaded, "$.contributes.help", "help"));
 }

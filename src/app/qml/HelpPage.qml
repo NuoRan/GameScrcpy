@@ -25,21 +25,25 @@ Item {
             return contents
         const list = [{ kind: "home" }]
         let namespaces = 0
+        let moreAt = -1
         for (const entry of contents) {
             if (entry.kind === "reference" && entry.slug !== "api") {
                 namespaces += 1
                 if (page.apiOpen || page.inReference)
                     list.push(entry)
+                moreAt = list.length
                 continue
             }
             list.push(entry)
+            if (entry.kind === "reference")
+                moreAt = list.length
             if (entry.kind === "article" && entry.slug === page.current) {
                 for (const part of page.shown.sections ?? [])
                     list.push({ kind: "toc", anchor: part.anchor, title: part.title })
             }
         }
         if (namespaces > 0 && !page.apiOpen && !page.inReference)
-            list.push({ kind: "more", count: namespaces })
+            list.splice(moreAt, 0, { kind: "more", count: namespaces })
         return list
     }
 
@@ -114,6 +118,7 @@ Item {
         id: navItem
 
         property string iconName
+        property string iconPath
         property string tone
         property bool current: false
         property bool mono: false
@@ -150,6 +155,7 @@ Item {
                     anchors.centerIn: parent
                     visible: !navItem.lead
                     iconName: navItem.iconName
+                    iconPath: navItem.iconPath
                     tone: navItem.tone
                     scale: 0.86
                 }
@@ -348,6 +354,7 @@ Item {
                         width: ListView.view.width
                         text: modelData.title ?? ""
                         iconName: modelData.icon ?? ""
+                        iconPath: modelData.iconPath ?? ""
                         tone: modelData.tile ?? ""
                         current: modelData.slug === page.current
                         onClicked: page.open(modelData.slug)

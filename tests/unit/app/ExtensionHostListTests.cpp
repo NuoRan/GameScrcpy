@@ -1,4 +1,5 @@
 #include "AppSettings.h"
+#include "ExtensionHelp.h"
 #include "ExtensionHost.h"
 
 #include "unit/ext/TestFiles.h"
@@ -528,4 +529,46 @@ TEST_CASE("ADR-0112: the extension list says which panels have the wrong kind of
     CHECK_FALSE(panels[2].toMap().contains(QStringLiteral("iconPath")));
     CHECK(panels[3].toMap().value(QStringLiteral("where")).toString() == "contextMenu");
     CHECK(panels[3].toMap().value(QStringLiteral("problem")).toString().isEmpty());
+}
+
+TEST_CASE("ADR-0112: the help of an extension that is on is read from its own folder, in each language it has")
+{
+    const Fixture fixture;
+    const fs::path folder = fixture.user / "alice.helpful/1.0.0";
+    writeFile(folder / "manifest.json", R"({"schemaVersion": 1, "id": "alice.helpful", "version": "1.0.0",
+        "name": "Helpful", "license": "MIT", "requires": {"help": "^1.0"},
+        "contributes": {"help": [
+            {"id": "setup", "title": "Setting up", "file": "help/setup.md",
+             "locales": {"zh_CN": "help/setup.zh_CN.md"}, "icon": "svg:icons/board.svg"},
+            {"id": "gone", "title": "Gone", "file": "help/missing.md"},
+            {"id": "plain", "title": "Plain", "file": "help/plain.md", "icon": "zap"}]},
+        "l10n": {"zh_CN": {"name": "有用", "help.setup.title": "设置"}}})");
+    writeFile(folder / "help/setup.md", "Plug it in.\r\nThen wait.\r\n");
+    writeFile(folder / "help/setup.zh_CN.md", "\xEF\xBB\xBF插上它。\n");
+    writeFile(folder / "help/plain.md", "Plain words.\n");
+    writeFile(folder / "icons/board.svg", R"(<svg viewBox="0 0 24 24"><path d="M2 2 L22 22"/></svg>)");
+    AppSettings settings(fixture.data);
+    ExtensionHost host(settings, {fixture.user, {}});
+    host.start(false);
+    CHECK(gs::app::extensionHelp(host, QStringLiteral("en")).empty());
+
+    REQUIRE(host.enable(QStringLiteral("alice.helpful"), true));
+    const std::vector<gs::app::ExtensionHelp> topics = gs::app::extensionHelp(host, QStringLiteral("zh_CN"));
+    REQUIRE(topics.size() == 2);
+    const gs::app::ExtensionHelp& setup = topics[0];
+    CHECK(setup.extension == "alice.helpful");
+    CHECK(setup.extensionName == QStringLiteral("有用"));
+    CHECK(setup.id == "setup");
+    CHECK(setup.titles.at(QStringLiteral("en")) == "Setting up");
+    CHECK(setup.titles.at(QStringLiteral("zh_CN")) == QStringLiteral("设置"));
+    CHECK(setup.texts.at(QStringLiteral("en")) == "Plug it in.\nThen wait.\n");
+    CHECK(setup.texts.at(QStringLiteral("zh_CN")) == QStringLiteral("插上它。\n"));
+    CHECK(setup.iconPath == "M2 2 L22 22");
+    CHECK(setup.icon.isEmpty());
+    CHECK(setup.base.isLocalFile());
+    CHECK(setup.base.toString().endsWith(QStringLiteral("alice.helpful/1.0.0/")));
+    CHECK(topics[1].id == "plain");
+    CHECK(topics[1].icon == "zap");
+    CHECK(topics[1].texts.size() == 1);
+    CHECK(gs::app::extensionHelp(host, QStringLiteral("en"))[0].extensionName == "Helpful");
 }
