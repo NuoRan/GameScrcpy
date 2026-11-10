@@ -750,10 +750,6 @@ if(GS_BUILD_APP)
     )
     add_dependencies(gs_app_tests gs_cli gs_exthost_program gs_test_native gs_ext_pc_clock)
     add_dependencies(gs_app_tests gs_scripthost_program)
-    if(GS_BUILD_COMMUNITY)
-        target_compile_definitions(gs_app_tests PRIVATE GS_FEEL_SAMPLES_DIR="$<TARGET_FILE_DIR:gs_feel_samples>")
-        add_dependencies(gs_app_tests gs_feel_samples)
-    endif()
     target_sources(gs_app_tests PRIVATE
         unit/app/AcceptanceEditorTests.cpp
         unit/app/AcceptanceInputTests.cpp

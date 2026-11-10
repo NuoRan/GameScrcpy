@@ -15,7 +15,6 @@ list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 
 option(GS_BUILD_APP "Build the Qt Quick application (requires Qt 6.10)" ON)
 option(GS_BUILD_TESTS "Build the unit tests" ON)
-option(GS_BUILD_COMMUNITY "Build the community extensions under community/ for the tests; they are never packaged" ON)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -44,10 +43,6 @@ endif()
 
 add_subdirectory(third_party)
 add_subdirectory(src)
-
-if(GS_BUILD_COMMUNITY)
-    add_subdirectory(community/feel-samples)
-endif()
 
 if(GS_BUILD_TESTS)
     add_subdirectory(tests)
