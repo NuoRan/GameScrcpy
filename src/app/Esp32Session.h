@@ -24,7 +24,7 @@ class Esp32Session final : public QObject
     Q_OBJECT
 
 public:
-    explicit Esp32Session(QString name, QObject* parent = nullptr);
+    explicit Esp32Session(QString name, QObject* parent = nullptr, std::string method = {});
     ~Esp32Session() override;
     Esp32Session(const Esp32Session&) = delete;
     Esp32Session& operator=(const Esp32Session&) = delete;
@@ -53,6 +53,7 @@ private:
     void release();
 
     const QString m_name;
+    const std::string m_method;
     const std::shared_ptr<ControlChannel> m_channel = std::make_shared<ControlChannel>();
     const std::shared_ptr<render::FrameSlot> m_frames = std::make_shared<render::FrameSlot>();
     std::unique_ptr<ControlSink> m_quiet;

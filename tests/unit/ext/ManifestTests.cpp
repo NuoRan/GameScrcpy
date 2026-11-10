@@ -793,7 +793,8 @@ TEST_CASE("panel contributions name a place, a script and a title, load and surv
     CHECK(panelSchema["maxItems"] == kMaxPanels);
     CHECK(panelSchema["items"]["required"] == Json::array({"name", "title", "where", "script"}));
     CHECK(panelSchema["items"]["properties"]["name"]["pattern"] == "^[a-z0-9-]{1,32}$");
-    CHECK(panelSchema["items"]["properties"]["where"]["enum"] == Json::array({"mirror", "menu", "status", "page"}));
+    CHECK(panelSchema["items"]["properties"]["where"]["enum"] ==
+          Json::array({"mirror", "menu", "status", "page", "device"}));
     CHECK(panelSchema["items"]["properties"]["title"]["maxLength"] == 40);
     CHECK(schema["properties"]["requires"]["propertyNames"]["enum"].back() == "panel");
 }
@@ -1118,4 +1119,17 @@ TEST_CASE("the manifest schema describes native attachments, behaviors, their sl
     CHECK(behavior["properties"]["slots"]["items"]["properties"]["kind"]["enum"] ==
           Json::array({"key", "axis2", "axis1"}));
     CHECK(behavior["properties"]["fingers"]["maximum"] == 10);
+}
+
+TEST_CASE("ADR-0112: a panel can be shown for a device from the devices page")
+{
+    Json json = panelBase();
+    json["contributes"]["panels"].push_back(
+        {{"name", "board"}, {"title", "Board settings"}, {"where", "device"}, {"script", "app"}});
+    const LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    REQUIRE_FALSE(loaded.manifest.contributes.panels.empty());
+    CHECK(loaded.manifest.contributes.panels.back().where == PanelPlace::Device);
+    CHECK(Json::parse(saveManifest(loaded.manifest))["contributes"]["panels"].back()["where"] == "device");
 }

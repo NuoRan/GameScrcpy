@@ -15,6 +15,8 @@ Item {
 
     signal released()
 
+    implicitHeight: view.tree !== null ? scroller.contentHeight : waiting.implicitHeight + 2 * view.inset
+
     function refresh() {
         view.tree = view.key !== "" ? ExtensionPanels.tree(view.key) ?? null : null
     }
@@ -69,6 +71,8 @@ Item {
     }
 
     Text {
+        id: waiting
+
         objectName: "panelWaiting"
         anchors.centerIn: parent
         width: parent.width - 2 * view.inset

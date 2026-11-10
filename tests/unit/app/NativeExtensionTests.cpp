@@ -463,6 +463,123 @@ TEST_CASE("ADR-0112: a script starts a job by name with checked arguments, hears
     CHECK(jobs.running() == 0);
 }
 
+TEST_CASE("ADR-0112: the devices page starts a job with the same checks and limit as a script and hears its progress "
+          "and end itself; no script can cancel it, ask for its result or end it")
+{
+    ApplicationScope application;
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.native/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    app::NativeWanted wanted = testWanted(folder);
+    wanted.native.nodes.clear();
+    wanted.native.jobs = {{.name = "count",
+                           .title = "Count",
+                           .params = {{"steps", "number"}, {"pause", "number"}, {"fail", "number"}},
+                           .returns = "json",
+                           .description = "Counts.",
+                           .permissions = {},
+                           .most = 3}};
+    registry.apply({wanted});
+    REQUIRE(registry.problems().empty());
+
+    std::vector<QString> told;
+    std::vector<QString> refused;
+    app::NativeJobs jobs(registry);
+    jobs.setReplies({.answer = {},
+                     .refuse = [&refused](std::uint64_t, quint64,
+                                          const QString& message) { refused.push_back(message); },
+                     .tell = [&told](std::uint64_t, const QString& kind, const QString&,
+                                     const QString& json) { told.push_back(kind + u' ' + json); }});
+    struct Heard {
+        std::vector<std::pair<double, QString>> progress;
+        std::optional<std::pair<bool, QString>> done;
+    };
+    const auto settled = [](const std::function<bool()>& done) {
+        const auto deadline = std::chrono::steady_clock::now() + 20s;
+        while (!done()) {
+            if (std::chrono::steady_clock::now() > deadline) {
+                return false;
+            }
+            QCoreApplication::processEvents();
+            std::this_thread::sleep_for(5ms);
+        }
+        return true;
+    };
+    const auto request = [](std::string_view args) {
+        return R"({"extension":"gstest.native","job":"count","args":)" + std::string(args) + "}";
+    };
+    const auto hear = [](Heard& heard) {
+        return app::HostJobEvents{
+            .progress = [&heard](double fraction, const QString& text) { heard.progress.emplace_back(fraction, text); },
+            .done = [&heard](bool worked, const QString& text) { heard.done.emplace(worked, text); }};
+    };
+
+    Heard counted;
+    const script::ServiceAnswer started = jobs.startForHost(request(R"({"steps":2,"pause":60,"fail":0})"), hear(counted));
+    REQUIRE_MESSAGE(started.code.empty(), started.problem);
+    REQUIRE(settled([&] { return counted.done.has_value(); }));
+    CHECK(counted.progress ==
+          std::vector<std::pair<double, QString>>{{0.5, QStringLiteral("step 1")}, {1.0, QStringLiteral("step 2")}});
+    CHECK(*counted.done == std::pair<bool, QString>{true, QStringLiteral(R"({"counted":2})")});
+    CHECK(told.empty());
+    CHECK(jobs.running() == 0);
+
+    Heard failing;
+    REQUIRE(jobs.startForHost(request(R"({"steps":1,"pause":0,"fail":1})"), hear(failing)).code.empty());
+    REQUIRE(settled([&] { return failing.done.has_value(); }));
+    CHECK(*failing.done == std::pair<bool, QString>{false, QStringLiteral("asked to fail")});
+
+    Heard unchecked;
+    CHECK(jobs.startForHost(request(R"({"steps":1})"), hear(unchecked)).code == "GS-API-061");
+    CHECK(jobs.startForHost(R"({"extension":"someone.else","job":"count","args":{}})", hear(unchecked)).code ==
+          "GS-API-060");
+    CHECK_FALSE(unchecked.done.has_value());
+
+    std::vector<Heard> running(3);
+    std::vector<std::string> ids;
+    for (Heard& each : running) {
+        const script::ServiceAnswer longJob =
+            jobs.startForHost(request(R"({"steps":1000,"pause":20,"fail":0})"), hear(each));
+        REQUIRE_MESSAGE(longJob.code.empty(), longJob.problem);
+        ids.push_back(nlohmann::json::parse(longJob.json)["id"].get<std::string>());
+    }
+    const app::LogicCaller script{.logic = 7};
+    CHECK(jobs.start(script, request(R"({"steps":1,"pause":0,"fail":0})")).code == "GS-API-067");
+    Heard fourth;
+    CHECK(jobs.startForHost(request(R"({"steps":1,"pause":0,"fail":0})"), hear(fourth)).code == "GS-API-067");
+    jobs.endLogic(script.logic);
+
+    const auto growing = [&](const Heard& heard) {
+        const std::size_t from = heard.progress.size();
+        return settled([&heard, from] { return heard.progress.size() > from + 2; });
+    };
+    const app::LogicCaller nobody{.logic = 0};
+    CHECK(jobs.cancel(nobody, R"({"id":")" + ids[0] + "\"}").code.empty());
+    CHECK(growing(running[0]));
+    CHECK_FALSE(running[0].done.has_value());
+
+    jobs.result(nobody, 21, QString::fromStdString(R"({"id":")" + ids[1] + "\"}"));
+    CHECK(refused == std::vector<QString>{QStringLiteral("GS-API-060 there is no such job")});
+
+    const std::size_t before = jobs.running();
+    jobs.endLogic(0);
+    CHECK(jobs.running() == before);
+    CHECK(growing(running[2]));
+    CHECK(told.empty());
+
+    registry.apply({});
+    REQUIRE(settled([&] {
+        return std::ranges::all_of(running, [](const Heard& heard) { return heard.done.has_value(); });
+    }));
+    for (const Heard& heard : running) {
+        CHECK(*heard.done ==
+              std::pair<bool, QString>{false, QStringLiteral("the extension stopped before the job ended")});
+    }
+    CHECK(jobs.running() == 0);
+}
+
 TEST_CASE("ADR-0112: a DLL sends events with checked topics and JSON; of a topic the first 100 in a second go out at "
           "once and the rest of that second arrive as its last, in GameScrcpy and in gs-exthost.exe")
 {
@@ -580,17 +697,22 @@ TEST_CASE("ADR-0112: a touch method's options hold the extension's settings, thi
           nlohmann::json{{"settings", all},
                          {"deviceSettings", {{"port", "COM9"}}},
                          {"phone", "phone-1"},
-                         {"device", {{"kind", "serial"}, {"path", "COM9"}, {"name", "Board"}}}});
+                         {"device", {{"kind", "serial"}, {"path", "COM9"}, {"name", "Board"}}},
+                         {"touchBox", nullptr}});
     CHECK(nlohmann::json::parse(app::nativeTouchOptions(snapshot, "phone-2")) ==
           nlohmann::json{{"settings", all},
                          {"deviceSettings", nlohmann::json::object()},
                          {"phone", "phone-2"},
-                         {"device", nullptr}});
+                         {"device", nullptr},
+                         {"touchBox", nullptr}});
     CHECK(nlohmann::json::parse(app::nativeTouchOptions("", "phone-2", "{oops")) ==
           nlohmann::json{{"settings", nlohmann::json::object()},
                          {"deviceSettings", nlohmann::json::object()},
                          {"phone", "phone-2"},
-                         {"device", nullptr}});
+                         {"device", nullptr},
+                         {"touchBox", nullptr}});
+    CHECK(nlohmann::json::parse(app::nativeTouchOptions(snapshot, "box:a/boxes/box-1", "", "box-1"))["touchBox"] ==
+          "box-1");
 }
 
 TEST_CASE("ADR-0112: the registry hands a DLL its settings when it loads and again when they change, without "
@@ -764,8 +886,10 @@ TEST_CASE("ADR-0112: the registry lists the devices of an extension allowed to a
                            .most = std::nullopt}};
     int changes = 0;
     QObject::connect(&registry, &app::NativeExtensions::providedChanged, [&changes] { ++changes; });
+    writeFile(folder / "icons/box.svg", R"(<svg viewBox="0 0 24 24"><path d="M2 2 L22 22"/></svg>)");
     const std::string boxes =
         R"([{"id":"box-1","name":"Box","kind":"touchBox","summary":"USB","touchMethod":"recorder",)"
+        R"("icon":"svg:icons/box.svg",)"
         R"("actions":[{"id":"flash","title":"Flash","job":"count"}]},)"
         R"({"id":"","name":"No id","kind":"touchBox"},)"
         R"({"id":"box-3","name":"Phone","kind":"phone"},)"
@@ -795,6 +919,8 @@ TEST_CASE("ADR-0112: the registry lists the devices of an extension allowed to a
     CHECK(listed[0].summary == "USB");
     CHECK(listed[0].state == "ready");
     CHECK(listed[0].touchMethod == "gstest.native/recorder");
+    CHECK(listed[0].iconPath == "M2 2 L22 22");
+    CHECK(listed[0].icon.isEmpty());
     REQUIRE(listed[0].actions.size() == 1);
     CHECK(listed[0].actions[0].toMap().value(QStringLiteral("job")).toString() == "count");
     CHECK(changes >= 1);

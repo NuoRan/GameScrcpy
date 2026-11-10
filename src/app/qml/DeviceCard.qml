@@ -32,12 +32,22 @@ Card {
     required property var capture
     required property var esp32
     required property var picture
+    required property var provided
 
     readonly property var transports: ["device.transport.adb", "device.transport.wifi", "device.transport.auto"]
     readonly property bool isCapture: card.capture !== undefined && card.capture !== null
                                       && card.capture.isCapture === true
     readonly property bool isEsp32: card.esp32 !== undefined && card.esp32 !== null && card.esp32.isEsp32 === true
-    readonly property bool isPhone: !card.isCapture && !card.isEsp32
+    readonly property bool isProvided: card.provided !== undefined && card.provided !== null
+                                       && card.provided.isProvided === true
+    readonly property bool isPhone: !card.isCapture && !card.isEsp32 && !card.isProvided
+    readonly property var providedActions: card.isProvided ? card.provided.actions ?? [] : []
+    readonly property var settingsAction: card.providedActions.find(each => each.id === "settings") ?? null
+    readonly property var menuActions: card.providedActions.filter(each => each.id !== "settings")
+    readonly property var providedJob: card.isProvided ? card.provided.job ?? {} : {}
+    readonly property bool providedTrouble: card.isProvided && (card.provided.state === "busy"
+                                                                || card.provided.state === "problem"
+                                                                || card.providedJob.failed === true)
     readonly property string assignment: card.isCapture ? (card.capture.assignment ?? "standalone") : ""
     readonly property string pictureText: {
         if (!card.isPhone || card.picture === undefined || card.picture === null)
@@ -59,6 +69,21 @@ Card {
         }
         if (card.isEsp32)
             return card.esp32.summary ?? ""
+        if (card.isProvided) {
+            const job = card.providedJob
+            if (job.running === true) {
+                const fraction = job.fraction ?? -1
+                const step = fraction >= 0 ? qsTr("%1 · %2%").arg(job.title ?? "").arg(Math.round(fraction * 100))
+                                           : job.title ?? ""
+                return [step, job.text ?? ""].filter(text => text !== "").join(" · ")
+            }
+            if (job.failed === true)
+                return qsTr("%1 did not work: %2").arg(job.title ?? "").arg(job.text ?? "")
+            return [card.provided.summary ?? "",
+                    card.provided.state !== "ready" ? card.provided.stateText ?? "" : "",
+                    job.finished === true ? qsTr("%1 finished").arg(job.title ?? "") : ""]
+                .filter(text => text !== "").join(" · ")
+        }
         return [card.meta, card.pictureText].filter(text => text !== "").join(" · ")
     }
 
@@ -177,9 +202,12 @@ Card {
 
                     Icon {
                         anchors.centerIn: parent
-                        name: card.isEsp32 ? "usb" : "monitor-play"
+                        name: card.isEsp32 ? "usb"
+                              : card.isProvided ? (card.provided.icon !== "" ? ExtensionPanels.iconOf(card.provided.icon) : "plug")
+                              : "monitor-play"
+                        customPath: card.isProvided ? card.provided.iconPath ?? "" : ""
                         size: Theme.size.iconLarge
-                        color: card.isEsp32 ? Theme.toneInk("amber") : Theme.colors.textTertiary
+                        color: card.isEsp32 || card.isProvided ? Theme.toneInk("amber") : Theme.colors.textTertiary
                     }
 
                     ThumbnailView {
@@ -263,8 +291,8 @@ Card {
                     Layout.fillWidth: true
                     textFormat: Text.PlainText
                     text: card.summary
-                    color: card.isEsp32 && card.esp32.inUse === true ? Theme.colors.warningText
-                                                                       : Theme.colors.textTertiary
+                    color: (card.isEsp32 && card.esp32.inUse === true) || card.providedTrouble
+                           ? Theme.colors.warningText : Theme.colors.textTertiary
                     font.pixelSize: Theme.type.caption.size
                     elide: Text.ElideRight
                 }
@@ -415,14 +443,17 @@ Card {
                 }
 
                 Button {
-                    objectName: card.isEsp32 ? "esp32Control" : "deviceMirror"
+                    objectName: card.isEsp32 ? "esp32Control" : card.isProvided ? "providedControl" : "deviceMirror"
                     visible: mirrorCommand.enabled
                     tone: "primary"
-                    iconName: card.isEsp32 ? "mouse-pointer-click" : mirrorCommand.icon
-                    text: card.failed ? qsTr("Try again") : card.isEsp32 ? qsTr("Control") : mirrorCommand.title
+                    iconName: card.isEsp32 || card.isProvided ? "mouse-pointer-click" : mirrorCommand.icon
+                    text: card.failed ? qsTr("Try again")
+                          : card.isEsp32 || card.isProvided ? qsTr("Control") : mirrorCommand.title
                     toolTip: card.isEsp32 ? qsTr("Opens a window without a picture: the keys, mouse and keyboard work "
                                                  + "the phone through the board while you watch the phone")
-                                          : ""
+                             : card.isProvided ? qsTr("Opens a window without a picture: the keys, mouse and keyboard "
+                                                      + "work the phone through %1").arg(card.name)
+                             : ""
                     onClicked: mirrorCommand.trigger()
                 }
 
@@ -469,17 +500,21 @@ Card {
                 Button {
                     id: settingsButton
 
-                    objectName: card.isCapture ? "captureSettings" : card.isEsp32 ? "esp32Settings" : "deviceSettings"
-                    visible: !card.isPhone || settingsCommand.enabled
+                    objectName: card.isCapture ? "captureSettings" : card.isEsp32 ? "esp32Settings"
+                                : card.isProvided ? "providedSettings" : "deviceSettings"
+                    visible: card.isProvided ? card.settingsAction !== null : !card.isPhone || settingsCommand.enabled
                     tone: "ghost"
                     iconName: card.isPhone ? settingsCommand.icon : "sliders-horizontal"
-                    toolTip: card.isPhone ? settingsCommand.title : qsTr("Settings")
+                    toolTip: card.isPhone ? settingsCommand.title
+                             : card.settingsAction !== null ? card.settingsAction.title : qsTr("Settings")
                     Accessible.name: settingsButton.toolTip
                     onClicked: {
                         if (card.isCapture)
                             card.captureSettingsRequested()
                         else if (card.isEsp32)
                             Commands.trigger("esp32.settings", card.serial)
+                        else if (card.isProvided)
+                            DeviceManager.runDeviceAction(card.serial, "settings")
                         else
                             settingsCommand.trigger()
                     }
@@ -491,6 +526,7 @@ Card {
                     objectName: "deviceMore"
                     visible: appsCommand.enabled || filesCommand.enabled || screenCommand.enabled || followCommand.enabled
                              || backCommand.enabled || endWirelessCommand.enabled || card.isCapture || card.isEsp32
+                             || card.menuActions.length > 0
                     tone: "ghost"
                     iconName: "ellipsis"
                     toolTip: qsTr("More")
@@ -501,6 +537,32 @@ Card {
 
                         x: moreButton.width - width
                         y: moreButton.height + Theme.space.xs
+
+                        Instantiator {
+                            model: card.menuActions.length
+
+                            delegate: MenuItem {
+                                id: actionItem
+
+                                required property int index
+                                readonly property var deviceAction: card.menuActions[actionItem.index] ?? null
+
+                                objectName: "providedAction"
+                                iconName: actionItem.deviceAction === null ? ""
+                                        : actionItem.deviceAction.job !== "" ? "play"
+                                        : actionItem.deviceAction.panel !== "" ? "panel-top" : "zap"
+                                text: actionItem.deviceAction?.title ?? ""
+                                enabled: actionItem.deviceAction !== null
+                                         && !(actionItem.deviceAction.job !== "" && card.providedJob.running === true)
+                                onTriggered: {
+                                    if (actionItem.deviceAction !== null)
+                                        DeviceManager.runDeviceAction(card.serial, actionItem.deviceAction.id)
+                                }
+                            }
+
+                            onObjectAdded: (index, object) => more.insertItem(index, object)
+                            onObjectRemoved: (index, object) => more.removeItem(object)
+                        }
 
                         CommandMenuItem {
                             objectName: "deviceApps"
@@ -586,7 +648,7 @@ Card {
         ConnectionStepper {
             Layout.topMargin: Theme.space.sm
             Layout.leftMargin: Theme.size.previewLong + Theme.space.lg
-            visible: card.stage >= 0 && !card.isCapture && !card.isEsp32
+            visible: card.stage >= 0 && !card.isCapture && !card.isEsp32 && !card.isProvided
             current: card.stage
             failed: card.failed
         }

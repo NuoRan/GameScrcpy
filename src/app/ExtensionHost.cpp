@@ -385,7 +385,11 @@ QString panelProblem(const ext::Manifest& manifest, const ext::PanelContribution
     if (found == manifest.contributes.scripts.end()) {
         return ExtensionHost::tr("Its script %1 is not in the extension").arg(script);
     }
-    const bool page = panel.where == ext::PanelPlace::Page;
+    const bool page = panel.where == ext::PanelPlace::Page || panel.where == ext::PanelPlace::Device;
+    if (panel.where == ext::PanelPlace::Device && found->run != ext::ScriptRun::App) {
+        return ExtensionHost::tr("A device panel needs a script that runs once for the app, and %1 runs for each phone")
+            .arg(script);
+    }
     if (page && found->run != ext::ScriptRun::App) {
         return ExtensionHost::tr("A page needs a script that runs once for the app, and %1 runs for each phone")
             .arg(script);

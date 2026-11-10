@@ -11,6 +11,7 @@
 #include "FilterBudget.h"
 #include "LatencyMeter.h"
 #include "PictureTouch.h"
+#include "ProvidedDevice.h"
 #include "ScriptWorkbenchConsole.h"
 #include "StatusProblem.h"
 #include "SyncGroups.h"
@@ -93,6 +94,7 @@ class ExtensionTouch;
 class GridWindow;
 class InputController;
 class MirrorWindow;
+class NativeJobs;
 class PhoneFiles;
 class ProfileEditor;
 class ProfileLibrary;
@@ -188,6 +190,7 @@ public:
         CaptureRole,
         Esp32Role,
         PictureRole,
+        ProvidedRole,
     };
     Q_ENUM(Role)
 
@@ -219,6 +222,7 @@ public:
     void retranslate();
     void setExtensions(ExtensionHost* extensions);
     void setExtensionLogic(ExtensionLogic* logic);
+    void setNativeJobs(NativeJobs* jobs);
     void setProfileLibrary(ProfileLibrary* library);
     void setQmlEngine(QQmlEngine* engine);
     void setCompanionPackage(const std::filesystem::path& apk, const std::filesystem::path& metadata);
@@ -354,6 +358,7 @@ public:
     Q_INVOKABLE void clearBackground(const QString& serial);
     Q_INVOKABLE void disconnectBoard(const QString& serial);
     Q_INVOKABLE QVariantList esp32Ports() const;
+    Q_INVOKABLE void runDeviceAction(const QString& serial, const QString& action);
 
     [[nodiscard]] std::optional<script::DeviceInfo> deviceInfo(const QString& serial) const;
     [[nodiscard]] std::shared_ptr<media::FrameSnapshots> snapshotsOf(const QString& serial) const;
@@ -367,6 +372,7 @@ signals:
     void detailsChanged();
     void setupChanged();
     void countsChanged();
+    void devicePanelWanted(const QString& extension, const QString& panel, const QString& device, const QString& name);
     void mirrorsChanged();
     void filterBudgetExceeded(const QString& serial, const QString& filter, double frameMs);
     void appCommandRequested(const QString& command, const QString& serial);
@@ -546,6 +552,8 @@ private:
         Esp32Session* esp32 = nullptr;
         QString esp32Where;
         bool esp32Wifi = false;
+        std::optional<ProvidedDevice> provided;
+        QVariantMap providedJob;
         std::uint32_t shotPending = 0;
         quint64 shotTicket = 0;
         quint64 shotAskedTicket = 0;
@@ -757,7 +765,15 @@ private:
     void finishProbe(const QString& captureSerial, bool compare);
     void matcherSuggested(int matcherTicket, const QString& captureSerial, const QString& deviceId, double score);
     [[nodiscard]] static bool isEsp32Row(const Row& row) noexcept;
+    [[nodiscard]] static bool isBoxRow(const Row& row) noexcept;
     [[nodiscard]] static bool noPictureOf(const Row& row) noexcept;
+    void syncProvided();
+    void connectProvided(Row& row);
+    void startProvidedJob(Row& row, const QString& job, const QString& title);
+    void showProvidedJob(const QString& serial, QVariantMap shown);
+    [[nodiscard]] QVariantMap providedState(const Row& row) const;
+    [[nodiscard]] std::optional<Advice> providedAdviceOf(const Row& row) const;
+    [[nodiscard]] DevicePresentation providedPresentation(const Row& row) const;
     void syncEsp32();
     void esp32BoardsChanged();
     void connectEsp32(Row& row);
@@ -779,6 +795,7 @@ private:
     const render::GraphicsDevice* const m_graphics;
     AppSettings& m_settings;
     ExtensionHost* m_extensions = nullptr;
+    NativeJobs* m_jobs = nullptr;
     QPointer<ExtensionLogic> m_extensionLogic;
     InputController* m_input = nullptr;
     QString m_inputProfileKey;

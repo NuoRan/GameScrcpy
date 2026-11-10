@@ -36,6 +36,7 @@ qt_add_qml_module(GameScrcpy
         qml/CurveBox.qml
         qml/DeclaredParams.qml
         qml/DeviceCard.qml
+        qml/DevicePanelSheet.qml
         qml/DevicesPage.qml
         qml/Esp32SettingsSheet.qml
         qml/ExtensionLook.js
@@ -236,6 +237,8 @@ qt_add_qml_module(GameScrcpy
         Esp32Session.h
         ExtensionBisect.cpp
         ExtensionBisect.h
+        ExtensionIcons.cpp
+        ExtensionIcons.h
         ExtensionHost.cpp
         ExtensionHost.h
         ExtensionLogic.cpp

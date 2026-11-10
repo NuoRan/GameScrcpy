@@ -5714,6 +5714,18 @@
         <translation>显示 %1 的画面</translation>
     </message>
     <message>
+        <source>%1 · %2%</source>
+        <translation>%1 · %2%</translation>
+    </message>
+    <message>
+        <source>%1 did not work: %2</source>
+        <translation>%1 没有成功：%2</translation>
+    </message>
+    <message>
+        <source>%1 finished</source>
+        <translation>%1 已完成</translation>
+    </message>
+    <message>
         <source>Which phone is this the picture of?</source>
         <translation>这是哪台手机的画面？</translation>
     </message>
@@ -5732,6 +5744,10 @@
     <message>
         <source>Opens a window without a picture: the keys, mouse and keyboard work the phone through the board while you watch the phone</source>
         <translation>打开一个没有画面的窗口：你看着手机，按键、鼠标与键盘经这块板子操作手机</translation>
+    </message>
+    <message>
+        <source>Opens a window without a picture: the keys, mouse and keyboard work the phone through %1</source>
+        <translation>打开一个没有画面的窗口：按键、鼠标与键盘通过 %1 操作手机</translation>
     </message>
     <message>
         <source>Cancel</source>
@@ -5756,6 +5772,13 @@
     <message>
         <source>Lets go of the board until it is plugged in again or connected in its settings</source>
         <translation>放开这块开发板，直到重新插上或在它的设置里重新连接</translation>
+    </message>
+</context>
+<context>
+    <name>DevicePanelSheet</name>
+    <message>
+        <source>%1 · %2</source>
+        <translation>%1 · %2</translation>
     </message>
 </context>
 <context>
@@ -20364,6 +20387,10 @@
         <translation>使用中</translation>
     </message>
     <message>
+        <source>Needs attention</source>
+        <translation>需要处理</translation>
+    </message>
+    <message>
         <source>%1 comes with an extension and cannot have its own logic. Copy it to your profiles first</source>
         <translation>%1 是扩展带来的，不能有自己的逻辑。先复制一份到你的方案里</translation>
     </message>
@@ -20434,6 +20461,10 @@
     <message>
         <source>There is no picture with the ESP32 touch box, so the vision workbench has nothing to look at</source>
         <translation>用 ESP32 触控盒时没有画面，识图工作台无画面可看</translation>
+    </message>
+    <message>
+        <source>There is no picture with %1, so the vision workbench has nothing to look at</source>
+        <translation>%1 没有画面，识图工作台没有可看的</translation>
     </message>
     <message>
         <source>This logic does not belong to a profile, so it has no vision resources</source>
@@ -20830,6 +20861,30 @@
     <message>
         <source>Check the board&apos;s cables and that the ESP32 extension is on, then choose Control again</source>
         <translation>检查开发板的线，并确认 ESP32 扩展已打开，然后再点“控制”</translation>
+    </message>
+    <message>
+        <source>Controlling</source>
+        <translation>控制中</translation>
+    </message>
+    <message>
+        <source>%1 is already doing this as often as it may; wait for it to end</source>
+        <translation>%1 同时做这件事的次数已达上限，请等它结束</translation>
+    </message>
+    <message>
+        <source>%1 has not been allowed everything this needs; turn it off and on again on the Extensions page to allow it</source>
+        <translation>%1 还没有获得这件事需要的全部权限；请在“扩展”页把它关掉再打开，以授予权限</translation>
+    </message>
+    <message>
+        <source>%1 stopped answering</source>
+        <translation>%1 不再应答</translation>
+    </message>
+    <message>
+        <source>%1 did not open</source>
+        <translation>%1 没能打开</translation>
+    </message>
+    <message>
+        <source>Check that %1 is on and the device is connected, then choose Control again</source>
+        <translation>确认 %1 已打开、设备已连好，然后再点“控制”</translation>
     </message>
     <message>
         <source>Connect GameScrcpy Companion first: scan the code in this window with the phone</source>
@@ -21248,6 +21303,10 @@
     <message>
         <source>Its script %1 is not in the extension</source>
         <translation>扩展里没有它的脚本 %1</translation>
+    </message>
+    <message>
+        <source>A device panel needs a script that runs once for the app, and %1 runs for each phone</source>
+        <translation>设备面板需要在程序里只运行一份的脚本，而 %1 是每台手机各运行一份</translation>
     </message>
     <message>
         <source>A page needs a script that runs once for the app, and %1 runs for each phone</source>

@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -22,6 +23,11 @@ struct JobReplies {
     std::function<void(std::uint64_t logic, quint64 request, const QString& json)> answer;
     std::function<void(std::uint64_t logic, quint64 request, const QString& message)> refuse;
     std::function<void(std::uint64_t logic, const QString& kind, const QString& id, const QString& json)> tell;
+};
+
+struct HostJobEvents {
+    std::function<void(double fraction, const QString& text)> progress;
+    std::function<void(bool worked, const QString& text)> done;
 };
 
 class NativeJobs final : public QObject
@@ -38,6 +44,7 @@ public:
     void setReplies(JobReplies replies);
 
     [[nodiscard]] script::ServiceAnswer start(const LogicCaller& caller, std::string_view json);
+    [[nodiscard]] script::ServiceAnswer startForHost(std::string_view json, HostJobEvents events);
     [[nodiscard]] script::ServiceAnswer cancel(const LogicCaller& caller, std::string_view json);
     void result(const LogicCaller& caller, quint64 request, const QString& json);
     void dropResult(const LogicCaller& caller, quint64 request);
@@ -47,7 +54,10 @@ public:
     struct Shared;
 
 private:
-    void progressed(std::uint64_t id, const QString& json);
+    [[nodiscard]] script::ServiceAnswer begin(std::uint64_t logic, std::string_view json,
+                                              std::optional<HostJobEvents> host);
+    void progressed(std::uint64_t id, double fraction, const std::string& text);
+    void logged(std::uint64_t id, int level, const std::string& text);
     void ended(std::uint64_t id, bool worked, const std::string& text);
 
     const NativeExtensions& m_extensions;

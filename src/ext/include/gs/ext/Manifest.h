@@ -433,8 +433,8 @@ struct ScriptContribution {
     friend bool operator==(const ScriptContribution&, const ScriptContribution&) = default;
 };
 
-enum class PanelPlace : std::uint8_t { Mirror, Menu, Status, Page };
-inline constexpr std::array<std::string_view, 4> kPanelPlaceNames{"mirror", "menu", "status", "page"};
+enum class PanelPlace : std::uint8_t { Mirror, Menu, Status, Page, Device };
+inline constexpr std::array<std::string_view, 5> kPanelPlaceNames{"mirror", "menu", "status", "page", "device"};
 inline constexpr std::size_t kMaxPanels = 8;
 inline constexpr std::size_t kMaxPanelNameLength = 32;
 inline constexpr std::string_view kMenuPanelName = "menu";

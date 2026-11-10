@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ExtensionModules.h"
+#include "ProvidedDevice.h"
 #include "TouchMethods.h"
 
 #include <gs/base/Clock.h>
@@ -58,24 +59,7 @@ struct NativeWanted {
 };
 
 [[nodiscard]] std::string nativeTouchOptions(std::string_view snapshot, std::string_view phone,
-                                             std::string_view device = {});
-
-struct ProvidedDevice {
-    std::string extension;
-    QString extensionName;
-    std::string provider;
-    std::string id;
-    QString name;
-    QString kind;
-    QString summary;
-    QString state;
-    QString stateText;
-    std::string touchMethod;
-    bool capture = false;
-    QVariantList actions;
-
-    friend bool operator==(const ProvidedDevice&, const ProvidedDevice&) = default;
-};
+                                             std::string_view device = {}, std::string_view touchBox = {});
 
 struct DeclaredModule {
     std::string module;

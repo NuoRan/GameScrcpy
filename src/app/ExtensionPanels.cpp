@@ -1423,6 +1423,7 @@ std::optional<PanelDeclaration> ExtensionPanels::declarationFor(Inbox& inbox, co
     switch (found->where) {
     case ext::PanelPlace::Mirror:
     case ext::PanelPlace::Page:
+    case ext::PanelPlace::Device:
         if (kind != Kind::Panel) {
             problem = found->name + " is a panel; draw it with ui.panel(\"" + found->name + "\").render()";
             return std::nullopt;
@@ -1442,9 +1443,9 @@ std::optional<PanelDeclaration> ExtensionPanels::declarationFor(Inbox& inbox, co
         break;
     }
     const bool phone = !caller.device.isEmpty();
-    const bool page = found->where == ext::PanelPlace::Page;
+    const bool page = found->where == ext::PanelPlace::Page || found->where == ext::PanelPlace::Device;
     if (page == phone) {
-        problem = page ? "the page " + found->name + " belongs to the main window, and this logic runs for a phone"
+        problem = page ? "the panel " + found->name + " belongs to the main window, and this logic runs for a phone"
                        : found->name + " belongs to a phone's mirror window, and this logic runs without a phone";
         return std::nullopt;
     }
@@ -1581,8 +1582,9 @@ void ExtensionPanels::rebuild()
         const std::string script = caller.script.toStdString();
         const bool phone = !caller.device.isEmpty();
         for (const PanelDeclaration& declaration : m_declarations) {
-            if (declaration.extension != extension || declaration.script != script ||
-                (declaration.where == ext::PanelPlace::Page) == phone) {
+            const bool forApp =
+                declaration.where == ext::PanelPlace::Page || declaration.where == ext::PanelPlace::Device;
+            if (declaration.extension != extension || declaration.script != script || forApp == phone) {
                 continue;
             }
             const Kind kind = declaration.where == ext::PanelPlace::Status ? Kind::Status

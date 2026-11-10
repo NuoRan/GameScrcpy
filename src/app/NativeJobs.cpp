@@ -133,6 +133,7 @@ struct NativeJobs::Shared {
         std::optional<quint64> waiting;
         std::optional<std::pair<bool, std::string>> ended;
         bool cancelled = false;
+        std::optional<HostJobEvents> host;
     };
 
     void post(std::function<void(NativeJobs&)> work)
@@ -210,6 +211,16 @@ void NativeJobs::setReplies(JobReplies replies)
 
 script::ServiceAnswer NativeJobs::start(const LogicCaller& caller, std::string_view json)
 {
+    return begin(caller.logic, json, std::nullopt);
+}
+
+script::ServiceAnswer NativeJobs::startForHost(std::string_view json, HostJobEvents events)
+{
+    return begin(0, json, std::move(events));
+}
+
+script::ServiceAnswer NativeJobs::begin(std::uint64_t logic, std::string_view json, std::optional<HostJobEvents> host)
+{
     const nlohmann::json request = nlohmann::json::parse(json, nullptr, false);
     if (!request.is_object() || !request.contains("extension") || !request["extension"].is_string() ||
         !request.contains("job") || !request["job"].is_string()) {
@@ -238,31 +249,31 @@ script::ServiceAnswer NativeJobs::start(const LogicCaller& caller, std::string_v
                     .problem = target.extensionName + " runs " + std::to_string(most) + " of this job at most"};
         }
         id = ++m_shared->next;
-        m_shared->jobs.emplace(id, Shared::Job{.logic = caller.logic,
+        m_shared->jobs.emplace(id, Shared::Job{.logic = logic,
                                                .extension = extension,
                                                .name = name,
                                                .module = target.module,
                                                .running = 0,
                                                .waiting = std::nullopt,
                                                .ended = std::nullopt,
-                                               .cancelled = false});
+                                               .cancelled = false,
+                                               .host = std::move(host)});
     }
     const std::weak_ptr<Shared> weak = m_shared;
     exthost::JobEvents events{
         .progress =
             [weak, id](double fraction, std::string text) {
                 if (const std::shared_ptr<Shared> shared = weak.lock()) {
-                    const QString json = QString::fromStdString(
-                        nlohmann::json{{"kind", "progress"}, {"fraction", fraction}, {"text", text}}.dump());
-                    shared->post([id, json](NativeJobs& self) { self.progressed(id, json); });
+                    shared->post([id, fraction, text = std::move(text)](NativeJobs& self) {
+                        self.progressed(id, fraction, text);
+                    });
                 }
             },
         .log =
             [weak, id](int level, std::string text) {
                 if (const std::shared_ptr<Shared> shared = weak.lock()) {
-                    const QString json = QString::fromStdString(
-                        nlohmann::json{{"kind", "log"}, {"level", level}, {"text", text}}.dump());
-                    shared->post([id, json](NativeJobs& self) { self.progressed(id, json); });
+                    shared->post(
+                        [id, level, text = std::move(text)](NativeJobs& self) { self.logged(id, level, text); });
                 }
             },
         .done =
@@ -297,7 +308,8 @@ script::ServiceAnswer NativeJobs::cancel(const LogicCaller& caller, std::string_
     {
         const std::scoped_lock lock(m_shared->mutex);
         const auto found = id ? m_shared->jobs.find(*id) : m_shared->jobs.end();
-        if (found == m_shared->jobs.end() || found->second.logic != caller.logic || found->second.ended) {
+        if (found == m_shared->jobs.end() || found->second.logic != caller.logic || found->second.host ||
+            found->second.ended) {
             return {};
         }
         found->second.cancelled = true;
@@ -318,7 +330,7 @@ void NativeJobs::result(const LogicCaller& caller, quint64 request, const QStrin
     {
         const std::scoped_lock lock(m_shared->mutex);
         const auto found = id ? m_shared->jobs.find(*id) : m_shared->jobs.end();
-        if (found == m_shared->jobs.end() || found->second.logic != caller.logic) {
+        if (found == m_shared->jobs.end() || found->second.logic != caller.logic || found->second.host) {
             if (m_replies.refuse) {
                 m_replies.refuse(caller.logic, request, QStringLiteral("GS-API-060 there is no such job"));
             }
@@ -369,7 +381,7 @@ void NativeJobs::endLogic(std::uint64_t logic)
     {
         const std::scoped_lock lock(m_shared->mutex);
         for (auto entry = m_shared->jobs.begin(); entry != m_shared->jobs.end();) {
-            if (entry->second.logic != logic) {
+            if (entry->second.logic != logic || entry->second.host) {
                 ++entry;
                 continue;
             }
@@ -388,9 +400,11 @@ std::size_t NativeJobs::running() const
     return m_shared->jobs.size();
 }
 
-void NativeJobs::progressed(std::uint64_t id, const QString& json)
+void NativeJobs::progressed(std::uint64_t id, double fraction, const std::string& text)
 {
     std::uint64_t logic = 0;
+    bool forHost = false;
+    std::function<void(double, const QString&)> progress;
     {
         const std::scoped_lock lock(m_shared->mutex);
         const auto found = m_shared->jobs.find(id);
@@ -398,9 +412,46 @@ void NativeJobs::progressed(std::uint64_t id, const QString& json)
             return;
         }
         logic = found->second.logic;
+        forHost = found->second.host.has_value();
+        if (forHost) {
+            progress = found->second.host->progress;
+        }
+    }
+    if (forHost) {
+        if (progress) {
+            progress(fraction, QString::fromStdString(text));
+        }
+        return;
     }
     if (m_replies.tell) {
-        m_replies.tell(logic, QStringLiteral("job"), QString::number(id), json);
+        m_replies.tell(logic, QStringLiteral("job"), QString::number(id),
+                       QString::fromStdString(
+                           nlohmann::json{{"kind", "progress"}, {"fraction", fraction}, {"text", text}}.dump()));
+    }
+}
+
+void NativeJobs::logged(std::uint64_t id, int level, const std::string& text)
+{
+    std::uint64_t logic = 0;
+    std::string extension;
+    bool forHost = false;
+    {
+        const std::scoped_lock lock(m_shared->mutex);
+        const auto found = m_shared->jobs.find(id);
+        if (found == m_shared->jobs.end() || found->second.ended) {
+            return;
+        }
+        logic = found->second.logic;
+        extension = found->second.extension;
+        forHost = found->second.host.has_value();
+    }
+    if (forHost) {
+        qInfo("[extensions] %s: %s", extension.c_str(), text.c_str());
+        return;
+    }
+    if (m_replies.tell) {
+        m_replies.tell(logic, QStringLiteral("job"), QString::number(id),
+                       QString::fromStdString(nlohmann::json{{"kind", "log"}, {"level", level}, {"text", text}}.dump()));
     }
 }
 
@@ -409,20 +460,31 @@ void NativeJobs::ended(std::uint64_t id, bool worked, const std::string& text)
     std::uint64_t logic = 0;
     std::optional<quint64> waiting;
     bool cancelled = false;
+    std::optional<HostJobEvents> host;
     {
         const std::scoped_lock lock(m_shared->mutex);
         const auto found = m_shared->jobs.find(id);
         if (found == m_shared->jobs.end()) {
             return;
         }
-        if (!found->second.waiting) {
+        if (found->second.host) {
+            host = std::move(found->second.host);
+            m_shared->jobs.erase(found);
+        } else if (!found->second.waiting) {
             found->second.ended.emplace(worked, text);
             return;
+        } else {
+            logic = found->second.logic;
+            waiting = found->second.waiting;
+            cancelled = found->second.cancelled;
+            m_shared->jobs.erase(found);
         }
-        logic = found->second.logic;
-        waiting = found->second.waiting;
-        cancelled = found->second.cancelled;
-        m_shared->jobs.erase(found);
+    }
+    if (host) {
+        if (host->done) {
+            host->done(worked, QString::fromStdString(text));
+        }
+        return;
     }
     if (worked) {
         if (m_replies.answer) {

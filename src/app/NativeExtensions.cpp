@@ -1,5 +1,6 @@
 #include "NativeExtensions.h"
 
+#include "ExtensionIcons.h"
 #include "ExtensionTouchSink.h"
 
 #include <gs/base/Log.h>
@@ -162,6 +163,10 @@ std::optional<ProvidedDevice> providedOf(const NativeWanted& wanted, const ext::
         }
     }
     const nlohmann::json capture = device.contains("capture") ? device.at("capture") : nlohmann::json(false);
+    const std::string icon = textIn(device, "icon", 128).value_or(std::string());
+    constexpr std::string_view kSvg = "svg:";
+    const QString iconPath =
+        icon.starts_with(kSvg) ? extensionIconPath(wanted.directory, std::string_view(icon).substr(kSvg.size())) : QString();
     return ProvidedDevice{.extension = wanted.id,
                           .extensionName = wanted.name,
                           .provider = declared.name,
@@ -171,6 +176,8 @@ std::optional<ProvidedDevice> providedOf(const NativeWanted& wanted, const ext::
                           .summary = QString::fromStdString(*summary),
                           .state = state->empty() ? QStringLiteral("ready") : QString::fromStdString(*state),
                           .stateText = QString::fromStdString(*stateText),
+                          .icon = builtinIconName(icon) ? QString::fromStdString(icon) : QString(),
+                          .iconPath = iconPath,
                           .touchMethod = method->empty() ? std::string() : wanted.id + "/" + *method,
                           .capture = capture.is_boolean() && capture.get<bool>(),
                           .actions = std::move(actions)};
@@ -178,7 +185,8 @@ std::optional<ProvidedDevice> providedOf(const NativeWanted& wanted, const ext::
 
 }
 
-std::string nativeTouchOptions(std::string_view snapshot, std::string_view phone, std::string_view device)
+std::string nativeTouchOptions(std::string_view snapshot, std::string_view phone, std::string_view device,
+                               std::string_view touchBox)
 {
     const nlohmann::json parsed = nlohmann::json::parse(snapshot, nullptr, false);
     const nlohmann::json devices = partOf(parsed, "devices");
@@ -190,7 +198,8 @@ std::string nativeTouchOptions(std::string_view snapshot, std::string_view phone
     return nlohmann::json{{"settings", partOf(parsed, "global")},
                           {"deviceSettings", partOf(devices, id.c_str())},
                           {"phone", id},
-                          {"device", std::move(chosen)}}
+                          {"device", std::move(chosen)},
+                          {"touchBox", touchBox.empty() ? nlohmann::json(nullptr) : nlohmann::json(std::string(touchBox))}}
         .dump();
 }
 

@@ -8,12 +8,15 @@ Item {
     id: icon
 
     required property string name
+    property string customPath: ""
     property real size: Theme.size.icon
     property color color: Theme.colors.textSecondary
 
     readonly property real grid: 24
     readonly property real stroke: 1.5
     readonly property string path: {
+        if (customPath !== "")
+            return customPath
         const found = IconPaths.paths[name]
         if (found === undefined && name !== "")
             console.warn("no icon named", name)

@@ -72,9 +72,10 @@ private:
     std::atomic<std::uint32_t> m_buttons{0};
 };
 
-Esp32Session::Esp32Session(QString name, QObject* parent)
+Esp32Session::Esp32Session(QString name, QObject* parent, std::string method)
     : QObject(parent)
     , m_name(std::move(name))
+    , m_method(method.empty() ? std::string(kEsp32Method) : std::move(method))
     , m_quiet(std::make_unique<QuietSink>())
 {
 }
@@ -100,16 +101,16 @@ void Esp32Session::start(TouchMethodSource* source, const std::string& device, i
     const std::uint32_t generation = ++m_generation;
     std::unique_ptr<ExtensionTouch> touch;
     if (source != nullptr) {
-        touch = source->openTouch(kEsp32Method, device, *m_quiet, [this, generation] {
+        touch = source->openTouch(m_method, device, *m_quiet, [this, generation] {
             QMetaObject::invokeMethod(this, [this, generation] { fellBack(generation); }, Qt::QueuedConnection);
         });
     }
     if (touch == nullptr || touch->fellBack()) {
-        qWarning("ESP32 touch box for %s: the touch method did not open", qUtf8Printable(m_name));
+        qWarning("touch box for %s: the touch method %s did not open", qUtf8Printable(m_name), m_method.c_str());
         session::SessionFailure failure;
         failure.kind = session::FailureKind::ConnectFailed;
         failure.phase = session::SessionPhase::Connecting;
-        failure.detail = "the ESP32 touch box did not open";
+        failure.detail = "the touch box did not open";
         enter(session::SessionPhase::Failed, failure);
         return;
     }
@@ -117,8 +118,8 @@ void Esp32Session::start(TouchMethodSource* source, const std::string& device, i
     m_sink = std::make_unique<Esp32BoardSink>(*m_touch, dynamic_cast<ExtensionTouchSink*>(m_touch.get()));
     m_channel->attach(*m_sink);
     setOrientation(rotation, canvas);
-    qInfo("ESP32 touch box for %s: touches, keys and the mouse go through the board, without a picture",
-          qUtf8Printable(m_name));
+    qInfo("touch box for %s: touches, keys and the mouse go through %s, without a picture", qUtf8Printable(m_name),
+          m_method.c_str());
     enter(session::SessionPhase::Streaming);
 }
 

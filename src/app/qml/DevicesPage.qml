@@ -467,6 +467,18 @@ Item {
         id: assignDialog
     }
 
+    DevicePanelSheet {
+        id: devicePanel
+    }
+
+    Connections {
+        target: DeviceManager
+
+        function onDevicePanelWanted(extension: string, panel: string, device: string, name: string) {
+            devicePanel.show(extension, panel, device, name)
+        }
+    }
+
     TourOverlay {
         id: tour
 

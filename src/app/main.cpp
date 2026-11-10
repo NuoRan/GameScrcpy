@@ -440,6 +440,7 @@ int main(int argc, char* argv[])
     devices.setCompanionPackage((QCoreApplication::applicationDirPath() + u"/gs-companion.apk"_s).toStdWString(),
                                 (QCoreApplication::applicationDirPath() + u"/gs-companion.json"_s).toStdWString());
     devices.setExtensions(&extensions);
+    devices.setNativeJobs(&nativeJobs);
     devices.setScriptStore(data / "script-store");
     devices.setProfileLibrary(&profiles);
     devices.setTaskLibrary(&tasks);
