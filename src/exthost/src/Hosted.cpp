@@ -352,6 +352,14 @@ struct HostedModule::Impl {
             }
             return;
         }
+        case detail::Kind::Event: {
+            std::string topic;
+            std::string json;
+            if (in.text(topic, kMostTopicBytes) && in.text(json, kMostEventBytes) && validTopic(topic) && options.event) {
+                options.event(topic, json);
+            }
+            return;
+        }
         case detail::Kind::Notify: {
             std::string title;
             std::string text;

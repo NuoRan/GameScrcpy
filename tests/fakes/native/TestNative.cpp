@@ -187,6 +187,25 @@ int32_t wrongType(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
     return GS_EXT_OK;
 }
 
+int32_t say(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number = g_host->emit_event(g_host->context, args[0].text, args[0].size, args[1].text, args[1].size);
+    return GS_EXT_OK;
+}
+
+int32_t sayMany(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    int32_t said = GS_EXT_OK;
+    for (int count = 1; count <= static_cast<int>(args[1].number) && said == GS_EXT_OK; ++count) {
+        const std::string json = std::to_string(count);
+        said = g_host->emit_event(g_host->context, args[0].text, args[0].size, json.data(), json.size());
+    }
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number = said;
+    return GS_EXT_OK;
+}
+
 int32_t openTouch(void*, const gs_ext_touch_open* info, void** session)
 {
     const std::scoped_lock lock(g_mutex);
@@ -265,6 +284,7 @@ const uint32_t kTwoNumbers[] = {GS_EXT_TYPE_NUMBER, GS_EXT_TYPE_NUMBER};
 const uint32_t kOneString[] = {GS_EXT_TYPE_STRING};
 const uint32_t kTwoStrings[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING};
 const uint32_t kStringAndJson[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_JSON};
+const uint32_t kStringAndNumber[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_NUMBER};
 const uint32_t kOneDuration[] = {GS_EXT_TYPE_DURATION};
 const uint32_t kMirrored[] = {GS_EXT_TYPE_POINT, GS_EXT_TYPE_REGION, GS_EXT_TYPE_COLOR,
                               GS_EXT_TYPE_DURATION, GS_EXT_TYPE_JSON, GS_EXT_TYPE_BOOLEAN};
@@ -283,6 +303,8 @@ const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "touches", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &touches},
     {sizeof(gs_ext_node), "breakTouch", nullptr, 0, GS_EXT_TYPE_NONE, nullptr, &breakTouch},
     {sizeof(gs_ext_node), "wrongType", nullptr, 0, GS_EXT_TYPE_STRING, nullptr, &wrongType},
+    {sizeof(gs_ext_node), "say", kTwoStrings, 2, GS_EXT_TYPE_NUMBER, nullptr, &say},
+    {sizeof(gs_ext_node), "sayMany", kStringAndNumber, 2, GS_EXT_TYPE_NUMBER, nullptr, &sayMany},
 };
 
 const gs_ext_touch_method kRecorder = {
@@ -545,6 +567,8 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "touches", &kNodes[10]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "breakTouch", &kNodes[11]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "wrongType", &kNodes[12]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "say", &kNodes[13]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "sayMany", &kNodes[14]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_ATTACHMENT, "shift", &kShift},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_BEHAVIOR, "tap", &kTap},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_JOB, "count", &kCount},

@@ -2164,6 +2164,7 @@ inline constexpr std::array<std::string_view, 14> kPreludeParts{
             tellJob(listeners.log, value.level, value.text);
         }
     });
+    serviceEvents.set("extEvent", (topic, value) => reactAll("extEvent:" + topic, { topic, value }));
     const extensionsOf = () => {
         const root = Object.create(null);
         for (const node of host.nodes()) {
@@ -3248,6 +3249,15 @@ inline constexpr std::array<std::string_view, 14> kPreludeParts{
         "window.focused": () => appCall("focused", null) === true,
         "window.onFocus": (handler, options) => listen("app", "focus", handler, options, "window.onFocus"),
         "window.onBlur": (handler, options) => listen("app", "blur", handler, options, "window.onBlur"),
+        "events.on": (topic, handler, options) => {
+            if (typeof topic !== "string") {
+                throw new TypeError("GS-API-068 the topic must be text");
+            }
+            if (!/^[a-z0-9.-]{1,64}$/.test(topic)) {
+                throw new RangeError("GS-API-068 the topic must be 1 to 64 lowercase letters, digits, dots and dashes");
+            }
+            return listen("extEvent", topic, handler, options, "events.on(" + topic + ")");
+        },
         "ui.progress": (title, value) => {
             if (title === null || title === undefined) {
                 appCall("progress", null);

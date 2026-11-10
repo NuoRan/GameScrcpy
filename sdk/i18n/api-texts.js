@@ -24,6 +24,7 @@ QT_TRANSLATE_NOOP("ScriptApi", "Text: joining, filling in, finding, cutting and 
 QT_TRANSLATE_NOOP("ScriptApi", "Settings a task declares in static params; the Tasks page shows them and passes the values to the task.");
 QT_TRANSLATE_NOOP("ScriptApi", "Properties a component made in logic declares in static props.");
 QT_TRANSLATE_NOOP("ScriptApi", "Tools that the app script of an extension offers to AI clients over the local MCP connection.");
+QT_TRANSLATE_NOOP("ScriptApi", "Events that the native DLL of an extension sends to the extension's own logic and panels.");
 QT_TRANSLATE_NOOP("ScriptApi", "Questions from logic to the AI service set up in Settings, AI; they work only while Let logic call AI is on there.");
 QT_TRANSLATE_NOOP("ScriptApi", "Objects");
 QT_TRANSLATE_NOOP("ScriptApi", "A component of the profile in use. Every type below has these members too.");
@@ -930,6 +931,12 @@ QT_TRANSLATE_NOOP("ScriptApi", "What the tool does, for the AI, and the JSON Sch
 QT_TRANSLATE_NOOP("ScriptApi", "Runs as its own task for each call and gives back the tool's result as a JSON value; an error it throws is passed to the client as the tool's error. A call that is not answered within 60 seconds fails.");
 QT_TRANSLATE_NOOP("ScriptApi", "Call mcp.tool in a script that manifest.json lists with \"run\": \"app\", with a valid name, a description and an input schema of type object.");
 QT_TRANSLATE_NOOP("ScriptApi", "the logic is not the app script of an extension, the name or the description is not valid, the input schema is not an object of type object or is larger than 16 KiB, or the extension already offers 32 tools");
+QT_TRANSLATE_NOOP("ScriptApi", "Starts a task each time the native DLL of this extension sends an event on the topic. Only the extension's own logic and panels hear its events; for each topic the DLL passes on the first 100 in a second and merges the rest of that second into the last one.");
+QT_TRANSLATE_NOOP("ScriptApi", "The topic the extension's DLL sends: 1 to 64 lowercase letters, digits, dots and dashes.");
+QT_TRANSLATE_NOOP("ScriptApi", "What to run for each event; value is what the DLL sent with it.");
+QT_TRANSLATE_NOOP("ScriptApi", "What happens when another event comes while the last task is running.");
+QT_TRANSLATE_NOOP("ScriptApi", "Use the topic that the extension's DLL sends.");
+QT_TRANSLATE_NOOP("ScriptApi", "the topic is not 1 to 64 lowercase letters, digits, dots and dashes");
 QT_TRANSLATE_NOOP("ScriptApi", "Asks the AI service set up in Settings, AI, the one the assistant in the editor uses, and resolves with the text of its answer; null when it answers without text, when a picture is asked for and the phone has shown none yet, and in replays, which ask nothing. With picture, the phone's picture or a part of it goes along, made smaller so its long side is at most 1024 pixels. It works only while Let logic call AI is on there: each question spends your quota, and each logic may ask at most 10 times a minute. Cancelling the task stops waiting.");
 QT_TRANSLATE_NOOP("ScriptApi", "What to ask, up to 4000 characters.");
 QT_TRANSLATE_NOOP("ScriptApi", "A picture of the phone to send along, and how long to wait for the answer.");

@@ -2843,6 +2843,10 @@
         <translation>窗口失去焦点时</translation>
     </message>
     <message>
+        <source>On Extension Event</source>
+        <translation>扩展事件时</translation>
+    </message>
+    <message>
         <source>Get Pixel Color</source>
         <translation>获取像素颜色</translation>
     </message>
@@ -13018,6 +13022,10 @@
         <translation>扩展的 app 脚本经本地 MCP 连接提供给 AI 客户端的工具。</translation>
     </message>
     <message>
+        <source>Events that the native DLL of an extension sends to the extension&apos;s own logic and panels.</source>
+        <translation>扩展的原生 DLL 发给本扩展的逻辑与面板的事件。</translation>
+    </message>
+    <message>
         <source>Questions from logic to the AI service set up in Settings, AI; they work only while Let logic call AI is on there.</source>
         <translation>逻辑向“设置 &gt; AI”里配好的 AI 服务提问；只有那里的“允许逻辑调用 AI”打开时才能用。</translation>
     </message>
@@ -14712,6 +14720,30 @@
     <message>
         <source>the logic is not the app script of an extension, the name or the description is not valid, the input schema is not an object of type object or is larger than 16 KiB, or the extension already offers 32 tools</source>
         <translation>这份逻辑不是扩展的 app 脚本，名字或说明不合要求，输入的 Schema 不是 type 为 object 的对象或超过 16 KiB，或这个扩展已经提供了 32 个工具</translation>
+    </message>
+    <message>
+        <source>Starts a task each time the native DLL of this extension sends an event on the topic. Only the extension&apos;s own logic and panels hear its events; for each topic the DLL passes on the first 100 in a second and merges the rest of that second into the last one.</source>
+        <translation>本扩展的原生 DLL 每在这个主题上发出一个事件，就启动一个任务。只有本扩展自己的逻辑与面板收得到它的事件；每个主题每秒先送出前 100 个，这一秒里其余的合并成最后一个。</translation>
+    </message>
+    <message>
+        <source>The topic the extension&apos;s DLL sends: 1 to 64 lowercase letters, digits, dots and dashes.</source>
+        <translation>扩展的 DLL 发出的主题：1 到 64 个小写字母、数字、点和短横线。</translation>
+    </message>
+    <message>
+        <source>What to run for each event; value is what the DLL sent with it.</source>
+        <translation>每个事件要执行的内容；value 是 DLL 随事件发来的值。</translation>
+    </message>
+    <message>
+        <source>What happens when another event comes while the last task is running.</source>
+        <translation>上一个任务还在执行时又来了事件怎么办。</translation>
+    </message>
+    <message>
+        <source>Use the topic that the extension&apos;s DLL sends.</source>
+        <translation>用扩展的 DLL 发出的主题。</translation>
+    </message>
+    <message>
+        <source>the topic is not 1 to 64 lowercase letters, digits, dots and dashes</source>
+        <translation>主题不是 1 到 64 个小写字母、数字、点和短横线</translation>
     </message>
     <message>
         <source>Asks the AI service set up in Settings, AI, the one the assistant in the editor uses, and resolves with the text of its answer; null when it answers without text, when a picture is asked for and the phone has shown none yet, and in replays, which ask nothing. With picture, the phone&apos;s picture or a part of it goes along, made smaller so its long side is at most 1024 pixels. It works only while Let logic call AI is on there: each question spends your quota, and each logic may ask at most 10 times a minute. Cancelling the task stops waiting.</source>

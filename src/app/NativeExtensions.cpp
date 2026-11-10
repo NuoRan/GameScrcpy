@@ -103,6 +103,15 @@ struct NativeExtensions::Shared {
         post([heading, body](NativeExtensions& owner) { owner.showNotice(heading, body); });
     }
 
+    void emitted(const std::string& id, std::string_view topic, std::string_view json)
+    {
+        post([extension = QString::fromStdString(id),
+              name = QString::fromUtf8(topic.data(), static_cast<qsizetype>(topic.size())),
+              value = QString::fromUtf8(json.data(), static_cast<qsizetype>(json.size()))](NativeExtensions& owner) {
+            emit owner.extensionEvent(extension, name, value);
+        });
+    }
+
     void lose(const std::string& id, std::uint64_t session)
     {
         std::shared_ptr<ModuleTouchPort> port;
@@ -147,6 +156,13 @@ public:
         }
         shared->notify(m_name, title, text);
         return true;
+    }
+
+    void emitted(std::string_view topic, std::string_view json) override
+    {
+        if (const std::shared_ptr<NativeExtensions::Shared> shared = m_shared.lock()) {
+            shared->emitted(m_id, topic, json);
+        }
     }
 
 private:
@@ -310,6 +326,11 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
         options.notify = [shared, name](const std::string& title, const std::string& text) {
             if (const std::shared_ptr<Shared> alive = shared.lock()) {
                 alive->notify(name, title, text);
+            }
+        };
+        options.event = [shared, id](const std::string& topic, const std::string& json) {
+            if (const std::shared_ptr<Shared> alive = shared.lock()) {
+                alive->emitted(id, topic, json);
             }
         };
         options.touchLost = [shared, id](std::uint64_t session) {

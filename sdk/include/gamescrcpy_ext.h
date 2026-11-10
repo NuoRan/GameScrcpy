@@ -496,7 +496,7 @@ struct gs_ext_host {
     int32_t (*set_text)(gs_ext_result* result, uint32_t type, const char* text, size_t size);
     /* Says why a node failed; the script that called it gets the text in its error. */
     int32_t (*set_error)(gs_ext_result* result, const char* text, size_t size);
-    /* 1 when this GameScrcpy has the feature, such as "jobs", otherwise 0; ask before using a function that a later version added. */
+    /* 1 when this GameScrcpy has the feature, such as "jobs" or "events", otherwise 0; ask before using a function that a later version added. */
     int32_t (*supports)(void* context, const char* feature);
     /* Tells how far a job got: fraction from 0 to 1, or -1 when it cannot tell, and a short UTF-8 line about the step it is on. GameScrcpy passes on at most 20 a second and drops the others in between. */
     int32_t (*job_progress)(void* context, uint64_t job, double fraction, const char* text, size_t size);
@@ -506,6 +506,8 @@ struct gs_ext_host {
     int32_t (*job_finish)(void* context, uint64_t job, const char* json, size_t size);
     /* Ends a job that did not work, or that was cancelled, saying why in UTF-8. */
     int32_t (*job_fail)(void* context, uint64_t job, const char* text, size_t size);
+    /* Sends an event to this extension's scripts and panels, which hear it with events.on(topic, handler). topic is 1 to 64 lowercase letters, digits, dots and dashes; json is UTF-8 JSON of at most 64 KiB (empty for null). Each topic passes on the first 100 events in a second; the ones after that in the same second are merged, so only the last of them arrives, when the second is over. GS_EXT_BAD_ARGUMENT for a bad topic or JSON. */
+    int32_t (*emit_event)(void* context, const char* topic, size_t topic_size, const char* json, size_t json_size);
 };
 
 /* One thing a DLL offers. */

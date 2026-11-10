@@ -3786,6 +3786,26 @@ constexpr Function kAi[] = {
      nullptr, 0, kAiAskFailures},
 };
 
+constexpr Param kEventsOnParams[] = {
+    {"topic", "string", "The topic the extension's DLL sends: 1 to 64 lowercase letters, digits, dots and dashes."},
+    {"handler", "(event: TaskContext & { readonly topic: string; readonly value: StoreValue }) => void | Promise<void>",
+     "What to run for each event; value is what the DLL sent with it."},
+    {"options", "ListenOptions", "What happens when another event comes while the last task is running.", true},
+};
+constexpr Failure kEventsOnFailures[] = {
+    {"GS-API-068", "the topic is not 1 to 64 lowercase letters, digits, dots and dashes",
+     "Use the topic that the extension's DLL sends."},
+    {"GS-API-008", "the handler is not a function", "Pass a function."},
+    {"GS-API-009", "again is not one of ignore, restart, stop, queue or parallel", "Use one of the five rules."},
+};
+constexpr Function kEvents[] = {
+    {"on", kEventsOnParams, "Subscription",
+     "Starts a task each time the native DLL of this extension sends an event on the topic. Only the extension's own "
+     "logic and panels hear its events; for each topic the DLL passes on the first 100 in a second and merges the "
+     "rest of that second into the last one.",
+     "events.on(\"board.added\", ({ value }) => log.info(\"a board came\", value));", nullptr, 0, kEventsOnFailures},
+};
+
 constexpr Namespace kNamespaces[] = {
     {"log", "Lines in the script console, with the task that wrote them.", kLog},
     {"time", "The script clock.", kTime},
@@ -3820,6 +3840,7 @@ constexpr Namespace kNamespaces[] = {
      kParam},
     {"prop", "Properties a component made in logic declares in static props.", kProp},
     {"mcp", "Tools that the app script of an extension offers to AI clients over the local MCP connection.", kMcp},
+    {"events", "Events that the native DLL of an extension sends to the extension's own logic and panels.", kEvents},
     {"ai",
      "Questions from logic to the AI service set up in Settings, AI; they work only while Let logic call AI "
      "is on there.",

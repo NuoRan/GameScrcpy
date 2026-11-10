@@ -319,6 +319,8 @@ qt_add_qml_module(GameScrcpy
         MirrorInputItem.h
         MirrorWindow.cpp
         MirrorWindow.h
+        NativeEvents.cpp
+        NativeEvents.h
         NativeExtensions.cpp
         NativeExtensions.h
         NativeJobs.cpp

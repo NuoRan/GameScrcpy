@@ -66,6 +66,14 @@ public:
         return true;
     }
 
+    void emitted(std::string_view topic, std::string_view json) override
+    {
+        detail::WireWriter out;
+        out.text(topic);
+        out.text(json);
+        send(detail::Kind::Event, 0, out.bytes());
+    }
+
 private:
     detail::Channel& m_channel;
     std::mutex m_mutex;

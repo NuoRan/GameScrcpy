@@ -132,6 +132,7 @@ signals:
     void stopped(const QString& id, const QString& name);
     void moduleTrouble(const QString& module, const QString& control, int kind);
     void modulesFailed(const QString& id, const QString& name);
+    void extensionEvent(const QString& id, const QString& topic, const QString& json);
 
 private:
     [[nodiscard]] std::shared_ptr<Entry> load(const NativeWanted& wanted) const;

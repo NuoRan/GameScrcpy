@@ -2223,6 +2223,23 @@
       ]
     },
     {
+      "name": "events",
+      "functions": [
+        {
+          "name": "on",
+          "signature": "events.on(topic: string, handler: (event: TaskContext & { readonly topic: string; readonly value: StoreValue }) => void | Promise<void>, options?: ListenOptions): Subscription",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-068",
+            "GS-API-008",
+            "GS-API-009"
+          ]
+        }
+      ]
+    },
+    {
       "name": "ai",
       "functions": [
         {

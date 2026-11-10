@@ -6,15 +6,21 @@
 
 #include <windows.h>
 
+#include <nlohmann/json.hpp>
+
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <set>
+#include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -158,12 +164,139 @@ StepOutput outputOf(int32_t status, const gs_ext_output& out, std::span<const gs
 
 }
 
+namespace {
+
+class EventGate
+{
+public:
+    using Deliver = std::function<void(const std::string& topic, const std::string& json)>;
+
+    explicit EventGate(Deliver deliver)
+        : m_deliver(std::move(deliver))
+    {
+    }
+
+    ~EventGate()
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_stopping = true;
+        }
+        m_wake.notify_all();
+        if (m_flusher.joinable()) {
+            m_flusher.join();
+        }
+    }
+
+    EventGate(const EventGate&) = delete;
+    EventGate& operator=(const EventGate&) = delete;
+
+    [[nodiscard]] bool emit(const std::string& topic, std::string json)
+    {
+        const Clock::time_point now = Clock::now();
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_stopping) {
+                return false;
+            }
+            auto found = m_topics.find(topic);
+            if (found == m_topics.end()) {
+                if (m_topics.size() >= kMostTopics) {
+                    std::erase_if(m_topics, [now](const auto& entry) {
+                        return !entry.second.pending && now - entry.second.window >= kWindow;
+                    });
+                }
+                if (m_topics.size() >= kMostTopics) {
+                    return false;
+                }
+                found = m_topics.emplace(topic, Topic{}).first;
+            }
+            Topic& entry = found->second;
+            if (now - entry.window >= kWindow) {
+                entry.window = now;
+                entry.count = 0;
+                entry.pending.reset();
+            }
+            if (entry.count >= kMostEventsPerSecond) {
+                entry.pending = std::move(json);
+                if (!m_flusher.joinable()) {
+                    m_flusher = std::thread([this] { flush(); });
+                }
+                m_wake.notify_all();
+                return true;
+            }
+            ++entry.count;
+        }
+        m_deliver(topic, json);
+        return true;
+    }
+
+private:
+    using Clock = std::chrono::steady_clock;
+    static constexpr std::chrono::seconds kWindow{1};
+
+    struct Topic {
+        Clock::time_point window{};
+        std::size_t count = 0;
+        std::optional<std::string> pending;
+    };
+
+    void flush()
+    {
+        std::unique_lock lock(m_mutex);
+        while (!m_stopping) {
+            const Clock::time_point now = Clock::now();
+            std::vector<std::pair<std::string, std::string>> ready;
+            Clock::time_point due = Clock::time_point::max();
+            for (auto& [name, entry] : m_topics) {
+                if (!entry.pending) {
+                    continue;
+                }
+                if (now - entry.window >= kWindow) {
+                    entry.window = now;
+                    entry.count = 1;
+                    ready.emplace_back(name, std::move(*entry.pending));
+                    entry.pending.reset();
+                } else {
+                    due = std::min(due, entry.window + kWindow);
+                }
+            }
+            if (!ready.empty()) {
+                lock.unlock();
+                for (const auto& [name, json] : ready) {
+                    m_deliver(name, json);
+                }
+                lock.lock();
+            } else if (due == Clock::time_point::max()) {
+                m_wake.wait(lock);
+            } else {
+                m_wake.wait_until(lock, due);
+            }
+        }
+    }
+
+    Deliver m_deliver;
+    std::mutex m_mutex;
+    std::condition_variable m_wake;
+    std::map<std::string, Topic, std::less<>> m_topics;
+    bool m_stopping = false;
+    std::thread m_flusher;
+};
+
+}
+
 struct InProcessModule::Impl {
     explicit Impl(const InProcessOptions& options)
         : store(options.store)
         , granted(options.granted)
         , services(options.services)
         , budget(options.budget)
+        , gate(std::make_unique<EventGate>([target = options.services](const std::string& topic,
+                                                                      const std::string& json) {
+            if (target != nullptr) {
+                target->emitted(topic, json);
+            }
+        }))
     {
     }
 
@@ -270,6 +403,7 @@ struct InProcessModule::Impl {
     std::vector<std::string> granted;
     HostServices* services = nullptr;
     std::chrono::microseconds budget;
+    std::unique_ptr<EventGate> gate;
     std::mutex nodeMutex;
     std::mutex touchMutex;
     std::map<std::uint64_t, std::pair<std::size_t, void*>> sessions;
@@ -408,7 +542,21 @@ int32_t hostSupports(void*, const char* feature)
         return 0;
     }
     const std::string_view name(feature, strnlen(feature, kMostNameBytes));
-    return name == "jobs" ? 1 : 0;
+    return name == "jobs" || name == "events" ? 1 : 0;
+}
+
+int32_t hostEmitEvent(void* context, const char* topic, size_t topicSize, const char* json, size_t jsonSize)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if ((topic == nullptr && topicSize > 0) || (json == nullptr && jsonSize > 0) || jsonSize > kMostEventBytes) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    const std::string_view name = topicSize == 0 ? std::string_view() : std::string_view(topic, topicSize);
+    const std::string_view value = jsonSize == 0 ? std::string_view("null") : std::string_view(json, jsonSize);
+    if (!validTopic(name) || !validUtf8(value) || !nlohmann::json::accept(value)) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    return impl.gate->emit(std::string(name), std::string(value)) ? GS_EXT_OK : GS_EXT_FAILED;
 }
 
 std::string lineOf(const char* text, size_t size, std::size_t most)
@@ -791,6 +939,7 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
     impl->host.job_log = &hostJobLog;
     impl->host.job_finish = &hostJobFinish;
     impl->host.job_fail = &hostJobFail;
+    impl->host.emit_event = &hostEmitEvent;
     const gs_ext_plugin* plugin = nullptr;
     const int32_t status = entry(&impl->host, &plugin);
     impl->entered = status == GS_EXT_OK;

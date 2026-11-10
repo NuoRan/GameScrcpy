@@ -26,6 +26,7 @@ Positions are ratios of the phone picture: (0, 0) is the top left corner and (1,
 - [`param`](param.md): Settings a task declares in static params; the Tasks page shows them and passes the values to the task.
 - [`prop`](prop.md): Properties a component made in logic declares in static props.
 - [`mcp`](mcp.md): Tools that the app script of an extension offers to AI clients over the local MCP connection.
+- [`events`](events.md): Events that the native DLL of an extension sends to the extension's own logic and panels.
 - [`ai`](ai.md): Questions from logic to the AI service set up in Settings, AI; they work only while Let logic call AI is on there.
 
 ## Objects

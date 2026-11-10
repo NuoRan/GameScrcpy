@@ -28,6 +28,7 @@ struct HostedOptions {
     const Clock* clock = nullptr;
     std::function<void(int level, const std::string& text)> log;
     std::function<void(const std::string& title, const std::string& text)> notify;
+    std::function<void(const std::string& topic, const std::string& json)> event;
     std::function<void(std::uint64_t session)> touchLost;
     std::function<void()> restarted;
     std::function<void()> stopped;

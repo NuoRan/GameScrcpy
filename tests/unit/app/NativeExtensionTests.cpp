@@ -2,6 +2,7 @@
 #include "ExtensionHost.h"
 #include "ExtensionModules.h"
 #include "ExtensionTouchSink.h"
+#include "NativeEvents.h"
 #include "NativeExtensions.h"
 #include "NativeJobs.h"
 #include "ProfileEditor.h"
@@ -16,6 +17,8 @@
 #include <gs/input/Modules.h>
 #include <gs/input/Profile.h>
 #include <gs/script/Services.h>
+
+#include <gamescrcpy_ext.h>
 
 #include <doctest/doctest.h>
 #include <nlohmann/json.hpp>
@@ -41,6 +44,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -457,6 +461,116 @@ TEST_CASE("ADR-0112: a script starts a job by name with checked arguments, hears
     CHECK(heard.refusals[4] ==
           std::pair<quint64, QString>{17, QStringLiteral("GS-API-065 the extension stopped before the job ended")});
     CHECK(jobs.running() == 0);
+}
+
+TEST_CASE("ADR-0112: a DLL sends events with checked topics and JSON; of a topic the first 100 in a second go out at "
+          "once and the rest of that second arrive as its last, in GameScrcpy and in gs-exthost.exe")
+{
+    struct Heard final : exthost::HostServices {
+        std::mutex mutex;
+        std::vector<std::pair<std::string, std::string>> events;
+
+        void log(int, std::string_view) override {}
+        bool notify(std::string_view, std::string_view) override { return false; }
+        void emitted(std::string_view topic, std::string_view json) override
+        {
+            const std::scoped_lock lock(mutex);
+            events.emplace_back(topic, json);
+        }
+        void add(const std::string& topic, const std::string& json) { emitted(topic, json); }
+        std::vector<std::pair<std::string, std::string>> seen()
+        {
+            const std::scoped_lock lock(mutex);
+            return events;
+        }
+    };
+    const auto text = [](std::string value) { return textValue(exthost::ValueType::String, std::move(value)); };
+    const auto counted = [](const std::vector<std::pair<std::string, std::string>>& events, std::size_t from) {
+        std::vector<std::string> values;
+        for (std::size_t index = from; index < events.size(); ++index) {
+            values.push_back(events[index].second);
+        }
+        return values;
+    };
+    std::vector<std::string> first100;
+    for (int count = 1; count <= 100; ++count) {
+        first100.push_back(std::to_string(count));
+    }
+
+    Scratch scratch;
+    Heard inside;
+    std::string problem;
+    const std::unique_ptr<exthost::InProcessModule> module = exthost::InProcessModule::load(
+        {.dll = kTestDll, .store = scratch / "inside.json", .granted = {}, .services = &inside}, problem);
+    REQUIRE_MESSAGE(module != nullptr, problem);
+    CHECK(callNode(*module, "say", {text("board.added"), text(R"({"id":"b1"})")}).value.number == GS_EXT_OK);
+    CHECK(callNode(*module, "say", {text("board.empty"), text("")}).value.number == GS_EXT_OK);
+    CHECK(callNode(*module, "say", {text("Board"), text("1")}).value.number == GS_EXT_BAD_ARGUMENT);
+    CHECK(callNode(*module, "say", {text(std::string(65, 'a')), text("1")}).value.number == GS_EXT_BAD_ARGUMENT);
+    CHECK(callNode(*module, "say", {text(""), text("1")}).value.number == GS_EXT_BAD_ARGUMENT);
+    CHECK(callNode(*module, "say", {text("board.added"), text("{oops")}).value.number == GS_EXT_BAD_ARGUMENT);
+    CHECK(callNode(*module, "sayMany", {text("count"), numberValue(150)}).value.number == GS_EXT_OK);
+    std::vector<std::pair<std::string, std::string>> seen = inside.seen();
+    REQUIRE(seen.size() == 102);
+    CHECK(seen[0] == std::pair<std::string, std::string>{"board.added", R"({"id":"b1"})"});
+    CHECK(seen[1] == std::pair<std::string, std::string>{"board.empty", "null"});
+    CHECK(counted(seen, 2) == first100);
+    REQUIRE(eventually([&] { return inside.seen().size() == 103; }));
+    CHECK(inside.seen().back() == std::pair<std::string, std::string>{"count", "150"});
+
+    Heard outside;
+    exthost::HostedOptions options = hostedOptions(scratch);
+    options.event = [&outside](const std::string& topic, const std::string& json) { outside.add(topic, json); };
+    const std::unique_ptr<exthost::HostedModule> hosted = exthost::HostedModule::start(std::move(options), problem);
+    REQUIRE_MESSAGE(hosted != nullptr, problem);
+    CHECK(callNode(*hosted, "say", {text("Board"), text("1")}).value.number == GS_EXT_BAD_ARGUMENT);
+    CHECK(callNode(*hosted, "sayMany", {text("count"), numberValue(120)}).value.number == GS_EXT_OK);
+    REQUIRE(eventually([&] { return outside.seen().size() == 100; }));
+    CHECK(counted(outside.seen(), 0) == first100);
+    REQUIRE(eventually([&] { return outside.seen().size() == 101; }));
+    CHECK(outside.seen().back() == std::pair<std::string, std::string>{"count", "120"});
+}
+
+TEST_CASE("ADR-0112: an extension's events reach that extension's own logic and no other")
+{
+    ApplicationScope application;
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.native/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    app::NativeWanted wanted = testWanted(folder);
+    wanted.native.nodes = {{.name = "say",
+                            .params = {{"topic", "string"}, {"json", "string"}},
+                            .returns = "number",
+                            .description = {},
+                            .permissions = {}}};
+    registry.apply({wanted});
+    REQUIRE(registry.loaded("gstest.native"));
+
+    std::vector<std::tuple<std::uint64_t, QString, QString, QString>> told;
+    app::NativeEvents events(registry);
+    events.setRoutes({.callers =
+                          [] {
+                              return std::vector<app::LogicCaller>{{.logic = 3, .extension = "gstest.native"},
+                                                                   {.logic = 4, .extension = "someone.else"},
+                                                                   {.logic = 5, .extension = {}},
+                                                                   {.logic = 6, .extension = "gstest.native"}};
+                          },
+                      .tell = [&told](std::uint64_t logic, const QString& kind, const QString& id,
+                                      const QString& json) { told.emplace_back(logic, kind, id, json); }});
+    REQUIRE(registry.call("gstest.native", "say",
+                          {script::NodeValue{.type = script::NodeType::String, .text = "board.added"},
+                           script::NodeValue{.type = script::NodeType::String, .text = R"({"id":"b1"})"}})
+                .problem.empty());
+    const auto deadline = std::chrono::steady_clock::now() + 10s;
+    while (told.size() < 2 && std::chrono::steady_clock::now() < deadline) {
+        QCoreApplication::processEvents();
+        std::this_thread::sleep_for(5ms);
+    }
+    using Told = std::tuple<std::uint64_t, QString, QString, QString>;
+    CHECK(told == std::vector<Told>{{3, "extEvent", "board.added", R"({"id":"b1"})"},
+                                    {6, "extEvent", "board.added", R"({"id":"b1"})"}});
 }
 
 TEST_CASE("ADR-0112: a DLL made for interface version 1 is not loaded and the message says to build it again")

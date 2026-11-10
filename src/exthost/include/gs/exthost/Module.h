@@ -107,6 +107,13 @@ struct JobEvents {
     std::function<void(bool worked, std::string text)> done;
 };
 
+inline constexpr std::size_t kMostTopicBytes = 64;
+inline constexpr std::size_t kMostEventBytes = 64 * 1024;
+inline constexpr std::size_t kMostEventsPerSecond = 100;
+inline constexpr std::size_t kMostTopics = 1024;
+
+[[nodiscard]] bool validTopic(std::string_view topic) noexcept;
+
 struct ModuleInfo {
     std::vector<TouchMethodInfo> touchMethods;
     std::vector<NodeInfo> nodes;
@@ -231,6 +238,7 @@ public:
 
     virtual void log(int level, std::string_view text) = 0;
     [[nodiscard]] virtual bool notify(std::string_view title, std::string_view text) = 0;
+    virtual void emitted(std::string_view, std::string_view) {}
 };
 
 class Module

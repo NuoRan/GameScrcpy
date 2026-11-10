@@ -1638,6 +1638,20 @@
     "insertText": "mcp.tool(${1:name}, ${2:spec}, ${3:handler})"
   },
   {
+    "label": "events",
+    "kind": "namespace",
+    "detail": "events",
+    "documentation": "Events that the native DLL of an extension sends to the extension's own logic and panels.",
+    "insertText": "events"
+  },
+  {
+    "label": "events.on",
+    "kind": "function",
+    "detail": "events.on(topic: string, handler: (event: TaskContext & { readonly topic: string; readonly value: StoreValue }) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the native DLL of this extension sends an event on the topic. Only the extension's own logic and panels hear its events; for each topic the DLL passes on the first 100 in a second and merges the rest of that second into the last one.",
+    "insertText": "events.on(${1:topic}, ${2:handler})"
+  },
+  {
     "label": "ai",
     "kind": "namespace",
     "detail": "ai",

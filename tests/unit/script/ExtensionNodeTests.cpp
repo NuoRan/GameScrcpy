@@ -419,6 +419,38 @@ export async function failing() {
     CHECK(fixture.recorder.count(logged("failing failed GS-API-065 asked to fail,thrown GS-API-065")) == 1);
 }
 
+TEST_CASE("ADR-0112: events.on starts a task for each event of its topic with the topic and the value, and refuses a "
+          "topic a DLL could not send")
+{
+    Fixture fixture;
+    const ScriptId script = fixture.load(R"js(
+const heard = [];
+events.on("board.added", ({ topic, value }) => {
+    heard.push(topic + " " + JSON.stringify(value));
+});
+export function report() {
+    log.info("heard", heard.join(","));
+}
+export function wrong() {
+    log.info(["Board", "", "a".repeat(65), 7].map((topic) => {
+        try {
+            events.on(topic, () => {});
+            return "none";
+        } catch (error) {
+            return error.message.split(" ")[0];
+        }
+    }).join(" "));
+}
+)js");
+    fixture.host->event("extEvent", "board.added", R"({"id":"b1"})");
+    fixture.host->event("extEvent", "board.removed", R"({"id":"b1"})");
+    fixture.host->event("extEvent", "board.added", "7");
+    CHECK(fixture.run(script, "report").kind == ReportKind::TaskFinished);
+    CHECK(fixture.recorder.count(logged("heard board.added {\"id\":\"b1\"},board.added 7")) == 1);
+    CHECK(fixture.run(script, "wrong").kind == ReportKind::TaskFinished);
+    CHECK(fixture.recorder.count(logged("GS-API-068 GS-API-068 GS-API-068 GS-API-068")) == 1);
+}
+
 TEST_CASE("ADR-0097: installed nodes are typed in types/extensions.d.ts under interface Extensions")
 {
     CHECK(gs::script::nodePath("gamescrcpy.pc-clock", "now") == "ext.gamescrcpy.pcClock.now");

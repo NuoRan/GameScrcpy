@@ -31,6 +31,13 @@ bool validColor(std::string_view text) noexcept
            });
 }
 
+bool validTopic(std::string_view topic) noexcept
+{
+    return !topic.empty() && topic.size() <= kMostTopicBytes && std::ranges::all_of(topic, [](char c) {
+               return (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '.' || c == '-';
+           });
+}
+
 bool validUtf8(std::string_view text) noexcept
 {
     std::size_t at = 0;

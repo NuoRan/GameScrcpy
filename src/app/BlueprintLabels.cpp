@@ -418,6 +418,7 @@ constexpr Entry kEntries[] = {
     {"window.focused", QT_TRANSLATE_NOOP("Blueprint", "Is Window Focused")},
     {"window.onFocus", QT_TRANSLATE_NOOP("Blueprint", "On Window Focused")},
     {"window.onBlur", QT_TRANSLATE_NOOP("Blueprint", "On Window Unfocused")},
+    {"events.on", QT_TRANSLATE_NOOP("Blueprint", "On Extension Event")},
     {"vision.pickColor", QT_TRANSLATE_NOOP("Blueprint", "Get Pixel Color")},
     {"vision.matchColor", QT_TRANSLATE_NOOP("Blueprint", "Is Color Match")},
     {"input.cursor", QT_TRANSLATE_NOOP("Blueprint", "Get Cursor Position")},
