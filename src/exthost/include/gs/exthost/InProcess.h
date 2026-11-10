@@ -44,6 +44,8 @@ public:
     [[nodiscard]] StepOutput step(std::uint64_t instance, const StepInput& input) override;
     void resetInstance(std::uint64_t instance) override;
     void closeInstance(std::uint64_t instance) override;
+    [[nodiscard]] std::uint64_t startJob(std::size_t job, std::string_view args, JobEvents events) override;
+    void cancelJob(std::uint64_t job) override;
 
     struct Impl;
 

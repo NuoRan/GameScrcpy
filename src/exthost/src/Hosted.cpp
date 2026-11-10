@@ -155,6 +155,7 @@ struct HostedModule::Impl {
         if (reader.joinable()) {
             reader.join();
         }
+        failJobs("the extension stopped before the job ended");
         if (process != nullptr) {
             if (WaitForSingleObject(process, kStopWaitMs) != WAIT_OBJECT_0) {
                 TerminateProcess(process, kStoppedExit);
@@ -359,8 +360,65 @@ struct HostedModule::Impl {
             }
             return;
         }
+        case detail::Kind::JobUpdate: {
+            std::uint32_t type = 0;
+            double fraction = 0.0;
+            std::uint32_t level = 0;
+            std::string text;
+            if (!in.u32(type) || !in.f64(fraction) || !in.u32(level) || !in.text(text, kMostJobLineBytes)) {
+                return;
+            }
+            JobEvents events;
+            {
+                const std::scoped_lock lock(mutex);
+                const auto found = jobs.find(message.id);
+                if (found == jobs.end()) {
+                    return;
+                }
+                events = found->second;
+            }
+            if (type == 0 && events.progress) {
+                events.progress(fraction >= 0.0 && fraction <= 1.0 ? fraction : -1.0, std::move(text));
+            } else if (type == 1 && events.log) {
+                events.log(static_cast<int>(std::min<std::uint32_t>(level, 2)), std::move(text));
+            }
+            return;
+        }
+        case detail::Kind::JobDone: {
+            std::uint32_t worked = 0;
+            std::string text;
+            const bool readable = in.u32(worked) && in.text(text, kMostJobResultBytes);
+            JobEvents events;
+            {
+                const std::scoped_lock lock(mutex);
+                const auto found = jobs.find(message.id);
+                if (found == jobs.end()) {
+                    return;
+                }
+                events = std::move(found->second);
+                jobs.erase(found);
+            }
+            if (events.done) {
+                events.done(readable && worked != 0, readable ? std::move(text) : std::string("the job's end was damaged"));
+            }
+            return;
+        }
         default:
             return;
+        }
+    }
+
+    void failJobs(const std::string& why)
+    {
+        std::map<std::uint64_t, JobEvents> ended;
+        {
+            const std::scoped_lock lock(mutex);
+            ended.swap(jobs);
+        }
+        for (auto& [id, events] : ended) {
+            if (events.done) {
+                events.done(false, why);
+            }
         }
     }
 
@@ -421,6 +479,7 @@ struct HostedModule::Impl {
                 options.touchLost(session);
             }
         }
+        failJobs("the extension's process stopped before the job ended");
         if (failedLate && options.notReady) {
             options.notReady(why);
         }
@@ -515,6 +574,7 @@ struct HostedModule::Impl {
     std::uint64_t skipped = 0;
     std::uint64_t nextInstance = 0;
     std::map<std::uint64_t, Remote> instances;
+    std::map<std::uint64_t, JobEvents> jobs;
     std::jthread reader;
 };
 
@@ -853,6 +913,37 @@ std::uint64_t HostedModule::skippedSteps() const noexcept
 {
     const std::scoped_lock lock(m_impl->mutex);
     return m_impl->skipped;
+}
+
+std::uint64_t HostedModule::startJob(std::size_t job, std::string_view args, JobEvents events)
+{
+    Impl& d = *m_impl;
+    if (job >= d.info.jobs.size() || args.size() > kMostParamBytes) {
+        return 0;
+    }
+    detail::WireWriter payload;
+    payload.u32(static_cast<std::uint32_t>(job));
+    payload.text(args.empty() ? std::string_view("{}") : args);
+    const std::scoped_lock lock(d.mutex);
+    if (d.state != Impl::State::Ready || !d.channel || d.jobs.size() >= kMostRunningJobs) {
+        return 0;
+    }
+    const std::uint64_t id = ++d.nextId;
+    if (!d.channel->toHost().write(detail::Kind::JobStart, id, payload.bytes())) {
+        return 0;
+    }
+    d.jobs.emplace(id, std::move(events));
+    SetEvent(d.channel->toHostEvent());
+    return id;
+}
+
+void HostedModule::cancelJob(std::uint64_t job)
+{
+    Impl& d = *m_impl;
+    const std::scoped_lock lock(d.mutex);
+    if (d.jobs.contains(job) && d.channel && d.channel->toHost().write(detail::Kind::JobCancel, job, {})) {
+        SetEvent(d.channel->toHostEvent());
+    }
 }
 
 int HostedModule::crashes() const

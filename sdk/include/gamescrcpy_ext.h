@@ -33,6 +33,9 @@ extern "C" {
 /* A contribution whose data is a gs_ext_behavior. */
 #define GS_EXT_KIND_BEHAVIOR "behavior"
 
+/* A contribution whose data is a gs_ext_job. */
+#define GS_EXT_KIND_JOB "job"
+
 /* What a node parameter or result holds. The names in the manifest's contributes.native are the same types. */
 enum gs_ext_type {
     /* No value: the result of a node that gives nothing back. */
@@ -186,6 +189,7 @@ typedef struct gs_ext_touch_command gs_ext_touch_command;
 typedef struct gs_ext_output gs_ext_output;
 typedef struct gs_ext_attachment gs_ext_attachment;
 typedef struct gs_ext_behavior gs_ext_behavior;
+typedef struct gs_ext_job gs_ext_job;
 typedef struct gs_ext_host gs_ext_host;
 typedef struct gs_ext_contribution gs_ext_contribution;
 typedef struct gs_ext_plugin gs_ext_plugin;
@@ -454,6 +458,20 @@ struct gs_ext_behavior {
     void (*stop)(void* state);
 };
 
+/* A job: work that takes a while, such as writing firmware, started from logic or a panel, which tells how far it got and ends with a result. A DLL has at most 4 of its jobs running at once, fewer when the manifest says so. */
+struct gs_ext_job {
+    /* sizeof(gs_ext_job) in the DLL. */
+    uint32_t size;
+    /* The name of the job in the manifest's contributes.native.jobs. */
+    const char* name;
+    /* Passed back to start and cancel. */
+    void* context;
+    /* Starts the job numbered job with its arguments, a UTF-8 JSON object of size bytes not ended by a zero byte that matches the manifest's params. Return at once and do the work on a thread of your own; tell how far it got with job_progress and job_log, and end it with exactly one job_finish or job_fail. Anything but GS_EXT_OK means it did not start, and nothing more may be said about it. */
+    int32_t (*start)(void* context, uint64_t job, const char* args, size_t size);
+    /* Asks the job to stop soon; it still ends with job_fail (or job_finish when it was done already). GameScrcpy stops waiting 3 seconds after it asks. */
+    void (*cancel)(void* context, uint64_t job);
+};
+
 /* What GameScrcpy gives a DLL. */
 struct gs_ext_host {
     /* sizeof(gs_ext_host) in GameScrcpy; later versions only add functions at the end. */
@@ -478,6 +496,16 @@ struct gs_ext_host {
     int32_t (*set_text)(gs_ext_result* result, uint32_t type, const char* text, size_t size);
     /* Says why a node failed; the script that called it gets the text in its error. */
     int32_t (*set_error)(gs_ext_result* result, const char* text, size_t size);
+    /* 1 when this GameScrcpy has the feature, such as "jobs", otherwise 0; ask before using a function that a later version added. */
+    int32_t (*supports)(void* context, const char* feature);
+    /* Tells how far a job got: fraction from 0 to 1, or -1 when it cannot tell, and a short UTF-8 line about the step it is on. GameScrcpy passes on at most 20 a second and drops the others in between. */
+    int32_t (*job_progress)(void* context, uint64_t job, double fraction, const char* text, size_t size);
+    /* Adds a line to what the job reports, level one of gs_ext_log_level. */
+    int32_t (*job_log)(void* context, uint64_t job, uint32_t level, const char* text, size_t size);
+    /* Ends a job that worked, with its result as UTF-8 JSON of at most 252 KiB (empty for null). */
+    int32_t (*job_finish)(void* context, uint64_t job, const char* json, size_t size);
+    /* Ends a job that did not work, or that was cancelled, saying why in UTF-8. */
+    int32_t (*job_fail)(void* context, uint64_t job, const char* text, size_t size);
 };
 
 /* One thing a DLL offers. */
@@ -500,7 +528,7 @@ struct gs_ext_plugin {
     uint32_t abi_version;
     /* Passed back to unload. */
     void* context;
-    /* How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments and 32 behaviors. */
+    /* How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments, 32 behaviors and 32 jobs. */
     uint32_t contribution_count;
     /* What the DLL offers. */
     const gs_ext_contribution* contributions;

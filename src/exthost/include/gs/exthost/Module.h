@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <span>
 #include <string>
@@ -89,11 +90,29 @@ struct BehaviorInfo {
     friend bool operator==(const BehaviorInfo&, const BehaviorInfo&) = default;
 };
 
+inline constexpr std::size_t kMostJobs = 32;
+inline constexpr std::size_t kMostRunningJobs = 4;
+inline constexpr std::size_t kMostJobResultBytes = kMostTextBytes;
+inline constexpr std::size_t kMostJobLineBytes = 1024;
+
+struct JobInfo {
+    std::string name;
+
+    friend bool operator==(const JobInfo&, const JobInfo&) = default;
+};
+
+struct JobEvents {
+    std::function<void(double fraction, std::string text)> progress;
+    std::function<void(int level, std::string text)> log;
+    std::function<void(bool worked, std::string text)> done;
+};
+
 struct ModuleInfo {
     std::vector<TouchMethodInfo> touchMethods;
     std::vector<NodeInfo> nodes;
     std::vector<AttachmentInfo> attachments;
     std::vector<BehaviorInfo> behaviors;
+    std::vector<JobInfo> jobs;
 
     friend bool operator==(const ModuleInfo&, const ModuleInfo&) = default;
 };
@@ -238,6 +257,8 @@ public:
     virtual void resetInstance(std::uint64_t) {}
     virtual void closeInstance(std::uint64_t) {}
     [[nodiscard]] virtual std::uint64_t skippedSteps() const noexcept { return 0; }
+    [[nodiscard]] virtual std::uint64_t startJob(std::size_t, std::string_view, JobEvents) { return 0; }
+    virtual void cancelJob(std::uint64_t) {}
 };
 
 }

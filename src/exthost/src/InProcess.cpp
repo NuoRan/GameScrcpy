@@ -8,6 +8,8 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <cstring>
 #include <map>
@@ -44,6 +46,8 @@ constexpr std::size_t kMostNameBytes = 64;
 constexpr std::size_t kMostLogBytes = 4096;
 constexpr std::size_t kMostErrorBytes = 1000;
 constexpr std::uint32_t kMostContributions = 256;
+constexpr std::chrono::seconds kJobGrace{3};
+constexpr std::chrono::milliseconds kProgressGap{50};
 
 struct ResultBox {
     std::string text;
@@ -168,6 +172,7 @@ struct InProcessModule::Impl {
         if (library == nullptr) {
             return;
         }
+        endJobs();
         {
             const std::scoped_lock lock(touchMutex);
             for (const auto& [id, session] : sessions) {
@@ -198,6 +203,39 @@ struct InProcessModule::Impl {
         void* state = nullptr;
     };
 
+    struct Job {
+        std::size_t index = 0;
+        JobEvents events;
+        std::chrono::steady_clock::time_point told{};
+    };
+
+    void endJobs()
+    {
+        std::vector<std::pair<std::uint64_t, std::size_t>> running;
+        {
+            const std::scoped_lock lock(jobMutex);
+            for (const auto& [id, job] : jobs) {
+                running.emplace_back(id, job.index);
+            }
+        }
+        for (const auto& [id, index] : running) {
+            nativeJobs[index].cancel(nativeJobs[index].context, id);
+        }
+        std::unique_lock lock(jobMutex);
+        jobsEnded.wait_for(lock, kJobGrace, [this] { return jobs.empty(); });
+        std::vector<JobEvents> left;
+        for (auto& [id, job] : jobs) {
+            left.push_back(std::move(job.events));
+        }
+        jobs.clear();
+        lock.unlock();
+        for (JobEvents& events : left) {
+            if (events.done) {
+                events.done(false, "the extension stopped before the job ended");
+            }
+        }
+    }
+
     [[nodiscard]] bool allows(std::string_view permission) const
     {
         return std::ranges::find(granted, permission) != granted.end();
@@ -220,6 +258,11 @@ struct InProcessModule::Impl {
     std::vector<gs_ext_node> nodes;
     std::vector<gs_ext_attachment> attachments;
     std::vector<gs_ext_behavior> behaviors;
+    std::vector<gs_ext_job> nativeJobs;
+    std::mutex jobMutex;
+    std::condition_variable jobsEnded;
+    std::map<std::uint64_t, Job> jobs;
+    std::uint64_t nextJob = 0;
     ModuleInfo info;
     detail::ModuleStore store;
     std::vector<std::string> granted;
@@ -355,6 +398,122 @@ int32_t hostNotify(void* context, const char* title, size_t titleSize, const cha
         return GS_EXT_FAILED;
     }
     return impl.services->notify(heading.substr(0, 200), body.substr(0, 1000)) ? GS_EXT_OK : GS_EXT_FAILED;
+}
+
+int32_t hostSupports(void*, const char* feature)
+{
+    if (feature == nullptr) {
+        return 0;
+    }
+    const std::string_view name(feature, strnlen(feature, kMostNameBytes));
+    return name == "jobs" ? 1 : 0;
+}
+
+std::string lineOf(const char* text, size_t size, std::size_t most)
+{
+    if (text == nullptr || size == 0) {
+        return {};
+    }
+    std::string_view line(text, std::min(size, most));
+    while (!line.empty() && !validUtf8(line)) {
+        line.remove_suffix(1);
+    }
+    return std::string(line);
+}
+
+int32_t hostJobProgress(void* context, uint64_t job, double fraction, const char* text, size_t size)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if (text == nullptr && size > 0) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    std::function<void(double, std::string)> progress;
+    {
+        const std::scoped_lock lock(impl.jobMutex);
+        const auto found = impl.jobs.find(job);
+        if (found == impl.jobs.end()) {
+            return GS_EXT_BAD_ARGUMENT;
+        }
+        const auto now = std::chrono::steady_clock::now();
+        if (now - found->second.told < kProgressGap) {
+            return GS_EXT_OK;
+        }
+        found->second.told = now;
+        progress = found->second.events.progress;
+    }
+    if (progress) {
+        progress(fraction >= 0.0 && fraction <= 1.0 ? fraction : -1.0, lineOf(text, size, kMostJobLineBytes));
+    }
+    return GS_EXT_OK;
+}
+
+int32_t hostJobLog(void* context, uint64_t job, uint32_t level, const char* text, size_t size)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if (text == nullptr && size > 0) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    std::function<void(int, std::string)> log;
+    {
+        const std::scoped_lock lock(impl.jobMutex);
+        const auto found = impl.jobs.find(job);
+        if (found == impl.jobs.end()) {
+            return GS_EXT_BAD_ARGUMENT;
+        }
+        log = found->second.events.log;
+    }
+    if (log) {
+        log(static_cast<int>(std::min<uint32_t>(level, GS_EXT_LOG_ERROR)), lineOf(text, size, kMostJobLineBytes));
+    }
+    return GS_EXT_OK;
+}
+
+std::optional<JobEvents> endedJob(InProcessModule::Impl& impl, uint64_t job)
+{
+    const std::scoped_lock lock(impl.jobMutex);
+    const auto found = impl.jobs.find(job);
+    if (found == impl.jobs.end()) {
+        return std::nullopt;
+    }
+    JobEvents events = std::move(found->second.events);
+    impl.jobs.erase(found);
+    impl.jobsEnded.notify_all();
+    return events;
+}
+
+int32_t hostJobFinish(void* context, uint64_t job, const char* json, size_t size)
+{
+    if ((json == nullptr && size > 0) || size > kMostJobResultBytes) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    const std::string_view result = size == 0 ? std::string_view("null") : std::string_view(json, size);
+    if (!validUtf8(result)) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    std::optional<JobEvents> events = endedJob(implOf(context), job);
+    if (!events) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (events->done) {
+        events->done(true, std::string(result));
+    }
+    return GS_EXT_OK;
+}
+
+int32_t hostJobFail(void* context, uint64_t job, const char* text, size_t size)
+{
+    if (text == nullptr && size > 0) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    std::optional<JobEvents> events = endedJob(implOf(context), job);
+    if (!events) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (events->done) {
+        std::string problem = lineOf(text, size, kMostErrorBytes);
+        events->done(false, problem.empty() ? std::string("the job did not work") : std::move(problem));
+    }
+    return GS_EXT_OK;
 }
 
 template <typename Native>
@@ -496,6 +655,25 @@ std::string addBehavior(InProcessModule::Impl& impl, const gs_ext_contribution& 
     return {};
 }
 
+std::string addJob(InProcessModule::Impl& impl, const gs_ext_contribution& entry,
+                   std::set<std::string, std::less<>>& names)
+{
+    gs_ext_job job{};
+    std::string name;
+    if (!copied(entry.data, job)) {
+        return "a job has no data";
+    }
+    if (std::string problem = named("job", job.name, entry, names, name); !problem.empty()) {
+        return problem;
+    }
+    if (job.start == nullptr || job.cancel == nullptr) {
+        return "the job " + name + " lacks start or cancel";
+    }
+    impl.nativeJobs.push_back(job);
+    impl.info.jobs.push_back({.name = name});
+    return {};
+}
+
 std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
 {
     if (!copied(plugin, impl.described)) {
@@ -533,6 +711,8 @@ std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
             problem = addAttachment(impl, entry, names);
         } else if (kind == GS_EXT_KIND_BEHAVIOR) {
             problem = addBehavior(impl, entry, names);
+        } else if (kind == GS_EXT_KIND_JOB) {
+            problem = addJob(impl, entry, names);
         } else if (kind.empty()) {
             problem = "contribution " + std::to_string(index + 1) + " has no kind";
         } else if (impl.services != nullptr) {
@@ -544,8 +724,9 @@ std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
         }
     }
     if (impl.touchMethods.size() > kMostTouchMethods || impl.nodes.size() > kMostNodes ||
-        impl.attachments.size() > kMostModuleAttachments || impl.behaviors.size() > kMostModuleBehaviors) {
-        return "the DLL offers more than 8 touch methods, 64 nodes, 32 attachments or 32 behaviors";
+        impl.attachments.size() > kMostModuleAttachments || impl.behaviors.size() > kMostModuleBehaviors ||
+        impl.nativeJobs.size() > kMostJobs) {
+        return "the DLL offers more than 8 touch methods, 64 nodes, 32 attachments, 32 behaviors or 32 jobs";
     }
     return {};
 }
@@ -593,6 +774,11 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
     impl->host.notify = &hostNotify;
     impl->host.set_text = &setText;
     impl->host.set_error = &setError;
+    impl->host.supports = &hostSupports;
+    impl->host.job_progress = &hostJobProgress;
+    impl->host.job_log = &hostJobLog;
+    impl->host.job_finish = &hostJobFinish;
+    impl->host.job_fail = &hostJobFail;
     const gs_ext_plugin* plugin = nullptr;
     const int32_t status = entry(&impl->host, &plugin);
     impl->entered = status == GS_EXT_OK;
@@ -607,6 +793,7 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
         impl->nodes.clear();
         impl->attachments.clear();
         impl->behaviors.clear();
+        impl->nativeJobs.clear();
         return nullptr;
     }
     return std::unique_ptr<InProcessModule>(new InProcessModule(std::move(impl)));
@@ -920,6 +1107,47 @@ void InProcessModule::closeInstance(std::uint64_t instance)
     }
     d.stop(found->second);
     d.instances.erase(found);
+}
+
+std::uint64_t InProcessModule::startJob(std::size_t job, std::string_view args, JobEvents events)
+{
+    Impl& d = *m_impl;
+    if (job >= d.nativeJobs.size() || args.size() > kMostParamBytes || !validUtf8(args)) {
+        return 0;
+    }
+    std::uint64_t id = 0;
+    {
+        const std::scoped_lock lock(d.jobMutex);
+        if (d.jobs.size() >= kMostRunningJobs) {
+            return 0;
+        }
+        id = ++d.nextJob;
+        d.jobs.emplace(id, Impl::Job{.index = job, .events = std::move(events), .told = {}});
+    }
+    const gs_ext_job& entry = d.nativeJobs[job];
+    const std::string text = args.empty() ? std::string("{}") : std::string(args);
+    if (entry.start(entry.context, id, text.data(), text.size()) != GS_EXT_OK) {
+        std::optional<JobEvents> gone = endedJob(d, id);
+        if (gone && gone->done) {
+            gone->done(false, "the job did not start");
+        }
+    }
+    return id;
+}
+
+void InProcessModule::cancelJob(std::uint64_t job)
+{
+    Impl& d = *m_impl;
+    std::size_t index = 0;
+    {
+        const std::scoped_lock lock(d.jobMutex);
+        const auto found = d.jobs.find(job);
+        if (found == d.jobs.end()) {
+            return;
+        }
+        index = found->second.index;
+    }
+    d.nativeJobs[index].cancel(d.nativeJobs[index].context, job);
 }
 
 }

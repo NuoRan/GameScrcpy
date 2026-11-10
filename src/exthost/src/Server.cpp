@@ -150,6 +150,109 @@ private:
     std::jthread m_thread;
 };
 
+class Jobs
+{
+public:
+    Jobs(Module& module, Link& link) noexcept
+        : m_module(module)
+        , m_link(link)
+    {
+    }
+
+    Jobs(const Jobs&) = delete;
+    Jobs& operator=(const Jobs&) = delete;
+
+    bool handle(const detail::Message& message)
+    {
+        if (message.kind == detail::Kind::JobStart) {
+            start(message);
+            return true;
+        }
+        if (message.kind != detail::Kind::JobCancel) {
+            return false;
+        }
+        std::uint64_t running = 0;
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (const auto found = m_running.find(message.id); found != m_running.end()) {
+                running = found->second;
+            }
+        }
+        if (running != 0) {
+            m_module.cancelJob(running);
+        }
+        return true;
+    }
+
+private:
+    void start(const detail::Message& message)
+    {
+        const std::uint64_t id = message.id;
+        detail::WireReader in(message.payload);
+        std::uint32_t index = 0;
+        std::string args;
+        const bool good = in.u32(index) && in.text(args, kMostParamBytes) && in.done();
+        Link& link = m_link;
+        JobEvents events{.progress =
+                             [&link, id](double fraction, std::string text) {
+                                 detail::WireWriter out;
+                                 out.u32(0);
+                                 out.f64(fraction);
+                                 out.u32(0);
+                                 out.text(text);
+                                 link.send(detail::Kind::JobUpdate, id, out.bytes());
+                             },
+                         .log =
+                             [&link, id](int level, std::string text) {
+                                 detail::WireWriter out;
+                                 out.u32(1);
+                                 out.f64(0.0);
+                                 out.u32(static_cast<std::uint32_t>(level));
+                                 out.text(text);
+                                 link.send(detail::Kind::JobUpdate, id, out.bytes());
+                             },
+                         .done =
+                             [this, id](bool worked, std::string text) {
+                                 {
+                                     const std::scoped_lock lock(m_mutex);
+                                     m_running.erase(id);
+                                 }
+                                 finish(id, worked, text);
+                             }};
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_running[id] = 0;
+        }
+        const std::uint64_t running = good ? m_module.startJob(index, args, std::move(events)) : 0;
+        const std::scoped_lock lock(m_mutex);
+        const auto found = m_running.find(id);
+        if (found == m_running.end()) {
+            return;
+        }
+        if (running != 0) {
+            found->second = running;
+            return;
+        }
+        m_running.erase(found);
+        finish(id, false,
+               good ? "the job could not start: there is no such job, or 4 of the extension's jobs are running already"
+                    : "the request to start the job was damaged");
+    }
+
+    void finish(std::uint64_t id, bool worked, std::string_view text)
+    {
+        detail::WireWriter out;
+        out.u32(worked ? 1U : 0U);
+        out.text(text);
+        m_link.send(detail::Kind::JobDone, id, out.bytes());
+    }
+
+    Module& m_module;
+    Link& m_link;
+    std::mutex m_mutex;
+    std::map<std::uint64_t, std::uint64_t> m_running;
+};
+
 struct Start {
     std::string dll;
     std::string store;
@@ -392,6 +495,7 @@ int serve(int argc, wchar_t** argv)
         out.info(module->info());
         link.send(detail::Kind::Ready, 0, out.bytes());
     }
+    Jobs jobs(*module, link);
     int status = kDone;
     {
         Worker worker(*module, link);
@@ -415,6 +519,8 @@ int serve(int argc, wchar_t** argv)
                 worker.push(std::move(message));
             } else if (message.kind == detail::Kind::Stop) {
                 running = false;
+            } else if (jobs.handle(message)) {
+                continue;
             } else if (!instanced(*module, link, instances, message)) {
                 touched(*module, link, sessions, message);
             }

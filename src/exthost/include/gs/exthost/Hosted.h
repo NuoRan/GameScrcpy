@@ -61,6 +61,8 @@ public:
     void resetInstance(std::uint64_t instance) override;
     void closeInstance(std::uint64_t instance) override;
     [[nodiscard]] std::uint64_t skippedSteps() const noexcept override;
+    [[nodiscard]] std::uint64_t startJob(std::size_t job, std::string_view args, JobEvents events) override;
+    void cancelJob(std::uint64_t job) override;
 
     [[nodiscard]] int crashes() const;
     [[nodiscard]] bool waitReady(std::chrono::milliseconds limit) const;

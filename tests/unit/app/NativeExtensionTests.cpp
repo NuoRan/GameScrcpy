@@ -30,6 +30,7 @@
 #include <array>
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <filesystem>
 #include <functional>
 #include <memory>
@@ -189,6 +190,129 @@ TEST_CASE("ADR-0112: a DLL built with smaller or larger structs is read field by
     CHECK_FALSE(older.gamepad);
     REQUIRE(logged.lines.size() == 1);
     CHECK(logged.lines[0].find("telepathy") != std::string::npos);
+}
+
+namespace {
+
+struct JobWatch {
+    std::mutex mutex;
+    std::condition_variable changed;
+    std::vector<double> fractions;
+    std::vector<std::string> lines;
+    std::vector<std::string> logs;
+    std::optional<std::pair<bool, std::string>> done;
+
+    exthost::JobEvents events()
+    {
+        return {.progress =
+                    [this](double fraction, std::string text) {
+                        const std::scoped_lock lock(mutex);
+                        fractions.push_back(fraction);
+                        lines.push_back(std::move(text));
+                    },
+                .log =
+                    [this](int, std::string text) {
+                        const std::scoped_lock lock(mutex);
+                        logs.push_back(std::move(text));
+                    },
+                .done =
+                    [this](bool worked, std::string text) {
+                        {
+                            const std::scoped_lock lock(mutex);
+                            done.emplace(worked, std::move(text));
+                        }
+                        changed.notify_all();
+                    }};
+    }
+
+    std::pair<bool, std::string> wait()
+    {
+        std::unique_lock lock(mutex);
+        REQUIRE(changed.wait_for(lock, 20s, [this] { return done.has_value(); }));
+        return *done;
+    }
+};
+
+std::size_t jobIndex(const exthost::Module& module, std::string_view name)
+{
+    const std::vector<exthost::JobInfo>& jobs = module.info().jobs;
+    const auto found = std::ranges::find(jobs, name, &exthost::JobInfo::name);
+    REQUIRE(found != jobs.end());
+    return static_cast<std::size_t>(found - jobs.begin());
+}
+
+void checkJobs(exthost::Module& module)
+{
+    REQUIRE(module.info().jobs.size() == 2);
+    const std::size_t count = jobIndex(module, "count");
+
+    JobWatch counted;
+    CHECK(module.startJob(count, R"({"steps":3,"pause":60})", counted.events()) != 0);
+    const auto [worked, result] = counted.wait();
+    CHECK(worked);
+    CHECK(result == R"({"counted":3})");
+    {
+        const std::scoped_lock lock(counted.mutex);
+        CHECK(counted.fractions.size() == 3);
+        CHECK(counted.fractions.back() == doctest::Approx(1.0));
+        CHECK(counted.lines.front() == "step 1");
+        CHECK(counted.logs == std::vector<std::string>{"counting"});
+    }
+
+    JobWatch failing;
+    CHECK(module.startJob(count, R"({"steps":1,"fail":1})", failing.events()) != 0);
+    CHECK(failing.wait() == std::pair<bool, std::string>{false, "asked to fail"});
+
+    JobWatch refused;
+    CHECK(module.startJob(jobIndex(module, "refuse"), "{}", refused.events()) != 0);
+    CHECK(refused.wait() == std::pair<bool, std::string>{false, "the job did not start"});
+
+    JobWatch cancelled;
+    const std::uint64_t running = module.startJob(count, R"({"steps":1000,"pause":20})", cancelled.events());
+    REQUIRE(running != 0);
+    module.cancelJob(running);
+    CHECK(cancelled.wait() == std::pair<bool, std::string>{false, "cancelled"});
+
+    std::array<JobWatch, 5> many;
+    std::vector<std::uint64_t> started;
+    for (JobWatch& watch : many) {
+        started.push_back(module.startJob(count, R"({"steps":1000,"pause":20})", watch.events()));
+    }
+    CHECK(std::ranges::count(started, std::uint64_t{0}) == 1);
+    CHECK(started.back() == 0);
+    for (std::size_t index = 0; index + 1 < started.size(); ++index) {
+        module.cancelJob(started[index]);
+        CHECK(many[index].wait().second == "cancelled");
+    }
+}
+
+}
+
+TEST_CASE("ADR-0112: a job runs on the DLL's own thread, tells how far it got and ends with its result, also when "
+          "it fails, refuses or is cancelled, and at most 4 run at once")
+{
+    Scratch scratch;
+    std::string problem;
+    const std::unique_ptr<exthost::InProcessModule> module =
+        exthost::InProcessModule::load({.dll = kTestDll, .store = scratch / "store.json"}, problem);
+    REQUIRE_MESSAGE(module != nullptr, problem);
+    checkJobs(*module);
+}
+
+TEST_CASE("ADR-0112: jobs of someone else's DLL run through gs-exthost.exe the same way, and end when its process "
+          "stops")
+{
+    Scratch scratch;
+    std::string problem;
+    const std::unique_ptr<exthost::HostedModule> module = exthost::HostedModule::start(hostedOptions(scratch), problem);
+    REQUIRE_MESSAGE(module != nullptr, problem);
+    REQUIRE(module->waitReady(20s));
+    checkJobs(*module);
+
+    JobWatch stranded;
+    REQUIRE(module->startJob(jobIndex(*module, "count"), R"({"steps":1000,"pause":20})", stranded.events()) != 0);
+    crashOnce(*module, 1);
+    CHECK(stranded.wait() == std::pair<bool, std::string>{false, "the extension's process stopped before the job ended"});
 }
 
 TEST_CASE("ADR-0112: a DLL made for interface version 1 is not loaded and the message says to build it again")

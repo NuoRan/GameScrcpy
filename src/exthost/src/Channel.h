@@ -37,6 +37,10 @@ enum class Kind : std::uint32_t {
     InstanceAnswer,
     InstanceReset,
     InstanceClose,
+    JobStart,
+    JobCancel,
+    JobUpdate,
+    JobDone,
 };
 
 struct Message {

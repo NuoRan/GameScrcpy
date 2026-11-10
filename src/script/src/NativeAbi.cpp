@@ -20,6 +20,7 @@ constexpr Constant kConstants[] = {
     {"GS_EXT_KIND_NODE", "\"node\"", "A contribution whose data is a gs_ext_node."},
     {"GS_EXT_KIND_ATTACHMENT", "\"attachment\"", "A contribution whose data is a gs_ext_attachment."},
     {"GS_EXT_KIND_BEHAVIOR", "\"behavior\"", "A contribution whose data is a gs_ext_behavior."},
+    {"GS_EXT_KIND_JOB", "\"job\"", "A contribution whose data is a gs_ext_job."},
 };
 
 constexpr Enumerator kTypes[] = {
@@ -327,6 +328,20 @@ constexpr Field kBehaviorFields[] = {
     {"void (*stop)(void* state)", "The component goes away: free the state."},
 };
 
+constexpr Field kJobFields[] = {
+    {"uint32_t size", "sizeof(gs_ext_job) in the DLL."},
+    {"const char* name", "The name of the job in the manifest's contributes.native.jobs."},
+    {"void* context", "Passed back to start and cancel."},
+    {"int32_t (*start)(void* context, uint64_t job, const char* args, size_t size)",
+     "Starts the job numbered job with its arguments, a UTF-8 JSON object of size bytes not ended by a zero byte "
+     "that matches the manifest's params. Return at once and do the work on a thread of your own; tell how far it got "
+     "with job_progress and job_log, and end it with exactly one job_finish or job_fail. Anything but GS_EXT_OK means "
+     "it did not start, and nothing more may be said about it."},
+    {"void (*cancel)(void* context, uint64_t job)",
+     "Asks the job to stop soon; it still ends with job_fail (or job_finish when it was done already). GameScrcpy "
+     "stops waiting 3 seconds after it asks."},
+};
+
 constexpr Field kHostFields[] = {
     {"uint32_t size", "sizeof(gs_ext_host) in GameScrcpy; later versions only add functions at the end."},
     {"uint32_t abi_version", "The GS_EXT_ABI_VERSION of GameScrcpy."},
@@ -348,6 +363,18 @@ constexpr Field kHostFields[] = {
      "Copies UTF-8 text into a result as a string, color or json value."},
     {"int32_t (*set_error)(gs_ext_result* result, const char* text, size_t size)",
      "Says why a node failed; the script that called it gets the text in its error."},
+    {"int32_t (*supports)(void* context, const char* feature)",
+     "1 when this GameScrcpy has the feature, such as \"jobs\", otherwise 0; ask before using a function that a "
+     "later version added."},
+    {"int32_t (*job_progress)(void* context, uint64_t job, double fraction, const char* text, size_t size)",
+     "Tells how far a job got: fraction from 0 to 1, or -1 when it cannot tell, and a short UTF-8 line about the step "
+     "it is on. GameScrcpy passes on at most 20 a second and drops the others in between."},
+    {"int32_t (*job_log)(void* context, uint64_t job, uint32_t level, const char* text, size_t size)",
+     "Adds a line to what the job reports, level one of gs_ext_log_level."},
+    {"int32_t (*job_finish)(void* context, uint64_t job, const char* json, size_t size)",
+     "Ends a job that worked, with its result as UTF-8 JSON of at most 252 KiB (empty for null)."},
+    {"int32_t (*job_fail)(void* context, uint64_t job, const char* text, size_t size)",
+     "Ends a job that did not work, or that was cancelled, saying why in UTF-8."},
 };
 
 constexpr Field kContributionFields[] = {
@@ -363,7 +390,7 @@ constexpr Field kPluginFields[] = {
     {"uint32_t abi_version", "Set it to GS_EXT_ABI_VERSION."},
     {"void* context", "Passed back to unload."},
     {"uint32_t contribution_count",
-     "How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments and 32 behaviors."},
+     "How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments, 32 behaviors and 32 jobs."},
     {"const gs_ext_contribution* contributions", "What the DLL offers."},
     {"void (*unload)(void* context)", "Called once before the DLL is unloaded; may be NULL."},
 };
@@ -408,6 +435,10 @@ constexpr Structure kStructures[] = {
      "GS_EXT_OK lifts its fingers and stops the component until the profile is applied again; three failures within "
      "10 seconds turn the extension off.",
      kBehaviorFields},
+    {"gs_ext_job",
+     "A job: work that takes a while, such as writing firmware, started from logic or a panel, which tells how far it "
+     "got and ends with a result. A DLL has at most 4 of its jobs running at once, fewer when the manifest says so.",
+     kJobFields},
     {"gs_ext_host", "What GameScrcpy gives a DLL.", kHostFields},
     {"gs_ext_contribution", "One thing a DLL offers.", kContributionFields},
     {"gs_ext_plugin", "What a DLL offers, as one description that the DLL keeps.", kPluginFields},

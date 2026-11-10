@@ -2,11 +2,16 @@
 
 #include <windows.h>
 
+#include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <map>
+#include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
+#include <vector>
 
 namespace {
 
@@ -426,6 +431,93 @@ void tapStop(void* state)
     delete static_cast<Tap*>(state);
 }
 
+struct JobBook {
+    std::mutex mutex;
+    std::vector<std::thread> threads;
+    std::map<uint64_t, std::shared_ptr<std::atomic<bool>>> stops;
+};
+
+JobBook& jobBook()
+{
+    static JobBook book;
+    return book;
+}
+
+void sayJob(uint64_t job, bool worked, const std::string& text)
+{
+    if (worked) {
+        g_host->job_finish(g_host->context, job, text.data(), text.size());
+    } else {
+        g_host->job_fail(g_host->context, job, text.data(), text.size());
+    }
+}
+
+int32_t countStart(void*, uint64_t job, const char* args, size_t size)
+{
+    const std::string text(args, size);
+    const int steps = static_cast<int>(numberIn(text, "steps", 1.0));
+    const auto pause = static_cast<DWORD>(numberIn(text, "pause", 0.0));
+    const bool fail = numberIn(text, "fail", 0.0) != 0.0;
+    auto stop = std::make_shared<std::atomic<bool>>(false);
+    JobBook& book = jobBook();
+    const std::scoped_lock lock(book.mutex);
+    book.stops[job] = stop;
+    book.threads.emplace_back([job, steps, pause, fail, stop] {
+        for (int step = 1; step <= steps; ++step) {
+            if (stop->load()) {
+                sayJob(job, false, "cancelled");
+                return;
+            }
+            const std::string line = "step " + std::to_string(step);
+            g_host->job_progress(g_host->context, job, static_cast<double>(step) / steps, line.data(), line.size());
+            if (step == 1) {
+                constexpr char kCounting[] = "counting";
+                g_host->job_log(g_host->context, job, GS_EXT_LOG_INFO, kCounting, sizeof(kCounting) - 1);
+            }
+            Sleep(pause);
+        }
+        sayJob(job, !fail, fail ? std::string("asked to fail") : "{\"counted\":" + std::to_string(steps) + "}");
+    });
+    return GS_EXT_OK;
+}
+
+void countCancel(void*, uint64_t job)
+{
+    JobBook& book = jobBook();
+    const std::scoped_lock lock(book.mutex);
+    if (const auto found = book.stops.find(job); found != book.stops.end()) {
+        found->second->store(true);
+    }
+}
+
+int32_t refuseStart(void*, uint64_t, const char*, size_t)
+{
+    return GS_EXT_FAILED;
+}
+
+void refuseCancel(void*, uint64_t) {}
+
+void unloadAll(void*)
+{
+    std::vector<std::thread> threads;
+    {
+        JobBook& book = jobBook();
+        const std::scoped_lock lock(book.mutex);
+        for (auto& [job, stop] : book.stops) {
+            stop->store(true);
+        }
+        threads = std::move(book.threads);
+    }
+    for (std::thread& thread : threads) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
+}
+
+const gs_ext_job kCount = {sizeof(gs_ext_job), "count", nullptr, &countStart, &countCancel};
+const gs_ext_job kRefuse = {sizeof(gs_ext_job), "refuse", nullptr, &refuseStart, &refuseCancel};
+
 const gs_ext_attachment kShift = {
     sizeof(gs_ext_attachment), "shift", nullptr, &shiftStart, &shiftInput, &shiftOutput, &shiftWake, &shiftReset,
     &shiftStop,
@@ -455,6 +547,8 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "wrongType", &kNodes[12]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_ATTACHMENT, "shift", &kShift},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_BEHAVIOR, "tap", &kTap},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_JOB, "count", &kCount},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_JOB, "refuse", &kRefuse},
 };
 
 const gs_ext_plugin kPlugin = {
@@ -463,7 +557,7 @@ const gs_ext_plugin kPlugin = {
     nullptr,
     static_cast<uint32_t>(sizeof(kContributions) / sizeof(kContributions[0])),
     kContributions,
-    nullptr,
+    &unloadAll,
 };
 
 }

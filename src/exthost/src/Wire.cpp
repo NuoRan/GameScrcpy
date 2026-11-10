@@ -77,6 +77,10 @@ void WireWriter::info(const ModuleInfo& info)
         u32(static_cast<std::uint32_t>(behavior.fingers));
         u32(behavior.frames ? 1U : 0U);
     }
+    u32(static_cast<std::uint32_t>(info.jobs.size()));
+    for (const JobInfo& job : info.jobs) {
+        text(job.name);
+    }
 }
 
 void WireWriter::event(const InputEvent& event)
@@ -235,6 +239,17 @@ bool WireReader::info(ModuleInfo& out)
         behavior.fingers = static_cast<int>(fingers);
         behavior.frames = frames != 0;
         out.behaviors.push_back(std::move(behavior));
+    }
+    std::uint32_t jobs = 0;
+    if (!u32(jobs) || jobs > kMostJobs) {
+        return false;
+    }
+    for (std::uint32_t index = 0; index < jobs; ++index) {
+        JobInfo job;
+        if (!text(job.name, kMostNameBytes)) {
+            return false;
+        }
+        out.jobs.push_back(std::move(job));
     }
     return true;
 }
