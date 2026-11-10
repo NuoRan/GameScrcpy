@@ -8,11 +8,13 @@
 
 #include <algorithm>
 #include <array>
+#include <cstddef>
 #include <cstring>
 #include <map>
 #include <mutex>
 #include <set>
 #include <utility>
+#include <vector>
 
 namespace gs::exthost {
 
@@ -41,6 +43,7 @@ namespace {
 constexpr std::size_t kMostNameBytes = 64;
 constexpr std::size_t kMostLogBytes = 4096;
 constexpr std::size_t kMostErrorBytes = 1000;
+constexpr std::uint32_t kMostContributions = 256;
 
 struct ResultBox {
     std::string text;
@@ -168,7 +171,7 @@ struct InProcessModule::Impl {
         {
             const std::scoped_lock lock(touchMutex);
             for (const auto& [id, session] : sessions) {
-                const gs_ext_touch_method& method = module.touch_methods[session.first];
+                const gs_ext_touch_method& method = touchMethods[session.first];
                 method.close(method.context, session.second);
             }
             sessions.clear();
@@ -180,8 +183,8 @@ struct InProcessModule::Impl {
             }
             instances.clear();
         }
-        if (entered && module.unload != nullptr) {
-            module.unload(module.context);
+        if (entered && described.unload != nullptr) {
+            described.unload(described.context);
         }
         FreeLibrary(library);
     }
@@ -203,16 +206,20 @@ struct InProcessModule::Impl {
     void stop(const Instance& instance) const
     {
         if (instance.kind == InstanceKind::Attachment) {
-            module.attachments[instance.index].stop(instance.state);
+            attachments[instance.index].stop(instance.state);
         } else {
-            module.behaviors[instance.index].stop(instance.state);
+            behaviors[instance.index].stop(instance.state);
         }
     }
 
     HMODULE library = nullptr;
     bool entered = false;
     gs_ext_host host{};
-    gs_ext_module module{};
+    gs_ext_plugin described{};
+    std::vector<gs_ext_touch_method> touchMethods;
+    std::vector<gs_ext_node> nodes;
+    std::vector<gs_ext_attachment> attachments;
+    std::vector<gs_ext_behavior> behaviors;
     ModuleInfo info;
     detail::ModuleStore store;
     std::vector<std::string> granted;
@@ -350,109 +357,195 @@ int32_t hostNotify(void* context, const char* title, size_t titleSize, const cha
     return impl.services->notify(heading.substr(0, 200), body.substr(0, 1000)) ? GS_EXT_OK : GS_EXT_FAILED;
 }
 
-std::string describeModules(const gs_ext_module& module, ModuleInfo& info, std::set<std::string, std::less<>>& names);
-
-std::string describe(const gs_ext_module& module, ModuleInfo& info)
+template <typename Native>
+bool copied(const void* data, Native& out)
 {
-    if (module.abi_version != GS_EXT_ABI_VERSION) {
-        return "the DLL was built for interface version " + std::to_string(module.abi_version) + ", not " +
-               std::to_string(GS_EXT_ABI_VERSION);
+    if (data == nullptr) {
+        return false;
     }
-    if (module.touch_method_count > kMostTouchMethods ||
-        (module.touch_method_count > 0 && module.touch_methods == nullptr)) {
-        return "the DLL offers too many touch methods or none where it says it has some";
+    std::uint32_t declared = 0;
+    std::memcpy(&declared, data, sizeof(declared));
+    if (declared < sizeof(declared)) {
+        return false;
     }
-    if (module.node_count > kMostNodes || (module.node_count > 0 && module.nodes == nullptr)) {
-        return "the DLL offers too many nodes or none where it says it has some";
-    }
-    std::set<std::string, std::less<>> names;
-    for (std::uint32_t index = 0; index < module.touch_method_count; ++index) {
-        const gs_ext_touch_method& method = module.touch_methods[index];
-        const std::optional<std::string> name = nameOf(method.name);
-        if (!name || !names.insert("touch:" + *name).second) {
-            return "touch method " + std::to_string(index + 1) + " has no plain name of its own";
-        }
-        if (method.max_contacts < 1 || method.max_contacts > kMostContacts || method.open == nullptr ||
-            method.close == nullptr || method.frame == nullptr) {
-            return "the touch method " + *name + " lacks open, close or frame, or takes no fingers";
-        }
-        info.touchMethods.push_back({.name = *name,
-                                     .maxContacts = static_cast<int>(method.max_contacts),
-                                     .canCancel = method.can_cancel != 0,
-                                     .needsSession = method.needs_session != 0,
-                                     .keys = method.key != nullptr,
-                                     .text = method.text != nullptr,
-                                     .mouse = method.mouse != nullptr,
-                                     .gamepad = method.gamepad != nullptr});
-    }
-    for (std::uint32_t index = 0; index < module.node_count; ++index) {
-        const gs_ext_node& node = module.nodes[index];
-        const std::optional<std::string> name = nameOf(node.name);
-        if (!name || !names.insert("node:" + *name).second) {
-            return "node " + std::to_string(index + 1) + " has no plain name of its own";
-        }
-        if (node.call == nullptr || node.param_count > kMostParams ||
-            (node.param_count > 0 && node.params == nullptr) || node.returns > GS_EXT_TYPE_JSON) {
-            return "the node " + *name + " lacks call or has parameters or a result of no known type";
-        }
-        NodeInfo described{.name = *name, .params = {}, .returns = static_cast<ValueType>(node.returns)};
-        for (std::uint32_t param = 0; param < node.param_count; ++param) {
-            if (node.params[param] < GS_EXT_TYPE_BOOLEAN || node.params[param] > GS_EXT_TYPE_JSON) {
-                return "parameter " + std::to_string(param + 1) + " of the node " + *name + " has no known type";
-            }
-            described.params.push_back(static_cast<ValueType>(node.params[param]));
-        }
-        info.nodes.push_back(std::move(described));
-    }
-    return describeModules(module, info, names);
+    out = Native{};
+    std::memcpy(&out, data, std::min<std::size_t>(declared, sizeof(Native)));
+    return true;
 }
 
-std::string describeModules(const gs_ext_module& module, ModuleInfo& info, std::set<std::string, std::less<>>& names)
+std::string named(const char* kind, const char* own, const gs_ext_contribution& entry,
+                  std::set<std::string, std::less<>>& names, std::string& name)
 {
-    if (module.attachment_count > kMostModuleAttachments ||
-        (module.attachment_count > 0 && module.attachments == nullptr)) {
-        return "the DLL offers too many attachments or none where it says it has some";
+    const std::optional<std::string> found = nameOf(own);
+    const std::optional<std::string> listed = nameOf(entry.name);
+    if (!found || !listed || *found != *listed) {
+        return std::string("a ") + kind + " has no plain name, or not the name of its contribution";
     }
-    if (module.behavior_count > kMostModuleBehaviors || (module.behavior_count > 0 && module.behaviors == nullptr)) {
-        return "the DLL offers too many behaviors or none where it says it has some";
+    if (!names.insert(std::string(kind) + ":" + *found).second) {
+        return std::string("the ") + kind + " " + *found + " comes twice";
     }
-    for (std::uint32_t index = 0; index < module.attachment_count; ++index) {
-        const gs_ext_attachment& attachment = module.attachments[index];
-        const std::optional<std::string> name = nameOf(attachment.name);
-        if (!name || !names.insert("attachment:" + *name).second) {
-            return "attachment " + std::to_string(index + 1) + " has no plain name of its own";
-        }
-        if (attachment.start == nullptr || attachment.input == nullptr || attachment.output == nullptr ||
-            attachment.stop == nullptr) {
-            return "the attachment " + *name + " lacks start, input, output or stop";
-        }
-        info.attachments.push_back({.name = *name});
+    name = *found;
+    return {};
+}
+
+std::string addTouchMethod(InProcessModule::Impl& impl, const gs_ext_contribution& entry,
+                           std::set<std::string, std::less<>>& names)
+{
+    gs_ext_touch_method method{};
+    std::string name;
+    if (!copied(entry.data, method)) {
+        return "a touch method has no data";
     }
-    for (std::uint32_t index = 0; index < module.behavior_count; ++index) {
-        const gs_ext_behavior& behavior = module.behaviors[index];
-        const std::optional<std::string> name = nameOf(behavior.name);
-        if (!name || !names.insert("behavior:" + *name).second) {
-            return "behavior " + std::to_string(index + 1) + " has no plain name of its own";
+    if (std::string problem = named("touch method", method.name, entry, names, name); !problem.empty()) {
+        return problem;
+    }
+    if (method.max_contacts < 1 || method.max_contacts > kMostContacts || method.open == nullptr ||
+        method.close == nullptr || method.frame == nullptr) {
+        return "the touch method " + name + " lacks open, close or frame, or takes no fingers";
+    }
+    impl.touchMethods.push_back(method);
+    impl.info.touchMethods.push_back({.name = name,
+                                      .maxContacts = static_cast<int>(method.max_contacts),
+                                      .canCancel = method.can_cancel != 0,
+                                      .needsSession = method.needs_session != 0,
+                                      .keys = method.key != nullptr,
+                                      .text = method.text != nullptr,
+                                      .mouse = method.mouse != nullptr,
+                                      .gamepad = method.gamepad != nullptr});
+    return {};
+}
+
+std::string addNode(InProcessModule::Impl& impl, const gs_ext_contribution& entry,
+                    std::set<std::string, std::less<>>& names)
+{
+    gs_ext_node node{};
+    std::string name;
+    if (!copied(entry.data, node)) {
+        return "a node has no data";
+    }
+    if (std::string problem = named("node", node.name, entry, names, name); !problem.empty()) {
+        return problem;
+    }
+    if (node.call == nullptr || node.param_count > kMostParams || (node.param_count > 0 && node.params == nullptr) ||
+        node.returns > GS_EXT_TYPE_JSON) {
+        return "the node " + name + " lacks call or has parameters or a result of no known type";
+    }
+    NodeInfo described{.name = name, .params = {}, .returns = static_cast<ValueType>(node.returns)};
+    for (std::uint32_t param = 0; param < node.param_count; ++param) {
+        if (node.params[param] < GS_EXT_TYPE_BOOLEAN || node.params[param] > GS_EXT_TYPE_JSON) {
+            return "parameter " + std::to_string(param + 1) + " of the node " + name + " has no known type";
         }
-        if (behavior.start == nullptr || behavior.input == nullptr || behavior.stop == nullptr ||
-            (behavior.wants_frames != 0 && behavior.frame == nullptr)) {
-            return "the behavior " + *name + " lacks start, input, frame or stop";
+        described.params.push_back(static_cast<ValueType>(node.params[param]));
+    }
+    impl.nodes.push_back(node);
+    impl.info.nodes.push_back(std::move(described));
+    return {};
+}
+
+std::string addAttachment(InProcessModule::Impl& impl, const gs_ext_contribution& entry,
+                          std::set<std::string, std::less<>>& names)
+{
+    gs_ext_attachment attachment{};
+    std::string name;
+    if (!copied(entry.data, attachment)) {
+        return "an attachment has no data";
+    }
+    if (std::string problem = named("attachment", attachment.name, entry, names, name); !problem.empty()) {
+        return problem;
+    }
+    if (attachment.start == nullptr || attachment.input == nullptr || attachment.output == nullptr ||
+        attachment.stop == nullptr) {
+        return "the attachment " + name + " lacks start, input, output or stop";
+    }
+    impl.attachments.push_back(attachment);
+    impl.info.attachments.push_back({.name = name});
+    return {};
+}
+
+std::string addBehavior(InProcessModule::Impl& impl, const gs_ext_contribution& entry,
+                        std::set<std::string, std::less<>>& names)
+{
+    gs_ext_behavior behavior{};
+    std::string name;
+    if (!copied(entry.data, behavior)) {
+        return "a behavior has no data";
+    }
+    if (std::string problem = named("behavior", behavior.name, entry, names, name); !problem.empty()) {
+        return problem;
+    }
+    if (behavior.start == nullptr || behavior.input == nullptr || behavior.stop == nullptr ||
+        (behavior.wants_frames != 0 && behavior.frame == nullptr)) {
+        return "the behavior " + name + " lacks start, input, frame or stop";
+    }
+    if (behavior.slot_count > kMostBehaviorSlots || (behavior.slot_count > 0 && behavior.slot_kinds == nullptr) ||
+        behavior.max_fingers < 1 || behavior.max_fingers > kMostFingers) {
+        return "the behavior " + name + " has more than 8 slots, or no fingers or more than 10";
+    }
+    BehaviorInfo described{.name = name,
+                           .slotKinds = {},
+                           .fingers = static_cast<int>(behavior.max_fingers),
+                           .frames = behavior.wants_frames != 0};
+    for (std::uint32_t slot = 0; slot < behavior.slot_count; ++slot) {
+        if (behavior.slot_kinds[slot] > GS_EXT_SLOT_AXIS1) {
+            return "slot " + std::to_string(slot + 1) + " of the behavior " + name + " has no known kind";
         }
-        if (behavior.slot_count > kMostBehaviorSlots || (behavior.slot_count > 0 && behavior.slot_kinds == nullptr) ||
-            behavior.max_fingers < 1 || behavior.max_fingers > kMostFingers) {
-            return "the behavior " + *name + " has more than 8 slots, or no fingers or more than 10";
+        described.slotKinds.push_back(static_cast<SlotKind>(behavior.slot_kinds[slot]));
+    }
+    impl.behaviors.push_back(behavior);
+    impl.info.behaviors.push_back(std::move(described));
+    return {};
+}
+
+std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
+{
+    if (!copied(plugin, impl.described)) {
+        return "gs_ext_main gave no plugin";
+    }
+    const gs_ext_plugin& described = impl.described;
+    if (described.abi_version != GS_EXT_ABI_VERSION) {
+        return "the DLL was built for interface version " + std::to_string(described.abi_version) + ", not " +
+               std::to_string(GS_EXT_ABI_VERSION);
+    }
+    if (described.contribution_count > kMostContributions ||
+        (described.contribution_count > 0 && described.contributions == nullptr)) {
+        return "the DLL offers too many contributions or none where it says it has some";
+    }
+    std::uint32_t stride = 0;
+    if (described.contribution_count > 0) {
+        std::memcpy(&stride, described.contributions, sizeof(stride));
+        if (stride < offsetof(gs_ext_contribution, data) + sizeof(const void*)) {
+            return "the contributions of the DLL do not say their size";
         }
-        BehaviorInfo described{.name = *name,
-                               .slotKinds = {},
-                               .fingers = static_cast<int>(behavior.max_fingers),
-                               .frames = behavior.wants_frames != 0};
-        for (std::uint32_t slot = 0; slot < behavior.slot_count; ++slot) {
-            if (behavior.slot_kinds[slot] > GS_EXT_SLOT_AXIS1) {
-                return "slot " + std::to_string(slot + 1) + " of the behavior " + *name + " has no known kind";
-            }
-            described.slotKinds.push_back(static_cast<SlotKind>(behavior.slot_kinds[slot]));
+    }
+    const auto* base = reinterpret_cast<const unsigned char*>(described.contributions);
+    std::set<std::string, std::less<>> names;
+    for (std::uint32_t index = 0; index < described.contribution_count; ++index) {
+        gs_ext_contribution entry{};
+        std::memcpy(&entry, base + std::size_t{index} * stride, std::min<std::size_t>(stride, sizeof(entry)));
+        const std::string kind =
+            entry.kind == nullptr ? std::string() : std::string(entry.kind, strnlen(entry.kind, kMostNameBytes));
+        std::string problem;
+        if (kind == GS_EXT_KIND_TOUCH_METHOD) {
+            problem = addTouchMethod(impl, entry, names);
+        } else if (kind == GS_EXT_KIND_NODE) {
+            problem = addNode(impl, entry, names);
+        } else if (kind == GS_EXT_KIND_ATTACHMENT) {
+            problem = addAttachment(impl, entry, names);
+        } else if (kind == GS_EXT_KIND_BEHAVIOR) {
+            problem = addBehavior(impl, entry, names);
+        } else if (kind.empty()) {
+            problem = "contribution " + std::to_string(index + 1) + " has no kind";
+        } else if (impl.services != nullptr) {
+            impl.services->log(GS_EXT_LOG_WARNING, "the DLL offers a " + kind +
+                                                       ", which this GameScrcpy does not know; it is left out");
         }
-        info.behaviors.push_back(std::move(described));
+        if (!problem.empty()) {
+            return problem;
+        }
+    }
+    if (impl.touchMethods.size() > kMostTouchMethods || impl.nodes.size() > kMostNodes ||
+        impl.attachments.size() > kMostModuleAttachments || impl.behaviors.size() > kMostModuleBehaviors) {
+        return "the DLL offers more than 8 touch methods, 64 nodes, 32 attachments or 32 behaviors";
     }
     return {};
 }
@@ -481,13 +574,16 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
         problem = "Windows could not load the DLL (error " + std::to_string(GetLastError()) + ")";
         return nullptr;
     }
-    const auto entry = reinterpret_cast<gs_ext_entry_function>(GetProcAddress(impl->library, "gs_ext_entry"));
+    const auto entry = reinterpret_cast<gs_ext_main_function>(GetProcAddress(impl->library, "gs_ext_main"));
     if (entry == nullptr) {
-        problem = "the DLL does not export gs_ext_entry";
+        problem = GetProcAddress(impl->library, "gs_ext_entry") != nullptr
+                      ? "the DLL was made for an older GameScrcpy (interface version 1); its author has to build it "
+                        "again with the current SDK"
+                      : "the DLL does not export gs_ext_main";
         return nullptr;
     }
-    impl->host.abi_version = GS_EXT_ABI_VERSION;
     impl->host.size = sizeof(gs_ext_host);
+    impl->host.abi_version = GS_EXT_ABI_VERSION;
     impl->host.context = impl.get();
     impl->host.log = &hostLog;
     impl->host.now_us = &hostNow;
@@ -497,15 +593,20 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
     impl->host.notify = &hostNotify;
     impl->host.set_text = &setText;
     impl->host.set_error = &setError;
-    const int32_t status = entry(&impl->host, &impl->module);
+    const gs_ext_plugin* plugin = nullptr;
+    const int32_t status = entry(&impl->host, &plugin);
     impl->entered = status == GS_EXT_OK;
     if (!impl->entered) {
-        problem = "gs_ext_entry returned " + std::to_string(status);
+        problem = "gs_ext_main returned " + std::to_string(status);
         return nullptr;
     }
-    problem = describe(impl->module, impl->info);
+    problem = describe(*impl, plugin);
     if (!problem.empty()) {
         impl->info = {};
+        impl->touchMethods.clear();
+        impl->nodes.clear();
+        impl->attachments.clear();
+        impl->behaviors.clear();
         return nullptr;
     }
     return std::unique_ptr<InProcessModule>(new InProcessModule(std::move(impl)));
@@ -539,7 +640,7 @@ CallResult InProcessModule::call(std::size_t node, std::span<const Value> argume
     ResultBox box;
     gs_ext_result result{};
     result.host = &box;
-    const gs_ext_node& entry = d.module.nodes[node];
+    const gs_ext_node& entry = d.nodes[node];
     int32_t status = GS_EXT_FAILED;
     std::chrono::steady_clock::duration took{};
     {
@@ -579,12 +680,13 @@ std::uint64_t InProcessModule::openTouch(std::size_t method, std::string_view de
     const std::string serial(device);
     const std::string chosen = options.empty() ? std::string("{}") : std::string(options);
     gs_ext_touch_open open{};
+    open.size = sizeof(gs_ext_touch_open);
     open.device = serial.c_str();
     open.options = chosen.data();
     open.options_size = chosen.size();
     void* session = nullptr;
     const std::scoped_lock lock(d.touchMutex);
-    const gs_ext_touch_method& entry = d.module.touch_methods[method];
+    const gs_ext_touch_method& entry = d.touchMethods[method];
     if (entry.open(entry.context, &open, &session) != GS_EXT_OK) {
         return 0;
     }
@@ -601,7 +703,7 @@ bool InProcessModule::touch(std::uint64_t session, const TouchFrame& frame)
     if (found == d.sessions.end()) {
         return false;
     }
-    const gs_ext_touch_method& entry = d.module.touch_methods[found->second.first];
+    const gs_ext_touch_method& entry = d.touchMethods[found->second.first];
     const std::size_t count = std::min<std::size_t>(frame.contacts.size(), entry.max_contacts);
     std::array<gs_ext_contact, kMostContacts> contacts{};
     for (std::size_t index = 0; index < count; ++index) {
@@ -614,7 +716,8 @@ bool InProcessModule::touch(std::uint64_t session, const TouchFrame& frame)
                                          contact.naturalY,
                                          contact.pressure};
     }
-    const gs_ext_touch_frame native{contacts.data(), static_cast<std::uint32_t>(count), frame.rotation & 3U};
+    const gs_ext_touch_frame native{sizeof(gs_ext_touch_frame), contacts.data(), static_cast<std::uint32_t>(count),
+                                    frame.rotation & 3U};
     return entry.frame(entry.context, found->second.second, &native) == GS_EXT_OK;
 }
 
@@ -626,7 +729,7 @@ bool InProcessModule::key(std::uint64_t session, const KeyEvent& key)
     if (found == d.sessions.end()) {
         return false;
     }
-    const gs_ext_touch_method& entry = d.module.touch_methods[found->second.first];
+    const gs_ext_touch_method& entry = d.touchMethods[found->second.first];
     if (entry.key == nullptr) {
         return false;
     }
@@ -645,7 +748,7 @@ bool InProcessModule::text(std::uint64_t session, std::string_view utf8)
     if (found == d.sessions.end()) {
         return false;
     }
-    const gs_ext_touch_method& entry = d.module.touch_methods[found->second.first];
+    const gs_ext_touch_method& entry = d.touchMethods[found->second.first];
     return entry.text != nullptr && entry.text(entry.context, found->second.second, utf8.data(), utf8.size()) == GS_EXT_OK;
 }
 
@@ -657,7 +760,7 @@ bool InProcessModule::mouse(std::uint64_t session, const MouseEvent& mouse)
     if (found == d.sessions.end()) {
         return false;
     }
-    const gs_ext_touch_method& entry = d.module.touch_methods[found->second.first];
+    const gs_ext_touch_method& entry = d.touchMethods[found->second.first];
     if (entry.mouse == nullptr) {
         return false;
     }
@@ -673,7 +776,7 @@ bool InProcessModule::gamepad(std::uint64_t session, const PadEvent& pad)
     if (found == d.sessions.end()) {
         return false;
     }
-    const gs_ext_touch_method& entry = d.module.touch_methods[found->second.first];
+    const gs_ext_touch_method& entry = d.touchMethods[found->second.first];
     if (entry.gamepad == nullptr) {
         return false;
     }
@@ -690,7 +793,7 @@ void InProcessModule::closeTouch(std::uint64_t session)
     if (found == d.sessions.end()) {
         return;
     }
-    const gs_ext_touch_method& entry = d.module.touch_methods[found->second.first];
+    const gs_ext_touch_method& entry = d.touchMethods[found->second.first];
     entry.close(entry.context, found->second.second);
     d.sessions.erase(found);
 }
@@ -708,10 +811,10 @@ std::uint64_t InProcessModule::openInstance(InstanceKind kind, std::size_t index
     const std::scoped_lock lock(d.instanceMutex);
     int32_t status = GS_EXT_FAILED;
     if (kind == InstanceKind::Attachment) {
-        const gs_ext_attachment& entry = d.module.attachments[index];
+        const gs_ext_attachment& entry = d.attachments[index];
         status = entry.start(entry.context, text.data(), text.size(), seed, &state);
     } else {
-        const gs_ext_behavior& entry = d.module.behaviors[index];
+        const gs_ext_behavior& entry = d.behaviors[index];
         status = entry.start(entry.context, text.data(), text.size(), seed, &state);
     }
     if (status != GS_EXT_OK) {
@@ -736,6 +839,7 @@ StepOutput InProcessModule::step(std::uint64_t instance, const StepInput& input)
     std::span<const gs_ext_touch_command> commandRoom = commands;
     std::span<const gs_ext_input_event> eventRoom;
     gs_ext_output out{};
+    out.size = sizeof(gs_ext_output);
     out.commands = commands.data();
     out.command_capacity = static_cast<std::uint32_t>(commands.size());
     out.wake_at = input.call == StepCall::Wake ? 0 : input.wakeAt;
@@ -743,7 +847,7 @@ StepOutput InProcessModule::step(std::uint64_t instance, const StepInput& input)
     const gs_ext_touch_command command = nativeCommand(input.command);
     int32_t status = GS_EXT_OK;
     if (running.kind == InstanceKind::Attachment) {
-        const gs_ext_attachment& entry = d.module.attachments[running.index];
+        const gs_ext_attachment& entry = d.attachments[running.index];
         if (input.call == StepCall::Input || input.call == StepCall::Wake) {
             out.events = events.data();
             out.event_capacity = static_cast<std::uint32_t>(events.size());
@@ -770,7 +874,7 @@ StepOutput InProcessModule::step(std::uint64_t instance, const StepInput& input)
             return {.status = StepStatus::Failed};
         }
     } else {
-        const gs_ext_behavior& entry = d.module.behaviors[running.index];
+        const gs_ext_behavior& entry = d.behaviors[running.index];
         switch (input.call) {
         case StepCall::Input:
             status = entry.input(running.state, &event, &out);
@@ -798,10 +902,10 @@ void InProcessModule::resetInstance(std::uint64_t instance)
     }
     const Impl::Instance& running = found->second;
     if (running.kind == InstanceKind::Attachment) {
-        if (const gs_ext_attachment& entry = d.module.attachments[running.index]; entry.reset != nullptr) {
+        if (const gs_ext_attachment& entry = d.attachments[running.index]; entry.reset != nullptr) {
             entry.reset(running.state);
         }
-    } else if (const gs_ext_behavior& entry = d.module.behaviors[running.index]; entry.reset != nullptr) {
+    } else if (const gs_ext_behavior& entry = d.behaviors[running.index]; entry.reset != nullptr) {
         entry.reset(running.state);
     }
 }

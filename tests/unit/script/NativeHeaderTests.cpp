@@ -37,10 +37,11 @@ TEST_CASE("ADR-0097: the C header names every manifest type in order and takes t
 {
     const std::string header = generatedHeader();
     CHECK(header.starts_with("/* GameScrcpy native extension interface"));
-    CHECK(header.find("#define GS_EXT_ABI_VERSION 1\n") != std::string::npos);
+    CHECK(header.find("#define GS_EXT_ABI_VERSION 2\n") != std::string::npos);
     CHECK(header.find("extern \"C\" {") != std::string::npos);
-    CHECK(header.find("GS_EXT_EXPORT int32_t gs_ext_entry(const gs_ext_host* host, gs_ext_module* module);\n") !=
+    CHECK(header.find("GS_EXT_EXPORT int32_t gs_ext_main(const gs_ext_host* host, const gs_ext_plugin** plugin);\n") !=
           std::string::npos);
+    CHECK(header.find("gs_ext_entry(") == std::string::npos);
     constexpr std::array<std::string_view, 8> kTypes{"boolean", "number", "string",   "point",
                                                      "region",  "color",  "duration", "json"};
     for (std::size_t index = 0; index < kTypes.size(); ++index) {
@@ -54,7 +55,8 @@ TEST_CASE("ADR-0097: the C header names every manifest type in order and takes t
           std::string::npos);
     CHECK(header.find("A color written \"#RRGGBB\", such as \"#F5C542\".") != std::string::npos);
     for (const std::string_view structure : {"gs_ext_value", "gs_ext_result", "gs_ext_contact", "gs_ext_touch_frame",
-                                             "gs_ext_touch_method", "gs_ext_node", "gs_ext_host", "gs_ext_module"}) {
+                                             "gs_ext_touch_method", "gs_ext_node", "gs_ext_host", "gs_ext_contribution",
+                                             "gs_ext_plugin"}) {
         CAPTURE(structure);
         const std::string name(structure);
         const std::size_t declared = header.find("typedef struct " + name + " " + name + ";\n");
@@ -66,7 +68,8 @@ TEST_CASE("ADR-0097: the C header names every manifest type in order and takes t
     CHECK(header.ends_with("#ifdef __cplusplus\n}\n#endif\n\n#endif\n"));
 }
 
-TEST_CASE("ADR-0105: attachments and behaviors are appended to the module, so DLLs built before them still load")
+TEST_CASE("ADR-0112: every struct a DLL fills in or that holds arrays starts with its size, and the contribution "
+          "kinds are named")
 {
     const std::string header = generatedHeader();
     CHECK(header.find("#define GS_EXT_MOST_FINGERS 10\n") != std::string::npos);
@@ -80,15 +83,28 @@ TEST_CASE("ADR-0105: attachments and behaviors are appended to the module, so DL
         CHECK(defined != std::string::npos);
         CHECK(declared < defined);
     }
-    const std::size_t module = header.find("struct gs_ext_module {\n");
-    REQUIRE(module != std::string::npos);
-    const std::size_t unload = header.find("    void (*unload)(void* context);\n", module);
-    const std::size_t attachments = header.find("    const gs_ext_attachment* attachments;\n", module);
-    const std::size_t behaviors = header.find("    const gs_ext_behavior* behaviors;\n};\n", module);
-    CHECK(unload != std::string::npos);
-    CHECK(unload < attachments);
-    CHECK(attachments < behaviors);
-    CHECK(behaviors != std::string::npos);
+    for (const std::string_view structure :
+         {"gs_ext_touch_frame", "gs_ext_touch_open", "gs_ext_touch_method", "gs_ext_node", "gs_ext_output",
+          "gs_ext_attachment", "gs_ext_behavior", "gs_ext_host", "gs_ext_contribution", "gs_ext_plugin"}) {
+        CAPTURE(structure);
+        const std::size_t defined = header.find("struct " + std::string(structure) + " {\n");
+        REQUIRE(defined != std::string::npos);
+        const std::size_t firstField = header.find(";\n", defined);
+        const std::size_t size = header.find("    uint32_t size;\n", defined);
+        CHECK(size != std::string::npos);
+        CHECK(size + std::string_view("    uint32_t size").size() == firstField);
+    }
+    for (const std::string_view frozen : {"gs_ext_value", "gs_ext_contact", "gs_ext_key", "gs_ext_input_event",
+                                          "gs_ext_touch_command"}) {
+        CAPTURE(frozen);
+        const std::size_t defined = header.find("struct " + std::string(frozen) + " {\n");
+        REQUIRE(defined != std::string::npos);
+        const std::size_t doc = header.rfind("/*", defined);
+        CHECK(header.substr(doc, defined - doc).find("never changes in later versions") != std::string::npos);
+    }
+    CHECK(header.find("#define GS_EXT_KIND_TOUCH_METHOD \"touch-method\"\n") != std::string::npos);
+    CHECK(header.find("#define GS_EXT_KIND_BEHAVIOR \"behavior\"\n") != std::string::npos);
+    CHECK(header.find("struct gs_ext_module {\n") == std::string::npos);
     CHECK(header.find("    GS_EXT_COMMAND_UP = 2,\n") != std::string::npos);
     CHECK(header.find("    GS_EXT_SLOT_AXIS1 = 2,\n") != std::string::npos);
     CHECK(header.find("    GS_EXT_INPUT_WHEEL = 5,\n") != std::string::npos);

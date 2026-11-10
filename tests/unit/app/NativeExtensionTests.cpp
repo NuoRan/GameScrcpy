@@ -162,6 +162,43 @@ TEST_CASE("the official sample loads inside GameScrcpy and its node gives the co
     CHECK(problem.find("could not load") != std::string::npos);
 }
 
+TEST_CASE("ADR-0112: a DLL built with smaller or larger structs is read field by field, and a kind GameScrcpy does "
+          "not know is left out")
+{
+    struct Logged final : exthost::HostServices {
+        void log(int level, std::string_view text) override
+        {
+            lines.emplace_back(std::to_string(level) + " " + std::string(text));
+        }
+        bool notify(std::string_view, std::string_view) override { return false; }
+        std::vector<std::string> lines;
+    } logged;
+    std::string problem;
+    const std::unique_ptr<exthost::InProcessModule> module =
+        exthost::InProcessModule::load({.dll = fs::path(GS_TEST_NATIVE_SIZES_DLL), .services = &logged}, problem);
+    REQUIRE_MESSAGE(module != nullptr, problem);
+    REQUIRE(module->info().nodes.size() == 1);
+    CHECK(callNode(*module, "later").value.number == 42.0);
+    REQUIRE(module->info().touchMethods.size() == 1);
+    const exthost::TouchMethodInfo& older = module->info().touchMethods[0];
+    CHECK(older.name == "older");
+    CHECK(older.maxContacts == 2);
+    CHECK(older.keys);
+    CHECK_FALSE(older.text);
+    CHECK_FALSE(older.mouse);
+    CHECK_FALSE(older.gamepad);
+    REQUIRE(logged.lines.size() == 1);
+    CHECK(logged.lines[0].find("telepathy") != std::string::npos);
+}
+
+TEST_CASE("ADR-0112: a DLL made for interface version 1 is not loaded and the message says to build it again")
+{
+    std::string problem;
+    CHECK(exthost::InProcessModule::load({.dll = fs::path(GS_TEST_NATIVE_OLD_DLL)}, problem) == nullptr);
+    CHECK(problem.find("older GameScrcpy") != std::string::npos);
+    CHECK(problem.find("build it again") != std::string::npos);
+}
+
 TEST_CASE("a DLL inside GameScrcpy checks the values going in and out and reports a node that takes too long "
           "(ADR-0097)")
 {

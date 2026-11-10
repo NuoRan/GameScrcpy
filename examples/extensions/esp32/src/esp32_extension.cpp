@@ -226,22 +226,29 @@ int32_t gamepadTouch(void*, void* session, const gs_ext_gamepad* pad)
     return methodOf(session).gamepad(state) ? GS_EXT_OK : GS_EXT_FAILED;
 }
 
-const gs_ext_touch_method kMethods[] = {
-    {"esp32", static_cast<uint32_t>(esp32::kMaxContacts), 0, 0, nullptr, &openTouch, &closeTouch, &frameTouch, &keyTouch,
-     &textTouch, &mouseTouch, &gamepadTouch},
+const gs_ext_touch_method kMethod = {
+    sizeof(gs_ext_touch_method), "esp32",   static_cast<uint32_t>(esp32::kMaxContacts), 0,           0,
+    nullptr,                     &openTouch, &closeTouch,                                &frameTouch, &keyTouch,
+    &textTouch,                  &mouseTouch, &gamepadTouch,
+};
+
+const gs_ext_contribution kContributions[] = {
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_TOUCH_METHOD, "esp32", &kMethod},
+};
+
+const gs_ext_plugin kPlugin = {
+    sizeof(gs_ext_plugin), GS_EXT_ABI_VERSION, nullptr, 1, kContributions, nullptr,
 };
 
 }
 
-GS_EXT_EXPORT int32_t gs_ext_entry(const gs_ext_host* host, gs_ext_module* module)
+GS_EXT_EXPORT int32_t gs_ext_main(const gs_ext_host* host, const gs_ext_plugin** plugin)
 {
-    if (host == nullptr || module == nullptr || host->abi_version != GS_EXT_ABI_VERSION) {
+    if (host == nullptr || plugin == nullptr || host->abi_version != GS_EXT_ABI_VERSION) {
         return GS_EXT_UNSUPPORTED;
     }
     g_host = host;
     gs::log::setSink(&g_sink);
-    module->abi_version = GS_EXT_ABI_VERSION;
-    module->touch_method_count = 1;
-    module->touch_methods = kMethods;
+    *plugin = &kPlugin;
     return GS_EXT_OK;
 }

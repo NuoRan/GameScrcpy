@@ -265,23 +265,24 @@ const uint32_t kMirrored[] = {GS_EXT_TYPE_POINT, GS_EXT_TYPE_REGION, GS_EXT_TYPE
                               GS_EXT_TYPE_DURATION, GS_EXT_TYPE_JSON, GS_EXT_TYPE_BOOLEAN};
 
 const gs_ext_node kNodes[] = {
-    {"add", kTwoNumbers, 2, GS_EXT_TYPE_NUMBER, nullptr, &add},
-    {"echo", kOneString, 1, GS_EXT_TYPE_STRING, nullptr, &echo},
-    {"mirror", kMirrored, 6, GS_EXT_TYPE_JSON, nullptr, &mirror},
-    {"fail", nullptr, 0, GS_EXT_TYPE_STRING, nullptr, &failing},
-    {"crash", nullptr, 0, GS_EXT_TYPE_NONE, nullptr, &crash},
-    {"slow", kOneDuration, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &slow},
-    {"remember", kStringAndJson, 2, GS_EXT_TYPE_BOOLEAN, nullptr, &remember},
-    {"recall", kOneString, 1, GS_EXT_TYPE_JSON, nullptr, &recall},
-    {"allowed", kOneString, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &allowed},
-    {"notify", kTwoStrings, 2, GS_EXT_TYPE_NUMBER, nullptr, &notifyNode},
-    {"touches", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &touches},
-    {"breakTouch", nullptr, 0, GS_EXT_TYPE_NONE, nullptr, &breakTouch},
-    {"wrongType", nullptr, 0, GS_EXT_TYPE_STRING, nullptr, &wrongType},
+    {sizeof(gs_ext_node), "add", kTwoNumbers, 2, GS_EXT_TYPE_NUMBER, nullptr, &add},
+    {sizeof(gs_ext_node), "echo", kOneString, 1, GS_EXT_TYPE_STRING, nullptr, &echo},
+    {sizeof(gs_ext_node), "mirror", kMirrored, 6, GS_EXT_TYPE_JSON, nullptr, &mirror},
+    {sizeof(gs_ext_node), "fail", nullptr, 0, GS_EXT_TYPE_STRING, nullptr, &failing},
+    {sizeof(gs_ext_node), "crash", nullptr, 0, GS_EXT_TYPE_NONE, nullptr, &crash},
+    {sizeof(gs_ext_node), "slow", kOneDuration, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &slow},
+    {sizeof(gs_ext_node), "remember", kStringAndJson, 2, GS_EXT_TYPE_BOOLEAN, nullptr, &remember},
+    {sizeof(gs_ext_node), "recall", kOneString, 1, GS_EXT_TYPE_JSON, nullptr, &recall},
+    {sizeof(gs_ext_node), "allowed", kOneString, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &allowed},
+    {sizeof(gs_ext_node), "notify", kTwoStrings, 2, GS_EXT_TYPE_NUMBER, nullptr, &notifyNode},
+    {sizeof(gs_ext_node), "touches", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &touches},
+    {sizeof(gs_ext_node), "breakTouch", nullptr, 0, GS_EXT_TYPE_NONE, nullptr, &breakTouch},
+    {sizeof(gs_ext_node), "wrongType", nullptr, 0, GS_EXT_TYPE_STRING, nullptr, &wrongType},
 };
 
-const gs_ext_touch_method kMethods[] = {
-    {"recorder", 4, 1, 1, nullptr, &openTouch, &closeTouch, &frameTouch, &keyTouch, &textTouch, &mouseTouch, &padTouch},
+const gs_ext_touch_method kRecorder = {
+    sizeof(gs_ext_touch_method), "recorder", 4,          1,         1,           nullptr,    &openTouch,
+    &closeTouch,                 &frameTouch, &keyTouch, &textTouch, &mouseTouch, &padTouch,
 };
 
 double numberIn(const std::string& params, const char* key, double fallback)
@@ -425,32 +426,54 @@ void tapStop(void* state)
     delete static_cast<Tap*>(state);
 }
 
-const gs_ext_attachment kAttachments[] = {
-    {"shift", nullptr, &shiftStart, &shiftInput, &shiftOutput, &shiftWake, &shiftReset, &shiftStop},
+const gs_ext_attachment kShift = {
+    sizeof(gs_ext_attachment), "shift", nullptr, &shiftStart, &shiftInput, &shiftOutput, &shiftWake, &shiftReset,
+    &shiftStop,
 };
 
 const uint32_t kTapSlots[] = {GS_EXT_SLOT_KEY};
 
-const gs_ext_behavior kBehaviors[] = {
-    {"tap", kTapSlots, 1, 1, 0, nullptr, &tapStart, &tapInput, nullptr, nullptr, nullptr, &tapStop},
+const gs_ext_behavior kTap = {
+    sizeof(gs_ext_behavior), "tap", kTapSlots, 1, 1, 0, nullptr, &tapStart, &tapInput, nullptr, nullptr, nullptr,
+    &tapStop,
+};
+
+const gs_ext_contribution kContributions[] = {
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_TOUCH_METHOD, "recorder", &kRecorder},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "add", &kNodes[0]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "echo", &kNodes[1]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "mirror", &kNodes[2]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "fail", &kNodes[3]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "crash", &kNodes[4]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "slow", &kNodes[5]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "remember", &kNodes[6]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "recall", &kNodes[7]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "allowed", &kNodes[8]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "notify", &kNodes[9]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "touches", &kNodes[10]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "breakTouch", &kNodes[11]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "wrongType", &kNodes[12]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_ATTACHMENT, "shift", &kShift},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_BEHAVIOR, "tap", &kTap},
+};
+
+const gs_ext_plugin kPlugin = {
+    sizeof(gs_ext_plugin),
+    GS_EXT_ABI_VERSION,
+    nullptr,
+    static_cast<uint32_t>(sizeof(kContributions) / sizeof(kContributions[0])),
+    kContributions,
+    nullptr,
 };
 
 }
 
-GS_EXT_EXPORT int32_t gs_ext_entry(const gs_ext_host* host, gs_ext_module* module)
+GS_EXT_EXPORT int32_t gs_ext_main(const gs_ext_host* host, const gs_ext_plugin** plugin)
 {
-    if (host == nullptr || module == nullptr || host->abi_version != GS_EXT_ABI_VERSION) {
+    if (host == nullptr || plugin == nullptr || host->abi_version != GS_EXT_ABI_VERSION) {
         return GS_EXT_UNSUPPORTED;
     }
     g_host = host;
-    module->abi_version = GS_EXT_ABI_VERSION;
-    module->touch_method_count = 1;
-    module->touch_methods = kMethods;
-    module->node_count = static_cast<uint32_t>(sizeof(kNodes) / sizeof(kNodes[0]));
-    module->nodes = kNodes;
-    module->attachment_count = 1;
-    module->attachments = kAttachments;
-    module->behavior_count = 1;
-    module->behaviors = kBehaviors;
+    *plugin = &kPlugin;
     return GS_EXT_OK;
 }

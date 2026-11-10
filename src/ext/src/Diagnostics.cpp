@@ -368,8 +368,8 @@ std::string_view fixHint(Code code) noexcept
         return "The DLL could not be loaded or did not start as gamescrcpy_ext.h describes; build it as a 64-bit DLL "
                "against the same ABI version and put the DLLs it needs next to it.";
     case Code::NativeMismatch:
-        return "Make gs_ext_entry offer the touch methods, nodes, attachments and behaviors the manifest lists, with "
-               "the same names, types, slots, fingers and frames.";
+        return "Make the plugin that gs_ext_main gives offer the touch methods, nodes, attachments and behaviors the "
+               "manifest lists, with the same names, types, slots, fingers and frames.";
     case Code::NativeCrashed:
         return "The DLL stopped working three times within a minute, so the extension was turned off; turn it on "
                "again on the Extensions page to try again, or update it.";

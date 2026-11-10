@@ -146,6 +146,13 @@ target_include_directories(gs_test_native_inject PRIVATE "${PROJECT_SOURCE_DIR}/
 target_link_libraries(gs_test_native_inject PRIVATE user32)
 gs_apply_compiler_policy(gs_test_native_inject)
 
+add_library(gs_test_native_sizes SHARED fakes/native/TestNativeSizes.cpp)
+target_include_directories(gs_test_native_sizes PRIVATE "${PROJECT_SOURCE_DIR}/sdk/include")
+gs_apply_compiler_policy(gs_test_native_sizes)
+
+add_library(gs_test_native_old SHARED fakes/native/TestNativeOld.cpp)
+gs_apply_compiler_policy(gs_test_native_old)
+
 gs_add_unit_test(gs_esp32_tests
     SOURCES
         unit/esp32/ContactSlotsTests.cpp
@@ -745,10 +752,13 @@ if(GS_BUILD_APP)
         GS_VISION_TEST_DATA_DIR="${PROJECT_SOURCE_DIR}/tests/data/vision"
         GS_EXTHOST_PROGRAM="$<TARGET_FILE:gs_exthost_program>"
         GS_TEST_NATIVE_DLL="$<TARGET_FILE:gs_test_native>"
+        GS_TEST_NATIVE_SIZES_DLL="$<TARGET_FILE:gs_test_native_sizes>"
+        GS_TEST_NATIVE_OLD_DLL="$<TARGET_FILE:gs_test_native_old>"
         GS_PC_CLOCK_DIR="$<TARGET_FILE_DIR:gs_ext_pc_clock>"
         GS_PROTOCOL_VECTOR_DIR="${PROJECT_SOURCE_DIR}/protocol/vectors"
     )
-    add_dependencies(gs_app_tests gs_cli gs_exthost_program gs_test_native gs_ext_pc_clock)
+    add_dependencies(gs_app_tests gs_cli gs_exthost_program gs_test_native gs_test_native_sizes gs_test_native_old
+                     gs_ext_pc_clock)
     add_dependencies(gs_app_tests gs_scripthost_program)
     target_sources(gs_app_tests PRIVATE
         unit/app/AcceptanceEditorTests.cpp

@@ -23,19 +23,23 @@ int32_t inject(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
     return GS_EXT_OK;
 }
 
-const gs_ext_node kNodes[] = {
-    {"inject", kOneNumber, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &inject},
+const gs_ext_node kInject = {sizeof(gs_ext_node), "inject", kOneNumber, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &inject};
+
+const gs_ext_contribution kContributions[] = {
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "inject", &kInject},
+};
+
+const gs_ext_plugin kPlugin = {
+    sizeof(gs_ext_plugin), GS_EXT_ABI_VERSION, nullptr, 1, kContributions, nullptr,
 };
 
 }
 
-GS_EXT_EXPORT int32_t gs_ext_entry(const gs_ext_host* host, gs_ext_module* module)
+GS_EXT_EXPORT int32_t gs_ext_main(const gs_ext_host* host, const gs_ext_plugin** plugin)
 {
-    if (host == nullptr || module == nullptr || host->abi_version != GS_EXT_ABI_VERSION) {
+    if (host == nullptr || plugin == nullptr || host->abi_version != GS_EXT_ABI_VERSION) {
         return GS_EXT_UNSUPPORTED;
     }
-    module->abi_version = GS_EXT_ABI_VERSION;
-    module->node_count = 1;
-    module->nodes = kNodes;
+    *plugin = &kPlugin;
     return GS_EXT_OK;
 }
