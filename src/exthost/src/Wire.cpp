@@ -7,7 +7,6 @@ namespace gs::exthost::detail {
 
 namespace {
 
-constexpr std::size_t kMostNameBytes = 64;
 constexpr std::uint32_t kLastType = static_cast<std::uint32_t>(ValueType::Json);
 
 }
@@ -80,6 +79,11 @@ void WireWriter::info(const ModuleInfo& info)
     u32(static_cast<std::uint32_t>(info.jobs.size()));
     for (const JobInfo& job : info.jobs) {
         text(job.name);
+    }
+    u32(static_cast<std::uint32_t>(info.providers.size()));
+    for (const ProviderInfo& provider : info.providers) {
+        text(provider.name);
+        u32(provider.acts ? 1U : 0U);
     }
 }
 
@@ -250,6 +254,19 @@ bool WireReader::info(ModuleInfo& out)
             return false;
         }
         out.jobs.push_back(std::move(job));
+    }
+    std::uint32_t providers = 0;
+    if (!u32(providers) || providers > kMostProviders) {
+        return false;
+    }
+    for (std::uint32_t index = 0; index < providers; ++index) {
+        ProviderInfo provider;
+        std::uint32_t acts = 0;
+        if (!text(provider.name, kMostNameBytes) || !u32(acts)) {
+            return false;
+        }
+        provider.acts = acts != 0;
+        out.providers.push_back(std::move(provider));
     }
     return true;
 }

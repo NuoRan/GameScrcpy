@@ -48,6 +48,9 @@ public:
     [[nodiscard]] std::uint64_t startJob(std::size_t job, std::string_view args, JobEvents events) override;
     void cancelJob(std::uint64_t job) override;
     void setSettings(std::string_view json) override;
+    [[nodiscard]] CallResult listDevices(std::size_t provider) override;
+    [[nodiscard]] CallResult actOnDevice(std::size_t provider, std::string_view device,
+                                         std::string_view action) override;
 
     struct Impl;
 

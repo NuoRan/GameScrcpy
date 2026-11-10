@@ -21,6 +21,7 @@ constexpr Constant kConstants[] = {
     {"GS_EXT_KIND_ATTACHMENT", "\"attachment\"", "A contribution whose data is a gs_ext_attachment."},
     {"GS_EXT_KIND_BEHAVIOR", "\"behavior\"", "A contribution whose data is a gs_ext_behavior."},
     {"GS_EXT_KIND_JOB", "\"job\"", "A contribution whose data is a gs_ext_job."},
+    {"GS_EXT_KIND_DEVICE_PROVIDER", "\"device-provider\"", "A contribution whose data is a gs_ext_device_provider."},
 };
 
 constexpr Enumerator kTypes[] = {
@@ -344,6 +345,21 @@ constexpr Field kJobFields[] = {
      "stops waiting 3 seconds after it asks."},
 };
 
+constexpr Field kDeviceProviderFields[] = {
+    {"uint32_t size", "sizeof(gs_ext_device_provider) in the DLL."},
+    {"const char* name", "The name of the provider in the manifest's contributes.native.deviceProviders."},
+    {"void* context", "Passed back to list and act."},
+    {"int32_t (*list)(void* context, gs_ext_result* out)",
+     "Puts the devices that can be used now into out as a JSON array with set_text, each { id, name, kind, summary, "
+     "state, stateText, touchMethod, capture, actions }: kind \"touchBox\" for a box that touches a phone without "
+     "showing its picture, state one of \"ready\", \"busy\", \"problem\" and \"offline\", touchMethod the name of one "
+     "of the extension's touch methods, capture true when a capture card may show the picture, and actions the extra "
+     "buttons of its card, each { id, title } with panel or job naming one of the extension's panels or jobs. "
+     "GameScrcpy calls it when the extension turns on and after devices_changed; answer within 100 ms."},
+    {"int32_t (*act)(void* context, const char* device, size_t device_size, const char* action, size_t action_size)",
+     "Does an action of a device that names neither a panel nor a job, such as disconnecting. May be NULL."},
+};
+
 constexpr Field kHostFields[] = {
     {"uint32_t size", "sizeof(gs_ext_host) in GameScrcpy; later versions only add functions at the end."},
     {"uint32_t abi_version", "The GS_EXT_ABI_VERSION of GameScrcpy."},
@@ -388,6 +404,8 @@ constexpr Field kHostFields[] = {
      "thread calls setting_get again. With an empty phone it is the value for all phones; with the phone of a touch "
      "method's options it is that phone's own value of a per-phone setting, or the value for all phones when it has "
      "none. GS_EXT_BAD_ARGUMENT for a key the manifest does not declare."},
+    {"int32_t (*devices_changed)(void* context, const char* provider, size_t size)",
+     "Tells GameScrcpy that the devices of one of the DLL's providers changed, so that it calls list again."},
 };
 
 constexpr Field kContributionFields[] = {
@@ -403,7 +421,8 @@ constexpr Field kPluginFields[] = {
     {"uint32_t abi_version", "Set it to GS_EXT_ABI_VERSION."},
     {"void* context", "Passed back to unload."},
     {"uint32_t contribution_count",
-     "How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments, 32 behaviors and 32 jobs."},
+     "How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments, 32 behaviors, 32 jobs "
+     "and 8 device providers."},
     {"const gs_ext_contribution* contributions", "What the DLL offers."},
     {"void (*unload)(void* context)", "Called once before the DLL is unloaded; may be NULL."},
     {"void (*settings_changed)(void* context, const char* keys, size_t size)",
@@ -455,6 +474,10 @@ constexpr Structure kStructures[] = {
      "A job: work that takes a while, such as writing firmware, started from logic or a panel, which tells how far it "
      "got and ends with a result. A DLL has at most 4 of its jobs running at once, fewer when the manifest says so.",
      kJobFields},
+    {"gs_ext_device_provider",
+     "Devices that GameScrcpy lists on its devices page, such as boxes that touch a phone without showing its "
+     "picture. It needs the permission devices.provide.",
+     kDeviceProviderFields},
     {"gs_ext_host", "What GameScrcpy gives a DLL.", kHostFields},
     {"gs_ext_contribution", "One thing a DLL offers.", kContributionFields},
     {"gs_ext_plugin", "What a DLL offers, as one description that the DLL keeps.", kPluginFields},

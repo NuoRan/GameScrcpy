@@ -101,6 +101,18 @@ struct JobInfo {
     friend bool operator==(const JobInfo&, const JobInfo&) = default;
 };
 
+inline constexpr std::size_t kMostProviders = 8;
+inline constexpr std::size_t kMostActionBytes = 64;
+inline constexpr std::size_t kMostDeviceBytes = 256;
+inline constexpr std::size_t kMostNameBytes = 64;
+
+struct ProviderInfo {
+    std::string name;
+    bool acts = false;
+
+    friend bool operator==(const ProviderInfo&, const ProviderInfo&) = default;
+};
+
 struct JobEvents {
     std::function<void(double fraction, std::string text)> progress;
     std::function<void(int level, std::string text)> log;
@@ -121,6 +133,7 @@ struct ModuleInfo {
     std::vector<AttachmentInfo> attachments;
     std::vector<BehaviorInfo> behaviors;
     std::vector<JobInfo> jobs;
+    std::vector<ProviderInfo> providers;
 
     friend bool operator==(const ModuleInfo&, const ModuleInfo&) = default;
 };
@@ -240,6 +253,7 @@ public:
     virtual void log(int level, std::string_view text) = 0;
     [[nodiscard]] virtual bool notify(std::string_view title, std::string_view text) = 0;
     virtual void emitted(std::string_view, std::string_view) {}
+    virtual void devicesChanged(std::string_view) {}
 };
 
 class Module
@@ -269,6 +283,8 @@ public:
     [[nodiscard]] virtual std::uint64_t startJob(std::size_t, std::string_view, JobEvents) { return 0; }
     virtual void cancelJob(std::uint64_t) {}
     virtual void setSettings(std::string_view) {}
+    [[nodiscard]] virtual CallResult listDevices(std::size_t) { return {}; }
+    [[nodiscard]] virtual CallResult actOnDevice(std::size_t, std::string_view, std::string_view) { return {}; }
 };
 
 }

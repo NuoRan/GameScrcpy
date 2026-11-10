@@ -43,6 +43,9 @@ enum class Kind : std::uint32_t {
     JobDone,
     Event,
     Settings,
+    DeviceList,
+    DeviceAct,
+    DevicesChanged,
 };
 
 struct Message {

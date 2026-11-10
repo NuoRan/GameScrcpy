@@ -36,6 +36,9 @@ extern "C" {
 /* A contribution whose data is a gs_ext_job. */
 #define GS_EXT_KIND_JOB "job"
 
+/* A contribution whose data is a gs_ext_device_provider. */
+#define GS_EXT_KIND_DEVICE_PROVIDER "device-provider"
+
 /* What a node parameter or result holds. The names in the manifest's contributes.native are the same types. */
 enum gs_ext_type {
     /* No value: the result of a node that gives nothing back. */
@@ -190,6 +193,7 @@ typedef struct gs_ext_output gs_ext_output;
 typedef struct gs_ext_attachment gs_ext_attachment;
 typedef struct gs_ext_behavior gs_ext_behavior;
 typedef struct gs_ext_job gs_ext_job;
+typedef struct gs_ext_device_provider gs_ext_device_provider;
 typedef struct gs_ext_host gs_ext_host;
 typedef struct gs_ext_contribution gs_ext_contribution;
 typedef struct gs_ext_plugin gs_ext_plugin;
@@ -472,6 +476,20 @@ struct gs_ext_job {
     void (*cancel)(void* context, uint64_t job);
 };
 
+/* Devices that GameScrcpy lists on its devices page, such as boxes that touch a phone without showing its picture. It needs the permission devices.provide. */
+struct gs_ext_device_provider {
+    /* sizeof(gs_ext_device_provider) in the DLL. */
+    uint32_t size;
+    /* The name of the provider in the manifest's contributes.native.deviceProviders. */
+    const char* name;
+    /* Passed back to list and act. */
+    void* context;
+    /* Puts the devices that can be used now into out as a JSON array with set_text, each { id, name, kind, summary, state, stateText, touchMethod, capture, actions }: kind "touchBox" for a box that touches a phone without showing its picture, state one of "ready", "busy", "problem" and "offline", touchMethod the name of one of the extension's touch methods, capture true when a capture card may show the picture, and actions the extra buttons of its card, each { id, title } with panel or job naming one of the extension's panels or jobs. GameScrcpy calls it when the extension turns on and after devices_changed; answer within 100 ms. */
+    int32_t (*list)(void* context, gs_ext_result* out);
+    /* Does an action of a device that names neither a panel nor a job, such as disconnecting. May be NULL. */
+    int32_t (*act)(void* context, const char* device, size_t device_size, const char* action, size_t action_size);
+};
+
 /* What GameScrcpy gives a DLL. */
 struct gs_ext_host {
     /* sizeof(gs_ext_host) in GameScrcpy; later versions only add functions at the end. */
@@ -510,6 +528,8 @@ struct gs_ext_host {
     int32_t (*emit_event)(void* context, const char* topic, size_t topic_size, const char* json, size_t json_size);
     /* Puts the value of one of the extension's settings into value as json; its text stays valid until the same thread calls setting_get again. With an empty phone it is the value for all phones; with the phone of a touch method's options it is that phone's own value of a per-phone setting, or the value for all phones when it has none. GS_EXT_BAD_ARGUMENT for a key the manifest does not declare. */
     int32_t (*setting_get)(void* context, const char* key, size_t key_size, const char* phone, size_t phone_size, gs_ext_result* value);
+    /* Tells GameScrcpy that the devices of one of the DLL's providers changed, so that it calls list again. */
+    int32_t (*devices_changed)(void* context, const char* provider, size_t size);
 };
 
 /* One thing a DLL offers. */
@@ -532,7 +552,7 @@ struct gs_ext_plugin {
     uint32_t abi_version;
     /* Passed back to unload. */
     void* context;
-    /* How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments, 32 behaviors and 32 jobs. */
+    /* How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments, 32 behaviors, 32 jobs and 8 device providers. */
     uint32_t contribution_count;
     /* What the DLL offers. */
     const gs_ext_contribution* contributions;

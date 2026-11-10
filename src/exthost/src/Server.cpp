@@ -24,8 +24,6 @@ namespace {
 constexpr DWORD kStartWaitMs = 10'000;
 constexpr std::size_t kMostPathBytes = 4096;
 constexpr std::size_t kMostPermissionBytes = 64;
-constexpr std::size_t kMostDeviceBytes = 256;
-
 enum Exit : int { kDone = 0, kUsage = 2, kBroken = 3, kNoStart = 4, kNotLoaded = 5 };
 
 std::filesystem::path pathOf(const std::string& text)
@@ -72,6 +70,13 @@ public:
         out.text(topic);
         out.text(json);
         send(detail::Kind::Event, 0, out.bytes());
+    }
+
+    void devicesChanged(std::string_view provider) override
+    {
+        detail::WireWriter out;
+        out.text(provider);
+        send(detail::Kind::DevicesChanged, 0, out.bytes());
     }
 
 private:
@@ -130,6 +135,10 @@ private:
 
     void answer(const detail::Message& message)
     {
+        if (message.kind == detail::Kind::DeviceList || message.kind == detail::Kind::DeviceAct) {
+            reply(message.id, provided(message));
+            return;
+        }
         detail::WireReader in(message.payload);
         std::uint32_t node = 0;
         std::uint32_t count = 0;
@@ -140,13 +149,36 @@ private:
             good = in.value(value);
             values.push_back(std::move(value));
         }
-        const CallResult result = good && in.done() ? m_module.call(node, values)
-                                                    : CallResult{CallStatus::BadArgument, {}, "the call was damaged"};
+        reply(message.id, good && in.done() ? m_module.call(node, values)
+                                            : CallResult{CallStatus::BadArgument, {}, "the call was damaged"});
+    }
+
+    CallResult provided(const detail::Message& message)
+    {
+        detail::WireReader in(message.payload);
+        std::uint32_t provider = 0;
+        if (!in.u32(provider)) {
+            return {CallStatus::BadArgument, {}, "the request was damaged"};
+        }
+        if (message.kind == detail::Kind::DeviceList) {
+            return in.done() ? m_module.listDevices(provider)
+                             : CallResult{CallStatus::BadArgument, {}, "the request was damaged"};
+        }
+        std::string device;
+        std::string action;
+        if (!in.text(device, kMostDeviceBytes) || !in.text(action, kMostActionBytes) || !in.done()) {
+            return {CallStatus::BadArgument, {}, "the request was damaged"};
+        }
+        return m_module.actOnDevice(provider, device, action);
+    }
+
+    void reply(std::uint64_t id, const CallResult& result)
+    {
         detail::WireWriter out;
         out.u32(static_cast<std::uint32_t>(result.status));
         out.value(result.value);
         out.text(result.problem);
-        m_link.send(detail::Kind::Answer, message.id, out.bytes());
+        m_link.send(detail::Kind::Answer, id, out.bytes());
     }
 
     Module& m_module;
@@ -530,7 +562,8 @@ int serve(int argc, wchar_t** argv)
                 running = waited == WAIT_OBJECT_0;
                 continue;
             }
-            if (message.kind == detail::Kind::Call) {
+            if (message.kind == detail::Kind::Call || message.kind == detail::Kind::DeviceList ||
+                message.kind == detail::Kind::DeviceAct) {
                 worker.push(std::move(message));
             } else if (message.kind == detail::Kind::Stop) {
                 running = false;

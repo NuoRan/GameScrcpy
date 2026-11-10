@@ -24,8 +24,6 @@ constexpr DWORD kPollMs = 250;
 constexpr DWORD kStopWaitMs = 2'000;
 constexpr UINT kStoppedExit = 9;
 constexpr int kWarning = 1;
-constexpr std::size_t kMostDeviceBytes = 256;
-
 std::string utf8(const std::filesystem::path& path)
 {
     const std::u8string text = path.u8string();
@@ -353,6 +351,13 @@ struct HostedModule::Impl {
             }
             return;
         }
+        case detail::Kind::DevicesChanged: {
+            std::string provider;
+            if (in.text(provider, kMostNameBytes) && options.devicesChanged) {
+                options.devicesChanged(provider);
+            }
+            return;
+        }
         case detail::Kind::Event: {
             std::string topic;
             std::string json;
@@ -556,6 +561,30 @@ struct HostedModule::Impl {
         if (stuck && options.log) {
             options.log(kWarning, "the extension's process did not answer in time and was stopped");
         }
+    }
+
+    CallResult ask(detail::Kind kind, const detail::WireWriter& payload, std::string_view what)
+    {
+        std::unique_lock lock(mutex);
+        if (state != State::Ready || !channel) {
+            return {CallStatus::Unavailable, {},
+                    state == State::Stopped ? "the extension stopped working and was turned off"
+                                            : "the extension is starting again"};
+        }
+        const std::uint64_t id = ++nextId;
+        if (!channel->toHost().write(kind, id, payload.bytes())) {
+            return {CallStatus::Unavailable, {}, "the extension's process is too busy to take the request"};
+        }
+        answers.emplace(id, std::nullopt);
+        outstanding.emplace(id, Steady::now());
+        SetEvent(channel->toHostEvent());
+        const bool answered = changed.wait_for(lock, options.budget, [this, id] { return answers.at(id).has_value(); });
+        CallResult result = answered ? std::move(*answers.at(id))
+                                     : CallResult{CallStatus::TooSlow, {},
+                                                  std::string(what) + " did not answer within " +
+                                                      std::to_string(options.budget.count()) + " ms"};
+        answers.erase(id);
+        return result;
     }
 
     HostedOptions options;
@@ -973,6 +1002,33 @@ void HostedModule::setSettings(std::string_view json)
     if (d.channel && d.channel->toHost().write(detail::Kind::Settings, 0, payload.bytes())) {
         SetEvent(d.channel->toHostEvent());
     }
+}
+
+CallResult HostedModule::listDevices(std::size_t provider)
+{
+    Impl& d = *m_impl;
+    if (provider >= d.info.providers.size()) {
+        return {CallStatus::Unavailable, {}, "the DLL has no such device provider"};
+    }
+    detail::WireWriter payload;
+    payload.u32(static_cast<std::uint32_t>(provider));
+    return d.ask(detail::Kind::DeviceList, payload, "the device provider");
+}
+
+CallResult HostedModule::actOnDevice(std::size_t provider, std::string_view device, std::string_view action)
+{
+    Impl& d = *m_impl;
+    if (provider >= d.info.providers.size() || !d.info.providers[provider].acts) {
+        return {CallStatus::Unavailable, {}, "the device provider has no actions"};
+    }
+    if (device.empty() || device.size() > kMostDeviceBytes || action.empty() || action.size() > kMostActionBytes) {
+        return {CallStatus::BadArgument, {}, "the device or the action is empty or too long"};
+    }
+    detail::WireWriter payload;
+    payload.u32(static_cast<std::uint32_t>(provider));
+    payload.text(device);
+    payload.text(action);
+    return d.ask(detail::Kind::DeviceAct, payload, "the device provider");
 }
 
 int HostedModule::crashes() const

@@ -684,6 +684,60 @@ TEST_CASE("ADR-0112: the extension host gives a native extension its settings an
           nlohmann::json{{"global", {{"port", "COM3"}, {"speed", 5}}}, {"devices", {{"phone-1", {{"port", "COM9"}}}}}});
 }
 
+TEST_CASE("ADR-0112: a DLL's device provider lists its devices, says when they change and does their actions, in "
+          "GameScrcpy and in gs-exthost.exe")
+{
+    struct Changes final : exthost::HostServices {
+        std::mutex mutex;
+        std::vector<std::string> providers;
+
+        void log(int, std::string_view) override {}
+        bool notify(std::string_view, std::string_view) override { return false; }
+        void devicesChanged(std::string_view provider) override
+        {
+            const std::scoped_lock lock(mutex);
+            providers.emplace_back(provider);
+        }
+        std::vector<std::string> seen()
+        {
+            const std::scoped_lock lock(mutex);
+            return providers;
+        }
+    };
+    const auto json = [](std::string value) { return textValue(exthost::ValueType::Json, std::move(value)); };
+    const std::string boxes =
+        R"([{"id":"box-1","name":"Touch box","kind":"touchBox","state":"ready","touchMethod":"recorder"}])";
+    Scratch scratch;
+    std::string problem;
+    Changes inside;
+    const std::unique_ptr<exthost::InProcessModule> loaded = exthost::InProcessModule::load(
+        {.dll = kTestDll, .store = scratch / "inside.json", .granted = {}, .services = &inside}, problem);
+    REQUIRE_MESSAGE(loaded != nullptr, problem);
+    Changes outside;
+    exthost::HostedOptions options = hostedOptions(scratch);
+    options.devicesChanged = [&outside](const std::string& provider) { outside.devicesChanged(provider); };
+    const std::unique_ptr<exthost::HostedModule> hosted = exthost::HostedModule::start(std::move(options), problem);
+    REQUIRE_MESSAGE(hosted != nullptr, problem);
+    const std::array<std::pair<exthost::Module*, Changes*>, 2> modules{
+        {{loaded.get(), &inside}, {hosted.get(), &outside}}};
+    for (const auto& [module, changes] : modules) {
+        REQUIRE(module->info().providers == std::vector<exthost::ProviderInfo>{{.name = "boxes", .acts = true}});
+        const exthost::CallResult empty = module->listDevices(0);
+        REQUIRE_MESSAGE(empty.ok(), empty.problem);
+        CHECK(empty.value.text == "[]");
+        CHECK(callNode(*module, "setBoxes", {json(boxes)}).value.number == GS_EXT_OK);
+        REQUIRE(eventually([&] { return changes->seen() == std::vector<std::string>{"boxes"}; }));
+        CHECK(module->listDevices(0).value.text == boxes);
+        CHECK(module->listDevices(1).status == exthost::CallStatus::Unavailable);
+        CHECK(module->actOnDevice(0, "box-1", "disconnect").ok());
+        CHECK(callNode(*module, "lastAction").value.text == "box-1:disconnect");
+        CHECK(module->actOnDevice(0, "", "disconnect").status == exthost::CallStatus::BadArgument);
+        REQUIRE(callNode(*module, "setBoxes", {json("{}")}).ok());
+        CHECK(module->listDevices(0).status == exthost::CallStatus::Failed);
+        REQUIRE(callNode(*module, "setBoxes", {json("[]")}).ok());
+    }
+}
+
 TEST_CASE("ADR-0112: an extension's events reach that extension's own logic and no other")
 {
     ApplicationScope application;

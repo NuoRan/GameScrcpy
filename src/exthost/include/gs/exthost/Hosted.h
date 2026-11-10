@@ -29,6 +29,7 @@ struct HostedOptions {
     std::function<void(int level, const std::string& text)> log;
     std::function<void(const std::string& title, const std::string& text)> notify;
     std::function<void(const std::string& topic, const std::string& json)> event;
+    std::function<void(const std::string& provider)> devicesChanged;
     std::string settings;
     std::function<void(std::uint64_t session)> touchLost;
     std::function<void()> restarted;
@@ -66,6 +67,9 @@ public:
     [[nodiscard]] std::uint64_t startJob(std::size_t job, std::string_view args, JobEvents events) override;
     void cancelJob(std::uint64_t job) override;
     void setSettings(std::string_view json) override;
+    [[nodiscard]] CallResult listDevices(std::size_t provider) override;
+    [[nodiscard]] CallResult actOnDevice(std::size_t provider, std::string_view device,
+                                         std::string_view action) override;
 
     [[nodiscard]] int crashes() const;
     [[nodiscard]] bool waitReady(std::chrono::milliseconds limit) const;

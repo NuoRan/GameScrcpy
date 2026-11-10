@@ -22,6 +22,8 @@ std::string g_device;
 std::string g_options = "null";
 bool g_breakTouch = false;
 std::string g_changed = "[]";
+std::string g_boxes = "[]";
+std::string g_acted;
 
 void appendNumber(std::string& out, double value)
 {
@@ -234,6 +236,45 @@ void settingsChanged(void*, const char* keys, size_t size)
     g_changed.assign(keys, size);
 }
 
+int32_t listBoxes(void*, gs_ext_result* out)
+{
+    std::string boxes;
+    {
+        const std::scoped_lock lock(g_mutex);
+        boxes = g_boxes;
+    }
+    return g_host->set_text(out, GS_EXT_TYPE_JSON, boxes.data(), boxes.size());
+}
+
+int32_t actOnBox(void*, const char* device, size_t deviceSize, const char* action, size_t actionSize)
+{
+    const std::scoped_lock lock(g_mutex);
+    g_acted = std::string(device, deviceSize) + ":" + std::string(action, actionSize);
+    return GS_EXT_OK;
+}
+
+int32_t setBoxes(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    {
+        const std::scoped_lock lock(g_mutex);
+        g_boxes.assign(args[0].text, args[0].size);
+    }
+    constexpr char kName[] = "boxes";
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number = g_host->devices_changed(g_host->context, kName, sizeof(kName) - 1);
+    return GS_EXT_OK;
+}
+
+int32_t lastAction(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    std::string acted;
+    {
+        const std::scoped_lock lock(g_mutex);
+        acted = g_acted;
+    }
+    return giveText(result, GS_EXT_TYPE_STRING, acted);
+}
+
 int32_t openTouch(void*, const gs_ext_touch_open* info, void** session)
 {
     const std::scoped_lock lock(g_mutex);
@@ -313,6 +354,7 @@ const uint32_t kOneString[] = {GS_EXT_TYPE_STRING};
 const uint32_t kTwoStrings[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING};
 const uint32_t kStringAndJson[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_JSON};
 const uint32_t kStringAndNumber[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_NUMBER};
+const uint32_t kOneJson[] = {GS_EXT_TYPE_JSON};
 const uint32_t kOneDuration[] = {GS_EXT_TYPE_DURATION};
 const uint32_t kMirrored[] = {GS_EXT_TYPE_POINT, GS_EXT_TYPE_REGION, GS_EXT_TYPE_COLOR,
                               GS_EXT_TYPE_DURATION, GS_EXT_TYPE_JSON, GS_EXT_TYPE_BOOLEAN};
@@ -335,7 +377,11 @@ const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "sayMany", kStringAndNumber, 2, GS_EXT_TYPE_NUMBER, nullptr, &sayMany},
     {sizeof(gs_ext_node), "setting", kTwoStrings, 2, GS_EXT_TYPE_STRING, nullptr, &settingNode},
     {sizeof(gs_ext_node), "changedKeys", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &changedKeys},
+    {sizeof(gs_ext_node), "setBoxes", kOneJson, 1, GS_EXT_TYPE_NUMBER, nullptr, &setBoxes},
+    {sizeof(gs_ext_node), "lastAction", nullptr, 0, GS_EXT_TYPE_STRING, nullptr, &lastAction},
 };
+
+const gs_ext_device_provider kBoxes = {sizeof(gs_ext_device_provider), "boxes", nullptr, &listBoxes, &actOnBox};
 
 const gs_ext_touch_method kRecorder = {
     sizeof(gs_ext_touch_method), "recorder", 4,          1,         1,           nullptr,    &openTouch,
@@ -601,6 +647,9 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "sayMany", &kNodes[14]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "setting", &kNodes[15]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "changedKeys", &kNodes[16]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "setBoxes", &kNodes[17]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "lastAction", &kNodes[18]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_DEVICE_PROVIDER, "boxes", &kBoxes},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_ATTACHMENT, "shift", &kShift},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_BEHAVIOR, "tap", &kTap},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_JOB, "count", &kCount},

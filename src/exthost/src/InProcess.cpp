@@ -48,7 +48,6 @@ static_assert(kMostFingers == static_cast<std::size_t>(GS_EXT_MOST_FINGERS));
 
 namespace {
 
-constexpr std::size_t kMostNameBytes = 64;
 constexpr std::size_t kMostLogBytes = 4096;
 constexpr std::size_t kMostErrorBytes = 1000;
 constexpr std::uint32_t kMostContributions = 256;
@@ -423,6 +422,7 @@ struct InProcessModule::Impl {
     std::vector<gs_ext_attachment> attachments;
     std::vector<gs_ext_behavior> behaviors;
     std::vector<gs_ext_job> nativeJobs;
+    std::vector<gs_ext_device_provider> providers;
     std::mutex jobMutex;
     std::condition_variable jobsEnded;
     std::map<std::uint64_t, Job> jobs;
@@ -607,6 +607,22 @@ int32_t hostSettingGet(void* context, const char* key, size_t keySize, const cha
     value->value.type = GS_EXT_TYPE_JSON;
     value->value.text = held.data();
     value->value.size = held.size();
+    return GS_EXT_OK;
+}
+
+int32_t hostDevicesChanged(void* context, const char* provider, size_t size)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if (provider == nullptr || size == 0 || size > kMostNameBytes) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    const std::string_view name(provider, size);
+    if (std::ranges::find(impl.info.providers, name, &ProviderInfo::name) == impl.info.providers.end()) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (impl.services != nullptr) {
+        impl.services->devicesChanged(name);
+    }
     return GS_EXT_OK;
 }
 
@@ -899,6 +915,25 @@ std::string addJob(InProcessModule::Impl& impl, const gs_ext_contribution& entry
     return {};
 }
 
+std::string addProvider(InProcessModule::Impl& impl, const gs_ext_contribution& entry,
+                        std::set<std::string, std::less<>>& names)
+{
+    gs_ext_device_provider provider{};
+    std::string name;
+    if (!copied(entry.data, provider)) {
+        return "a device provider has no data";
+    }
+    if (std::string problem = named("device provider", provider.name, entry, names, name); !problem.empty()) {
+        return problem;
+    }
+    if (provider.list == nullptr) {
+        return "the device provider " + name + " lacks list";
+    }
+    impl.providers.push_back(provider);
+    impl.info.providers.push_back({.name = name, .acts = provider.act != nullptr});
+    return {};
+}
+
 std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
 {
     if (!copied(plugin, impl.described)) {
@@ -938,6 +973,8 @@ std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
             problem = addBehavior(impl, entry, names);
         } else if (kind == GS_EXT_KIND_JOB) {
             problem = addJob(impl, entry, names);
+        } else if (kind == GS_EXT_KIND_DEVICE_PROVIDER) {
+            problem = addProvider(impl, entry, names);
         } else if (kind.empty()) {
             problem = "contribution " + std::to_string(index + 1) + " has no kind";
         } else if (impl.services != nullptr) {
@@ -950,8 +987,9 @@ std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
     }
     if (impl.touchMethods.size() > kMostTouchMethods || impl.nodes.size() > kMostNodes ||
         impl.attachments.size() > kMostModuleAttachments || impl.behaviors.size() > kMostModuleBehaviors ||
-        impl.nativeJobs.size() > kMostJobs) {
-        return "the DLL offers more than 8 touch methods, 64 nodes, 32 attachments, 32 behaviors or 32 jobs";
+        impl.nativeJobs.size() > kMostJobs || impl.providers.size() > kMostProviders) {
+        return "the DLL offers more than 8 touch methods, 64 nodes, 32 attachments, 32 behaviors, 32 jobs or 8 "
+               "device providers";
     }
     return {};
 }
@@ -1006,6 +1044,7 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
     impl->host.job_fail = &hostJobFail;
     impl->host.emit_event = &hostEmitEvent;
     impl->host.setting_get = &hostSettingGet;
+    impl->host.devices_changed = &hostDevicesChanged;
     const gs_ext_plugin* plugin = nullptr;
     const int32_t status = entry(&impl->host, &plugin);
     impl->entered = status == GS_EXT_OK;
@@ -1398,6 +1437,56 @@ void InProcessModule::setSettings(std::string_view json)
         const std::string keys = nlohmann::json(changed).dump();
         d.described.settings_changed(d.described.context, keys.data(), keys.size());
     }
+}
+
+CallResult InProcessModule::listDevices(std::size_t provider)
+{
+    Impl& d = *m_impl;
+    if (provider >= d.providers.size()) {
+        return {CallStatus::Unavailable, {}, "the DLL has no such device provider"};
+    }
+    ResultBox box;
+    gs_ext_result result{};
+    result.host = &box;
+    const gs_ext_device_provider& entry = d.providers[provider];
+    int32_t status = GS_EXT_FAILED;
+    {
+        const std::scoped_lock lock(d.nodeMutex);
+        status = entry.list(entry.context, &result);
+    }
+    if (status != GS_EXT_OK) {
+        return {CallStatus::Failed, {},
+                box.error.empty() ? "the device provider failed with status " + std::to_string(status) : box.error};
+    }
+    std::string text = result.value.type != GS_EXT_TYPE_JSON || result.value.size == 0
+                           ? std::string()
+                           : std::string(result.value.text, result.value.size);
+    const nlohmann::json parsed = nlohmann::json::parse(text, nullptr, false);
+    if (!parsed.is_array()) {
+        return {CallStatus::Failed, {}, "the device provider did not give a JSON array"};
+    }
+    return {CallStatus::Ok, Value{.type = ValueType::Json, .text = std::move(text)}, {}};
+}
+
+CallResult InProcessModule::actOnDevice(std::size_t provider, std::string_view device, std::string_view action)
+{
+    Impl& d = *m_impl;
+    if (provider >= d.providers.size() || d.providers[provider].act == nullptr) {
+        return {CallStatus::Unavailable, {}, "the device provider has no actions"};
+    }
+    if (device.empty() || device.size() > kMostDeviceBytes || action.empty() || action.size() > kMostActionBytes) {
+        return {CallStatus::BadArgument, {}, "the device or the action is empty or too long"};
+    }
+    const gs_ext_device_provider& entry = d.providers[provider];
+    int32_t status = GS_EXT_FAILED;
+    {
+        const std::scoped_lock lock(d.nodeMutex);
+        status = entry.act(entry.context, device.data(), device.size(), action.data(), action.size());
+    }
+    if (status != GS_EXT_OK) {
+        return {CallStatus::Failed, {}, "the action failed with status " + std::to_string(status)};
+    }
+    return {CallStatus::Ok, {}, {}};
 }
 
 }
