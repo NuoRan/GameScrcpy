@@ -4,6 +4,10 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonParseError>
 #include <QMetaType>
 #include <QObject>
 #include <QString>
@@ -582,6 +586,33 @@ TEST_CASE("BP-APP-006 the marks of a draft compare its blocks with the blocks of
         CHECK(value.toMap().value(QStringLiteral("diff")).toString().isEmpty());
     }
     CHECK(model.diffRemoved().isEmpty());
+}
+
+TEST_CASE("BP-APP-008 the graph and the sidebar reach QML as JSON text with the same content as the model")
+{
+    const Application application;
+    QString source = QStringLiteral("keys.F.onPress(async () => {\n");
+    for (int index = 1; index <= 60; ++index) {
+        source += QStringLiteral("  await sleep(%1)\n").arg(index);
+    }
+    source += QStringLiteral("})\n");
+    FakeText text(source);
+    BlueprintModel model;
+    model.setDocument(&text);
+    REQUIRE(model.ready());
+    QJsonParseError problem{};
+    const QJsonDocument graph = QJsonDocument::fromJson(model.graphText().toUtf8(), &problem);
+    REQUIRE(problem.error == QJsonParseError::NoError);
+    CHECK(graph == QJsonDocument::fromVariant(model.graph()));
+    CHECK(graph.object().value(QStringLiteral("nodes")).toArray().size() == 61);
+    const QJsonDocument sidebar = QJsonDocument::fromJson(model.sidebarText().toUtf8(), &problem);
+    REQUIRE(problem.error == QJsonParseError::NoError);
+    CHECK(sidebar == QJsonDocument::fromVariant(model.sidebar()));
+    CHECK_FALSE(sidebar.array().isEmpty());
+
+    model.setDocument(nullptr);
+    CHECK(model.graphText() == QStringLiteral("{}"));
+    CHECK(model.sidebarText() == QStringLiteral("[]"));
 }
 
 #include "BlueprintModelTests.moc"

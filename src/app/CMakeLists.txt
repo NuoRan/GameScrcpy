@@ -276,6 +276,8 @@ qt_add_qml_module(GameScrcpy
         InputReadGrants.h
         ItemOrder.cpp
         ItemOrder.h
+        JsSequence.cpp
+        JsSequence.h
         JsonFile.cpp
         JsonFile.h
         KeyCapture.cpp

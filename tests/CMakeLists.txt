@@ -424,6 +424,7 @@ if(GS_BUILD_APP)
             unit/app/InputControllerTests.cpp
             unit/app/InputHostTests.cpp
             unit/app/InputReadGrantsTests.cpp
+            unit/app/JsSequenceTests.cpp
             unit/app/JsonFileTests.cpp
             unit/app/KeyHintModelTests.cpp
             unit/app/KeymapBackgroundsTests.cpp
@@ -598,6 +599,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/InputHost.h"
             "${PROJECT_SOURCE_DIR}/src/app/InputReadGrants.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/InputReadGrants.h"
+            "${PROJECT_SOURCE_DIR}/src/app/JsSequence.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/JsSequence.h"
             "${PROJECT_SOURCE_DIR}/src/app/JsonFile.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/JsonFile.h"
             "${PROJECT_SOURCE_DIR}/src/app/KeyHintModel.cpp"

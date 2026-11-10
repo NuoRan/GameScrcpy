@@ -18,6 +18,7 @@
 #include "HardwareAccess.h"
 #include "HelpLibrary.h"
 #include "InputReadGrants.h"
+#include "JsSequence.h"
 #include "LogFile.h"
 #include "McpDevices.h"
 #include "McpDrafts.h"
@@ -311,6 +312,7 @@ int main(int argc, char* argv[])
     }
 
     QGuiApplication app(argc, argv);
+    gs::app::installJsSequence();
     if (!gs::platform::keepTimerResolution()) {
         qWarning("timer resolution may be throttled while the window is hidden");
     }

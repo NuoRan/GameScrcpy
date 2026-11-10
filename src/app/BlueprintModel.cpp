@@ -850,6 +850,8 @@ void BlueprintModel::publish()
         m_crumbs.clear();
         m_graph.clear();
         m_sidebar.clear();
+        m_graphText = QStringLiteral("{}");
+        m_sidebarText = QStringLiteral("[]");
         m_viewState.clear();
         m_diffRemoved.clear();
         emit graphChanged();
@@ -872,7 +874,9 @@ void BlueprintModel::publish()
     const std::string page = utf8(m_page);
     m_pages = variantOf(m_doc->pages()).toList();
     m_crumbs = variantOf(m_doc->crumbs(page)).toList();
-    m_sidebar = variantOf(m_doc->sidebar(page)).toList();
+    const auto sidebar = m_doc->sidebar(page);
+    m_sidebar = variantOf(sidebar).toList();
+    m_sidebarText = qs(sidebar.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace));
     const blueprint::Graph view = m_doc->view(page);
     DraftGraphChanges changes;
     if (!m_diffBase.isEmpty()) {
@@ -965,6 +969,7 @@ void BlueprintModel::publish()
                           {QStringLiteral("comments"), comments},
                           {QStringLiteral("problem"), qs(view.problem)},
                           {QStringLiteral("problemLine"), static_cast<int>(view.problemLine)}};
+    m_graphText = QString::fromUtf8(QJsonDocument::fromVariant(m_graph).toJson(QJsonDocument::Compact));
     const blueprint::ViewState state = view.view.value_or(blueprint::ViewState{});
     m_viewState = QVariantMap{{QStringLiteral("x"), state.x}, {QStringLiteral("y"), state.y},
                               {QStringLiteral("zoom"), state.zoom}};

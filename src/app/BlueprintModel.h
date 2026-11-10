@@ -74,8 +74,8 @@ class BlueprintModel : public QObject
     Q_PROPERTY(QVariantList pages READ pages NOTIFY graphChanged FINAL)
     Q_PROPERTY(QString page READ page WRITE setPage NOTIFY pageChanged FINAL)
     Q_PROPERTY(QVariantList crumbs READ crumbs NOTIFY graphChanged FINAL)
-    Q_PROPERTY(QVariantMap graph READ graph NOTIFY graphChanged FINAL)
-    Q_PROPERTY(QVariantList sidebar READ sidebar NOTIFY graphChanged FINAL)
+    Q_PROPERTY(QString graphText READ graphText NOTIFY graphChanged FINAL)
+    Q_PROPERTY(QString sidebarText READ sidebarText NOTIFY graphChanged FINAL)
     Q_PROPERTY(QVariantMap viewState READ viewState NOTIFY graphChanged FINAL)
     Q_PROPERTY(QStringList selection READ selection WRITE setSelection NOTIFY selectionChanged FINAL)
     Q_PROPERTY(QVariantMap details READ details NOTIFY detailsChanged FINAL)
@@ -109,6 +109,8 @@ public:
     [[nodiscard]] QVariantList crumbs() const { return m_crumbs; }
     [[nodiscard]] QVariantMap graph() const { return m_graph; }
     [[nodiscard]] QVariantList sidebar() const { return m_sidebar; }
+    [[nodiscard]] QString graphText() const { return m_graphText; }
+    [[nodiscard]] QString sidebarText() const { return m_sidebarText; }
     [[nodiscard]] QVariantMap viewState() const { return m_viewState; }
     [[nodiscard]] QStringList selection() const { return m_selection; }
     void setSelection(const QStringList& keys);
@@ -277,6 +279,8 @@ private:
     QVariantList m_crumbs;
     QVariantMap m_graph;
     QVariantList m_sidebar;
+    QString m_graphText = QStringLiteral("{}");
+    QString m_sidebarText = QStringLiteral("[]");
     QVariantMap m_viewState;
     QStringList m_selection;
     QVariantMap m_details;

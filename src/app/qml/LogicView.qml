@@ -16,9 +16,10 @@ Item {
     property bool blueprintUsed: false
     property int tourBaseNodes: 0
     property int tourBaseWires: 0
-    readonly property var tourGraph: blueprintModel.graph
-    readonly property int tourNodes: (view.tourGraph.nodes ?? []).length
-    readonly property int tourWires: (view.tourGraph.wires ?? []).length
+    readonly property var graphData: JSON.parse(blueprintModel.graphText)
+    readonly property var sidebarData: JSON.parse(blueprintModel.sidebarText)
+    readonly property int tourNodes: (view.graphData.nodes ?? []).length
+    readonly property int tourWires: (view.graphData.wires ?? []).length
     property ProfileEditor preview: null
     property var debugPause: null
     property var replayStates: []
@@ -47,9 +48,9 @@ Item {
     readonly property bool recordShown: view.record.active && view.blueprint && view.blueprintDocument !== null
     readonly property bool lookingBack: view.recordShown && (!view.record.live || view.debugPause !== null)
     readonly property var missingBlocks: {
-        if (!view.blueprint || blueprintModel.graph === undefined)
+        if (!view.blueprint)
             return []
-        return (blueprintModel.graph.nodes ?? []).filter(node => (node.fix ?? "") === "missing")
+        return (view.graphData.nodes ?? []).filter(node => (node.fix ?? "") === "missing")
     }
     readonly property var codeColors: ({
         keyword: Theme.colors.accentText,
@@ -173,7 +174,7 @@ Item {
         if (page === "") {
             view.jumpToNode(node)
         } else if (page.startsWith("file:")) {
-            const title = (blueprintModel.graph.nodes ?? []).find(item => item.key === node)?.title ?? ""
+            const title = (view.graphData.nodes ?? []).find(item => item.key === node)?.title ?? ""
             view.openLibrary(title !== "" ? "fn:" + title : "")
         } else if (blueprintModel.page !== page) {
             blueprintModel.page = page
@@ -230,7 +231,7 @@ Item {
     }
 
     function pick(node: string, pin: string, kind: string) {
-        const found = (blueprintModel.graph.nodes ?? []).find(item => item.key === node)
+        const found = (view.graphData.nodes ?? []).find(item => item.key === node)
         const input = found !== undefined ? (found.inputs ?? []).find(item => item.name === pin) : undefined
         const where = qsTr("%1 · %2").arg(found?.title ?? "").arg(input?.label ?? pin)
         const prompt = kind === "point" ? qsTr("Click the picture to fill in %1").arg(where)
@@ -426,8 +427,8 @@ Item {
                 anchors.fill: parent
                 visible: view.blueprint
                 sections: {
-                    const owned = blueprintModel.sidebar.some(section => section.key === "props" || section.key === "params")
-                    return blueprintModel.sidebar.map(section => Object.assign({}, section, {
+                    const owned = view.sidebarData.some(section => section.key === "props" || section.key === "params")
+                    return view.sidebarData.map(section => Object.assign({}, section, {
                         addable: section.key === "vars" || section.key === "structs" || section.key === "enums"
                                  || section.key === "classes" || section.key === "library"
                                  || (section.key === "functions" && !owned)
@@ -873,7 +874,7 @@ Item {
             anchors.top: missingNotice.visible ? missingNotice.bottom + Theme.space.sm : tabStrip.bottom
             anchors.bottom: timelineBar.top
             visible: view.blueprint && view.blueprintDocument !== null
-            graph: blueprintModel.graph
+            graph: view.graphData
             selection: blueprintModel.selection
             viewState: blueprintModel.viewState
             debugging: blueprintModel.debugging
