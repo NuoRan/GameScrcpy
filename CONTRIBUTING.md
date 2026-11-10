@@ -31,7 +31,6 @@
 | `firmware/esp32/` | ESP32 触控盒固件（ESP-IDF）与编好的镜像 |
 | `tests/` | 单元测试、集成测试、界面测试与测试数据 |
 | `examples/` | 示例组件、任务与扩展 |
-| `community/` | 社区扩展样例（不随程序发布） |
 | `tools/` | 开发与发布脚本：开发环境、打包、源码规则检查、生成器等 |
 | `packaging/` | 安装包脚本与随包 adb 的固定版本 |
 | `third_party/` | 随仓库提供的第三方依赖，清单见 [third_party/README.md](third_party/README.md) |

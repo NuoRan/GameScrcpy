@@ -11,6 +11,11 @@
 - 所有对话都保留在电脑上。“最近对话”菜单列出最新 20 段，“查看全部…”在单独的窗口里列出全部。
 - 气泡和小助手卡片打开、收起时有动画；开启“减少动态效果”时只淡入淡出。
 
+### 扩展与界面
+
+- 不再内置任何扩展：CRT 扫描线与石板主题改为示例，和 PC 时钟示例一起放在安装目录的 `sdk\samples` 里，需要时在扩展页“从文件安装”。
+- 帮助菜单与帮助页加了“赞助…”，弹出赞助对话框，可以去爱发电赞助。
+
 ### 修复
 
 - 没有打开投屏窗口时，从方案页“编辑逻辑…”打开较大的方案会卡死并占满内存（Qt 6.10.1 的问题，已绕开）。
@@ -18,7 +23,7 @@
 
 ### English summary
 
-AI settings now pick the model from a drop-down with a Get button and show only the thinking options the chosen model supports: deep thinking, reasoning effort and a one-million-token context. Each conversation can switch its own model and options from the composer and make them the default. Every conversation is kept; the Recent menu lists the newest 20 and Show all opens the rest. The bubble and the card animate. Fixed: the logic editor no longer hangs on larger profiles when no mirror window is open, and the ESP32 touch box no longer drops the session after a few idle minutes.
+AI settings now pick the model from a drop-down with a Get button and show only the thinking options the chosen model supports: deep thinking, reasoning effort and a one-million-token context. Each conversation can switch its own model and options from the composer and make them the default. Every conversation is kept; the Recent menu lists the newest 20 and Show all opens the rest. The bubble and the card animate. No extension is built in any more: the CRT scanlines and the slate theme are samples in `sdk\samples`, next to the PC clock. Help offers a Sponsor dialog. Fixed: the logic editor no longer hangs on larger profiles when no mirror window is open, and the ESP32 touch box no longer drops the session after a few idle minutes.
 
 ## [2.0.0] - 2026-11-10
 

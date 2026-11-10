@@ -31,7 +31,6 @@ For larger changes (new features, protocol or profile format changes), open an i
 | `firmware/esp32/` | The ESP32 touch box firmware (ESP-IDF) and its built images |
 | `tests/` | Unit, integration and interface tests, and test data |
 | `examples/` | Sample components, tasks and extensions |
-| `community/` | Community extension samples (not shipped with the app) |
 | `tools/` | Development and release scripts: environment, packaging, source rules, generators |
 | `packaging/` | The installer script and the pinned adb version shipped with the app |
 | `third_party/` | Third-party dependencies kept in the repository, listed in [third_party/README.md](third_party/README.md) |
