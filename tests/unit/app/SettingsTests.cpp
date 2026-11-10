@@ -867,6 +867,42 @@ TEST_CASE("a status capsule turned off by the old switch stays hidden, and the o
     CHECK(both.document.display.statusCapsule == StatusCapsule::Always);
 }
 
+TEST_CASE("ADR-0099 2026-11-10: each service keeps its own thinking options, and the old switch moves onto them")
+{
+    const AiEndpoint fresh;
+    CHECK_FALSE(fresh.thinking);
+    CHECK(fresh.effort == AiEffort::Automatic);
+    CHECK_FALSE(fresh.longContext);
+    const Entry* effort = findSetting("assistant.anthropic.effort");
+    REQUIRE(effort != nullptr);
+    CHECK(effort->kind == Kind::Choice);
+    CHECK(effort->choices == std::vector<std::string_view>{"auto", "minimal", "low", "medium", "high"});
+    CHECK(findSetting("assistant.openai.thinking") != nullptr);
+    CHECK(findSetting("assistant.openaiResponses.longContext") != nullptr);
+    CHECK(findSetting("assistant.deepThinking") == nullptr);
+
+    const Loaded<Settings> on = load<Settings>(
+        R"({"format": "gamescrcpy.settings", "version": 1,)"
+        R"( "assistant": {"deepThinking": true, "anthropic": {"model": "claude-sonnet-4-5", "thinking": false}}})");
+    CHECK(on.usable);
+    CHECK(on.diagnostics.empty());
+    CHECK(on.document.assistant.openai.thinking);
+    CHECK(on.document.assistant.openaiResponses.thinking);
+    CHECK_FALSE(on.document.assistant.anthropic.thinking);
+    CHECK(on.document.assistant.anthropic.model == "claude-sonnet-4-5");
+    CHECK(save(on.document).find("deepThinking") == std::string::npos);
+
+    const Loaded<Settings> off = load<Settings>(
+        R"({"format": "gamescrcpy.settings", "version": 1, "assistant": {"deepThinking": false}})");
+    CHECK(off.diagnostics.empty());
+    CHECK_FALSE(off.document.assistant.openai.thinking);
+
+    Settings chosen;
+    REQUIRE(assign(chosen, "assistant.openai.effort", Value(std::string("minimal"))));
+    CHECK(chosen.assistant.openai.effort == AiEffort::Minimal);
+    CHECK_FALSE(assign(chosen, "assistant.openai.effort", Value(std::string("turbo"))));
+}
+
 TEST_CASE("a hint once shown is remembered through the file and is no setting (UI-007)")
 {
     CHECK_FALSE(Settings{}.hints.mirrorToolbar);

@@ -601,12 +601,18 @@ inline constexpr std::array<std::string_view, 3> kAiServiceNames{"openai", "anth
 inline constexpr std::string_view kOpenAiAddress = "https://api.openai.com/v1";
 inline constexpr std::string_view kAnthropicAddress = "https://api.anthropic.com";
 
+enum class AiEffort : std::uint8_t { Automatic, Minimal, Low, Medium, High };
+inline constexpr std::array<std::string_view, 5> kAiEffortNames{"auto", "minimal", "low", "medium", "high"};
+
 struct AiEndpoint {
     static constexpr std::size_t kMaxAddressLength = 2048;
     static constexpr std::size_t kMaxModelLength = 256;
 
     std::string address;
     std::string model;
+    bool thinking = false;
+    AiEffort effort = AiEffort::Automatic;
+    bool longContext = false;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -628,6 +634,33 @@ struct AiEndpoint {
                 .keywords = GS_TRANSLATE_NOOP("Settings", "ai assistant model name gpt claude deepseek qwen kimi "
                                                           "llama"),
                 .live = true});
+        v.boolean("thinking", m.thinking,
+                  {.title = GS_TRANSLATE_NOOP("Settings", "Deep thinking"),
+                   .description = GS_TRANSLATE_NOOP("Settings", "New conversations let the model think before it "
+                                                                "answers, when the model can; the assistant shows the "
+                                                                "thinking above the answer. Slower and uses more of "
+                                                                "your quota."),
+                   .keywords = GS_TRANSLATE_NOOP("Settings", "ai assistant think thinking reasoning claude qwen "
+                                                             "openai slow quota"),
+                   .live = true});
+        v.choice("effort", m.effort, kAiEffortNames,
+                 {.title = GS_TRANSLATE_NOOP("Settings", "Reasoning effort"),
+                  .description = GS_TRANSLATE_NOOP("Settings", "How hard new conversations let the model think, for "
+                                                               "models that take an effort; automatic leaves it to "
+                                                               "the service. Higher is slower and uses more of your "
+                                                               "quota."),
+                  .keywords = GS_TRANSLATE_NOOP("Settings", "ai assistant reasoning effort strength minimal low "
+                                                            "medium high think gpt claude"),
+                  .live = true});
+        v.boolean("longContext", m.longContext,
+                  {.title = GS_TRANSLATE_NOOP("Settings", "Long context"),
+                   .description = GS_TRANSLATE_NOOP("Settings", "New conversations ask models that offer it for a "
+                                                                "context of a million tokens, so long conversations "
+                                                                "forget less. Costs more past the usual length, and "
+                                                                "the account must be allowed to use it."),
+                   .keywords = GS_TRANSLATE_NOOP("Settings", "ai assistant long context max million tokens 1m "
+                                                             "claude sonnet"),
+                   .live = true});
     }
 
     friend bool operator==(const AiEndpoint&, const AiEndpoint&) = default;
@@ -642,7 +675,6 @@ struct Assistant {
     bool scripts = false;
     bool bubble = true;
     bool mirrorBubble = false;
-    bool deepThinking = false;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -687,17 +719,6 @@ struct Assistant {
                                                                 "assistant can look at the picture to answer. The More "
                                                                 "menu of a mirror window switches it as well."),
                    .keywords = GS_TRANSLATE_NOOP("Settings", "ai assistant bubble mirror window picture frame"),
-                   .live = true});
-        v.boolean("deepThinking", m.deepThinking,
-                  {.title = GS_TRANSLATE_NOOP("Settings", "Deep thinking"),
-                   .description = GS_TRANSLATE_NOOP("Settings", "Lets Claude think before it answers and asks OpenAI "
-                                                                "Responses models for a summary of their reasoning; the "
-                                                                "assistant shows it above the answer. Slower and uses "
-                                                                "more of your quota, and some models do not accept it. "
-                                                                "Models that always reason, such as DeepSeek's, show "
-                                                                "their thinking either way."),
-                   .keywords = GS_TRANSLATE_NOOP("Settings", "ai assistant think thinking reasoning claude openai "
-                                                             "deepseek slow quota"),
                    .live = true});
     }
 

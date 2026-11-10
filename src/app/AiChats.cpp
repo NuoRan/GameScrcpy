@@ -43,6 +43,7 @@ namespace {
 
 constexpr std::string_view kCategory = "ai";
 constexpr QStringView kFormat = u"gamescrcpy.ai-chat";
+constexpr QStringView kIndexFormat = u"gamescrcpy.ai-chats";
 constexpr int kVersion = 1;
 constexpr std::array<QStringView, 6> kPages{u"devices", u"profiles", u"tasks", u"extensions", u"settings", u"help"};
 
@@ -658,6 +659,7 @@ void AiChats::remove(const QString& id)
         return;
     }
     forget(static_cast<std::size_t>(found - m_entries.begin()));
+    writeIndex();
     if (id == m_current) {
         m_conversation->clear();
         setCurrent({});
@@ -671,6 +673,7 @@ void AiChats::clearAll()
     while (!m_entries.empty()) {
         forget(m_entries.size() - 1);
     }
+    writeIndex();
     setCurrent({});
     emit recentChanged();
 }
@@ -713,10 +716,32 @@ void AiChats::load()
     if (!std::filesystem::is_directory(m_folder, error)) {
         return;
     }
+    std::map<QString, Entry> listed;
+    if (std::string index; !platform::readFile(m_folder / kIndexName, kMostFileBytes, index)) {
+        const QJsonObject document = QJsonDocument::fromJson(QByteArray::fromStdString(index)).object();
+        if (document.value(u"format"_s).toString() == kIndexFormat) {
+            for (const QJsonValue& value : document.value(u"chats"_s).toArray()) {
+                const QJsonObject chat = value.toObject();
+                const QString id = chat.value(u"id"_s).toString();
+                listed.insert_or_assign(
+                    id, Entry{.id = id,
+                              .title = chat.value(u"title"_s).toString(),
+                              .updated = static_cast<qint64>(chat.value(u"updated"_s).toDouble())});
+            }
+        }
+    }
+    bool stale = false;
     for (const std::filesystem::directory_entry& item : std::filesystem::directory_iterator(m_folder, error)) {
         if (item.path().extension() != L".json") {
             continue;
         }
+        const QString name = QString::fromStdWString(item.path().stem().wstring());
+        if (const auto known = listed.find(name); known != listed.end() && fileOf(name) == item.path()) {
+            m_entries.push_back(known->second);
+            listed.erase(known);
+            continue;
+        }
+        stale = true;
         std::string bytes;
         if (platform::readFile(item.path(), kMostFileBytes, bytes)) {
             continue;
@@ -731,8 +756,8 @@ void AiChats::load()
                                   .updated = static_cast<qint64>(document.value(u"updated"_s).toDouble())});
     }
     std::ranges::sort(m_entries, std::ranges::greater{}, &Entry::updated);
-    while (m_entries.size() > static_cast<std::size_t>(kMostKept)) {
-        forget(m_entries.size() - 1);
+    if (stale || !listed.empty()) {
+        writeIndex();
     }
 }
 
@@ -745,10 +770,13 @@ void AiChats::save()
     const QString id = m_current.isEmpty() ? QUuid::createUuid().toString(QUuid::WithoutBraces) : m_current;
     const qint64 now = QDateTime::currentMSecsSinceEpoch();
     const QString title = titleFrom(state);
-    const QJsonObject document{{u"format"_s, kFormat.toString()},  {u"version"_s, kVersion},
-                               {u"id"_s, id},                      {u"title"_s, title},
-                               {u"updated"_s, static_cast<double>(now)}, {u"items"_s, state.value(u"items"_s)},
-                               {u"history"_s, state.value(u"history"_s)}};
+    QJsonObject document{{u"format"_s, kFormat.toString()},  {u"version"_s, kVersion},
+                         {u"id"_s, id},                      {u"title"_s, title},
+                         {u"updated"_s, static_cast<double>(now)}, {u"items"_s, state.value(u"items"_s)},
+                         {u"history"_s, state.value(u"history"_s)}};
+    if (state.contains(u"choice"_s)) {
+        document.insert(u"choice"_s, state.value(u"choice"_s));
+    }
     std::error_code made;
     std::filesystem::create_directories(m_folder, made);
     const QByteArray bytes = QJsonDocument(document).toJson(QJsonDocument::Compact);
@@ -761,11 +789,28 @@ void AiChats::save()
         m_entries.erase(found);
     }
     m_entries.insert(m_entries.begin(), Entry{.id = id, .title = title, .updated = now});
-    while (m_entries.size() > static_cast<std::size_t>(kMostKept)) {
-        forget(m_entries.size() - 1);
-    }
+    writeIndex();
     setCurrent(id);
     emit recentChanged();
+}
+
+void AiChats::writeIndex() const
+{
+    QJsonArray chats;
+    for (const Entry& entry : m_entries) {
+        chats.append(QJsonObject{{u"id"_s, entry.id},
+                                 {u"title"_s, entry.title},
+                                 {u"updated"_s, static_cast<double>(entry.updated)}});
+    }
+    const QJsonObject document{
+        {u"format"_s, kIndexFormat.toString()}, {u"version"_s, kVersion}, {u"chats"_s, chats}};
+    const QByteArray bytes = QJsonDocument(document).toJson(QJsonDocument::Compact);
+    std::error_code made;
+    std::filesystem::create_directories(m_folder, made);
+    if (const std::error_code failed = platform::writeFileAtomically(
+            m_folder / kIndexName, std::string_view(bytes.constData(), bytes.size()))) {
+        log::warning(kCategory, "the list of conversations could not be saved: {}", failed.message());
+    }
 }
 
 void AiChats::setCurrent(const QString& id)

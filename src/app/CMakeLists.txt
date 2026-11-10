@@ -15,6 +15,7 @@ qt_add_qml_module(GameScrcpy
         qml/ActionWheelView.qml
         qml/AiCorner.qml
         qml/AiDisclosureDialog.qml
+        qml/AiModelPicker.qml
         qml/AiPanel.qml
         qml/AiSettings.qml
         qml/AiWindow.qml

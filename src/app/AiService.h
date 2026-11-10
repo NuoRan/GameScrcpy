@@ -11,6 +11,7 @@
 #include <QStringList>
 #include <QUrl>
 #include <QVariantList>
+#include <QVariantMap>
 
 #include <cstdint>
 #include <functional>
@@ -59,6 +60,28 @@ struct AiRequest {
     int maxTokens = kAnthropicMaxTokens;
     bool pictures = true;
     bool think = false;
+    QString effort;
+    bool longContext = false;
+};
+
+struct AiModelTraits {
+    bool think = false;
+    bool alwaysThinks = false;
+    QStringList efforts;
+    bool thinkingEffort = false;
+    bool longContext = false;
+
+    friend bool operator==(const AiModelTraits&, const AiModelTraits&) = default;
+};
+
+struct AiChoice {
+    QString model;
+    bool think = false;
+    QString effort;
+    bool longContext = false;
+    QString service;
+
+    friend bool operator==(const AiChoice&, const AiChoice&) = default;
 };
 
 struct AiUsage {
@@ -89,6 +112,8 @@ struct AiConnection {
     QString model;
     QString key;
     bool think = false;
+    QString effort;
+    bool longContext = false;
 };
 
 class AiProvider
@@ -121,7 +146,12 @@ public:
 [[nodiscard]] QUrl aiEndpoint(AiKind kind, const QString& address);
 [[nodiscard]] QUrl aiModelsEndpoint(AiKind kind, const QString& address);
 [[nodiscard]] QStringList aiModelsOf(const QByteArray& body);
-[[nodiscard]] std::vector<AiHeader> aiHeaders(AiKind kind, const QString& key, bool stream);
+[[nodiscard]] AiModelTraits aiModelTraits(AiKind kind, const QString& model);
+[[nodiscard]] AiChoice aiFitted(AiKind kind, AiChoice choice);
+[[nodiscard]] QVariantMap aiChoiceMap(const AiChoice& choice);
+[[nodiscard]] AiChoice aiChoiceOf(const QVariantMap& map);
+[[nodiscard]] int aiThinkingBudget(const QString& effort);
+[[nodiscard]] std::vector<AiHeader> aiHeaders(AiKind kind, const QString& key, bool stream, bool longContext = false);
 [[nodiscard]] QJsonObject aiRequestJson(AiKind kind, const AiRequest& request);
 [[nodiscard]] int aiPictureCount(const AiRequest& request);
 [[nodiscard]] AiReply aiReplyOf(AiKind kind, const QByteArray& body);

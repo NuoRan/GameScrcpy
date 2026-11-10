@@ -63,8 +63,13 @@ public:
         AiRequest asked = request;
         asked.model = m_connection.model;
         asked.think = asked.think || m_connection.think;
+        if (asked.effort.isEmpty()) {
+            asked.effort = m_connection.effort;
+        }
+        asked.longContext = asked.longContext || m_connection.longContext;
         QNetworkRequest http(m_connection.url);
-        for (const AiHeader& header : aiHeaders(m_connection.kind, m_connection.key, asked.stream)) {
+        for (const AiHeader& header :
+             aiHeaders(m_connection.kind, m_connection.key, asked.stream, asked.longContext)) {
             http.setRawHeader(header.name, header.value);
         }
         http.setTransferTimeout(kAiIdleLimit);

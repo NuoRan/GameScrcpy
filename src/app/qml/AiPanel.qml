@@ -1122,7 +1122,18 @@ Rectangle {
 
                 Item {
                     width: parent.width
-                    height: Math.max(hint.implicitHeight, sendButton.implicitHeight)
+                    height: Math.max(hint.implicitHeight, modelPicker.implicitHeight, sendButton.implicitHeight)
+
+                    AiModelPicker {
+                        id: modelPicker
+
+                        objectName: "aiModelPicker"
+                        anchors.left: parent.left
+                        anchors.leftMargin: -Theme.space.sm
+                        anchors.verticalCenter: parent.verticalCenter
+                        conversation: panel.conversation
+                        widest: parent.width - sendButton.width
+                    }
 
                     Text {
                         id: hint
@@ -1131,7 +1142,7 @@ Rectangle {
                         anchors.right: sendButton.left
                         anchors.rightMargin: Theme.space.sm
                         anchors.verticalCenter: parent.verticalCenter
-                        visible: panel.conversation.count === 0
+                        visible: panel.conversation.count === 0 && !modelPicker.visible
                         textFormat: Text.PlainText
                         text: qsTr("Enter sends, Shift+Enter starts a new line")
                         elide: Text.ElideRight
@@ -1149,6 +1160,7 @@ Rectangle {
                         small: true
                         tone: "primary"
                         text: qsTr("Send")
+                        toolTip: qsTr("Enter sends, Shift+Enter starts a new line")
                         enabled: prompt.text.trim() !== ""
                         onClicked: panel.submit()
                     }

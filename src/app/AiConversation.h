@@ -68,6 +68,7 @@ class AiConversation : public QAbstractListModel
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged FINAL)
     Q_PROPERTY(bool waiting READ waiting NOTIFY busyChanged FINAL)
     Q_PROPERTY(int count READ count NOTIFY countChanged FINAL)
+    Q_PROPERTY(QVariantMap choice READ choice WRITE setChoice NOTIFY choiceChanged FINAL)
 
 public:
     static constexpr int kMostRounds = 24;
@@ -89,7 +90,7 @@ public:
 
     static constexpr int kGroupedCalls = 3;
 
-    using ProviderFactory = std::function<std::unique_ptr<AiProvider>()>;
+    using ProviderFactory = std::function<std::unique_ptr<AiProvider>(const AiChoice&)>;
 
     explicit AiConversation(QObject* parent = nullptr);
     AiConversation(ProviderFactory provider, AiToolRunner* tools, QObject* parent = nullptr);
@@ -117,6 +118,9 @@ public:
     [[nodiscard]] bool waiting() const noexcept { return m_waiting; }
     [[nodiscard]] int count() const noexcept { return static_cast<int>(m_items.size()); }
     [[nodiscard]] const std::vector<AiTurn>& history() const noexcept { return m_history; }
+    [[nodiscard]] QVariantMap choice() const { return aiChoiceMap(m_choice); }
+    void setChoice(const QVariantMap& choice);
+    [[nodiscard]] const AiChoice& chosen() const noexcept { return m_choice; }
     [[nodiscard]] QJsonObject saved() const;
     void restore(const QJsonObject& saved);
 
@@ -129,6 +133,7 @@ signals:
     void contextChanged();
     void busyChanged();
     void countChanged();
+    void choiceChanged();
     void turnFinished();
 
 private:
@@ -174,6 +179,7 @@ private:
     std::unique_ptr<AiProvider> m_provider;
     std::vector<Item> m_items;
     std::vector<AiTurn> m_history;
+    AiChoice m_choice;
     AiContext m_context;
     QString m_snapshot;
     QString m_snapshotProblem;

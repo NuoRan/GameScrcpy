@@ -36,6 +36,23 @@
     </message>
 </context>
 <context>
+    <name>AiCorner</name>
+    <message numerus="yes">
+        <source>Show all %n conversations…</source>
+        <translation>
+            <numerusform>Show all %n conversation…</numerusform>
+            <numerusform>Show all %n conversations…</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Every conversation is kept on this computer. The newest %n are listed here; Show all opens the rest in a separate window. Pick one up again or delete them.</source>
+        <translation>
+            <numerusform>Every conversation is kept on this computer. The newest %n is listed here; Show all opens the rest in a separate window. Pick one up again or delete them.</numerusform>
+            <numerusform>Every conversation is kept on this computer. The newest %n are listed here; Show all opens the rest in a separate window. Pick one up again or delete them.</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
     <name>AiPanel</name>
     <message numerus="yes">
         <source>Thought for %n second(s)</source>
@@ -83,10 +100,10 @@
 <context>
     <name>AiSettings</name>
     <message numerus="yes">
-        <source>The newest %n conversation(s) with the assistant are kept on this computer.</source>
+        <source>Every conversation with the assistant is kept on this computer. The newest %n are in the Recent menu of the assistant; all of them are in its own window.</source>
         <translation>
-            <numerusform>The newest conversation with the assistant is kept on this computer.</numerusform>
-            <numerusform>The newest %n conversations with the assistant are kept on this computer.</numerusform>
+            <numerusform>Every conversation with the assistant is kept on this computer. The newest %n is in the Recent menu of the assistant; all of them are in its own window.</numerusform>
+            <numerusform>Every conversation with the assistant is kept on this computer. The newest %n are in the Recent menu of the assistant; all of them are in its own window.</numerusform>
         </translation>
     </message>
     <message numerus="yes">

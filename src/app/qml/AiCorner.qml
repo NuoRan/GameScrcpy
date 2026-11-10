@@ -79,8 +79,14 @@ Item {
     Rectangle {
         id: bubble
 
+        readonly property bool wanted: corner.bubbleShown && !corner.open && corner.tours === 0
+
         objectName: "aiBubble"
-        visible: corner.bubbleShown && !corner.open && corner.tours === 0
+        visible: opacity > 0
+        opacity: bubble.wanted ? 1 : 0
+        scale: !bubble.wanted ? Theme.motion.popScale
+                              : bubbleHover.hovered && !bubbleDrag.active && !Theme.motion.reduced
+                                ? Theme.motion.hoverScale : 1
         x: corner.width - width - Math.max(0, Math.min(corner.width - width,
                                                        corner.spot !== null ? corner.spot.right : corner.bubbleRight))
         y: corner.height - height - Math.max(0, Math.min(corner.height - height,
@@ -91,6 +97,22 @@ Item {
         color: Theme.colors.accent
         border.width: Theme.size.stroke
         border.color: Theme.colors.accentEdge
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: Theme.motion.fade
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: Theme.motion.standard
+            }
+        }
+
+        Behavior on scale {
+            NumberAnimation {
+                duration: Theme.motion.medium
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: Theme.motion.emphasized
+            }
+        }
 
         Accessible.role: Accessible.Button
         Accessible.name: qsTr("AI assistant")
@@ -155,12 +177,44 @@ Item {
     Item {
         id: card
 
+        readonly property bool wanted: corner.open && corner.allowed
+
         objectName: "aiCard"
-        visible: corner.open && corner.allowed
+        visible: opacity > 0
+        opacity: card.wanted ? 1 : 0
+        scale: card.wanted ? 1 : Theme.motion.enterScale
+        transformOrigin: Item.BottomRight
         width: Math.min(Theme.size.aiCardWidth, corner.width - 2 * Theme.space.sm)
         height: Math.min(Theme.size.aiCardHeight, corner.height - 2 * Theme.space.sm)
         x: Math.max(0, corner.width - card.width - Math.min(corner.rightGap, corner.width - card.width))
         y: Math.max(0, corner.height - card.height - Math.min(corner.bottomGap, corner.height - card.height))
+        transform: Translate {
+            y: card.wanted ? 0 : Theme.space.md
+
+            Behavior on y {
+                NumberAnimation {
+                    duration: Theme.motion.medium
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: Theme.motion.emphasized
+                }
+            }
+        }
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: Theme.motion.fade
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: Theme.motion.standard
+            }
+        }
+
+        Behavior on scale {
+            NumberAnimation {
+                duration: Theme.motion.medium
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: Theme.motion.emphasized
+            }
+        }
 
         PopupSurface {
             anchors.fill: parent
@@ -285,7 +339,7 @@ Item {
             bottomLeftRadius: Theme.radius.lg
             bottomRightRadius: Theme.radius.lg
             context: corner.shownContext
-            shown: card.visible
+            shown: card.wanted
             editorUnsaved: corner.editorUnsaved
         }
 
@@ -295,7 +349,7 @@ Item {
             objectName: "aiRecentMenu"
 
             Instantiator {
-                model: AiChats.recent
+                model: AiChats.recent.slice(0, AiChats.menuShown)
 
                 delegate: MenuItem {
                     required property var modelData
@@ -318,6 +372,19 @@ Item {
                 height: visible ? implicitHeight : 0
                 enabled: false
                 text: qsTr("No saved conversations yet")
+            }
+
+            MenuItem {
+                objectName: "aiRecentAll"
+                visible: AiChats.recent.length > 0
+                height: visible ? implicitHeight : 0
+                iconName: "history"
+                text: AiChats.recent.length > AiChats.menuShown
+                      ? qsTr("Show all %n conversations…", "", AiChats.recent.length) : qsTr("Show all…")
+                onTriggered: {
+                    corner.open = false
+                    AiChats.openWindow()
+                }
             }
 
             MenuSeparator {
@@ -350,7 +417,7 @@ Item {
         objectName: "assistantTour"
         tourKey: "assistant"
         settings: AppSettings
-        startWhen: card.visible && !AppSettings.toursQuiet
+        startWhen: card.wanted && !AppSettings.toursQuiet
         steps: [
             {
                 target: card,
@@ -367,7 +434,9 @@ Item {
             {
                 target: recentButton,
                 title: qsTr("Recent conversations"),
-                text: qsTr("The last 20 conversations are kept on this computer. Pick one up again or delete them.")
+                text: qsTr("Every conversation is kept on this computer. The newest %n are listed here; Show all "
+                           + "opens the rest in a separate window. Pick one up again or delete them.", "",
+                           AiChats.menuShown)
             },
             {
                 target: function() { return tour.findItem(card, "aiPopout") },

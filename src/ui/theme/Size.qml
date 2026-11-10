@@ -218,4 +218,7 @@ QtObject {
     readonly property int aiCardWidth: 400
     readonly property int aiCardHeight: 560
     readonly property int aiWindowSidebar: 240
+    readonly property int aiModelPicker: 296
+    readonly property int aiModelChip: 168
+    readonly property int aiModelList: 224
 }

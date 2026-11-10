@@ -587,6 +587,16 @@
         <source>No saved conversations yet</source>
         <translation>还没有保存的对话</translation>
     </message>
+    <message numerus="yes">
+        <source>Show all %n conversations…</source>
+        <translation>
+            <numerusform>查看全部 %n 段对话…</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show all…</source>
+        <translation>查看全部…</translation>
+    </message>
     <message>
         <source>Delete all conversations</source>
         <translation>删除全部对话</translation>
@@ -603,9 +613,11 @@
         <source>Start a new conversation for a new topic; the earlier ones are kept.</source>
         <translation>换个话题就开一段新对话，之前的对话会留着。</translation>
     </message>
-    <message>
-        <source>The last 20 conversations are kept on this computer. Pick one up again or delete them.</source>
-        <translation>最近 20 段对话存在这台电脑上，可以接着聊，也可以删掉。</translation>
+    <message numerus="yes">
+        <source>Every conversation is kept on this computer. The newest %n are listed here; Show all opens the rest in a separate window. Pick one up again or delete them.</source>
+        <translation>
+            <numerusform>所有对话都保存在这台电脑上。这里列出最新的 %n 段，“查看全部”会在单独的窗口里列出其余的。可以接着聊，也可以删掉。</numerusform>
+        </translation>
     </message>
     <message>
         <source>A separate window</source>
@@ -708,6 +720,97 @@
     <message>
         <source>The draft could not be applied.</source>
         <translation>草稿没能采用。</translation>
+    </message>
+</context>
+<context>
+    <name>AiModelPicker</name>
+    <message>
+        <source>Automatic</source>
+        <translation>自动</translation>
+    </message>
+    <message>
+        <source>Minimal</source>
+        <translation>最低</translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>低</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>高</translation>
+    </message>
+    <message>
+        <source>Thinking</source>
+        <translation>思考</translation>
+    </message>
+    <message>
+        <source>1M</source>
+        <translation>1M</translation>
+    </message>
+    <message>
+        <source>Model: %1</source>
+        <translation>模型：%1</translation>
+    </message>
+    <message>
+        <source>Model for this conversation</source>
+        <translation>这段对话用的模型</translation>
+    </message>
+    <message>
+        <source>Default</source>
+        <translation>默认</translation>
+    </message>
+    <message>
+        <source>Asking the service…</source>
+        <translation>正在询问服务…</translation>
+    </message>
+    <message>
+        <source>Get the models of this service</source>
+        <translation>获取这个服务的模型列表</translation>
+    </message>
+    <message>
+        <source>Deep thinking</source>
+        <translation>深度思考</translation>
+    </message>
+    <message>
+        <source>Thinks before every answer</source>
+        <translation>每次回答前都会先思考</translation>
+    </message>
+    <message>
+        <source>Effort</source>
+        <translation>强度</translation>
+    </message>
+    <message>
+        <source>Long context</source>
+        <translation>长上下文</translation>
+    </message>
+    <message>
+        <source>1M tokens, costs more</source>
+        <translation>100 万 token，费用更高</translation>
+    </message>
+    <message>
+        <source>This model has no thinking options.</source>
+        <translation>这个模型没有思考相关的选项。</translation>
+    </message>
+    <message>
+        <source>Follows the default in Settings &gt; AI.</source>
+        <translation>跟随“设置 &gt; AI”里的默认值。</translation>
+    </message>
+    <message>
+        <source>Only for this conversation; new ones start with the default.</source>
+        <translation>只对这段对话生效；新对话从默认值开始。</translation>
+    </message>
+    <message>
+        <source>Set as default</source>
+        <translation>设为默认</translation>
+    </message>
+    <message>
+        <source>Use the default</source>
+        <translation>改回默认</translation>
     </message>
 </context>
 <context>
@@ -986,6 +1089,16 @@
         <source>Anthropic</source>
         <translation>Anthropic</translation>
     </message>
+    <message numerus="yes">
+        <source>Every conversation with the assistant is kept on this computer. The newest %n are in the Recent menu of the assistant; all of them are in its own window.</source>
+        <translation>
+            <numerusform>和小助手的所有对话都保存在这台电脑上。最新的 %n 段在小助手的“最近对话”菜单里，全部对话在它的单独窗口里。</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Show all</source>
+        <translation>查看全部</translation>
+    </message>
     <message>
         <source>For example claude-sonnet-4-5</source>
         <translation>例如 claude-sonnet-4-5</translation>
@@ -995,28 +1108,8 @@
         <translation>例如 gpt-4.1 或 deepseek-chat</translation>
     </message>
     <message>
-        <source>Models of this service</source>
-        <translation>这个服务的模型</translation>
-    </message>
-    <message>
-        <source>Asks the service which models the key can use, so you can pick one instead of typing it.</source>
-        <translation>向服务问一下这个密钥能用哪些模型，直接选一个，不用手动填写。</translation>
-    </message>
-    <message>
         <source>Asking the service…</source>
         <translation>正在询问服务…</translation>
-    </message>
-    <message>
-        <source>Choose a model…</source>
-        <translation>选择模型…</translation>
-    </message>
-    <message>
-        <source>Get the list</source>
-        <translation>获取列表</translation>
-    </message>
-    <message>
-        <source>Ask the service again</source>
-        <translation>重新获取</translation>
     </message>
     <message>
         <source>API key</source>
@@ -1051,6 +1144,14 @@
         <translation>删除</translation>
     </message>
     <message>
+        <source>Thinks before every answer</source>
+        <translation>每次回答前都会先思考</translation>
+    </message>
+    <message>
+        <source>This model always thinks first and cannot be told not to; the assistant shows the thinking above the answer.</source>
+        <translation>这个模型总会先思考，没法关掉；小助手会把思考过程显示在回答上方。</translation>
+    </message>
+    <message>
         <source>Test connection</source>
         <translation>测试连接</translation>
     </message>
@@ -1078,11 +1179,37 @@
         <source>Saved conversations</source>
         <translation>保存的对话</translation>
     </message>
-    <message numerus="yes">
-        <source>The newest %n conversation(s) with the assistant are kept on this computer.</source>
-        <translation>
-            <numerusform>本机保留最近 %n 段与助手的对话。</numerusform>
-        </translation>
+    <message>
+        <source>Show the models of this service</source>
+        <translation>显示这个服务的模型</translation>
+    </message>
+    <message>
+        <source>Get</source>
+        <translation>获取</translation>
+    </message>
+    <message>
+        <source>Asks the service which models the key can use</source>
+        <translation>向服务询问这个密钥能用哪些模型</translation>
+    </message>
+    <message>
+        <source>Automatic</source>
+        <translation>自动</translation>
+    </message>
+    <message>
+        <source>Minimal</source>
+        <translation>最低</translation>
+    </message>
+    <message>
+        <source>Low</source>
+        <translation>低</translation>
+    </message>
+    <message>
+        <source>Medium</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>High</source>
+        <translation>高</translation>
     </message>
     <message>
         <source>None yet</source>
@@ -17119,6 +17246,38 @@
         <translation>AI 助手 模型 名称 gpt claude deepseek 通义千问 kimi llama</translation>
     </message>
     <message>
+        <source>New conversations let the model think before it answers, when the model can; the assistant shows the thinking above the answer. Slower and uses more of your quota.</source>
+        <translation>新对话里让模型先思考再回答（模型支持时）；小助手会把思考过程显示在回答上方。回答会更慢，也更费额度。</translation>
+    </message>
+    <message>
+        <source>ai assistant think thinking reasoning claude qwen openai slow quota</source>
+        <translation>ai 小助手 助手 思考 深度思考 推理 claude 通义千问 qwen openai 慢 额度</translation>
+    </message>
+    <message>
+        <source>Reasoning effort</source>
+        <translation>思考强度</translation>
+    </message>
+    <message>
+        <source>How hard new conversations let the model think, for models that take an effort; automatic leaves it to the service. Higher is slower and uses more of your quota.</source>
+        <translation>新对话里模型思考的强度，只对支持强度的模型生效；“自动”交给服务决定。越高越慢，也越费额度。</translation>
+    </message>
+    <message>
+        <source>ai assistant reasoning effort strength minimal low medium high think gpt claude</source>
+        <translation>ai 小助手 助手 思考强度 推理 强度 最低 低 中 高 思考 gpt claude</translation>
+    </message>
+    <message>
+        <source>Long context</source>
+        <translation>长上下文</translation>
+    </message>
+    <message>
+        <source>New conversations ask models that offer it for a context of a million tokens, so long conversations forget less. Costs more past the usual length, and the account must be allowed to use it.</source>
+        <translation>新对话向支持它的模型申请 100 万 token 的上下文，长对话不容易忘掉前面的内容。超出常规长度的部分费用更高，账号也需要有使用权限。</translation>
+    </message>
+    <message>
+        <source>ai assistant long context max million tokens 1m claude sonnet</source>
+        <translation>ai 小助手 助手 长上下文 max 百万 token 1m claude sonnet</translation>
+    </message>
+    <message>
         <source>Model service</source>
         <translation>模型服务</translation>
     </message>
@@ -17181,14 +17340,6 @@
     <message>
         <source>Deep thinking</source>
         <translation>深度思考</translation>
-    </message>
-    <message>
-        <source>Lets Claude think before it answers and asks OpenAI Responses models for a summary of their reasoning; the assistant shows it above the answer. Slower and uses more of your quota, and some models do not accept it. Models that always reason, such as DeepSeek&apos;s, show their thinking either way.</source>
-        <translation>让 Claude 先思考再回答，并向 OpenAI Responses 模型要推理摘要，显示在回答上方。更慢、更花额度，有的模型不接受。DeepSeek 这类自带推理的模型不论开关都会显示思考过程。</translation>
-    </message>
-    <message>
-        <source>ai assistant think thinking reasoning claude openai deepseek slow quota</source>
-        <translation>ai 助手 小助手 思考 深度思考 推理 claude openai deepseek 慢 额度</translation>
     </message>
     <message>
         <source>ESP32 serial port</source>

@@ -35,6 +35,7 @@ struct Script {
     std::deque<Step> steps;
     Step always;
     AiProvider::Handlers held;
+    std::vector<gs::app::AiChoice> choices;
     int providers = 0;
     int cancels = 0;
 };
@@ -164,8 +165,9 @@ struct Setup {
     gs::test::McpApplication application;
     std::shared_ptr<Script> script = std::make_shared<Script>();
     FakeTools tools;
-    AiConversation conversation{[this]() -> std::unique_ptr<AiProvider> {
+    AiConversation conversation{[this](const gs::app::AiChoice& choice) -> std::unique_ptr<AiProvider> {
                                     ++script->providers;
+                                    script->choices.push_back(choice);
                                     return std::make_unique<FakeProvider>(script);
                                 },
                                 &tools};
@@ -409,7 +411,7 @@ TEST_CASE("sending is refused while a question runs, without words, or without a
 
     gs::test::McpApplication application;
     FakeTools tools;
-    AiConversation lonely{[] { return std::unique_ptr<AiProvider>(); }, &tools};
+    AiConversation lonely{[](const gs::app::AiChoice&) { return std::unique_ptr<AiProvider>(); }, &tools};
     CHECK_FALSE(lonely.send(u"Hello"_s));
     REQUIRE(lonely.count() == 1);
     CHECK(lonely.data(lonely.index(0), AiConversation::KindRole).toString() == u"problem");
@@ -572,6 +574,44 @@ TEST_CASE("ADR-0099 23:3x: a saved conversation comes back with its rows and its
     REQUIRE(cut.conversation.history().size() == 3);
     CHECK(cut.conversation.history().back().role == AiTurn::Role::Tools);
     CHECK(cut.conversation.history().back().results.front().failed);
+}
+
+TEST_CASE("ADR-0099 2026-11-10: the model chosen in a conversation reaches the provider and is saved with it")
+{
+    Setup setup;
+    CHECK(setup.conversation.choice().isEmpty());
+    setup.script->always = replyWith(answer(u"Done."_s));
+    REQUIRE(setup.conversation.send(u"Default model"_s));
+    REQUIRE(setup.script->choices.size() == 1);
+    CHECK(setup.script->choices[0] == gs::app::AiChoice{});
+    CHECK_FALSE(setup.conversation.saved().contains(u"choice"_s));
+
+    int changes = 0;
+    QObject::connect(&setup.conversation, &AiConversation::choiceChanged, [&changes] { ++changes; });
+    setup.conversation.setChoice(QVariantMap{{u"model"_s, u"  gpt-5  "_s},
+                                             {u"think"_s, false},
+                                             {u"effort"_s, u"turbo"_s},
+                                             {u"longContext"_s, false}});
+    CHECK(changes == 1);
+    CHECK(setup.conversation.chosen() == gs::app::AiChoice{.model = u"gpt-5"_s});
+    setup.conversation.setChoice(QVariantMap{{u"model"_s, u"gpt-5"_s}});
+    CHECK(changes == 1);
+    setup.conversation.setChoice(QVariantMap{{u"model"_s, u"gpt-5"_s}, {u"effort"_s, u"minimal"_s}});
+    CHECK(changes == 2);
+    REQUIRE(setup.conversation.send(u"Chosen model"_s));
+    REQUIRE(setup.script->choices.size() == 2);
+    CHECK(setup.script->choices[1] == gs::app::AiChoice{.model = u"gpt-5"_s, .effort = u"minimal"_s});
+
+    const QJsonObject saved = setup.conversation.saved();
+    CHECK(saved.value(u"choice"_s).toObject().value(u"model"_s).toString() == u"gpt-5");
+    Setup again;
+    again.conversation.restore(saved);
+    CHECK(again.conversation.chosen() == setup.conversation.chosen());
+
+    again.conversation.clear();
+    CHECK(again.conversation.choice().isEmpty());
+    again.conversation.setChoice(QVariantMap{{u"think"_s, true}});
+    CHECK(again.conversation.choice().isEmpty());
 }
 
 TEST_CASE("tool rows get a short title that names what the tool did")

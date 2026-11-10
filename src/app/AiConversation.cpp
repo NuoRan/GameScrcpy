@@ -524,8 +524,8 @@ AiConversation::AiConversation(QObject* parent)
 {
     if (AiAssistant* assistant = AiAssistant::instance()) {
         QPointer<AiAssistant> owner(assistant);
-        m_makeProvider = [owner]() -> std::unique_ptr<AiProvider> {
-            return owner != nullptr ? owner->provider(true) : nullptr;
+        m_makeProvider = [owner](const AiChoice& choice) -> std::unique_ptr<AiProvider> {
+            return owner != nullptr ? owner->provider(true, choice) : nullptr;
         };
         m_tools = &assistant->tools();
     }
@@ -635,13 +635,23 @@ void AiConversation::setContext(const AiContext& context)
     emit contextChanged();
 }
 
+void AiConversation::setChoice(const QVariantMap& choice)
+{
+    const AiChoice wanted = aiChoiceOf(choice);
+    if (wanted == m_choice) {
+        return;
+    }
+    m_choice = wanted;
+    emit choiceChanged();
+}
+
 bool AiConversation::send(const QString& text)
 {
     const QString words = text.trimmed();
     if (busy() || words.isEmpty()) {
         return false;
     }
-    std::unique_ptr<AiProvider> provider = m_makeProvider ? m_makeProvider() : nullptr;
+    std::unique_ptr<AiProvider> provider = m_makeProvider ? m_makeProvider(m_choice) : nullptr;
     if (provider == nullptr) {
         append(Item{.kind = Item::Kind::Problem,
                     .text = QCoreApplication::translate("AiConversation",
@@ -733,6 +743,7 @@ void AiConversation::clear()
     setWaiting(false);
     finishTurn();
     emit countChanged();
+    setChoice({});
 }
 
 void AiConversation::note(const QString& text)
@@ -1218,12 +1229,17 @@ QJsonObject AiConversation::saved() const
         }
         turns.append(entry);
     }
-    return QJsonObject{{u"items"_s, items}, {u"history"_s, turns}};
+    QJsonObject result{{u"items"_s, items}, {u"history"_s, turns}};
+    if (!m_choice.model.isEmpty()) {
+        result.insert(u"choice"_s, QJsonObject::fromVariantMap(aiChoiceMap(m_choice)));
+    }
+    return result;
 }
 
 void AiConversation::restore(const QJsonObject& saved)
 {
     clear();
+    setChoice(saved.value(u"choice"_s).toObject().toVariantMap());
     std::vector<Item> items;
     for (const QJsonValue& value : saved.value(u"items"_s).toArray()) {
         const QJsonObject entry = value.toObject();

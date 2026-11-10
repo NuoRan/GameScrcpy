@@ -44,6 +44,7 @@ class AiAssistant final : public QObject
     Q_PROPERTY(QStringList models READ models NOTIFY modelsChanged FINAL)
     Q_PROPERTY(QString modelsState READ modelsState NOTIFY modelsChanged FINAL)
     Q_PROPERTY(QString modelsProblem READ modelsProblem NOTIFY modelsChanged FINAL)
+    Q_PROPERTY(QVariantMap defaultChoice READ defaultChoice NOTIFY setupChanged FINAL)
 
 public:
     static constexpr QLatin1StringView kKeyPrefix{"GameScrcpy/ai/"};
@@ -71,6 +72,7 @@ public:
     [[nodiscard]] QStringList models() const { return m_models; }
     [[nodiscard]] QString modelsState() const { return m_modelsState; }
     [[nodiscard]] QString modelsProblem() const { return m_modelsProblem; }
+    [[nodiscard]] QVariantMap defaultChoice() const { return aiChoiceMap(defaults()); }
 
     Q_INVOKABLE bool saveKey(const QString& key);
     Q_INVOKABLE bool forgetKey();
@@ -78,9 +80,13 @@ public:
     Q_INVOKABLE void fetchModels();
     Q_INVOKABLE void acknowledgeExplanation(bool remember);
     Q_INVOKABLE void openSettings();
+    Q_INVOKABLE QVariantMap traits(const QString& model) const;
+    Q_INVOKABLE void makeDefault(const QVariantMap& choice);
 
+    [[nodiscard]] AiChoice defaults() const;
     [[nodiscard]] std::optional<AiConnection> connection() const;
-    [[nodiscard]] std::unique_ptr<AiProvider> provider(bool chat = false);
+    [[nodiscard]] std::optional<AiConnection> chatConnection(const AiChoice& choice) const;
+    [[nodiscard]] std::unique_ptr<AiProvider> provider(bool chat = false, const AiChoice& choice = {});
     [[nodiscard]] AiToolRunner& tools() noexcept { return *m_tools; }
     [[nodiscard]] AiDraftStore& drafts() noexcept { return *m_drafts; }
 

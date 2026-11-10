@@ -545,8 +545,9 @@ int main(int argc, char* argv[])
     gs::app::McpServer mcp(settings, mcpTools, mcpDrafts, mcpClock);
     QObject::connect(&mcpTools, &gs::app::McpTools::toolsChanged, &mcp, &gs::app::McpServer::announceTools);
     gs::app::AiAssistant assistant(settings);
-    gs::app::AiChats chats([&assistant] { return assistant.provider(true); }, &assistant.tools(), &help,
-                           data / "ai-chats");
+    gs::app::AiChats chats(
+        [&assistant](const gs::app::AiChoice& choice) { return assistant.provider(true, choice); },
+        &assistant.tools(), &help, data / "ai-chats");
     gs::app::AiScripts aiScripts(
         gs::app::aiScriptHooks(settings, assistant, extensions, gs::app::mcpDevicesOf(devices).frames), mcpClock);
     aiScripts.offerService();

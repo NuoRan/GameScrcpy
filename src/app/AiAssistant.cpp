@@ -436,14 +436,63 @@ std::optional<AiConnection> AiAssistant::connection() const
                         .key = key};
 }
 
-std::unique_ptr<AiProvider> AiAssistant::provider(bool chat)
+QVariantMap AiAssistant::traits(const QString& model) const
+{
+    const AiModelTraits found = aiModelTraits(kind(), model);
+    return {{u"think"_s, found.think},
+            {u"alwaysThinks"_s, found.alwaysThinks},
+            {u"efforts"_s, found.efforts},
+            {u"thinkingEffort"_s, found.thinkingEffort},
+            {u"longContext"_s, found.longContext}};
+}
+
+void AiAssistant::makeDefault(const QVariantMap& choice)
+{
+    const AiChoice wanted = aiChoiceOf(choice);
+    if (wanted.model.isEmpty() || (!wanted.service.isEmpty() && wanted.service != service())) {
+        return;
+    }
+    const QString prefix = u"assistant."_s + service() + u'.';
+    static_cast<void>(m_settings.setValue(prefix + u"model"_s, wanted.model));
+    static_cast<void>(m_settings.setValue(prefix + u"thinking"_s, wanted.think));
+    static_cast<void>(m_settings.setValue(prefix + u"effort"_s, wanted.effort.isEmpty() ? u"auto"_s : wanted.effort));
+    static_cast<void>(m_settings.setValue(prefix + u"longContext"_s, wanted.longContext));
+}
+
+AiChoice AiAssistant::defaults() const
+{
+    const settings::Assistant current = setup();
+    const settings::AiEndpoint& endpoint = endpointOf(current);
+    const QString effort =
+        endpoint.effort == settings::AiEffort::Automatic
+            ? QString()
+            : toQString(settings::kAiEffortNames[static_cast<std::size_t>(endpoint.effort)]);
+    return AiChoice{.model = toQString(endpoint.model).trimmed(),
+                    .think = endpoint.thinking,
+                    .effort = effort,
+                    .longContext = endpoint.longContext,
+                    .service = aiServiceName(kindOf(current))};
+}
+
+std::optional<AiConnection> AiAssistant::chatConnection(const AiChoice& choice) const
 {
     std::optional<AiConnection> target = connection();
     if (!target) {
-        return nullptr;
+        return std::nullopt;
     }
-    target->think = chat && setup().deepThinking;
-    return makeAiProvider(m_network, *target);
+    const bool own = !choice.model.isEmpty() && (choice.service.isEmpty() || choice.service == service());
+    const AiChoice wanted = aiFitted(target->kind, own ? choice : defaults());
+    target->model = wanted.model;
+    target->think = wanted.think;
+    target->effort = wanted.effort;
+    target->longContext = wanted.longContext;
+    return target;
+}
+
+std::unique_ptr<AiProvider> AiAssistant::provider(bool chat, const AiChoice& choice)
+{
+    const std::optional<AiConnection> target = chat ? chatConnection(choice) : connection();
+    return target ? makeAiProvider(m_network, *target) : nullptr;
 }
 
 void AiAssistant::settingsChanged()

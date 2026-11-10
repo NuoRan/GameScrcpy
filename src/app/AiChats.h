@@ -13,6 +13,7 @@
 #include <filesystem>
 #include <functional>
 #include <memory>
+#include <string_view>
 #include <vector>
 
 class QJSEngine;
@@ -64,14 +65,15 @@ class AiChats final : public QObject
     Q_PROPERTY(gs::app::AiConversation* conversation READ conversation CONSTANT FINAL)
     Q_PROPERTY(QVariantList recent READ recent NOTIFY recentChanged FINAL)
     Q_PROPERTY(QString current READ current NOTIFY currentChanged FINAL)
-    Q_PROPERTY(int mostKept READ mostKept CONSTANT FINAL)
+    Q_PROPERTY(int menuShown READ menuShown CONSTANT FINAL)
     Q_PROPERTY(bool windowOpen READ windowOpen WRITE setWindowOpen NOTIFY windowOpenChanged FINAL)
     Q_PROPERTY(QVariantMap lastContext READ lastContext NOTIFY lastContextChanged FINAL)
 
 public:
-    static constexpr int kMostKept = 20;
+    static constexpr int kMenuShown = 20;
     static constexpr qsizetype kMostTitleChars = 40;
     static constexpr std::size_t kMostFileBytes = 16 * 1024 * 1024;
+    static constexpr std::wstring_view kIndexName = L"chats.idx";
 
     AiChats(AiConversation::ProviderFactory provider, AiToolRunner* tools, const HelpLibrary* help,
             std::filesystem::path folder, QObject* parent = nullptr);
@@ -84,7 +86,7 @@ public:
     [[nodiscard]] AiConversation* conversation() noexcept { return m_conversation.get(); }
     [[nodiscard]] QVariantList recent() const;
     [[nodiscard]] QString current() const { return m_current; }
-    [[nodiscard]] int mostKept() const noexcept { return kMostKept; }
+    [[nodiscard]] int menuShown() const noexcept { return kMenuShown; }
     [[nodiscard]] bool windowOpen() const noexcept { return m_windowOpen; }
     void setWindowOpen(bool open);
     [[nodiscard]] QVariantMap lastContext() const { return m_lastContext; }
@@ -116,6 +118,7 @@ private:
 
     void load();
     void save();
+    void writeIndex() const;
     void setCurrent(const QString& id);
     void forget(std::size_t index);
     [[nodiscard]] std::filesystem::path fileOf(const QString& id) const;

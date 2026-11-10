@@ -7,6 +7,7 @@
 #include <QJsonDocument>
 #include <QJsonParseError>
 #include <QNetworkReply>
+#include <QRegularExpression>
 #include <QStringList>
 #include <QVariantMap>
 
@@ -26,6 +27,16 @@ constexpr qsizetype kMostQuotedArguments = 200;
 QJsonObject textBlock(const QString& text)
 {
     return {{u"type"_s, u"text"_s}, {u"text"_s, text}};
+}
+
+QString bareModel(const QString& model)
+{
+    QString name = model.trimmed().toLower();
+    if (const qsizetype slash = name.lastIndexOf(u'/'); slash >= 0) {
+        name = name.mid(slash + 1);
+    }
+    name.replace(u'.', u'-');
+    return name;
 }
 
 QString compact(const QJsonObject& object)
@@ -252,6 +263,12 @@ QJsonObject openAiRequest(const AiRequest& request)
     if (request.stream) {
         body.insert(u"stream_options"_s, QJsonObject{{u"include_usage"_s, true}});
     }
+    if (!request.effort.isEmpty()) {
+        body.insert(u"reasoning_effort"_s, request.effort);
+    }
+    if (aiModelTraits(AiKind::OpenAi, request.model).think) {
+        body.insert(u"enable_thinking"_s, request.think);
+    }
     if (!request.tools.isEmpty()) {
         body.insert(u"tools"_s, openAiTools(request.tools));
     }
@@ -381,13 +398,13 @@ QJsonObject anthropicRequest(const AiRequest& request)
         }
     }
     const int answerTokens = request.maxTokens > 0 ? request.maxTokens : AiRequest::kAnthropicMaxTokens;
+    const int budget = aiThinkingBudget(request.effort);
     QJsonObject body{{u"model"_s, request.model},
-                     {u"max_tokens"_s, thinks ? answerTokens + AiRequest::kThinkingBudget : answerTokens},
+                     {u"max_tokens"_s, thinks ? answerTokens + budget : answerTokens},
                      {u"messages"_s, messages.finish()},
                      {u"stream"_s, request.stream}};
     if (thinks) {
-        body.insert(u"thinking"_s,
-                    QJsonObject{{u"type"_s, u"enabled"_s}, {u"budget_tokens"_s, AiRequest::kThinkingBudget}});
+        body.insert(u"thinking"_s, QJsonObject{{u"type"_s, u"enabled"_s}, {u"budget_tokens"_s, budget}});
     }
     if (!request.system.isEmpty()) {
         body.insert(u"system"_s, request.system);
@@ -472,8 +489,15 @@ QJsonObject responsesRequest(const AiRequest& request)
     if (!request.system.isEmpty()) {
         body.insert(u"instructions"_s, request.system);
     }
+    QJsonObject reasoning;
+    if (!request.effort.isEmpty()) {
+        reasoning.insert(u"effort"_s, request.effort);
+    }
     if (request.think) {
-        body.insert(u"reasoning"_s, QJsonObject{{u"summary"_s, u"auto"_s}});
+        reasoning.insert(u"summary"_s, u"auto"_s);
+    }
+    if (!reasoning.isEmpty()) {
+        body.insert(u"reasoning"_s, reasoning);
     }
     if (!request.tools.isEmpty()) {
         QJsonArray tools;
@@ -817,13 +841,118 @@ QStringList aiModelsOf(const QByteArray& body)
     return models;
 }
 
-std::vector<AiHeader> aiHeaders(AiKind kind, const QString& key, bool stream)
+AiModelTraits aiModelTraits(AiKind kind, const QString& model)
+{
+    const QString name = bareModel(model);
+    AiModelTraits traits;
+    if (name.isEmpty()) {
+        return traits;
+    }
+    const QStringList levels{u"low"_s, u"medium"_s, u"high"_s};
+    if (kind == AiKind::Anthropic) {
+        static const QRegularExpression fourth(u"^claude-(?:(?:opus|sonnet|haiku)-4|4-)"_s);
+        if (name.startsWith(u"claude-3-7-sonnet") || fourth.match(name).hasMatch()) {
+            traits.think = true;
+            traits.efforts = levels;
+            traits.thinkingEffort = true;
+        }
+        traits.longContext = name.startsWith(u"claude-sonnet-4");
+        return traits;
+    }
+    const bool gpt5 = name.startsWith(u"gpt-5") && !name.contains(u"-chat");
+    const bool oSeries = name.size() > 1 && name.at(0) == u'o' && name.at(1).isDigit();
+    if (gpt5 || oSeries || name.contains(u"codex")) {
+        traits.efforts = gpt5 ? QStringList{u"minimal"_s, u"low"_s, u"medium"_s, u"high"_s} : levels;
+        traits.think = kind == AiKind::OpenAiResponses;
+        return traits;
+    }
+    if (kind != AiKind::OpenAi) {
+        return traits;
+    }
+    if (name.contains(u"thinking") || name.startsWith(u"qwq") || name.contains(u"reasoner") || name.contains(u"-r1")
+        || name.startsWith(u"r1")) {
+        traits.alwaysThinks = true;
+        return traits;
+    }
+    if (name.contains(u"instruct") || name.contains(u"coder")) {
+        return traits;
+    }
+    traits.think = name.startsWith(u"qwen3") || name.startsWith(u"qwen-plus") || name.startsWith(u"qwen-turbo")
+                   || name.startsWith(u"qwen-flash");
+    return traits;
+}
+
+AiChoice aiFitted(AiKind kind, AiChoice choice)
+{
+    const AiModelTraits traits = aiModelTraits(kind, choice.model);
+    choice.think = choice.think && traits.think;
+    if (!traits.efforts.contains(choice.effort) || (traits.thinkingEffort && !choice.think)) {
+        choice.effort.clear();
+    }
+    choice.longContext = choice.longContext && traits.longContext;
+    return choice;
+}
+
+QVariantMap aiChoiceMap(const AiChoice& choice)
+{
+    if (choice.model.isEmpty()) {
+        return {};
+    }
+    QVariantMap map{{u"model"_s, choice.model},
+                    {u"think"_s, choice.think},
+                    {u"effort"_s, choice.effort},
+                    {u"longContext"_s, choice.longContext}};
+    if (!choice.service.isEmpty()) {
+        map.insert(u"service"_s, choice.service);
+    }
+    return map;
+}
+
+AiChoice aiChoiceOf(const QVariantMap& map)
+{
+    constexpr qsizetype kMostModelLength = 256;
+    const QString model = map.value(u"model"_s).toString().trimmed().left(kMostModelLength);
+    if (model.isEmpty()) {
+        return {};
+    }
+    static const QStringList efforts{u"minimal"_s, u"low"_s, u"medium"_s, u"high"_s};
+    QStringList services;
+    for (const std::string_view name : settings::kAiServiceNames) {
+        services.append(toQString(name));
+    }
+    const QString effort = map.value(u"effort"_s).toString();
+    const QString service = map.value(u"service"_s).toString();
+    return AiChoice{.model = model,
+                    .think = map.value(u"think"_s).toBool(),
+                    .effort = efforts.contains(effort) ? effort : QString(),
+                    .longContext = map.value(u"longContext"_s).toBool(),
+                    .service = services.contains(service) ? service : QString()};
+}
+
+int aiThinkingBudget(const QString& effort)
+{
+    if (effort == u"low") {
+        return 2048;
+    }
+    if (effort == u"medium") {
+        return 8192;
+    }
+    if (effort == u"high") {
+        return 16384;
+    }
+    return AiRequest::kThinkingBudget;
+}
+
+std::vector<AiHeader> aiHeaders(AiKind kind, const QString& key, bool stream, bool longContext)
 {
     std::vector<AiHeader> headers{
         {.name = "Content-Type"_ba, .value = "application/json"_ba},
         {.name = "Accept"_ba, .value = stream ? "text/event-stream"_ba : "application/json"_ba}};
     if (kind == AiKind::Anthropic) {
         headers.push_back({.name = "anthropic-version"_ba, .value = "2023-06-01"_ba});
+        if (longContext) {
+            headers.push_back({.name = "anthropic-beta"_ba, .value = "context-1m-2025-08-07"_ba});
+        }
         if (!key.isEmpty()) {
             headers.push_back({.name = "x-api-key"_ba, .value = key.toUtf8()});
         }

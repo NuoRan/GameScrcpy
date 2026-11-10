@@ -8,7 +8,9 @@
 #include <doctest/doctest.h>
 
 #include <QDir>
+#include <QFile>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QString>
 #include <QStringList>
@@ -18,10 +20,12 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <string>
 #include <vector>
 
 using gs::app::AiChats;
 using gs::app::AiChatTools;
+using gs::app::AiChoice;
 using gs::app::AiConversation;
 using gs::app::AiProvider;
 using gs::app::AiReply;
@@ -34,6 +38,7 @@ namespace {
 
 struct Log {
     std::vector<AiRequest> requests;
+    std::vector<AiChoice> choices;
 };
 
 class Answering final : public AiProvider
@@ -125,7 +130,12 @@ public:
 
 struct Rig {
     explicit Rig(const QString& folder)
-        : chats([log = log] { return std::make_unique<Answering>(log); }, &runner, nullptr, folder.toStdWString())
+        : chats(
+              [log = log](const AiChoice& choice) {
+                  log->choices.push_back(choice);
+                  return std::make_unique<Answering>(log);
+              },
+              &runner, nullptr, folder.toStdWString())
     {
     }
 
@@ -149,6 +159,21 @@ McpOutcome ran(gs::app::AiToolRunner& tools, const QString& name, const QJsonObj
 int jsonFiles(const QString& folder)
 {
     return static_cast<int>(QDir(folder).entryList({u"*.json"_s}, QDir::Files).size());
+}
+
+QJsonObject readJson(const QString& path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return {};
+    }
+    return QJsonDocument::fromJson(file.readAll()).object();
+}
+
+bool writeJson(const QString& path, const QJsonObject& object)
+{
+    QFile file(path);
+    return file.open(QIODevice::WriteOnly | QIODevice::Truncate) && file.write(QJsonDocument(object).toJson()) > 0;
 }
 
 }
@@ -207,30 +232,130 @@ TEST_CASE("ADR-0099 23:3x: every finished question saves the conversation, and a
     CHECK(reopened.chats.conversation()->count() == 0);
 }
 
-TEST_CASE("ADR-0099 23:3x: only the newest 20 conversations are kept, and they can be removed one by one or all")
+TEST_CASE("ADR-0099 2026-11-10: every conversation is kept, and they can be removed one by one or all")
 {
     gs::test::McpApplication application;
     const QTemporaryDir folder;
     REQUIRE(folder.isValid());
     Rig rig(folder.path());
-    for (int question = 0; question < AiChats::kMostKept + 1; ++question) {
+    constexpr int kAsked = AiChats::kMenuShown + 5;
+    for (int question = 0; question < kAsked; ++question) {
         rig.chats.newConversation();
         REQUIRE(rig.chats.send(u"Question %1"_s.arg(question), {}));
     }
-    REQUIRE(rig.chats.recent().size() == AiChats::kMostKept);
-    CHECK(jsonFiles(folder.path()) == AiChats::kMostKept);
-    CHECK(rig.chats.recent().front().toMap().value(u"title"_s).toString() == u"Question 20");
-    CHECK(rig.chats.recent().back().toMap().value(u"title"_s).toString() == u"Question 1");
+    REQUIRE(rig.chats.recent().size() == kAsked);
+    CHECK(jsonFiles(folder.path()) == kAsked);
+    CHECK(rig.chats.recent().front().toMap().value(u"title"_s).toString() == u"Question %1"_s.arg(kAsked - 1));
+    CHECK(rig.chats.recent().back().toMap().value(u"title"_s).toString() == u"Question 0");
 
     const QString newest = rig.chats.recent().front().toMap().value(u"id"_s).toString();
     rig.chats.remove(newest);
-    CHECK(rig.chats.recent().size() == AiChats::kMostKept - 1);
+    CHECK(rig.chats.recent().size() == kAsked - 1);
+    CHECK(jsonFiles(folder.path()) == kAsked - 1);
     CHECK(rig.chats.conversation()->count() == 0);
     CHECK(rig.chats.current().isEmpty());
+
+    {
+        Rig reopened(folder.path());
+        CHECK(reopened.chats.recent().size() == kAsked - 1);
+    }
 
     rig.chats.clearAll();
     CHECK(rig.chats.recent().isEmpty());
     CHECK(jsonFiles(folder.path()) == 0);
+    Rig emptied(folder.path());
+    CHECK(emptied.chats.recent().isEmpty());
+}
+
+TEST_CASE("ADR-0099 2026-11-10: a conversation keeps its own model and options, and a new one follows the settings")
+{
+    gs::test::McpApplication application;
+    const QTemporaryDir folder;
+    REQUIRE(folder.isValid());
+    Rig rig(folder.path());
+    const QVariantMap chosen{{u"model"_s, u"claude-sonnet-4-5"_s},
+                             {u"think"_s, true},
+                             {u"effort"_s, u"high"_s},
+                             {u"longContext"_s, true}};
+    rig.chats.conversation()->setChoice(chosen);
+    REQUIRE(rig.chats.send(u"Which model answers?"_s, {}));
+    REQUIRE(rig.log->choices.size() == 1);
+    CHECK(rig.log->choices[0] == AiChoice{.model = u"claude-sonnet-4-5"_s,
+                                          .think = true,
+                                          .effort = u"high"_s,
+                                          .longContext = true});
+    const QString id = rig.chats.current();
+
+    rig.chats.newConversation();
+    CHECK(rig.chats.conversation()->choice().isEmpty());
+    REQUIRE(rig.chats.send(u"And now?"_s, {}));
+    REQUIRE(rig.log->choices.size() == 2);
+    CHECK(rig.log->choices[1].model.isEmpty());
+
+    Rig reopened(folder.path());
+    REQUIRE(reopened.chats.open(id));
+    CHECK(reopened.chats.conversation()->choice() == chosen);
+    REQUIRE(reopened.chats.send(u"Still the same one?"_s, {}));
+    REQUIRE(reopened.log->choices.size() == 1);
+    CHECK(reopened.log->choices[0].model == u"claude-sonnet-4-5");
+    CHECK(reopened.log->choices[0].effort == u"high");
+}
+
+TEST_CASE("ADR-0099 2026-11-10: the list of conversations comes from a small index that mends itself")
+{
+    gs::test::McpApplication application;
+    const QTemporaryDir folder;
+    REQUIRE(folder.isValid());
+    const QString index = QDir(folder.path()).filePath(QString::fromStdWString(std::wstring(AiChats::kIndexName)));
+    QString first;
+    QString second;
+    {
+        Rig rig(folder.path());
+        REQUIRE(rig.chats.send(u"First"_s, {}));
+        first = rig.chats.current();
+        rig.chats.newConversation();
+        REQUIRE(rig.chats.send(u"Second"_s, {}));
+        second = rig.chats.current();
+    }
+    QJsonObject listed = readJson(index);
+    REQUIRE(listed.value(u"chats"_s).toArray().size() == 2);
+
+    QJsonArray renamed;
+    for (const QJsonValue& value : listed.value(u"chats"_s).toArray()) {
+        QJsonObject chat = value.toObject();
+        if (chat.value(u"id"_s).toString() == first) {
+            chat.insert(u"title"_s, u"From the index"_s);
+            renamed.append(chat);
+        }
+    }
+    listed.insert(u"chats"_s, renamed);
+    REQUIRE(writeJson(index, listed));
+    {
+        Rig reopened(folder.path());
+        QStringList titles;
+        for (const QVariant& entry : reopened.chats.recent()) {
+            titles.append(entry.toMap().value(u"title"_s).toString());
+        }
+        titles.sort();
+        CHECK(titles == QStringList{u"From the index"_s, u"Second"_s});
+    }
+    CHECK(readJson(index).value(u"chats"_s).toArray().size() == 2);
+
+    REQUIRE(QFile::remove(QDir(folder.path()).filePath(second + u".json"_s)));
+    {
+        Rig reopened(folder.path());
+        REQUIRE(reopened.chats.recent().size() == 1);
+        CHECK(reopened.chats.recent().front().toMap().value(u"id"_s).toString() == first);
+    }
+    CHECK(readJson(index).value(u"chats"_s).toArray().size() == 1);
+
+    REQUIRE(QFile::remove(index));
+    {
+        Rig reopened(folder.path());
+        REQUIRE(reopened.chats.recent().size() == 1);
+        CHECK(reopened.chats.recent().front().toMap().value(u"title"_s).toString() == u"First");
+    }
+    CHECK(QFile::exists(index));
 }
 
 TEST_CASE("ADR-0099 23:3x: the assistant reads the guides, reads the help and only shows pages, never changes them")

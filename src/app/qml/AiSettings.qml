@@ -1,7 +1,9 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Templates as T
 import GameScrcpy.Theme
+import GameScrcpy.Icons
 import GameScrcpy.Controls
 import GameScrcpy.App
 
@@ -9,6 +11,11 @@ SettingCard {
     id: card
 
     readonly property string service: AiAssistant.service
+    readonly property string modelName: String(AppSettings.values["assistant." + service + ".model"] ?? "").trim()
+    readonly property var traits: AiAssistant.service !== "" ? AiAssistant.traits(card.modelName) : ({})
+    readonly property var efforts: card.traits.thinkingEffort === true
+                                   && AppSettings.values["assistant." + service + ".thinking"] !== true
+                                   ? [] : card.traits.efforts ?? []
 
     function saveKey() {
         if (AiAssistant.saveKey(keyField.text))
@@ -33,87 +40,6 @@ SettingCard {
         path: "assistant." + card.service + ".address"
         placeholder: AiAssistant.defaultAddress
         wide: true
-    }
-
-    TextRow {
-        objectName: "aiModel"
-        path: "assistant." + card.service + ".model"
-        placeholder: card.service === "anthropic" ? qsTr("For example claude-sonnet-4-5")
-                                                   : qsTr("For example gpt-4.1 or deepseek-chat")
-    }
-
-    SettingsRow {
-        objectName: "aiModels"
-        width: parent ? parent.width : implicitWidth
-        visible: serviceRow.matched
-        divider: true
-        title: qsTr("Models of this service")
-        description: qsTr("Asks the service which models the key can use, so you can pick one instead of typing it.")
-        note: AiAssistant.modelsState === "running" ? qsTr("Asking the service…") : AiAssistant.modelsProblem
-
-        Button {
-            id: modelsButton
-
-            property bool asked: false
-
-            objectName: "aiModelsButton"
-            small: true
-            iconName: "chevron-down"
-            text: AiAssistant.models.length > 0 ? qsTr("Choose a model…") : qsTr("Get the list")
-            enabled: AiAssistant.modelsState !== "running"
-            onClicked: {
-                if (AiAssistant.models.length > 0) {
-                    modelsMenu.open()
-                } else {
-                    modelsButton.asked = true
-                    AiAssistant.fetchModels()
-                }
-            }
-
-            Connections {
-                target: AiAssistant
-
-                function onModelsChanged() {
-                    if (modelsButton.asked && AiAssistant.modelsState !== "running") {
-                        modelsButton.asked = false
-                        if (AiAssistant.models.length > 0)
-                            modelsMenu.open()
-                    }
-                }
-            }
-
-            Menu {
-                id: modelsMenu
-
-                objectName: "aiModelsMenu"
-                y: modelsButton.height + Theme.space.xs
-
-                Instantiator {
-                    model: AiAssistant.models
-
-                    delegate: MenuItem {
-                        required property string modelData
-
-                        text: modelData
-                        onTriggered: AppSettings.setValue("assistant." + card.service + ".model", modelData)
-                    }
-
-                    onObjectAdded: (index, object) => modelsMenu.insertItem(index, object)
-                    onObjectRemoved: (index, object) => modelsMenu.removeItem(object)
-                }
-            }
-        }
-
-        Button {
-            objectName: "aiModelsRefresh"
-            visible: AiAssistant.models.length > 0
-            small: true
-            tone: "ghost"
-            iconName: "refresh-cw"
-            toolTip: qsTr("Ask the service again")
-            enabled: AiAssistant.modelsState !== "running"
-            onClicked: AiAssistant.fetchModels()
-        }
     }
 
     SettingsRow {
@@ -160,6 +86,47 @@ SettingCard {
         }
     }
 
+    ModelRow {
+        id: modelRow
+
+        objectName: "aiModel"
+        path: "assistant." + card.service + ".model"
+    }
+
+    SwitchSetting {
+        objectName: "aiThinking"
+        path: "assistant." + card.service + ".thinking"
+        nested: true
+        divider: false
+        visible: matched && card.traits.think === true
+    }
+
+    SettingsRow {
+        objectName: "aiAlwaysThinks"
+        width: parent ? parent.width : implicitWidth
+        visible: modelRow.matched && card.traits.alwaysThinks === true
+        nested: true
+        title: qsTr("Thinks before every answer")
+        description: qsTr("This model always thinks first and cannot be told not to; the assistant shows the "
+                          + "thinking above the answer.")
+    }
+
+    EffortRow {
+        objectName: "aiEffort"
+        path: "assistant." + card.service + ".effort"
+        nested: true
+        divider: false
+        visible: matched && card.efforts.length > 0
+    }
+
+    SwitchSetting {
+        objectName: "aiLongContext"
+        path: "assistant." + card.service + ".longContext"
+        nested: true
+        divider: false
+        visible: matched && card.traits.longContext === true
+    }
+
     SettingsRow {
         objectName: "aiTest"
         width: parent ? parent.width : implicitWidth
@@ -184,11 +151,6 @@ SettingCard {
             enabled: AiAssistant.testState !== "running"
             onClicked: AiAssistant.testConnection()
         }
-    }
-
-    SwitchSetting {
-        objectName: "aiDeepThinking"
-        path: "assistant.deepThinking"
     }
 
     SwitchSetting {
@@ -221,9 +183,20 @@ SettingCard {
         visible: serviceRow.matched
         divider: true
         title: qsTr("Saved conversations")
-        description: qsTr("The newest %n conversation(s) with the assistant are kept on this computer.", "",
-                          AiChats.mostKept)
+        description: qsTr("Every conversation with the assistant is kept on this computer. The newest %n are in "
+                          + "the Recent menu of the assistant; all of them are in its own window.", "",
+                          AiChats.menuShown)
         note: AiChats.recent.length === 0 ? qsTr("None yet") : qsTr("%n saved", "", AiChats.recent.length)
+
+        Button {
+            objectName: "aiHistoryOpen"
+            small: true
+            tone: "ghost"
+            iconName: "history"
+            text: qsTr("Show all")
+            enabled: AiChats.recent.length > 0
+            onClicked: AiChats.openWindow()
+        }
 
         Button {
             objectName: "aiHistoryClear"
@@ -276,6 +249,169 @@ SettingCard {
             Accessible.name: row.title
             onEditingFinished: row.submit()
             Keys.onEscapePressed: row.revert()
+        }
+    }
+
+    component ModelRow: SettingRow {
+        id: chooser
+
+        property bool asked: false
+
+        function shown(stored: var): string {
+            return stored === undefined ? "" : String(stored)
+        }
+
+        function revert() {
+            modelField.errorText = ""
+            modelField.text = Qt.binding(() => chooser.shown(chooser.value))
+        }
+
+        function submit() {
+            if (modelField.text === chooser.shown(chooser.value)) {
+                chooser.revert()
+                return
+            }
+            if (!chooser.commit(modelField.text.trim())) {
+                modelField.errorText = qsTr("Could not save this text")
+                return
+            }
+            chooser.revert()
+        }
+
+        function fetch() {
+            chooser.asked = true
+            AiAssistant.fetchModels()
+        }
+
+        function showModels() {
+            if (AiAssistant.models.length > 0)
+                modelsMenu.open()
+            else
+                chooser.fetch()
+        }
+
+        note: AiAssistant.modelsState === "running" ? qsTr("Asking the service…") : AiAssistant.modelsProblem
+        onValueChanged: chooser.revert()
+        onPathChanged: chooser.revert()
+
+        Connections {
+            target: AiAssistant
+
+            function onModelsChanged() {
+                if (chooser.asked && AiAssistant.modelsState !== "running") {
+                    chooser.asked = false
+                    if (AiAssistant.models.length > 0)
+                        modelsMenu.open()
+                }
+            }
+        }
+
+        TextField {
+            id: modelField
+
+            objectName: "aiModelField"
+            implicitWidth: Theme.size.captureField
+            rightPadding: modelField.edge + Theme.size.iconSmall + Theme.space.sm
+            maximumLength: chooser.entry && chooser.entry.maxLength > 0 ? chooser.entry.maxLength : 256
+            placeholderText: card.service === "anthropic" ? qsTr("For example claude-sonnet-4-5")
+                                                           : qsTr("For example gpt-4.1 or deepseek-chat")
+            text: chooser.shown(chooser.value)
+            Accessible.name: chooser.title
+            onEditingFinished: chooser.submit()
+            Keys.onEscapePressed: chooser.revert()
+            Keys.onDownPressed: chooser.showModels()
+
+            T.AbstractButton {
+                id: dropButton
+
+                objectName: "aiModelsDrop"
+                x: modelField.width - width - Theme.space.xs
+                y: (modelField.height - modelField.messageHeight - height) / 2
+                width: Theme.size.segment
+                height: Theme.size.segment
+                focusPolicy: Qt.NoFocus
+                hoverEnabled: true
+                enabled: AiAssistant.modelsState !== "running"
+                Accessible.name: qsTr("Show the models of this service")
+                onClicked: chooser.showModels()
+
+                contentItem: Icon {
+                    name: "chevron-down"
+                    size: Theme.size.iconSmall
+                    color: dropButton.hovered ? Theme.colors.textPrimary : Theme.colors.textSecondary
+                    rotation: modelsMenu.visible ? 180 : 0
+
+                    Behavior on rotation {
+                        NumberAnimation {
+                            duration: Theme.motion.fast
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Theme.motion.standard
+                        }
+                    }
+                }
+
+                background: StateLayer {
+                    radius: Theme.radius.sm
+                    hovered: dropButton.hovered
+                    pressed: dropButton.down
+                }
+            }
+
+            Menu {
+                id: modelsMenu
+
+                objectName: "aiModelsMenu"
+                y: modelField.height + Theme.space.xs
+                width: Math.max(modelField.width, implicitWidth)
+
+                Instantiator {
+                    model: AiAssistant.models
+
+                    delegate: MenuItem {
+                        required property string modelData
+
+                        text: modelData
+                        choice: true
+                        chosen: modelData === card.modelName
+                        onTriggered: chooser.commit(modelData)
+                    }
+
+                    onObjectAdded: (index, object) => modelsMenu.insertItem(index, object)
+                    onObjectRemoved: (index, object) => modelsMenu.removeItem(object)
+                }
+            }
+        }
+
+        Button {
+            objectName: "aiModelsFetch"
+            small: true
+            iconName: "refresh-cw"
+            text: qsTr("Get")
+            toolTip: qsTr("Asks the service which models the key can use")
+            enabled: AiAssistant.modelsState !== "running"
+            onClicked: chooser.fetch()
+        }
+    }
+
+    component EffortRow: SettingRow {
+        id: effortRow
+
+        readonly property var options: ["auto"].concat(card.efforts)
+        readonly property var labels: ({ auto: qsTr("Automatic"), minimal: qsTr("Minimal"), low: qsTr("Low"),
+                                         medium: qsTr("Medium"), high: qsTr("High") })
+
+        globalText: effortRow.labels[globalValue] ?? String(globalValue)
+
+        SegmentedControl {
+            id: effortSegments
+
+            model: effortRow.options.map(option => effortRow.labels[option] ?? String(option))
+            currentIndex: effortRow.options.indexOf(effortRow.value)
+            Accessible.name: effortRow.title
+            onActivated: index => {
+                effortRow.commit(effortRow.options[index])
+                effortSegments.currentIndex = Qt.binding(() => effortRow.options.indexOf(effortRow.value))
+            }
         }
     }
 }

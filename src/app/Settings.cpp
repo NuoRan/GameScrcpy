@@ -776,6 +776,27 @@ void migrateSystemToggles(Json& root)
     }
 }
 
+void migrateDeepThinking(Json& root)
+{
+    const auto assistant = root.find("assistant");
+    if (assistant == root.end() || !assistant->is_object() || !assistant->contains("deepThinking")) {
+        return;
+    }
+    const Json& thinking = (*assistant)["deepThinking"];
+    if (thinking.is_boolean() && thinking.get<bool>()) {
+        for (const std::string_view name : kAiServiceNames) {
+            Json& endpoint = (*assistant)[std::string(name)];
+            if (endpoint.is_null()) {
+                endpoint = Json::object();
+            }
+            if (endpoint.is_object() && !endpoint.contains("thinking")) {
+                endpoint["thinking"] = true;
+            }
+        }
+    }
+    assistant->erase("deepThinking");
+}
+
 void migrateHiddenCaptures(Json& root)
 {
     const auto devices = root.find("devices");
@@ -900,6 +921,7 @@ Loaded<Document> load(std::string_view json)
         migrateStatusCapsule(root);
         dropMouseButtons(root);
         migrateSystemToggles(root);
+        migrateDeepThinking(root);
     }
     if constexpr (std::is_same_v<Document, Devices>) {
         migrateHiddenCaptures(root);

@@ -24,6 +24,8 @@ QtObject {
     readonly property int guideStep: 5200
     readonly property int guideHold: 1400
     readonly property real enterScale: 0.98
+    readonly property real popScale: 0.6
+    readonly property real hoverScale: 1.06
 
     readonly property list<real> standard: [0.2, 0.0, 0.0, 1.0, 1.0, 1.0]
     readonly property list<real> emphasized: [0.05, 0.7, 0.1, 1.0, 1.0, 1.0]
