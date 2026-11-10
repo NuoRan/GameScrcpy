@@ -189,14 +189,17 @@ public final class SessionServer implements SessionTransport.Events {
         }
         final Welcome welcome = device.describe();
         welcome.resumed = resuming;
+        final State before = state;
+        state = State.ACTIVE;
         final FrameEndpoint control;
         try {
             control = request.accept(welcome);
         } catch (IOException e) {
+            state = before;
+            closeChannels();
             return null;
         }
         active = control;
-        state = State.ACTIVE;
         handler.controlConnected(control);
         final FrameEndpoint bulk = request.acceptedBulk();
         if (bulk != null) {

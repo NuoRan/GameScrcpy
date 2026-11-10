@@ -26,9 +26,11 @@ import com.gamescrcpy.protocol.Messages.ServerGoodbye;
 import com.gamescrcpy.protocol.Messages.ServerHello;
 import com.gamescrcpy.protocol.Messages.Welcome;
 import com.gamescrcpy.protocol.Proofs;
+import com.gamescrcpy.server.transport.ChannelRequest;
 import com.gamescrcpy.server.transport.Connection;
 import com.gamescrcpy.server.transport.FrameEndpoint;
 import com.gamescrcpy.server.transport.Listener;
+import com.gamescrcpy.server.transport.MediaEndpoint;
 import com.gamescrcpy.server.transport.SessionRequest;
 import com.gamescrcpy.server.transport.SessionTransport;
 import com.gamescrcpy.server.transport.TunnelTransport;
@@ -40,6 +42,7 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.ByteBuffer;
 import java.security.SecureRandom;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
@@ -400,6 +403,44 @@ class SessionServerTest {
         assertTrue(welcomes.get(1).resumed);
         assertTrue(firstControl.closed.get());
         assertTrue(handler.lost.await(1, TimeUnit.SECONDS));
+    }
+
+    @Test
+    void aChannelOpenedTheMomentTheWelcomeGoesOutIsAccepted() throws Exception {
+        final List<Welcome> welcomes = new CopyOnWriteArrayList<>();
+        final List<String> outcomes = new CopyOnWriteArrayList<>();
+        final QueueEndpoint control = new QueueEndpoint();
+        control.inbox.add(new Goodbye());
+        final SessionTransport.Events[] events = new SessionTransport.Events[1];
+        final ChannelRequest video = new ChannelRequest() {
+            @Override public ChannelId channel() { return ChannelId.VIDEO; }
+            @Override public FrameEndpoint acceptFrames() { throw new UnsupportedOperationException(); }
+            @Override public void reject(ErrorCode code, String message) { outcomes.add("rejected: " + message); }
+
+            @Override
+            public MediaEndpoint acceptMedia() {
+                outcomes.add("accepted");
+                return new MediaEndpoint() {
+                    @Override public void writePacket(byte[] header, ByteBuffer payload) { }
+                    @Override public void close() { }
+                };
+            }
+        };
+        final SessionRequest request = requestFor(welcomes, control, () -> events[0].channelRequested(video));
+        final SessionTransport transport = new SessionTransport() {
+            @Override
+            public void start(Events started) {
+                events[0] = started;
+                started.sessionRequested(request);
+            }
+
+            @Override public void close() { }
+        };
+        final SessionServer server = new SessionServer(transport, Welcome::new, handler, fastConfig(),
+                clock::getAndIncrement);
+        assertEquals(SessionServer.Outcome.GOODBYE, CompletableFuture.supplyAsync(server::run).get(10, TimeUnit.SECONDS));
+        assertEquals(1, welcomes.size());
+        assertEquals(List.of("accepted"), outcomes);
     }
 
     @Test
