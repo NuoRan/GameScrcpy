@@ -5137,6 +5137,14 @@
         <translation>帮助 版本 许可</translation>
     </message>
     <message>
+        <source>Sponsor…</source>
+        <translation>赞助…</translation>
+    </message>
+    <message>
+        <source>sponsor donate support afdian thanks</source>
+        <translation>赞助 打赏 支持 爱发电 感谢 sponsor donate</translation>
+    </message>
+    <message>
         <source>Help</source>
         <translation>帮助</translation>
     </message>
@@ -8084,6 +8092,10 @@
     <message>
         <source>Search help</source>
         <translation>搜索帮助</translation>
+    </message>
+    <message>
+        <source>Sponsor</source>
+        <translation>赞助</translation>
     </message>
     <message>
         <source>Home</source>
@@ -18008,6 +18020,10 @@
 <context>
     <name>SponsorDialog</name>
     <message>
+        <source>Sponsor GameScrcpy</source>
+        <translation>赞助 GameScrcpy</translation>
+    </message>
+    <message>
         <source>%1 launches. We&apos;re old friends now</source>
         <translation>%1 次了，我们已经是老朋友啦</translation>
     </message>
@@ -18028,8 +18044,16 @@
         <translation>赞助一下</translation>
     </message>
     <message>
+        <source>Sponsor on Afdian</source>
+        <translation>去爱发电赞助</translation>
+    </message>
+    <message>
         <source>Heartlessly decline</source>
         <translation>狠心拒绝</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>关闭</translation>
     </message>
     <message>
         <source>GameScrcpy is free and has no ads, and I build it by directing AI. So far that has used up about 10 billion Opus 5.5 tokens, all paid out of my own pocket… and my wallet is starting to feel it.</source>
@@ -18042,6 +18066,10 @@
     <message>
         <source>If not, no worries. Thank you for using it!</source>
         <translation>不方便也没关系，谢谢你一直在用它！</translation>
+    </message>
+    <message>
+        <source>Afdian: %1</source>
+        <translation>爱发电：%1</translation>
     </message>
 </context>
 <context>

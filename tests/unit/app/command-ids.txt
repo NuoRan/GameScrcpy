@@ -4,6 +4,7 @@ app.assistant
 app.commandPalette
 app.guide
 app.help
+app.sponsor
 device.appSwitch
 device.apps
 device.back

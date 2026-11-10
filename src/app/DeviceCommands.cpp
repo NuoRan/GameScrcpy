@@ -483,6 +483,8 @@ void addHubCommands(CommandTable& table, DeviceCommandHost& host, const UiReques
           GS_TRANSLATE_NOOP("Commands", "wireless debugging pairing code qr"), "wifi");
     addUi(table, request, "app.about", GS_TRANSLATE_NOOP("Commands", "About GameScrcpy"),
           GS_TRANSLATE_NOOP("Commands", "help version license"), "circle-help");
+    addUi(table, request, "app.sponsor", GS_TRANSLATE_NOOP("Commands", "Sponsor…"),
+          GS_TRANSLATE_NOOP("Commands", "sponsor donate support afdian thanks"), "heart");
     addUi(table, request, "app.help", GS_TRANSLATE_NOOP("Commands", "Help"),
           GS_TRANSLATE_NOOP("Commands", "manual guide articles questions troubleshooting faq script api reference"),
           "circle-help", CommandScope::Global, QKeyCombination(Qt::Key_F1), CommandTarget::Topic);

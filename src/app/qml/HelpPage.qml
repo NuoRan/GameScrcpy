@@ -45,6 +45,7 @@ Item {
 
     signal guideRequested()
     signal tourRequested(string key)
+    signal sponsorRequested()
 
     function open(link: string) {
         const at = link.indexOf("#")
@@ -274,14 +275,28 @@ Item {
             }
         }
 
+        ContentsEntry {
+            id: sponsorEntry
+
+            objectName: "helpSponsor"
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: Theme.space.lg
+            x: search.x
+            width: search.width
+            lead: true
+            iconName: "heart"
+            text: qsTr("Sponsor")
+            onClicked: page.sponsorRequested()
+        }
+
         ListView {
             id: contentsList
 
             objectName: "helpContents"
             anchors.top: search.bottom
             anchors.topMargin: Theme.space.sm
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin: Theme.space.lg
+            anchors.bottom: sponsorEntry.top
+            anchors.bottomMargin: Theme.space.sm
             x: search.x
             width: search.width
             clip: true

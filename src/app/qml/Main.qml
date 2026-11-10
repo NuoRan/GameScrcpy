@@ -241,6 +241,10 @@ Window {
         function onTourRequested(key: string) {
             root.replayTour(key)
         }
+
+        function onSponsorRequested() {
+            sponsorDialog.offer()
+        }
     }
 
     Connections {
@@ -440,6 +444,9 @@ Window {
             case "app.about":
                 about.open()
                 break
+            case "app.sponsor":
+                sponsorDialog.offer()
+                break
             case "app.help":
                 root.showHelp(target)
                 break
@@ -549,6 +556,7 @@ Window {
                 CommandMenuItem { commandState: helpCommand }
                 CommandMenuItem { commandState: guideCommand }
                 CommandMenuItem { commandState: aboutCommand }
+                CommandMenuItem { commandState: sponsorCommand }
             }
         }
     }
@@ -569,6 +577,12 @@ Window {
         id: aboutCommand
 
         command: "app.about"
+    }
+
+    CommandState {
+        id: sponsorCommand
+
+        command: "app.sponsor"
     }
 
     ContentPanel {

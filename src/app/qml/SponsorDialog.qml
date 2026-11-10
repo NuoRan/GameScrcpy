@@ -8,6 +8,7 @@ Dialog {
     id: dialog
 
     property int launches: 0
+    readonly property bool asked: dialog.launches > 0
 
     function ask(count: int) {
         dialog.launches = count
@@ -15,13 +16,19 @@ Dialog {
         dialog.open()
     }
 
+    function offer() {
+        dialog.launches = 0
+        dialog.open()
+    }
+
     objectName: "sponsorDialog"
-    title: dialog.launches >= 200 ? qsTr("%1 launches. We're old friends now").arg(dialog.launches)
+    title: !dialog.asked ? qsTr("Sponsor GameScrcpy")
+           : dialog.launches >= 200 ? qsTr("%1 launches. We're old friends now").arg(dialog.launches)
            : dialog.launches >= 100 ? qsTr("A full %1 launches. Thank you for staying").arg(dialog.launches)
            : dialog.launches >= 50 ? qsTr("%1 launches! It seems to really help").arg(dialog.launches)
            : qsTr("You've opened GameScrcpy %1 times").arg(dialog.launches)
-    acceptText: qsTr("Sponsor")
-    rejectText: qsTr("Heartlessly decline")
+    acceptText: dialog.asked ? qsTr("Sponsor") : qsTr("Sponsor on Afdian")
+    rejectText: dialog.asked ? qsTr("Heartlessly decline") : qsTr("Close")
     onAccepted: Qt.openUrlExternally(AppInfo.sponsorUrl)
 
     Column {
@@ -53,6 +60,17 @@ Dialog {
             color: Theme.colors.textSecondary
             font.pixelSize: Theme.type.body.size
             wrapMode: Text.Wrap
+        }
+
+        Text {
+            objectName: "sponsorLink"
+            visible: !dialog.asked
+            width: parent.width
+            textFormat: Text.PlainText
+            text: qsTr("Afdian: %1").arg(String(AppInfo.sponsorUrl).split("?")[0])
+            color: Theme.colors.textTertiary
+            font.pixelSize: Theme.type.caption.size
+            wrapMode: Text.WrapAnywhere
         }
     }
 }
