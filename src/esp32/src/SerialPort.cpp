@@ -1,5 +1,7 @@
 #include "gs/esp32/Port.h"
 
+#include <gs/base/Log.h>
+
 #include <windows.h>
 
 #include <initguid.h>
@@ -19,6 +21,7 @@ namespace gs::esp32 {
 
 namespace {
 
+constexpr std::string_view kCategory = "esp32";
 constexpr DWORD kQueueSize = 16 * 1024;
 constexpr DWORD kWriteTimeoutMs = 2000;
 constexpr DWORD kDriverReadTimeoutMs = 1000;
@@ -172,6 +175,7 @@ public:
                 if (WaitForSingleObject(m_writeEvent, kWriteTimeoutMs) != WAIT_OBJECT_0) {
                     CancelIoEx(m_handle, &overlapped);
                     GetOverlappedResult(m_handle, &overlapped, &written, TRUE);
+                    log::warning(kCategory, "writing to the serial port took longer than {} ms", kWriteTimeoutMs);
                     return false;
                 }
                 if (!GetOverlappedResult(m_handle, &overlapped, &written, FALSE)) {
@@ -253,8 +257,9 @@ public:
 private:
     void lose(DWORD error) noexcept
     {
-        if (error != ERROR_OPERATION_ABORTED || !m_interrupted.load(std::memory_order_acquire)) {
-            m_gone.store(true, std::memory_order_release);
+        if ((error != ERROR_OPERATION_ABORTED || !m_interrupted.load(std::memory_order_acquire))
+            && !m_gone.exchange(true, std::memory_order_acq_rel)) {
+            log::warning(kCategory, "the serial port stopped working (Windows error {})", error);
         }
     }
 

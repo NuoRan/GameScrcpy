@@ -1,5 +1,6 @@
 #include <gamescrcpy_ext.h>
 
+#include <gs/base/Log.h>
 #include <gs/esp32/TouchMethod.h>
 
 #include <nlohmann/json.hpp>
@@ -9,6 +10,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -25,6 +27,20 @@ void say(uint32_t level, std::string_view text)
         g_host->log(g_host->context, level, text.data(), text.size());
     }
 }
+
+class HostSink final : public gs::log::Sink
+{
+public:
+    void write(const gs::log::Record& record) noexcept override
+    {
+        const uint32_t level = record.level == gs::log::Level::Error     ? GS_EXT_LOG_ERROR
+                               : record.level == gs::log::Level::Warning ? GS_EXT_LOG_WARNING
+                                                                         : GS_EXT_LOG_INFO;
+        say(level, record.message);
+    }
+};
+
+HostSink g_sink;
 
 std::string_view failureText(esp32::OpenFailure failure)
 {
@@ -45,6 +61,26 @@ std::string_view failureText(esp32::OpenFailure failure)
         return "opening was stopped";
     }
     return "the board could not be opened";
+}
+
+std::string linkStateName(std::optional<esp32::LinkState> state)
+{
+    if (!state) {
+        return "closed";
+    }
+    switch (*state) {
+    case esp32::LinkState::Opening:
+        return "still opening";
+    case esp32::LinkState::Ready:
+        return "ready";
+    case esp32::LinkState::Legacy:
+        return "on the old protocol";
+    case esp32::LinkState::Lost:
+        return "lost";
+    case esp32::LinkState::Closed:
+        return "closed";
+    }
+    return "unknown";
 }
 
 std::string textOf(const nlohmann::json& options, const char* key)
@@ -135,7 +171,12 @@ int32_t frameTouch(void*, void* session, const gs_ext_touch_frame* frame)
                                           .x = pictureUnits(contact.x),
                                           .y = pictureUnits(contact.y)});
     }
-    return methodOf(session).frame(contacts, static_cast<int>(frame->rotation & 3U)) ? GS_EXT_OK : GS_EXT_FAILED;
+    esp32::Esp32TouchMethod& method = methodOf(session);
+    if (method.frame(contacts, static_cast<int>(frame->rotation & 3U))) {
+        return GS_EXT_OK;
+    }
+    say(GS_EXT_LOG_WARNING, std::string("a touch did not reach the board; the link is ") + linkStateName(method.state()));
+    return GS_EXT_FAILED;
 }
 
 int32_t keyTouch(void*, void* session, const gs_ext_key* key)
@@ -198,6 +239,7 @@ GS_EXT_EXPORT int32_t gs_ext_entry(const gs_ext_host* host, gs_ext_module* modul
         return GS_EXT_UNSUPPORTED;
     }
     g_host = host;
+    gs::log::setSink(&g_sink);
     module->abi_version = GS_EXT_ABI_VERSION;
     module->touch_method_count = 1;
     module->touch_methods = kMethods;

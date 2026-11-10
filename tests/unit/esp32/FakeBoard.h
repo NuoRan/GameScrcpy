@@ -195,6 +195,15 @@ public:
         m_options.answers = answers;
     }
 
+    void restart()
+    {
+        const std::lock_guard lock(m_mutex);
+        m_boardBaud = GS_ESP32_HANDSHAKE_BAUD;
+        m_garbageWrites = 0;
+        m_toHost.clear();
+        gs_esp32_parser_reset(&m_parser);
+    }
+
     void pushStatus(std::uint8_t usb, std::uint8_t ble, const std::string& peer)
     {
         gs_esp32_status status{};

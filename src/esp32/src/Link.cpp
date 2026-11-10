@@ -202,6 +202,12 @@ bool Esp32Link::helloSeen() const
     return m_helloSeen;
 }
 
+std::uint32_t Esp32Link::helloCount() const
+{
+    const std::lock_guard lock(m_mutex);
+    return m_hellos;
+}
+
 void Esp32Link::run(const std::stop_token& stop)
 {
     platform::setCurrentThreadName("ESP32 link");
@@ -228,6 +234,16 @@ void Esp32Link::run(const std::stop_token& stop)
                 (void)ping();
             }
             if (now - m_lastReceived >= m_options.silence) {
+                const Clock::time_point sent{Clock::duration{m_lastSent.load(std::memory_order_acquire)}};
+                log::info(kCategory,
+                          "nothing heard for {} ms at {} baud ({} bytes that were not frames); the last frame went "
+                          "out {} ms ago",
+                          std::chrono::duration_cast<std::chrono::milliseconds>(now - m_lastReceived).count(), baud(),
+                          m_unframed, std::chrono::duration_cast<std::chrono::milliseconds>(now - sent).count());
+                if (!m_port->datagrams() && !m_port->gone() && resync(stop)) {
+                    log::info(kCategory, "the board answers again at {} baud", baud());
+                    continue;
+                }
                 setState(LinkState::Lost);
                 return;
             }
@@ -395,6 +411,43 @@ bool Esp32Link::pingAndWait(std::chrono::milliseconds timeout, const std::stop_t
     return sendFrame(GS_ESP32_MSG_PING, {payload.data(), size}) && awaitPong(token, timeout, stop);
 }
 
+bool Esp32Link::askAgain(const std::stop_token& stop)
+{
+    const std::uint32_t before = helloCount();
+    m_port->discardInput();
+    if (!sendHelloRequest()) {
+        return false;
+    }
+    const auto deadline = Clock::now() + m_options.helloWait;
+    while (!stop.stop_requested() && helloCount() == before && Clock::now() < deadline) {
+        pump(std::min(kPumpSlice, remaining(deadline)));
+    }
+    return helloCount() != before;
+}
+
+bool Esp32Link::resync(const std::stop_token& stop)
+{
+    m_resyncing.store(true, std::memory_order_release);
+    bool back = askAgain(stop);
+    if (!back && m_options.fastBaud && !stop.stop_requested()) {
+        const std::uint32_t other = baud() == GS_ESP32_FAST_BAUD ? GS_ESP32_HANDSHAKE_BAUD : GS_ESP32_FAST_BAUD;
+        if (m_port->setBaud(other)) {
+            {
+                const std::lock_guard lock(m_mutex);
+                m_baud = other;
+            }
+            back = askAgain(stop);
+            const std::optional<BoardInfo> info = board();
+            const bool serialLink = info && (info->features & GS_ESP32_FEATURE_USB_SERIAL_LINK) != 0;
+            if (back && other == GS_ESP32_HANDSHAKE_BAUD && !serialLink) {
+                back = negotiateBaud(stop);
+            }
+        }
+    }
+    m_resyncing.store(false, std::memory_order_release);
+    return back;
+}
+
 void Esp32Link::pump(std::chrono::milliseconds timeout)
 {
     std::array<std::uint8_t, GS_ESP32_MAX_DATAGRAM> buffer{};
@@ -412,6 +465,7 @@ void Esp32Link::pump(std::chrono::milliseconds timeout)
     if (!helloSeen()) {
         noteHeard({buffer.data(), received});
     }
+    m_unframed += received;
     std::size_t at = 0;
     while (at < received) {
         at += gs_esp32_parser_feed(&m_parser, buffer.data() + at, received - at);
@@ -458,6 +512,7 @@ void Esp32Link::reportHeard(std::string_view when) const
 void Esp32Link::dispatch(const gs_esp32_frame& frame)
 {
     m_lastReceived = Clock::now();
+    m_unframed = 0;
     switch (frame.type) {
     case GS_ESP32_MSG_HELLO: {
         gs_esp32_hello hello{};
@@ -494,6 +549,7 @@ void Esp32Link::dispatch(const gs_esp32_frame& frame)
             std::copy(std::begin(hello.ipv4), std::end(hello.ipv4), m_status.ipv4.begin());
             snapshot = m_status;
             m_helloSeen = true;
+            ++m_hellos;
             promote = m_state == LinkState::Legacy;
         }
         if (promote) {
@@ -629,11 +685,14 @@ bool Esp32Link::sendLegacyTouch(const gs_esp32_touch& touch)
 
 bool Esp32Link::sendWhenReady(std::uint8_t type, std::span<const std::uint8_t> payload)
 {
-    return state() == LinkState::Ready && sendFrame(type, payload);
+    return state() == LinkState::Ready && !m_resyncing.load(std::memory_order_acquire) && sendFrame(type, payload);
 }
 
 bool Esp32Link::sendTouch(const gs_esp32_touch& touch)
 {
+    if (m_resyncing.load(std::memory_order_acquire)) {
+        return true;
+    }
     const LinkState current = state();
     if (current == LinkState::Legacy) {
         return sendLegacyTouch(touch);

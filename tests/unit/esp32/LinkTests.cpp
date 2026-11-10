@@ -376,6 +376,33 @@ TEST_CASE("a board that stops answering is reported lost")
     CHECK(eventually([&fixture] { return fixture.link->state() == LinkState::Lost; }));
 }
 
+TEST_CASE("a board that restarts mid-session is asked again at 921 600 and moved back to 2 000 000 baud")
+{
+    FakeBoard::Options board;
+    board.revertsOnGarbage = false;
+    LinkOptions options;
+    options.fastBaud = true;
+    options.keepAlive = 50ms;
+    options.silence = 300ms;
+    Fixture fixture(board, options);
+    REQUIRE(fixture.link->waitSettled(3s) == LinkState::Ready);
+    REQUIRE(fixture.link->baud() == GS_ESP32_FAST_BAUD);
+    fixture.fake->restart();
+    CHECK(eventually([&fixture] { return fixture.fake->count(GS_ESP32_MSG_SET_BAUD) == 2; }));
+    CHECK(eventually([&fixture] {
+        return fixture.fake->boardBaud() == GS_ESP32_FAST_BAUD && fixture.fake->hostBaud() == GS_ESP32_FAST_BAUD;
+    }));
+    CHECK(fixture.link->state() == LinkState::Ready);
+    CHECK(fixture.link->baud() == GS_ESP32_FAST_BAUD);
+    gs_esp32_touch touch{};
+    touch.count = 1;
+    touch.contacts[0].tip = 1;
+    touch.contacts[0].x = 100;
+    touch.contacts[0].y = 200;
+    CHECK(fixture.link->sendTouch(touch));
+    CHECK(eventually([&fixture] { return fixture.fake->count(GS_ESP32_MSG_TOUCH) == 1; }));
+}
+
 TEST_CASE("v2 messages reach the board with their fields")
 {
     Fixture fixture;

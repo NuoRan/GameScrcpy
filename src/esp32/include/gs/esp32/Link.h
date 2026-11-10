@@ -128,7 +128,10 @@ private:
     [[nodiscard]] bool negotiateBaud(const std::stop_token& stop);
     [[nodiscard]] bool awaitPong(std::uint32_t token, std::chrono::milliseconds timeout, const std::stop_token& stop);
     [[nodiscard]] bool pingAndWait(std::chrono::milliseconds timeout, const std::stop_token& stop);
+    [[nodiscard]] bool askAgain(const std::stop_token& stop);
+    [[nodiscard]] bool resync(const std::stop_token& stop);
     [[nodiscard]] bool helloSeen() const;
+    [[nodiscard]] std::uint32_t helloCount() const;
     void pump(std::chrono::milliseconds timeout);
     void noteHeard(std::span<const std::uint8_t> bytes);
     void reportHeard(std::string_view when) const;
@@ -157,10 +160,13 @@ private:
     std::uint32_t m_token = 0;
     std::uint32_t m_lastPong = 0;
     bool m_helloSeen = false;
+    std::uint32_t m_hellos = 0;
+    std::atomic<bool> m_resyncing{false};
     std::string m_heard;
     std::array<std::uint8_t, 512> m_rawHeard{};
     std::size_t m_rawHeardCount = 0;
     std::size_t m_heardCount = 0;
+    std::size_t m_unframed = 0;
     BoardTrouble m_trouble;
     std::atomic<Clock::rep> m_lastSent{0};
     Clock::time_point m_lastReceived{};
