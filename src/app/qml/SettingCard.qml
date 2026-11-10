@@ -9,9 +9,12 @@ Card {
     property string title
     property string note
     property string iconName
+    property string iconPath
     property string tone
+    property bool custom: false
     default property alias rows: list.data
     readonly property int inset: Theme.space.lg + Theme.space.xxs
+    readonly property bool hasIcon: card.iconName !== "" || card.iconPath !== ""
     readonly property var settingRows: {
         const found = []
         for (let i = 0; i < list.children.length; ++i) {
@@ -32,7 +35,7 @@ Card {
     }
 
     width: parent ? parent.width : implicitWidth
-    visible: matched
+    visible: card.custom ? !SettingsCatalog.searching : matched
     padding: 0
     horizontalPadding: 0
 
@@ -49,8 +52,9 @@ Card {
 
                 x: card.inset
                 y: Theme.space.md + Theme.space.xxs
-                visible: card.iconName !== ""
+                visible: card.hasIcon
                 iconName: card.iconName
+                iconPath: card.iconPath
                 tone: card.tone
             }
 
@@ -58,8 +62,8 @@ Card {
                 id: heading
 
                 objectName: "heading"
-                anchors.left: card.iconName !== "" ? tile.right : parent.left
-                anchors.leftMargin: card.iconName !== "" ? Theme.space.md : card.inset
+                anchors.left: card.hasIcon ? tile.right : parent.left
+                anchors.leftMargin: card.hasIcon ? Theme.space.md : card.inset
                 anchors.verticalCenter: tile.verticalCenter
                 textFormat: Text.PlainText
                 text: card.title

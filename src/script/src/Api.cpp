@@ -3221,9 +3221,10 @@ constexpr Function kUi[] = {
      "most one every 10 seconds; false means this one was not shown.",
      "ui.notify(\"Done\", \"All 30 rounds finished\");", nullptr, 0, kNotifyFailures},
     {"panel", kPanelParams, "UiPanel",
-     "Gives a panel of this extension, declared in contributes.panels: a side panel of the mirror window or a page "
-     "of the main window. GameScrcpy draws the tree given to render() with its own controls; no interface code of "
-     "the extension runs.",
+     "Gives a panel of this extension, declared in contributes.panels: a side panel of the mirror window, a page of "
+     "the main window, a section of Settings, part of the extension's settings window, the settings of a device it "
+     "adds, or what its toolbar button opens. GameScrcpy draws the tree given to render() with its own controls; no "
+     "interface code of the extension runs.",
      "const stats = ui.panel(\"stats\"); stats.render({ type: \"text\", text: \"Rounds: 3\" });", nullptr, 0,
      kPanelFailures},
     {"menu", kMenuParams, "void",
@@ -3234,6 +3235,19 @@ constexpr Function kUi[] = {
      "Gives a status widget of this extension, declared in contributes.panels: a little text, icons and progress "
      "shown with the status of the mirror window.",
      "ui.status(\"fps\").render({ type: \"text\", text: \"60\" });", nullptr, 0, kPanelFailures},
+    {"toolbar", kPanelParams, "UiToolbar",
+     "Gives a toolbar button of this extension, declared in contributes.panels with where \"toolbar\": a button on "
+     "the mirror window's toolbar with the declared title and icon while this logic runs. A click sends click; once "
+     "ui.panel() of the same name has drawn a tree, the click also opens it under the button.",
+     "const quick = ui.toolbar(\"quick\"); quick.on(\"click\", () => log.info(\"pressed\"));", nullptr, 0,
+     kPanelFailures},
+    {"contextMenu", kPanelParams, "UiContextMenu",
+     "Gives a menu of this extension, declared in contributes.panels with where \"contextMenu\": its items are added "
+     "to the More menu of the cards its on names, device cards and profile cards.",
+     "ui.contextMenu(\"more\").set([{ id: \"copy\", title: \"Copy the id\" }]);", nullptr, 0, kPanelFailures},
+    {"tray", kPanelParams, "UiTray",
+     "Gives this extension's group of items in the tray menu, declared in contributes.panels with where \"tray\".",
+     "ui.tray(\"quick\").set([{ id: \"pause\", title: \"Pause\", checked: false }]);", nullptr, 0, kPanelFailures},
 };
 
 constexpr Function kUiMenu[] = {
@@ -4083,7 +4097,7 @@ constexpr Type kTypes[] = {
      "\"success\"."},
     {"UiNode",
      "UiColumn | UiRow | UiGroup | UiText | UiButton | UiField | UiNumber | UiToggle | UiChoice | UiSlider | UiList | "
-     "UiTable | UiChart | UiCanvas | UiImage | UiProgress | UiSeparator",
+     "UiTable | UiChart | UiCanvas | UiImage | UiProgress | UiSeparator | UiDeviceItem | UiSteps | UiQr | UiKeyValue",
      "A node of a panel tree. A tree is at most 256 KiB as JSON, 2000 nodes and 16 levels deep."},
     {"UiColumn", "{ readonly type: \"column\"; readonly id?: string; readonly children?: readonly UiNode[] }",
      "Nodes one under another."},
@@ -4176,6 +4190,32 @@ constexpr Type kTypes[] = {
      "{ readonly id: string; readonly title: string; readonly icon?: string; readonly checked?: boolean; readonly "
      "enabled?: boolean }",
      "An item of the right-click menu; with checked it shows a check mark, and picking it sends the opposite."},
+    {"UiDeviceItem",
+     "{ readonly type: \"deviceItem\"; readonly id?: string; readonly title: string; readonly subtitle?: string; "
+     "readonly icon?: string; readonly state?: \"ready\" | \"busy\" | \"problem\" | \"offline\"; readonly "
+     "stateText?: string }",
+     "A device in a list: its icon, name and a line under it, with a pill for its state; stateText words the pill. "
+     "icon is the name of a GameScrcpy icon or \"svg:\" and the path of an SVG in the extension's folder. With an id, "
+     "clicking it sends click."},
+    {"UiSteps",
+     "{ readonly type: \"steps\"; readonly id?: string; readonly steps: readonly string[]; readonly current?: number; "
+     "readonly failed?: boolean }",
+     "The steps of something done in turn, 2 to 8 titles of up to 40 characters: those before current are done, "
+     "current is going on (or went wrong with failed), and current equal to the number of steps means all are done."},
+    {"UiQr", "{ readonly type: \"qr\"; readonly id?: string; readonly text: string; readonly title?: string }",
+     "A QR code of up to 1000 bytes of text for a phone to scan."},
+    {"UiKeyValue", "{ readonly type: \"keyValue\"; readonly id?: string; readonly rows: readonly UiKeyValueRow[] }",
+     "Up to 100 rows of a name and its value."},
+    {"UiKeyValueRow", "{ readonly key: string; readonly value?: string | number | boolean | null }",
+     "A row of a keyValue: a name of up to 60 characters and its value."},
+    {"UiToolbarState",
+     "{ readonly title?: string; readonly icon?: string; readonly checked?: boolean; readonly enabled?: boolean }",
+     "What a toolbar button shows in place of what the manifest declares: its tooltip, its icon (a GameScrcpy icon or "
+     "\"svg:\" and a path), whether it shows as on, and whether it can be clicked."},
+    {"UiTarget", "{ readonly kind: \"device\" | \"profile\"; readonly id: string; readonly name: string }",
+     "The card a menu was opened on: a device by its serial or a profile by its id, with its name."},
+    {"UiChooseEvent", "UiEvent & { readonly target: UiTarget }",
+     "What a card menu listener receives: the item's id, its new checked state or null, and the card."},
     {"HardwareKind", "\"serial\" | \"hid\" | \"ble\"",
      "The kinds of device logic can use: serial ports, USB HID devices and Bluetooth LE devices."},
     {"HardwareFilter",
@@ -4889,6 +4929,43 @@ constexpr Member kUiStatusMembers[] = {
      "text: \"60\" }] });"},
 };
 
+constexpr Member kUiToolbarMembers[] = {
+    {"set", "set(state: UiToolbarState | null): void",
+     "Changes what the button shows; null goes back to what the manifest declares. Throws GS-API-075 for a state "
+     "that is not right and GS-API-076 when the extension does not declare the button for this logic.",
+     "quick.set({ checked: true, title: \"Recording\" });"},
+    {"on",
+     "on(type: \"click\", handler: (event: UiEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+     "Starts a task each time the button is clicked. Throws GS-API-017 for another event.",
+     "quick.on(\"click\", () => log.info(\"pressed\"));"},
+};
+
+constexpr Member kUiContextMenuMembers[] = {
+    {"set", "set(items: readonly UiMenuItem[] | null): void",
+     "Puts up to 16 items into the More menu of the cards in place of the last ones; null or an empty list takes them "
+     "away. Throws GS-API-075 for items that are not right and GS-API-076 when the extension does not declare the "
+     "menu for this logic.",
+     "more.set([{ id: \"copy\", title: \"Copy the id\", icon: \"copy\" }]);"},
+    {"on",
+     "on(type: \"choose\", handler: (event: UiChooseEvent) => void | Promise<void>, options?: ListenOptions): "
+     "Subscription",
+     "Starts a task each time one of the items is picked; event.target says on which card. Throws GS-API-017 for "
+     "another event.",
+     "more.on(\"choose\", ({ id, target }) => log.info(id, target.kind, target.name));"},
+};
+
+constexpr Member kUiTrayMembers[] = {
+    {"set", "set(items: readonly UiMenuItem[] | null): void",
+     "Puts up to 16 items into the tray menu in place of the last ones; null or an empty list takes them away. Throws "
+     "GS-API-075 for items that are not right and GS-API-076 when the extension does not declare the group for this "
+     "logic.",
+     "tray.set([{ id: \"pause\", title: \"Pause\", checked: paused }]);"},
+    {"on",
+     "on(type: \"choose\", handler: (event: UiEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+     "Starts a task each time one of the items is picked. Throws GS-API-017 for another event.",
+     "tray.on(\"choose\", ({ id }) => log.info(\"picked\", id));"},
+};
+
 constexpr Member kHardwareDeviceMembers[] = {
     {"id", "readonly id: string", "The id of the device.", "log.info(port.id);"},
     {"kind", "readonly kind: HardwareKind", "The kind of device.", "log.info(port.kind);"},
@@ -5036,6 +5113,9 @@ constexpr Interface kInterfaces[] = {
     {"TaskClass", "The Task base class that a task's default export extends.", kTaskClassMembers},
     {"UiPanel", "A panel of an extension from ui.panel(), drawn with GameScrcpy's own controls.", kUiPanelMembers},
     {"UiStatus", "A status widget of an extension from ui.status().", kUiStatusMembers},
+    {"UiToolbar", "A toolbar button of an extension from ui.toolbar().", kUiToolbarMembers},
+    {"UiContextMenu", "A menu of an extension on cards, from ui.contextMenu().", kUiContextMenuMembers},
+    {"UiTray", "A group of an extension in the tray menu, from ui.tray().", kUiTrayMembers},
     {"Controls",
      "The components of the profile in use, by id. GameScrcpy writes the members for each profile into "
      "types/profile.d.ts; use mapping for ids that are only known at run time.",

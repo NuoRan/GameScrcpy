@@ -489,3 +489,43 @@ TEST_CASE("the mode name says whether extensions run normally, safe mode was ask
     CHECK(host.modeName() == "safeAfterCrash");
     CHECK(host.property("mode").toString() == "safeAfterCrash");
 }
+
+TEST_CASE("ADR-0112: the extension list says which panels have the wrong kind of script and draws their own icons")
+{
+    const Fixture fixture;
+    const fs::path folder = fixture.user / "alice.places/1.0.0";
+    writeFile(folder / "manifest.json", R"({"schemaVersion": 1, "id": "alice.places", "version": "1.0.0",
+        "name": "Places", "license": "MIT", "requires": {"panel": "^1.0", "script": "^1.0"},
+        "contributes": {
+            "scripts": [{"name": "app", "entry": "app.js", "run": "app"},
+                        {"name": "session", "entry": "session.js", "run": "session"}],
+            "panels": [
+                {"name": "options", "title": "Options", "icon": "svg:icons/board.svg", "where": "settings",
+                 "script": "app"},
+                {"name": "late", "title": "Late", "where": "extension", "script": "session"},
+                {"name": "quick", "title": "Quick", "icon": "zap", "where": "toolbar", "script": "app"},
+                {"name": "more", "title": "More", "where": "contextMenu", "script": "app", "on": ["device"]}]}})");
+    writeFile(folder / "app.js", "export {};\n");
+    writeFile(folder / "session.js", "export {};\n");
+    writeFile(folder / "icons/board.svg", R"(<svg viewBox="0 0 24 24"><path d="M2 2 L22 22"/></svg>)");
+    AppSettings settings(fixture.data);
+    ExtensionHost host(settings, {fixture.user, {}});
+    host.start(false);
+
+    const QVariantMap entry = entryOf(host, QStringLiteral("alice.places"));
+    INFO(entry.value(QStringLiteral("problems")).toList().size());
+    REQUIRE(entry.value(QStringLiteral("usable")).toBool());
+    const QVariantList panels = entry.value(QStringLiteral("panels")).toList();
+    REQUIRE(panels.size() == 4);
+    const QVariantMap options = panels[0].toMap();
+    CHECK(options.value(QStringLiteral("where")).toString() == "settings");
+    CHECK(options.value(QStringLiteral("problem")).toString().isEmpty());
+    CHECK(options.value(QStringLiteral("iconPath")).toString() == "M2 2 L22 22");
+    CHECK(panels[1].toMap().value(QStringLiteral("problem")).toString() ==
+          "This place needs a script that runs once for the app, and session runs for each phone");
+    CHECK(panels[2].toMap().value(QStringLiteral("problem")).toString() ==
+          "This place needs a script that runs for each phone, and app runs once for the app");
+    CHECK_FALSE(panels[2].toMap().contains(QStringLiteral("iconPath")));
+    CHECK(panels[3].toMap().value(QStringLiteral("where")).toString() == "contextMenu");
+    CHECK(panels[3].toMap().value(QStringLiteral("problem")).toString().isEmpty());
+}

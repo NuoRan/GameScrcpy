@@ -20,6 +20,7 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstdint>
@@ -81,6 +82,14 @@ public:
     }
 
     void folder(const QString& name) const { REQUIRE(QDir(m_dir.path()).mkpath(name)); }
+
+    void text(const QString& name, const QByteArray& content) const
+    {
+        REQUIRE(QDir(m_dir.path()).mkpath(QFileInfo(m_dir.filePath(name)).path()));
+        QFile file(m_dir.filePath(name));
+        REQUIRE(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        REQUIRE(file.write(content) == content.size());
+    }
 
 private:
     QTemporaryDir m_dir;
@@ -608,4 +617,184 @@ TEST_CASE("ADR-0105: QML hands out the panels the program made at start instead 
     CHECK(ExtensionPanels::instance() == &panels);
     Logic phone(kExtension, QStringLiteral("session"), QStringLiteral("phone-a"), folder.path());
     CHECK(call(phone, "ui.render", textRender("still answered")).code.empty());
+}
+
+TEST_CASE("ADR-0112: panels show device items, steps, QR codes and rows of names and values; a toolbar button "
+          "takes a title, an icon and its state")
+{
+    Folder folder;
+    folder.text(QStringLiteral("icons/box.svg"), R"(<svg viewBox="0 0 24 24"><path d="M2 2 L22 22"/></svg>)");
+    const UiCheck check = checkUiTree(
+        R"({"type":"column","children":[)"
+        R"({"type":"deviceItem","id":"box-1","title":"Box","subtitle":"USB","icon":"svg:icons/box.svg","state":"busy",)"
+        R"("stateText":"Flashing"},)"
+        R"({"type":"deviceItem","title":"Plain","icon":"cpu"},)"
+        R"({"type":"steps","steps":["Plug in","Flash","Done"],"current":1,"failed":true},)"
+        R"({"type":"qr","text":"https://example.com/pair","title":"Scan"},)"
+        R"({"type":"keyValue","rows":[{"key":"Port","value":"COM9"},{"key":"Baud","value":2000000},)"
+        R"({"key":"Ready","value":true},{"key":"Note"}]}]})",
+        folder.path());
+    REQUIRE_MESSAGE(check.ok(), check.problem);
+    const QVariantMap tree = check.value.toMap();
+    const QVariantMap device = childOf(tree, 0);
+    CHECK(device.value(QStringLiteral("iconPath")).toString() == "M2 2 L22 22");
+    CHECK(device.value(QStringLiteral("icon")).toString().isEmpty());
+    CHECK(device.value(QStringLiteral("subtitle")).toString() == "USB");
+    CHECK(device.value(QStringLiteral("state")).toString() == "busy");
+    CHECK(device.value(QStringLiteral("stateText")).toString() == "Flashing");
+    const QVariantMap plain = childOf(tree, 1);
+    CHECK(plain.value(QStringLiteral("state")).toString().isEmpty());
+    CHECK(plain.value(QStringLiteral("icon")).toString() == "cpu");
+    CHECK(plain.value(QStringLiteral("iconPath")).toString().isEmpty());
+    const QVariantMap steps = childOf(tree, 2);
+    CHECK(steps.value(QStringLiteral("steps")).toStringList() == QStringList{"Plug in", "Flash", "Done"});
+    CHECK(steps.value(QStringLiteral("current")).toInt() == 1);
+    CHECK(steps.value(QStringLiteral("failed")).toBool());
+    const QVariantMap qr = childOf(tree, 3);
+    CHECK(qr.value(QStringLiteral("modules")).toInt() >= 21);
+    CHECK(qr.value(QStringLiteral("path")).toString().startsWith(u'M'));
+    CHECK(qr.value(QStringLiteral("title")).toString() == "Scan");
+    const QVariantList rows = childOf(tree, 4).value(QStringLiteral("rows")).toList();
+    REQUIRE(rows.size() == 4);
+    CHECK(rows[0].toMap().value(QStringLiteral("value")).toString() == "COM9");
+    CHECK(rows[1].toMap().value(QStringLiteral("value")).toString() == "2000000");
+    CHECK(rows[2].toMap().value(QStringLiteral("value")).toString() == "true");
+    CHECK(rows[3].toMap().value(QStringLiteral("key")).toString() == "Note");
+    CHECK(rows[3].toMap().value(QStringLiteral("value")).toString().isEmpty());
+
+    CHECK(problemOf(R"({"type":"deviceItem"})") == "title is missing at $");
+    CHECK(problemOf(R"({"type":"deviceItem","title":"B","state":"gone"})") ==
+          "state must be ready, busy, problem or offline at $.state");
+    CHECK(problemOf(R"({"type":"deviceItem","title":"B","icon":"svg:icons/box.svg"})") ==
+          "an svg: icon comes from the extension's folder, and this logic has none at $.icon");
+    CHECK(problemOf(R"({"type":"deviceItem","title":"B","icon":"svg:icons/none.svg"})", folder.path()) ==
+          "the icon must be an SVG of plain shapes on the 24 grid inside the extension's folder at $.icon");
+    CHECK(problemOf(R"({"type":"steps","steps":["One"]})") == "steps needs at least 2 steps at $.steps");
+    CHECK(problemOf(R"({"type":"steps","steps":["A",""]})") == "a step must be text of 1 to 40 characters at $.steps[1]");
+    CHECK(problemOf(R"({"type":"steps","steps":["A","B"],"current":3})") ==
+          "current must be a whole number from 0 to the number of steps at $.current");
+    CHECK(problemOf(R"({"type":"steps","steps":["A","B"],"current":0.5})") ==
+          "current must be a whole number from 0 to the number of steps at $.current");
+    CHECK(problemOf(R"({"type":"steps","steps":["A","B"],"current":2})").empty());
+    CHECK(problemOf(R"({"type":"qr","text":""})") == "text is empty at $.text");
+    std::string wide;
+    for (int index = 0; index < 400; ++index) {
+        wide += "\xE4\xB8\xAD";
+    }
+    CHECK(problemOf(R"({"type":"qr","text":")" + wide + R"("})") == "text is longer than 1000 bytes as UTF-8 at $.text");
+    CHECK(problemOf(R"({"type":"keyValue","rows":[{"value":1}]})") == "key is missing at $.rows[0]");
+    CHECK(problemOf(R"({"type":"keyValue","rows":[{"key":"A","value":[1]}]})") ==
+          "value must be text of at most 200 characters, a number, true, false or null at $.rows[0].value");
+    CHECK(problemOf(R"({"type":"keyValue"})") == "rows is missing at $");
+
+    const UiCheck state = checkToolbarState(R"({"title":"Rec","icon":"svg:icons/box.svg","checked":true})", folder.path());
+    REQUIRE_MESSAGE(state.ok(), state.problem);
+    CHECK(state.value.toMap().value(QStringLiteral("iconPath")).toString() == "M2 2 L22 22");
+    CHECK(state.value.toMap().value(QStringLiteral("checked")).toBool());
+    CHECK(state.value.toMap().value(QStringLiteral("enabled")).toBool());
+    CHECK(checkToolbarState("[]", folder.path()).problem == "a toolbar button is set with an object");
+    CHECK(checkToolbarState(R"({"checked":"yes"})", folder.path()).problem == "checked must be true or false at $.checked");
+    CHECK(checkToolbarState(R"({"title":")" + std::string(41, 'x') + R"("})", folder.path()).problem ==
+          "title is longer than 40 characters at $.title");
+}
+
+TEST_CASE("ADR-0112: the app logic draws panels for Settings and the extension's settings window and fills card "
+          "menus and tray groups by name; a phone's logic sets its toolbar button; choosing an item says on which "
+          "card")
+{
+    Application application;
+    Folder folder;
+    ExtensionPanels panels(nullptr);
+    std::vector<PanelDeclaration> declarations{declared("options", PanelPlace::Settings, "app", folder.path()),
+                                               declared("main", PanelPlace::Extension, "app", folder.path()),
+                                               declared("quick", PanelPlace::Toolbar, "session", folder.path()),
+                                               declared("more", PanelPlace::ContextMenu, "app", folder.path()),
+                                               declared("tray", PanelPlace::Tray, "app", folder.path())};
+    declarations[2].iconPath = QStringLiteral("M2 2 L22 22");
+    declarations[3].on = {"device", "profile"};
+    panels.setDeclarations(declarations);
+    struct Told {
+        std::uint64_t logic = 0;
+        QString id;
+        QJsonObject event;
+    };
+    std::vector<Told> told;
+    panels.setTeller([&told](std::uint64_t logic, const QString&, const QString& id, const QString& json) {
+        told.push_back({logic, id, QJsonDocument::fromJson(json.toUtf8()).object()});
+        return true;
+    });
+    Logic app(kExtension, QStringLiteral("app"), QString(), folder.path());
+    Logic phone(kExtension, QStringLiteral("session"), QStringLiteral("phone-a"), folder.path());
+    const std::uint64_t appLogic = app.runtime.caller().logic;
+
+    const QVariantMap settings = entryOf(panels.panels(), QStringLiteral("settings"), QString());
+    const QVariantMap window = entryOf(panels.panels(), QStringLiteral("extension"), QString());
+    const auto button = [&panels] { return entryOf(panels.panels(), QStringLiteral("toolbar"), QStringLiteral("phone-a")); };
+    REQUIRE_FALSE(settings.isEmpty());
+    REQUIRE_FALSE(window.isEmpty());
+    REQUIRE_FALSE(button().isEmpty());
+    CHECK(entryOf(panels.panels(), QStringLiteral("toolbar"), QString()).isEmpty());
+    CHECK(button().value(QStringLiteral("iconPath")).toString() == "M2 2 L22 22");
+    CHECK(button().value(QStringLiteral("toolbar")).toMap().isEmpty());
+    CHECK(panels.menus().isEmpty());
+
+    REQUIRE(call(app, "ui.render", R"({"panel":"options","tree":{"type":"text","text":"O"}})").code.empty());
+    REQUIRE(settle([&] { return panels.tree(settings.value(QStringLiteral("key")).toString()).isValid(); }));
+    REQUIRE(call(app, "ui.render", R"({"panel":"main","tree":{"type":"text","text":"M"}})").code.empty());
+    CHECK(call(phone, "ui.render", R"({"panel":"options","tree":null})").code == "GS-API-076");
+
+    REQUIRE(call(phone, "ui.toolbar", R"({"name":"quick","state":{"title":"Rec","checked":true}})").code.empty());
+    REQUIRE(settle([&] { return button().value(QStringLiteral("toolbar")).toMap().value(QStringLiteral("checked")).toBool(); }));
+    CHECK(button().value(QStringLiteral("toolbar")).toMap().value(QStringLiteral("title")).toString() == "Rec");
+    REQUIRE(call(phone, "ui.render", R"({"panel":"quick","tree":{"type":"text","text":"Q"}})").code.empty());
+    CHECK(call(phone, "ui.toolbar", R"({"name":"quick","state":{"checked":"yes"}})").code == "GS-API-075");
+    CHECK(call(app, "ui.toolbar", R"({"name":"quick","state":null})").code == "GS-API-076");
+    CHECK(call(phone, "ui.toolbar", R"({"name":"more","state":null})").code == "GS-API-076");
+    CHECK(call(phone, "ui.status", R"({"name":"quick","tree":null})").code == "GS-API-076");
+    REQUIRE(call(phone, "ui.toolbar", R"({"name":"quick","state":null})").code.empty());
+    REQUIRE(settle([&] { return button().value(QStringLiteral("toolbar")).toMap().isEmpty(); }));
+
+    REQUIRE(call(app, "ui.contextMenu", R"({"name":"more","items":[{"id":"copy","title":"Copy"}]})").code.empty());
+    REQUIRE(settle([&] { return panels.menus().size() == 1; }));
+    const QVariantMap group = panels.menus().front().toMap();
+    CHECK(group.value(QStringLiteral("where")).toString() == "contextMenu");
+    CHECK(group.value(QStringLiteral("on")).toStringList() == QStringList{"device", "profile"});
+    CHECK(group.value(QStringLiteral("device")).toString().isEmpty());
+    CHECK(call(app, "ui.tray", R"({"name":"more","items":[]})").code == "GS-API-076");
+    CHECK(call(app, "ui.contextMenu", R"({"name":"tray","items":[]})").code == "GS-API-076");
+    CHECK(call(app, "ui.contextMenu", R"({"name":"options","items":[]})").code == "GS-API-076");
+    CHECK(call(app, "ui.menu", R"({"items":[]})").code == "GS-API-076");
+    CHECK(call(phone, "ui.contextMenu", R"({"name":"more","items":[]})").code == "GS-API-076");
+    CHECK(call(app, "ui.contextMenu", R"({"name":"more","items":[{"id":"x"}]})").code == "GS-API-075");
+    CHECK(call(app, "ui.contextMenu", R"({"items":[]})").code == "GS-API-075");
+
+    REQUIRE(call(app, "ui.tray", R"({"name":"tray","items":[{"id":"pause","title":"Pause","checked":false}]})")
+                .code.empty());
+    REQUIRE(settle([&] { return panels.menus().size() == 2; }));
+    CHECK(std::ranges::any_of(panels.menus(), [](const QVariant& each) {
+        return each.toMap().value(QStringLiteral("where")).toString() == "tray";
+    }));
+
+    CHECK(panels.choose(appLogic, QStringLiteral("more"), QStringLiteral("copy"), QVariant(),
+                        {{QStringLiteral("kind"), QStringLiteral("device")},
+                         {QStringLiteral("id"), QStringLiteral("phone-a")},
+                         {QStringLiteral("name"), QStringLiteral("Pixel")}}));
+    CHECK(panels.choose(appLogic, QStringLiteral("tray"), QStringLiteral("pause"), true, {}));
+    CHECK_FALSE(panels.choose(appLogic, QString(), QStringLiteral("copy"), QVariant(), {}));
+    CHECK_FALSE(panels.choose(appLogic, QStringLiteral("more"), QString(), QVariant(), {}));
+    REQUIRE(told.size() == 2);
+    CHECK(told[0].logic == appLogic);
+    CHECK(told[0].id == "more");
+    CHECK(told[0].event.value(QStringLiteral("type")).toString() == "choose");
+    CHECK(told[0].event.value(QStringLiteral("id")).toString() == "copy");
+    CHECK(told[0].event.value(QStringLiteral("value")).isNull());
+    const QJsonObject target = told[0].event.value(QStringLiteral("target")).toObject();
+    CHECK(target.value(QStringLiteral("kind")).toString() == "device");
+    CHECK(target.value(QStringLiteral("id")).toString() == "phone-a");
+    CHECK(target.value(QStringLiteral("name")).toString() == "Pixel");
+    CHECK(told[1].event.value(QStringLiteral("value")).toBool());
+    CHECK_FALSE(told[1].event.contains(QStringLiteral("target")));
+
+    REQUIRE(call(app, "ui.contextMenu", R"({"name":"more","items":null})").code.empty());
+    REQUIRE(settle([&] { return panels.menus().size() == 1; }));
 }

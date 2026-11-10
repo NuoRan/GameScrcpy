@@ -2,6 +2,7 @@
 
 #include "AmsiScan.h"
 #include "AppSettings.h"
+#include "ExtensionIcons.h"
 #include "NativeExtensions.h"
 #include "ProfileEditor.h"
 #include "QtConversions.h"
@@ -385,16 +386,16 @@ QString panelProblem(const ext::Manifest& manifest, const ext::PanelContribution
     if (found == manifest.contributes.scripts.end()) {
         return ExtensionHost::tr("Its script %1 is not in the extension").arg(script);
     }
-    const bool page = panel.where == ext::PanelPlace::Page || panel.where == ext::PanelPlace::Device;
-    if (panel.where == ext::PanelPlace::Device && found->run != ext::ScriptRun::App) {
-        return ExtensionHost::tr("A device panel needs a script that runs once for the app, and %1 runs for each phone")
-            .arg(script);
-    }
-    if (page && found->run != ext::ScriptRun::App) {
+    const bool forApp = ext::panelForApp(panel.where);
+    if (panel.where == ext::PanelPlace::Page && found->run != ext::ScriptRun::App) {
         return ExtensionHost::tr("A page needs a script that runs once for the app, and %1 runs for each phone")
             .arg(script);
     }
-    if (!page && found->run != ext::ScriptRun::Session) {
+    if (forApp && found->run != ext::ScriptRun::App) {
+        return ExtensionHost::tr("This place needs a script that runs once for the app, and %1 runs for each phone")
+            .arg(script);
+    }
+    if (!forApp && found->run != ext::ScriptRun::Session) {
         return ExtensionHost::tr("This place needs a script that runs for each phone, and %1 runs once for the app")
             .arg(script);
     }
@@ -1036,6 +1037,16 @@ QVariantList ExtensionHost::entries() const
     QVariantList rows;
     for (const Extension* extension : order) {
         QVariantMap row = describe(extension->manifest, language);
+        QVariantList panels = row.value(QStringLiteral("panels")).toList();
+        for (QVariant& each : panels) {
+            QVariantMap panel = each.toMap();
+            const QString icon = panel.value(QStringLiteral("icon")).toString();
+            if (icon.startsWith(u"svg:")) {
+                panel.insert(QStringLiteral("iconPath"), extensionIconPath(extension->directory, icon.mid(4).toStdString()));
+                each = panel;
+            }
+        }
+        row.insert(QStringLiteral("panels"), panels);
         std::vector<ext::Diagnostic> diagnostics = extension->diagnostics;
         if (extension->manifest) {
             const ext::Manifest& manifest = *extension->manifest;

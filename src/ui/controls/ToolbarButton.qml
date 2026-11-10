@@ -7,6 +7,7 @@ T.AbstractButton {
     id: control
 
     property string iconName
+    property string iconPath
     property string shortcut
     property bool selected: checked
     property bool compact: false
@@ -41,6 +42,7 @@ T.AbstractButton {
         Icon {
             anchors.centerIn: parent
             name: control.iconName
+            customPath: control.iconPath
             size: control.compact ? Theme.size.iconSmall : Theme.size.icon
             color: control.foreground
         }

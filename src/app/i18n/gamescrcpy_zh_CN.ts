@@ -6379,6 +6379,30 @@
         <translation>主窗口页面</translation>
     </message>
     <message>
+        <source>Device settings on the devices page</source>
+        <translation>设备页里设备的设置</translation>
+    </message>
+    <message>
+        <source>Section in Settings</source>
+        <translation>设置里的一节</translation>
+    </message>
+    <message>
+        <source>Its settings window</source>
+        <translation>它的设置窗口</translation>
+    </message>
+    <message>
+        <source>Mirror window toolbar button</source>
+        <translation>投屏窗口工具栏按钮</translation>
+    </message>
+    <message>
+        <source>More menu of cards</source>
+        <translation>卡片的“更多”菜单</translation>
+    </message>
+    <message>
+        <source>Tray menu</source>
+        <translation>托盘菜单</translation>
+    </message>
+    <message>
         <source>Touch methods: %1</source>
         <translation>触控方式：%1</translation>
     </message>
@@ -13885,6 +13909,42 @@
         <translation>显示这个小部件，取代原来的内容；null 去掉它。树不对时抛 GS-API-075；扩展没有为这份逻辑声明这个小部件时抛 GS-API-076。</translation>
     </message>
     <message>
+        <source>A toolbar button of an extension from ui.toolbar().</source>
+        <translation>ui.toolbar() 给出的扩展工具栏按钮。</translation>
+    </message>
+    <message>
+        <source>Changes what the button shows; null goes back to what the manifest declares. Throws GS-API-075 for a state that is not right and GS-API-076 when the extension does not declare the button for this logic.</source>
+        <translation>改变按钮显示的内容；null 回到清单里声明的样子。状态不对时抛 GS-API-075；扩展没有为这份逻辑声明这个按钮时抛 GS-API-076。</translation>
+    </message>
+    <message>
+        <source>Starts a task each time the button is clicked. Throws GS-API-017 for another event.</source>
+        <translation>每当按钮被点击就开始一个任务。其他事件抛 GS-API-017。</translation>
+    </message>
+    <message>
+        <source>A menu of an extension on cards, from ui.contextMenu().</source>
+        <translation>ui.contextMenu() 给出的扩展卡片菜单。</translation>
+    </message>
+    <message>
+        <source>Puts up to 16 items into the More menu of the cards in place of the last ones; null or an empty list takes them away. Throws GS-API-075 for items that are not right and GS-API-076 when the extension does not declare the menu for this logic.</source>
+        <translation>把最多 16 项放进卡片的“更多”菜单，取代上一次的；null 或空列表去掉它们。项不对时抛 GS-API-075；扩展没有为这份逻辑声明这个菜单时抛 GS-API-076。</translation>
+    </message>
+    <message>
+        <source>Starts a task each time one of the items is picked; event.target says on which card. Throws GS-API-017 for another event.</source>
+        <translation>每当其中一项被选中就开始一个任务；event.target 说明是在哪张卡片上。其他事件抛 GS-API-017。</translation>
+    </message>
+    <message>
+        <source>A group of an extension in the tray menu, from ui.tray().</source>
+        <translation>ui.tray() 给出的扩展托盘菜单分组。</translation>
+    </message>
+    <message>
+        <source>Puts up to 16 items into the tray menu in place of the last ones; null or an empty list takes them away. Throws GS-API-075 for items that are not right and GS-API-076 when the extension does not declare the group for this logic.</source>
+        <translation>把最多 16 项放进托盘菜单，取代上一次的；null 或空列表去掉它们。项不对时抛 GS-API-075；扩展没有为这份逻辑声明这个分组时抛 GS-API-076。</translation>
+    </message>
+    <message>
+        <source>Starts a task each time one of the items is picked. Throws GS-API-017 for another event.</source>
+        <translation>每当其中一项被选中就开始一个任务。其他事件抛 GS-API-017。</translation>
+    </message>
+    <message>
         <source>The components of the profile in use, by id. GameScrcpy writes the members for each profile into types/profile.d.ts; use mapping for ids that are only known at run time.</source>
         <translation>当前方案的组件，按 id 取用。GameScrcpy 会为每个方案把成员写进 types/profile.d.ts；运行时才知道的 id 用 mapping。</translation>
     </message>
@@ -14291,6 +14351,38 @@
     <message>
         <source>An item of the right-click menu; with checked it shows a check mark, and picking it sends the opposite.</source>
         <translation>右键菜单的一项；有 checked 时显示勾选标记，选中时发出相反的值。</translation>
+    </message>
+    <message>
+        <source>A device in a list: its icon, name and a line under it, with a pill for its state; stateText words the pill. icon is the name of a GameScrcpy icon or &quot;svg:&quot; and the path of an SVG in the extension&apos;s folder. With an id, clicking it sends click.</source>
+        <translation>列表里的一台设备：图标、名字和下面一行说明，并用胶囊显示状态；stateText 是胶囊上的文字。icon 是 GameScrcpy 图标的名字，或 &quot;svg:&quot; 加扩展目录里 SVG 的路径。有 id 时点击它发出 click。</translation>
+    </message>
+    <message>
+        <source>The steps of something done in turn, 2 to 8 titles of up to 40 characters: those before current are done, current is going on (or went wrong with failed), and current equal to the number of steps means all are done.</source>
+        <translation>依次进行的步骤，2 到 8 个、每个最多 40 个字符的标题：current 之前的已完成，current 正在进行（有 failed 时表示出错），current 等于步骤数表示全部完成。</translation>
+    </message>
+    <message>
+        <source>A QR code of up to 1000 bytes of text for a phone to scan.</source>
+        <translation>给手机扫的二维码，文字最多 1000 字节。</translation>
+    </message>
+    <message>
+        <source>Up to 100 rows of a name and its value.</source>
+        <translation>最多 100 行的名称和值。</translation>
+    </message>
+    <message>
+        <source>A row of a keyValue: a name of up to 60 characters and its value.</source>
+        <translation>keyValue 的一行：最多 60 个字符的名称和它的值。</translation>
+    </message>
+    <message>
+        <source>What a toolbar button shows in place of what the manifest declares: its tooltip, its icon (a GameScrcpy icon or &quot;svg:&quot; and a path), whether it shows as on, and whether it can be clicked.</source>
+        <translation>工具栏按钮代替清单声明所显示的内容：提示文字、图标（GameScrcpy 图标或 &quot;svg:&quot; 加路径）、是否显示为开启、能否点击。</translation>
+    </message>
+    <message>
+        <source>The card a menu was opened on: a device by its serial or a profile by its id, with its name.</source>
+        <translation>打开菜单的那张卡片：设备用序列号、方案用 id 表示，并带上名字。</translation>
+    </message>
+    <message>
+        <source>What a card menu listener receives: the item&apos;s id, its new checked state or null, and the card.</source>
+        <translation>卡片菜单的监听收到的内容：项的 id、它新的勾选状态或 null，以及卡片。</translation>
     </message>
     <message>
         <source>The kinds of device logic can use: serial ports, USB HID devices and Bluetooth LE devices.</source>
@@ -14711,6 +14803,10 @@
     <message>
         <source>true to draw every key hint at full opacity, false to give them back their usual look.</source>
         <translation>true 表示以完全不透明显示所有键位提示，false 表示恢复它们平时的样子。</translation>
+    </message>
+    <message>
+        <source>Gives a panel of this extension, declared in contributes.panels: a side panel of the mirror window, a page of the main window, a section of Settings, part of the extension&apos;s settings window, the settings of a device it adds, or what its toolbar button opens. GameScrcpy draws the tree given to render() with its own controls; no interface code of the extension runs.</source>
+        <translation>给出这个扩展在 contributes.panels 里声明的一个面板：投屏窗口的侧边面板、主窗口的一个页面、设置里的一节、扩展设置窗口的一部分、它添加的设备的设置，或它的工具栏按钮打开的内容。GameScrcpy 用自己的控件画出交给 render() 的树；扩展不运行任何界面代码。</translation>
     </message>
     <message>
         <source>Allow it when the phone&apos;s mirror window asks; logic made in GameScrcpy and profiles imported with confirmation may read them from the start.</source>
@@ -15665,10 +15761,6 @@
         <translation>上一个任务还在执行时又变化了怎么办。</translation>
     </message>
     <message>
-        <source>Gives a panel of this extension, declared in contributes.panels: a side panel of the mirror window or a page of the main window. GameScrcpy draws the tree given to render() with its own controls; no interface code of the extension runs.</source>
-        <translation>给出这个扩展在 contributes.panels 里声明的一个面板：投屏窗口的侧边面板或主窗口的一页。GameScrcpy 用自己的控件画出交给 render() 的树，不运行扩展自己的界面代码。</translation>
-    </message>
-    <message>
         <source>The name the extension&apos;s manifest gives the panel in contributes.panels.</source>
         <translation>扩展清单在 contributes.panels 里给这个面板起的名字。</translation>
     </message>
@@ -15707,6 +15799,18 @@
     <message>
         <source>The name the extension&apos;s manifest gives the widget in contributes.panels.</source>
         <translation>扩展清单在 contributes.panels 里给这个小部件起的名字。</translation>
+    </message>
+    <message>
+        <source>Gives a toolbar button of this extension, declared in contributes.panels with where &quot;toolbar&quot;: a button on the mirror window&apos;s toolbar with the declared title and icon while this logic runs. A click sends click; once ui.panel() of the same name has drawn a tree, the click also opens it under the button.</source>
+        <translation>给出这个扩展在 contributes.panels 里以 where &quot;toolbar&quot; 声明的工具栏按钮：这份逻辑运行时，投屏窗口工具栏上显示一个带声明的标题和图标的按钮。点击发出 click；同名的 ui.panel() 画过树后，点击还会在按钮下方打开它。</translation>
+    </message>
+    <message>
+        <source>Gives a menu of this extension, declared in contributes.panels with where &quot;contextMenu&quot;: its items are added to the More menu of the cards its on names, device cards and profile cards.</source>
+        <translation>给出这个扩展在 contributes.panels 里以 where &quot;contextMenu&quot; 声明的菜单：它的项加到 on 所列卡片（设备卡片、方案卡片）的“更多”菜单里。</translation>
+    </message>
+    <message>
+        <source>Gives this extension&apos;s group of items in the tray menu, declared in contributes.panels with where &quot;tray&quot;.</source>
+        <translation>给出这个扩展在 contributes.panels 里以 where &quot;tray&quot; 声明的托盘菜单分组。</translation>
     </message>
     <message>
         <source>Starts a task each time an item of this extension&apos;s group in the right-click menu is picked.</source>
@@ -18970,6 +19074,26 @@
         <source>%1%</source>
         <translation>%1%</translation>
     </message>
+    <message>
+        <source>Online</source>
+        <translation>在线</translation>
+    </message>
+    <message>
+        <source>In use</source>
+        <translation>使用中</translation>
+    </message>
+    <message>
+        <source>Needs attention</source>
+        <translation>需要处理</translation>
+    </message>
+    <message>
+        <source>Offline</source>
+        <translation>离线</translation>
+    </message>
+    <message>
+        <source>QR code</source>
+        <translation>二维码</translation>
+    </message>
 </context>
 <context>
     <name>UiPanelView</name>
@@ -21305,12 +21429,12 @@
         <translation>扩展里没有它的脚本 %1</translation>
     </message>
     <message>
-        <source>A device panel needs a script that runs once for the app, and %1 runs for each phone</source>
-        <translation>设备面板需要在程序里只运行一份的脚本，而 %1 是每台手机各运行一份</translation>
-    </message>
-    <message>
         <source>A page needs a script that runs once for the app, and %1 runs for each phone</source>
         <translation>页面需要在程序里只运行一份的脚本，而 %1 是每台手机各运行一份</translation>
+    </message>
+    <message>
+        <source>This place needs a script that runs once for the app, and %1 runs for each phone</source>
+        <translation>这个位置需要在程序里只运行一份的脚本，而 %1 是每台手机各运行一份</translation>
     </message>
     <message>
         <source>This place needs a script that runs for each phone, and %1 runs once for the app</source>

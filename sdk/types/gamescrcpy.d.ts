@@ -227,7 +227,7 @@ type UiTone = "normal" | "muted" | "accent" | "good" | "warn" | "bad";
 type UiColor = string;
 
 /** A node of a panel tree. A tree is at most 256 KiB as JSON, 2000 nodes and 16 levels deep. */
-type UiNode = UiColumn | UiRow | UiGroup | UiText | UiButton | UiField | UiNumber | UiToggle | UiChoice | UiSlider | UiList | UiTable | UiChart | UiCanvas | UiImage | UiProgress | UiSeparator;
+type UiNode = UiColumn | UiRow | UiGroup | UiText | UiButton | UiField | UiNumber | UiToggle | UiChoice | UiSlider | UiList | UiTable | UiChart | UiCanvas | UiImage | UiProgress | UiSeparator | UiDeviceItem | UiSteps | UiQr | UiKeyValue;
 
 /** Nodes one under another. */
 type UiColumn = { readonly type: "column"; readonly id?: string; readonly children?: readonly UiNode[] };
@@ -312,6 +312,30 @@ type UiStatusIcon = { readonly type: "icon"; readonly id?: string; readonly name
 
 /** An item of the right-click menu; with checked it shows a check mark, and picking it sends the opposite. */
 type UiMenuItem = { readonly id: string; readonly title: string; readonly icon?: string; readonly checked?: boolean; readonly enabled?: boolean };
+
+/** A device in a list: its icon, name and a line under it, with a pill for its state; stateText words the pill. icon is the name of a GameScrcpy icon or "svg:" and the path of an SVG in the extension's folder. With an id, clicking it sends click. */
+type UiDeviceItem = { readonly type: "deviceItem"; readonly id?: string; readonly title: string; readonly subtitle?: string; readonly icon?: string; readonly state?: "ready" | "busy" | "problem" | "offline"; readonly stateText?: string };
+
+/** The steps of something done in turn, 2 to 8 titles of up to 40 characters: those before current are done, current is going on (or went wrong with failed), and current equal to the number of steps means all are done. */
+type UiSteps = { readonly type: "steps"; readonly id?: string; readonly steps: readonly string[]; readonly current?: number; readonly failed?: boolean };
+
+/** A QR code of up to 1000 bytes of text for a phone to scan. */
+type UiQr = { readonly type: "qr"; readonly id?: string; readonly text: string; readonly title?: string };
+
+/** Up to 100 rows of a name and its value. */
+type UiKeyValue = { readonly type: "keyValue"; readonly id?: string; readonly rows: readonly UiKeyValueRow[] };
+
+/** A row of a keyValue: a name of up to 60 characters and its value. */
+type UiKeyValueRow = { readonly key: string; readonly value?: string | number | boolean | null };
+
+/** What a toolbar button shows in place of what the manifest declares: its tooltip, its icon (a GameScrcpy icon or "svg:" and a path), whether it shows as on, and whether it can be clicked. */
+type UiToolbarState = { readonly title?: string; readonly icon?: string; readonly checked?: boolean; readonly enabled?: boolean };
+
+/** The card a menu was opened on: a device by its serial or a profile by its id, with its name. */
+type UiTarget = { readonly kind: "device" | "profile"; readonly id: string; readonly name: string };
+
+/** What a card menu listener receives: the item's id, its new checked state or null, and the card. */
+type UiChooseEvent = UiEvent & { readonly target: UiTarget };
 
 /** The kinds of device logic can use: serial ports, USB HID devices and Bluetooth LE devices. */
 type HardwareKind = "serial" | "hid" | "ble";
@@ -1914,6 +1938,51 @@ interface UiStatus {
     render(tree: UiStatusNode | null): void;
 }
 
+/** A toolbar button of an extension from ui.toolbar(). */
+interface UiToolbar {
+    /**
+     * Changes what the button shows; null goes back to what the manifest declares. Throws GS-API-075 for a state that is not right and GS-API-076 when the extension does not declare the button for this logic.
+     * @example quick.set({ checked: true, title: "Recording" });
+     */
+    set(state: UiToolbarState | null): void;
+
+    /**
+     * Starts a task each time the button is clicked. Throws GS-API-017 for another event.
+     * @example quick.on("click", () => log.info("pressed"));
+     */
+    on(type: "click", handler: (event: UiEvent) => void | Promise<void>, options?: ListenOptions): Subscription;
+}
+
+/** A menu of an extension on cards, from ui.contextMenu(). */
+interface UiContextMenu {
+    /**
+     * Puts up to 16 items into the More menu of the cards in place of the last ones; null or an empty list takes them away. Throws GS-API-075 for items that are not right and GS-API-076 when the extension does not declare the menu for this logic.
+     * @example more.set([{ id: "copy", title: "Copy the id", icon: "copy" }]);
+     */
+    set(items: readonly UiMenuItem[] | null): void;
+
+    /**
+     * Starts a task each time one of the items is picked; event.target says on which card. Throws GS-API-017 for another event.
+     * @example more.on("choose", ({ id, target }) => log.info(id, target.kind, target.name));
+     */
+    on(type: "choose", handler: (event: UiChooseEvent) => void | Promise<void>, options?: ListenOptions): Subscription;
+}
+
+/** A group of an extension in the tray menu, from ui.tray(). */
+interface UiTray {
+    /**
+     * Puts up to 16 items into the tray menu in place of the last ones; null or an empty list takes them away. Throws GS-API-075 for items that are not right and GS-API-076 when the extension does not declare the group for this logic.
+     * @example tray.set([{ id: "pause", title: "Pause", checked: paused }]);
+     */
+    set(items: readonly UiMenuItem[] | null): void;
+
+    /**
+     * Starts a task each time one of the items is picked. Throws GS-API-017 for another event.
+     * @example tray.on("choose", ({ id }) => log.info("picked", id));
+     */
+    on(type: "choose", handler: (event: UiEvent) => void | Promise<void>, options?: ListenOptions): Subscription;
+}
+
 /** The components of the profile in use, by id. GameScrcpy writes the members for each profile into types/profile.d.ts; use mapping for ids that are only known at run time. */
 interface Controls {}
 
@@ -3222,7 +3291,7 @@ declare namespace ui {
     function notify(title: string, text?: string): boolean;
 
     /**
-     * Gives a panel of this extension, declared in contributes.panels: a side panel of the mirror window or a page of the main window. GameScrcpy draws the tree given to render() with its own controls; no interface code of the extension runs.
+     * Gives a panel of this extension, declared in contributes.panels: a side panel of the mirror window, a page of the main window, a section of Settings, part of the extension's settings window, the settings of a device it adds, or what its toolbar button opens. GameScrcpy draws the tree given to render() with its own controls; no interface code of the extension runs.
      * @param name The name the extension's manifest gives the panel in contributes.panels.
      * @throws GS-API-011 when the name is not a string or is empty. Pass the name from contributes.panels.
      * @since 1 (stable)
@@ -3248,6 +3317,33 @@ declare namespace ui {
      * @example ui.status("fps").render({ type: "text", text: "60" });
      */
     function status(name: string): UiStatus;
+
+    /**
+     * Gives a toolbar button of this extension, declared in contributes.panels with where "toolbar": a button on the mirror window's toolbar with the declared title and icon while this logic runs. A click sends click; once ui.panel() of the same name has drawn a tree, the click also opens it under the button.
+     * @param name The name the extension's manifest gives the panel in contributes.panels.
+     * @throws GS-API-011 when the name is not a string or is empty. Pass the name from contributes.panels.
+     * @since 1 (stable)
+     * @example const quick = ui.toolbar("quick"); quick.on("click", () => log.info("pressed"));
+     */
+    function toolbar(name: string): UiToolbar;
+
+    /**
+     * Gives a menu of this extension, declared in contributes.panels with where "contextMenu": its items are added to the More menu of the cards its on names, device cards and profile cards.
+     * @param name The name the extension's manifest gives the panel in contributes.panels.
+     * @throws GS-API-011 when the name is not a string or is empty. Pass the name from contributes.panels.
+     * @since 1 (stable)
+     * @example ui.contextMenu("more").set([{ id: "copy", title: "Copy the id" }]);
+     */
+    function contextMenu(name: string): UiContextMenu;
+
+    /**
+     * Gives this extension's group of items in the tray menu, declared in contributes.panels with where "tray".
+     * @param name The name the extension's manifest gives the panel in contributes.panels.
+     * @throws GS-API-011 when the name is not a string or is empty. Pass the name from contributes.panels.
+     * @since 1 (stable)
+     * @example ui.tray("quick").set([{ id: "pause", title: "Pause", checked: false }]);
+     */
+    function tray(name: string): UiTray;
 }
 
 /** What the user holds and points at, readable only while the phone's mirror window is in front. */

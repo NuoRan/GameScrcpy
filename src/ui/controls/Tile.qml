@@ -6,6 +6,7 @@ Rectangle {
     id: tile
 
     property string iconName
+    property string iconPath
     property string tone
     property bool large: false
 
@@ -17,6 +18,7 @@ Rectangle {
     Icon {
         anchors.centerIn: parent
         name: tile.iconName
+        customPath: tile.iconPath
         size: tile.large ? Theme.size.iconLarge : Theme.size.iconSmall
         color: Theme.toneInk(tile.tone)
     }

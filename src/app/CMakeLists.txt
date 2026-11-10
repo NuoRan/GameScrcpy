@@ -130,6 +130,7 @@ qt_add_qml_module(GameScrcpy
         qml/WirelessSection.qml
         qml/ExportPackageDialog.qml
         qml/extui/UiCanvas.qml
+        qml/extui/UiCardMenuItems.qml
         qml/extui/UiChart.qml
         qml/extui/UiContextMenu.qml
         qml/extui/UiList.qml
@@ -137,10 +138,13 @@ qt_add_qml_module(GameScrcpy
         qml/extui/UiNavSection.qml
         qml/extui/UiNode.qml
         qml/extui/UiPage.qml
+        qml/extui/UiPanelBlock.qml
         qml/extui/UiPanelView.qml
         qml/extui/UiSidePanel.qml
         qml/extui/UiStatusRow.qml
         qml/extui/UiTable.qml
+        qml/extui/UiToolbarButton.qml
+        qml/extui/UiToolbarPanel.qml
     SOURCES
         AiAssistant.cpp
         AiAssistant.h

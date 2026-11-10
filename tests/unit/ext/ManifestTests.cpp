@@ -794,7 +794,8 @@ TEST_CASE("panel contributions name a place, a script and a title, load and surv
     CHECK(panelSchema["items"]["required"] == Json::array({"name", "title", "where", "script"}));
     CHECK(panelSchema["items"]["properties"]["name"]["pattern"] == "^[a-z0-9-]{1,32}$");
     CHECK(panelSchema["items"]["properties"]["where"]["enum"] ==
-          Json::array({"mirror", "menu", "status", "page", "device"}));
+          Json::array({"mirror", "menu", "status", "page", "device", "settings", "extension", "toolbar", "contextMenu",
+                       "tray"}));
     CHECK(panelSchema["items"]["properties"]["title"]["maxLength"] == 40);
     CHECK(schema["properties"]["requires"]["propertyNames"]["enum"].back() == "panel");
 }
@@ -1121,15 +1122,55 @@ TEST_CASE("the manifest schema describes native attachments, behaviors, their sl
     CHECK(behavior["properties"]["fingers"]["maximum"] == 10);
 }
 
-TEST_CASE("ADR-0112: a panel can be shown for a device from the devices page")
+TEST_CASE("ADR-0112: panels show for a device, in Settings, in the extension's settings window, on the toolbar, in "
+          "card menus and in the tray, and only a card menu names the cards it shows on")
 {
     Json json = panelBase();
-    json["contributes"]["panels"].push_back(
-        {{"name", "board"}, {"title", "Board settings"}, {"where", "device"}, {"script", "app"}});
-    const LoadedManifest loaded = load(json);
+    json["contributes"]["panels"] = Json::array(
+        {{{"name", "board"}, {"title", "Board settings"}, {"where", "device"}, {"script", "app"}},
+         {{"name", "options"}, {"title", "Options"}, {"where", "settings"}, {"script", "app"}},
+         {{"name", "main"}, {"title", "Setup"}, {"icon", "svg:icons/board.svg"}, {"where", "extension"}, {"script", "app"}},
+         {{"name", "quick"}, {"title", "Quick"}, {"where", "toolbar"}, {"script", "session"}},
+         {{"name", "more"}, {"title", "More"}, {"where", "contextMenu"}, {"script", "app"}, {"on", {"device", "profile"}}},
+         {{"name", "tray"}, {"title", "Tray"}, {"where", "tray"}, {"script", "app"}}});
+    LoadedManifest loaded = load(json);
     INFO(listed(loaded));
     CHECK(loaded.usable);
-    REQUIRE_FALSE(loaded.manifest.contributes.panels.empty());
-    CHECK(loaded.manifest.contributes.panels.back().where == PanelPlace::Device);
-    CHECK(Json::parse(saveManifest(loaded.manifest))["contributes"]["panels"].back()["where"] == "device");
+    const std::vector<PanelContribution>& panels = loaded.manifest.contributes.panels;
+    REQUIRE(panels.size() == 6);
+    CHECK(panels[0].where == PanelPlace::Device);
+    CHECK(panels[1].where == PanelPlace::Settings);
+    CHECK(panels[2].where == PanelPlace::Extension);
+    CHECK(panels[2].icon == "svg:icons/board.svg");
+    CHECK(panels[3].where == PanelPlace::Toolbar);
+    CHECK(panels[4].where == PanelPlace::ContextMenu);
+    CHECK(panels[4].on == std::vector<std::string>{"device", "profile"});
+    CHECK(panels[5].where == PanelPlace::Tray);
+    const Json saved = Json::parse(saveManifest(loaded.manifest))["contributes"]["panels"];
+    CHECK(saved[3]["where"] == "toolbar");
+    CHECK(saved[4]["where"] == "contextMenu");
+    CHECK(saved[4]["on"] == Json::array({"device", "profile"}));
+    CHECK_FALSE(saved[1].contains("on"));
+    for (const PanelPlace place : {PanelPlace::Page, PanelPlace::Device, PanelPlace::Settings, PanelPlace::Extension,
+                                   PanelPlace::ContextMenu, PanelPlace::Tray}) {
+        CHECK(panelForApp(place));
+    }
+    for (const PanelPlace place : {PanelPlace::Mirror, PanelPlace::Menu, PanelPlace::Status, PanelPlace::Toolbar}) {
+        CHECK_FALSE(panelForApp(place));
+    }
+
+    json["contributes"]["panels"][4].erase("on");
+    json["contributes"]["panels"][5]["on"] = {"device"};
+    loaded = load(json);
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.panels[4].on"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.panels[5].on"));
+
+    json["contributes"]["panels"][4]["on"] = {"profile", "profile"};
+    json["contributes"]["panels"][5].erase("on");
+    loaded = load(json);
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.panels[4].on[1]"));
+    CHECK_FALSE(reports(loaded, Code::OutOfRange, "$.contributes.panels[4].on[0]"));
+    json["contributes"]["panels"][4]["on"] = {"window"};
+    CHECK(reports(load(json), Code::OutOfRange, "$.contributes.panels[4].on[0]"));
 }

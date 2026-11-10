@@ -913,7 +913,7 @@
     "label": "ui.panel",
     "kind": "function",
     "detail": "ui.panel(name: string): UiPanel",
-    "documentation": "Gives a panel of this extension, declared in contributes.panels: a side panel of the mirror window or a page of the main window. GameScrcpy draws the tree given to render() with its own controls; no interface code of the extension runs.",
+    "documentation": "Gives a panel of this extension, declared in contributes.panels: a side panel of the mirror window, a page of the main window, a section of Settings, part of the extension's settings window, the settings of a device it adds, or what its toolbar button opens. GameScrcpy draws the tree given to render() with its own controls; no interface code of the extension runs.",
     "insertText": "ui.panel(${1:name})"
   },
   {
@@ -929,6 +929,27 @@
     "detail": "ui.status(name: string): UiStatus",
     "documentation": "Gives a status widget of this extension, declared in contributes.panels: a little text, icons and progress shown with the status of the mirror window.",
     "insertText": "ui.status(${1:name})"
+  },
+  {
+    "label": "ui.toolbar",
+    "kind": "function",
+    "detail": "ui.toolbar(name: string): UiToolbar",
+    "documentation": "Gives a toolbar button of this extension, declared in contributes.panels with where \"toolbar\": a button on the mirror window's toolbar with the declared title and icon while this logic runs. A click sends click; once ui.panel() of the same name has drawn a tree, the click also opens it under the button.",
+    "insertText": "ui.toolbar(${1:name})"
+  },
+  {
+    "label": "ui.contextMenu",
+    "kind": "function",
+    "detail": "ui.contextMenu(name: string): UiContextMenu",
+    "documentation": "Gives a menu of this extension, declared in contributes.panels with where \"contextMenu\": its items are added to the More menu of the cards its on names, device cards and profile cards.",
+    "insertText": "ui.contextMenu(${1:name})"
+  },
+  {
+    "label": "ui.tray",
+    "kind": "function",
+    "detail": "ui.tray(name: string): UiTray",
+    "documentation": "Gives this extension's group of items in the tray menu, declared in contributes.panels with where \"tray\".",
+    "insertText": "ui.tray(${1:name})"
   },
   {
     "label": "input",
@@ -3332,6 +3353,48 @@
     "insertText": "render(${1})"
   },
   {
+    "label": "UiToolbar.set",
+    "kind": "method",
+    "detail": "set(state: UiToolbarState | null): void",
+    "documentation": "Changes what the button shows; null goes back to what the manifest declares. Throws GS-API-075 for a state that is not right and GS-API-076 when the extension does not declare the button for this logic.",
+    "insertText": "set(${1})"
+  },
+  {
+    "label": "UiToolbar.on",
+    "kind": "method",
+    "detail": "on(type: \"click\", handler: (event: UiEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the button is clicked. Throws GS-API-017 for another event.",
+    "insertText": "on(${1})"
+  },
+  {
+    "label": "UiContextMenu.set",
+    "kind": "method",
+    "detail": "set(items: readonly UiMenuItem[] | null): void",
+    "documentation": "Puts up to 16 items into the More menu of the cards in place of the last ones; null or an empty list takes them away. Throws GS-API-075 for items that are not right and GS-API-076 when the extension does not declare the menu for this logic.",
+    "insertText": "set(${1})"
+  },
+  {
+    "label": "UiContextMenu.on",
+    "kind": "method",
+    "detail": "on(type: \"choose\", handler: (event: UiChooseEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time one of the items is picked; event.target says on which card. Throws GS-API-017 for another event.",
+    "insertText": "on(${1})"
+  },
+  {
+    "label": "UiTray.set",
+    "kind": "method",
+    "detail": "set(items: readonly UiMenuItem[] | null): void",
+    "documentation": "Puts up to 16 items into the tray menu in place of the last ones; null or an empty list takes them away. Throws GS-API-075 for items that are not right and GS-API-076 when the extension does not declare the group for this logic.",
+    "insertText": "set(${1})"
+  },
+  {
+    "label": "UiTray.on",
+    "kind": "method",
+    "detail": "on(type: \"choose\", handler: (event: UiEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time one of the items is picked. Throws GS-API-017 for another event.",
+    "insertText": "on(${1})"
+  },
+  {
     "label": "HardwareDevice.id",
     "kind": "property",
     "detail": "readonly id: string",
@@ -4233,6 +4296,62 @@
     "detail": "type UiMenuItem",
     "documentation": "An item of the right-click menu; with checked it shows a check mark, and picking it sends the opposite.",
     "insertText": "UiMenuItem"
+  },
+  {
+    "label": "UiDeviceItem",
+    "kind": "type",
+    "detail": "type UiDeviceItem",
+    "documentation": "A device in a list: its icon, name and a line under it, with a pill for its state; stateText words the pill. icon is the name of a GameScrcpy icon or \"svg:\" and the path of an SVG in the extension's folder. With an id, clicking it sends click.",
+    "insertText": "UiDeviceItem"
+  },
+  {
+    "label": "UiSteps",
+    "kind": "type",
+    "detail": "type UiSteps",
+    "documentation": "The steps of something done in turn, 2 to 8 titles of up to 40 characters: those before current are done, current is going on (or went wrong with failed), and current equal to the number of steps means all are done.",
+    "insertText": "UiSteps"
+  },
+  {
+    "label": "UiQr",
+    "kind": "type",
+    "detail": "type UiQr",
+    "documentation": "A QR code of up to 1000 bytes of text for a phone to scan.",
+    "insertText": "UiQr"
+  },
+  {
+    "label": "UiKeyValue",
+    "kind": "type",
+    "detail": "type UiKeyValue",
+    "documentation": "Up to 100 rows of a name and its value.",
+    "insertText": "UiKeyValue"
+  },
+  {
+    "label": "UiKeyValueRow",
+    "kind": "type",
+    "detail": "type UiKeyValueRow",
+    "documentation": "A row of a keyValue: a name of up to 60 characters and its value.",
+    "insertText": "UiKeyValueRow"
+  },
+  {
+    "label": "UiToolbarState",
+    "kind": "type",
+    "detail": "type UiToolbarState",
+    "documentation": "What a toolbar button shows in place of what the manifest declares: its tooltip, its icon (a GameScrcpy icon or \"svg:\" and a path), whether it shows as on, and whether it can be clicked.",
+    "insertText": "UiToolbarState"
+  },
+  {
+    "label": "UiTarget",
+    "kind": "type",
+    "detail": "type UiTarget",
+    "documentation": "The card a menu was opened on: a device by its serial or a profile by its id, with its name.",
+    "insertText": "UiTarget"
+  },
+  {
+    "label": "UiChooseEvent",
+    "kind": "type",
+    "detail": "type UiChooseEvent",
+    "documentation": "What a card menu listener receives: the item's id, its new checked state or null, and the card.",
+    "insertText": "UiChooseEvent"
   },
   {
     "label": "HardwareKind",

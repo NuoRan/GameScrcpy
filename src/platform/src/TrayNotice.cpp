@@ -77,8 +77,15 @@ struct TrayNotice::Impl {
         if (popup == nullptr) {
             return;
         }
-        for (std::size_t index = 0; index < menu.size(); ++index) {
-            AppendMenuW(popup, MF_STRING, static_cast<UINT_PTR>(index + 1), menu[index].text.c_str());
+        const std::vector<TrayMenuItem> shown = menu;
+        for (std::size_t index = 0; index < shown.size(); ++index) {
+            const TrayMenuItem& item = shown[index];
+            if (item.separator) {
+                AppendMenuW(popup, MF_SEPARATOR, 0, nullptr);
+                continue;
+            }
+            const UINT flags = MF_STRING | (item.checked ? MF_CHECKED : MF_UNCHECKED) | (item.enabled ? MF_ENABLED : MF_GRAYED);
+            AppendMenuW(popup, flags, static_cast<UINT_PTR>(index + 1), item.text.c_str());
         }
         SetForegroundWindow(window);
         const UINT align = GetSystemMetrics(SM_MENUDROPALIGNMENT) != 0 ? TPM_RIGHTALIGN : TPM_LEFTALIGN;
@@ -86,8 +93,8 @@ struct TrayNotice::Impl {
             popup, TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON | TPM_BOTTOMALIGN | align, x, y, window, nullptr));
         PostMessageW(window, WM_NULL, 0, 0);
         DestroyMenu(popup);
-        if (chosen >= 1 && chosen <= menu.size()) {
-            call(menu[chosen - 1].chosen);
+        if (chosen >= 1 && chosen <= shown.size() && !shown[chosen - 1].separator) {
+            call(shown[chosen - 1].chosen);
         }
     }
 

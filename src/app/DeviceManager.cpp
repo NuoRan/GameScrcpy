@@ -19,6 +19,7 @@
 #include "Esp32Session.h"
 #include "ExtensionHost.h"
 #include "ExtensionLogic.h"
+#include "ExtensionPanels.h"
 #include "FailureAdvice.h"
 #include "GridLayout.h"
 #include "GridWindow.h"
@@ -4619,8 +4620,41 @@ void DeviceManager::setTrayMenu()
     if (m_tray == nullptr) {
         return;
     }
-    m_tray->setMenu({{tr("Open GameScrcpy").toStdWString(), [this] { emit mainWindowWanted(); }},
-                     {tr("Quit").toStdWString(), [] { QCoreApplication::quit(); }}});
+    std::vector<platform::TrayMenuItem> items{{tr("Open GameScrcpy").toStdWString(), [this] { emit mainWindowWanted(); }}};
+    bool extensions = false;
+    for (const QVariant& each : ExtensionPanels::instance() != nullptr ? ExtensionPanels::instance()->menus()
+                                                                       : QVariantList()) {
+        const QVariantMap group = each.toMap();
+        if (group.value(QStringLiteral("where")).toString() != u"tray") {
+            continue;
+        }
+        if (!std::exchange(extensions, true)) {
+            items.push_back({.separator = true});
+        }
+        const quint64 logic = group.value(QStringLiteral("logic")).toULongLong();
+        const QString name = group.value(QStringLiteral("name")).toString();
+        for (const QVariant& entry : group.value(QStringLiteral("items")).toList()) {
+            const QVariantMap item = entry.toMap();
+            const QString id = item.value(QStringLiteral("id")).toString();
+            const bool checkable = item.value(QStringLiteral("checkable")).toBool();
+            const bool checked = item.value(QStringLiteral("checked")).toBool();
+            items.push_back({.text = item.value(QStringLiteral("title")).toString().toStdWString(),
+                             .chosen =
+                                 [logic, name, id, checkable, checked] {
+                                     if (const ExtensionPanels* panels = ExtensionPanels::instance()) {
+                                         panels->choose(logic, name, id, checkable ? QVariant(!checked) : QVariant(),
+                                                        {});
+                                     }
+                                 },
+                             .checked = checked,
+                             .enabled = item.value(QStringLiteral("enabled")).toBool()});
+        }
+    }
+    if (extensions) {
+        items.push_back({.separator = true});
+    }
+    items.push_back({tr("Quit").toStdWString(), [] { QCoreApplication::quit(); }});
+    m_tray->setMenu(std::move(items));
 }
 
 bool DeviceManager::hideToTrayOnClose()
@@ -7328,6 +7362,9 @@ void DeviceManager::setExtensions(ExtensionHost* extensions)
     applyModules();
     syncEsp32();
     syncProvided();
+    if (ExtensionPanels* panels = ExtensionPanels::instance()) {
+        connect(panels, &ExtensionPanels::menusChanged, this, &DeviceManager::setTrayMenu, Qt::UniqueConnection);
+    }
 }
 
 void DeviceManager::setNativeJobs(NativeJobs* jobs)

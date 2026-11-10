@@ -111,7 +111,9 @@ Item {
     readonly property var sidePanels: overlay.extensionPanels.filter(entry => entry.where === "mirror")
     readonly property var statusWidgets: overlay.extensionPanels.filter(entry => entry.where === "status")
     readonly property string statusWidgetKeys: overlay.statusWidgets.map(entry => entry.key).join(" ")
-    readonly property var extensionMenus: ExtensionPanels.menus.filter(group => group.device === overlay.serial)
+    readonly property var extensionMenus: ExtensionPanels.menus.filter(group => group.device === overlay.serial
+                                                                                && group.where === "menu")
+    readonly property var toolbarButtons: overlay.extensionPanels.filter(entry => entry.where === "toolbar")
 
     signal pictureFocusWanted()
 
@@ -1358,6 +1360,18 @@ Item {
             }
         }
 
+        Repeater {
+            model: toolbar.tight ? 0 : overlay.toolbarButtons.length
+
+            delegate: UiToolbarButton {
+                id: extensionButton
+
+                required property int index
+
+                entry: overlay.toolbarButtons[extensionButton.index] ?? null
+            }
+        }
+
         ToolbarSeparator {}
 
         CommandButton { id: diagnosticsButton; commandState: diagnosticsCommand; fallbackIcon: "activity"; visible: !toolbar.compact }
@@ -1376,6 +1390,13 @@ Item {
             iconName: "ellipsis"
             text: qsTr("More")
             onClicked: moreMenu.open()
+
+            UiToolbarPanel {
+                id: toolbarPanel
+
+                x: moreButton.width - width
+                y: moreButton.height + Theme.space.xs
+            }
 
             Menu {
                 id: moreMenu
@@ -1474,6 +1495,8 @@ Item {
                     onTriggered: recordingsDialog.show(overlay.serial)
                 }
                 MenuItem {
+                    id: panelsInMore
+
                     objectName: "extensionPanelsInMore"
                     visible: toolbar.tight && overlay.sidePanels.length > 0
                     height: visible ? implicitHeight : 0
@@ -1485,6 +1508,46 @@ Item {
                         else
                             extensionSide.reopen()
                     }
+                }
+                Instantiator {
+                    model: toolbar.tight ? overlay.toolbarButtons.length : 0
+
+                    delegate: MenuItem {
+                        id: toolbarItem
+
+                        required property int index
+                        readonly property var buttonEntry: overlay.toolbarButtons[toolbarItem.index] ?? null
+                        readonly property var look: toolbarItem.buttonEntry !== null
+                                                    ? toolbarItem.buttonEntry.toolbar ?? ({}) : ({})
+
+                        objectName: "extensionToolbarInMore"
+                        text: (toolbarItem.look.title ?? "") !== "" ? toolbarItem.look.title
+                              : toolbarItem.buttonEntry !== null ? toolbarItem.buttonEntry.title : ""
+                        shortcut: toolbarItem.buttonEntry !== null ? toolbarItem.buttonEntry.extensionName : ""
+                        iconName: toolbarItem.buttonEntry !== null && toolbarItem.buttonEntry.icon !== ""
+                                  ? toolbarItem.buttonEntry.icon : "puzzle"
+                        choice: toolbarItem.look.checked === true
+                        chosen: true
+                        enabled: toolbarItem.look.enabled !== false
+                        onTriggered: {
+                            const wanted = toolbarItem.buttonEntry
+                            if (wanted === null)
+                                return
+                            ExtensionPanels.send(wanted.logic, wanted.name, "click", "", null)
+                            toolbarPanel.openFor(wanted)
+                        }
+                    }
+
+                    onObjectAdded: (index, object) => {
+                        for (let at = 0; at < moreMenu.count; ++at) {
+                            if (moreMenu.itemAt(at) === panelsInMore) {
+                                moreMenu.insertItem(at + 1 + index, object)
+                                return
+                            }
+                        }
+                        moreMenu.addItem(object)
+                    }
+                    onObjectRemoved: (index, object) => moreMenu.removeItem(object)
                 }
                 MenuItem {
                     objectName: "editLogic"

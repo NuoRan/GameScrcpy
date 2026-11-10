@@ -69,7 +69,8 @@ Column {
 
                     objectName: "extensionNavItem"
                     text: metrics.elidedText
-                    iconName: item.modelData.icon !== "" ? item.modelData.icon : "puzzle"
+                    iconName: item.modelData.icon !== "" || item.modelData.iconPath !== "" ? item.modelData.icon : "puzzle"
+                    iconPath: item.modelData.iconPath
                     current: section.active && section.currentId === item.modelData.id
                     Accessible.name: item.modelData.title
                     Accessible.description: item.modelData.extensionName

@@ -619,6 +619,24 @@ void checkEntry(const PanelContribution& panel, const std::string& path, Context
         context.report(Severity::Error, Code::PanelNameInvalid, path + ".name",
                        "\"menu\" names only the panel shown in the right-click menu");
     }
+    if (panel.where != PanelPlace::ContextMenu) {
+        if (!panel.on.empty()) {
+            context.report(Severity::Error, Code::OutOfRange, path + ".on",
+                           "only a panel with where \"contextMenu\" says which cards it shows on");
+        }
+        return;
+    }
+    if (panel.on.empty()) {
+        context.report(Severity::Error, Code::MissingField, path + ".on");
+    }
+    for (std::size_t index = 0; index < panel.on.size(); ++index) {
+        if (std::ranges::find(kPanelTargetNames, panel.on[index]) == kPanelTargetNames.end()) {
+            context.report(Severity::Error, Code::OutOfRange, indexed(path + ".on", index), panel.on[index]);
+        } else if (std::ranges::find(panel.on.begin(), panel.on.begin() + static_cast<std::ptrdiff_t>(index),
+                                     panel.on[index]) != panel.on.begin() + static_cast<std::ptrdiff_t>(index)) {
+            context.report(Severity::Error, Code::Duplicate, indexed(path + ".on", index), panel.on[index]);
+        }
+    }
 }
 
 bool within(const SettingDeclaration& setting, double value)

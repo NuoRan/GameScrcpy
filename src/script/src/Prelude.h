@@ -3627,8 +3627,14 @@ inline constexpr std::array<std::string_view, 14> kPreludeParts{
         if (value === null || typeof value !== "object" || typeof value.type !== "string") {
             return;
         }
-        reactAll("ui:" + id + ":" + value.type,
-            { id: typeof value.id === "string" ? value.id : "", value: value.value === undefined ? null : value.value });
+        const event = { id: typeof value.id === "string" ? value.id : "",
+            value: value.value === undefined ? null : value.value };
+        if (value.target !== null && typeof value.target === "object") {
+            event.target = freeze({ kind: String(value.target.kind ?? ""), id: String(value.target.id ?? ""),
+                name: String(value.target.name ?? "") });
+        }
+        const key = value.type === "click" && event.id === "" ? "toolbar:" + id : id;
+        reactAll("ui:" + key + ":" + value.type, event);
     });
     const uiPanels = new Map();
     library["ui.panel"] = (name) => {
@@ -3682,6 +3688,52 @@ inline constexpr std::array<std::string_view, 14> kPreludeParts{
         }
         return uiStatuses.get(widget);
     };
+    const uiToolbars = new Map();
+    library["ui.toolbar"] = (name) => {
+        const button = nameOf(name);
+        if (!uiToolbars.has(button)) {
+            const made = {
+                set(state) {
+                    if (state === undefined) {
+                        throw new TypeError("GS-API-075 set() needs what the button shows; pass null to show what "
+                            + "the manifest declares");
+                    }
+                    uiSend("ui.toolbar", { name: button, state });
+                },
+                on(type, handler, options) {
+                    return uiListen("toolbar:" + button, type, handler, options, "ui.toolbar(" + button + ").on",
+                        ["click"]);
+                },
+            };
+            defineProperty(made, Symbol.toStringTag, { value: "UiToolbar" });
+            uiToolbars.set(button, freeze(made));
+        }
+        return uiToolbars.get(button);
+    };
+    const uiNamedMenu = (service, tag, label) => {
+        const made = new Map();
+        return (name) => {
+            const menu = nameOf(name);
+            if (!made.has(menu)) {
+                const group = {
+                    set(items) {
+                        if (items !== null && !Array.isArray(items)) {
+                            throw new TypeError("GS-API-075 the menu items must be a list, or null to take them away");
+                        }
+                        uiSend(service, { name: menu, items });
+                    },
+                    on(type, handler, options) {
+                        return uiListen(menu, type, handler, options, label + "(" + menu + ").on", ["choose"]);
+                    },
+                };
+                defineProperty(group, Symbol.toStringTag, { value: tag });
+                made.set(menu, freeze(group));
+            }
+            return made.get(menu);
+        };
+    };
+    library["ui.contextMenu"] = uiNamedMenu("ui.contextMenu", "UiContextMenu", "ui.contextMenu");
+    library["ui.tray"] = uiNamedMenu("ui.tray", "UiTray", "ui.tray");
     const aiPicture = (picture) => {
         if (picture === undefined || picture === false) {
             return { picture: false, region: null };

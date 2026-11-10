@@ -584,6 +584,33 @@ A status widget of an extension from ui.status().
 |---|---|
 | `render(tree: UiStatusNode \| null): void` | Shows the widget in place of what it showed; null takes it away. Throws GS-API-075 for a tree that is not right and GS-API-076 when the extension does not declare the widget for this logic. |
 
+### UiToolbar
+
+A toolbar button of an extension from ui.toolbar().
+
+| Member | Description |
+|---|---|
+| `set(state: UiToolbarState \| null): void` | Changes what the button shows; null goes back to what the manifest declares. Throws GS-API-075 for a state that is not right and GS-API-076 when the extension does not declare the button for this logic. |
+| `on(type: "click", handler: (event: UiEvent) => void \| Promise<void>, options?: ListenOptions): Subscription` | Starts a task each time the button is clicked. Throws GS-API-017 for another event. |
+
+### UiContextMenu
+
+A menu of an extension on cards, from ui.contextMenu().
+
+| Member | Description |
+|---|---|
+| `set(items: readonly UiMenuItem[] \| null): void` | Puts up to 16 items into the More menu of the cards in place of the last ones; null or an empty list takes them away. Throws GS-API-075 for items that are not right and GS-API-076 when the extension does not declare the menu for this logic. |
+| `on(type: "choose", handler: (event: UiChooseEvent) => void \| Promise<void>, options?: ListenOptions): Subscription` | Starts a task each time one of the items is picked; event.target says on which card. Throws GS-API-017 for another event. |
+
+### UiTray
+
+A group of an extension in the tray menu, from ui.tray().
+
+| Member | Description |
+|---|---|
+| `set(items: readonly UiMenuItem[] \| null): void` | Puts up to 16 items into the tray menu in place of the last ones; null or an empty list takes them away. Throws GS-API-075 for items that are not right and GS-API-076 when the extension does not declare the group for this logic. |
+| `on(type: "choose", handler: (event: UiEvent) => void \| Promise<void>, options?: ListenOptions): Subscription` | Starts a task each time one of the items is picked. Throws GS-API-017 for another event. |
+
 ### Controls
 
 The components of the profile in use, by id. GameScrcpy writes the members for each profile into types/profile.d.ts; use mapping for ids that are only known at run time.
@@ -1290,7 +1317,7 @@ type UiColor = string;
 A node of a panel tree. A tree is at most 256 KiB as JSON, 2000 nodes and 16 levels deep.
 
 ```ts
-type UiNode = UiColumn | UiRow | UiGroup | UiText | UiButton | UiField | UiNumber | UiToggle | UiChoice | UiSlider | UiList | UiTable | UiChart | UiCanvas | UiImage | UiProgress | UiSeparator;
+type UiNode = UiColumn | UiRow | UiGroup | UiText | UiButton | UiField | UiNumber | UiToggle | UiChoice | UiSlider | UiList | UiTable | UiChart | UiCanvas | UiImage | UiProgress | UiSeparator | UiDeviceItem | UiSteps | UiQr | UiKeyValue;
 ```
 
 ### UiColumn
@@ -1515,6 +1542,70 @@ An item of the right-click menu; with checked it shows a check mark, and picking
 
 ```ts
 type UiMenuItem = { readonly id: string; readonly title: string; readonly icon?: string; readonly checked?: boolean; readonly enabled?: boolean };
+```
+
+### UiDeviceItem
+
+A device in a list: its icon, name and a line under it, with a pill for its state; stateText words the pill. icon is the name of a GameScrcpy icon or "svg:" and the path of an SVG in the extension's folder. With an id, clicking it sends click.
+
+```ts
+type UiDeviceItem = { readonly type: "deviceItem"; readonly id?: string; readonly title: string; readonly subtitle?: string; readonly icon?: string; readonly state?: "ready" | "busy" | "problem" | "offline"; readonly stateText?: string };
+```
+
+### UiSteps
+
+The steps of something done in turn, 2 to 8 titles of up to 40 characters: those before current are done, current is going on (or went wrong with failed), and current equal to the number of steps means all are done.
+
+```ts
+type UiSteps = { readonly type: "steps"; readonly id?: string; readonly steps: readonly string[]; readonly current?: number; readonly failed?: boolean };
+```
+
+### UiQr
+
+A QR code of up to 1000 bytes of text for a phone to scan.
+
+```ts
+type UiQr = { readonly type: "qr"; readonly id?: string; readonly text: string; readonly title?: string };
+```
+
+### UiKeyValue
+
+Up to 100 rows of a name and its value.
+
+```ts
+type UiKeyValue = { readonly type: "keyValue"; readonly id?: string; readonly rows: readonly UiKeyValueRow[] };
+```
+
+### UiKeyValueRow
+
+A row of a keyValue: a name of up to 60 characters and its value.
+
+```ts
+type UiKeyValueRow = { readonly key: string; readonly value?: string | number | boolean | null };
+```
+
+### UiToolbarState
+
+What a toolbar button shows in place of what the manifest declares: its tooltip, its icon (a GameScrcpy icon or "svg:" and a path), whether it shows as on, and whether it can be clicked.
+
+```ts
+type UiToolbarState = { readonly title?: string; readonly icon?: string; readonly checked?: boolean; readonly enabled?: boolean };
+```
+
+### UiTarget
+
+The card a menu was opened on: a device by its serial or a profile by its id, with its name.
+
+```ts
+type UiTarget = { readonly kind: "device" | "profile"; readonly id: string; readonly name: string };
+```
+
+### UiChooseEvent
+
+What a card menu listener receives: the item's id, its new checked state or null, and the card.
+
+```ts
+type UiChooseEvent = UiEvent & { readonly target: UiTarget };
 ```
 
 ### HardwareKind

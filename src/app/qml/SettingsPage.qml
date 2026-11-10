@@ -20,6 +20,8 @@ Item {
     readonly property var esp32Entry: ExtensionHost.entries.find(entry => entry.id === "gamescrcpy.esp32"
                                                                  && entry.superseded !== true) ?? null
     readonly property var ownGrants: HardwareAccess.grants["mine"] ?? []
+    readonly property var settingsPanels: ExtensionPanels.panels.filter(entry => entry.where === "settings")
+    readonly property bool extensionsShown: SettingsCatalog.extensionGroups.length > 0 || page.settingsPanels.length > 0
 
     readonly property var groups: [
         { name: "video", text: qsTr("Mirroring & quality"), icon: "monitor" },
@@ -34,10 +36,15 @@ Item {
         { name: "extensions", text: qsTr("Extensions"), icon: "puzzle" },
         { name: "ai", text: qsTr("AI"), icon: "sparkles" },
         { name: "about", text: qsTr("About"), icon: "info" }
-    ].filter(group => group.name !== "extensions" || SettingsCatalog.extensionGroups.length > 0)
+    ].filter(group => group.name !== "extensions" || page.extensionsShown)
      .filter(group => group.name !== "connection" || page.esp32Installed)
 
     signal diagnosticsRequested()
+
+    onExtensionsShownChanged: {
+        if (!page.extensionsShown && page.current === "extensions")
+            page.current = "video"
+    }
 
     function open(name: string) {
         search.clear()
@@ -207,7 +214,7 @@ Item {
         }
 
         function onEntriesChanged() {
-            if (page.current === "extensions" && SettingsCatalog.extensionGroups.length === 0)
+            if (page.current === "extensions" && !page.extensionsShown)
                 page.current = "video"
             if (page.current === "connection" && !ExtensionHost.entries.some(entry => entry.id === "gamescrcpy.esp32"))
                 page.current = "video"
@@ -1006,6 +1013,35 @@ Item {
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+
+                Repeater {
+                    model: page.settingsPanels.length
+
+                    SettingCard {
+                        id: panelCard
+
+                        required property int index
+                        readonly property var panelEntry: page.settingsPanels[panelCard.index] ?? null
+
+                        objectName: "extensionSettingsPanel"
+                        custom: true
+                        title: panelCard.panelEntry !== null ? panelCard.panelEntry.title : ""
+                        note: panelCard.panelEntry !== null ? panelCard.panelEntry.extensionName : ""
+                        iconName: panelCard.panelEntry !== null
+                                  && (panelCard.panelEntry.icon !== "" || panelCard.panelEntry.iconPath !== "")
+                                  ? panelCard.panelEntry.icon : "puzzle"
+                        iconPath: panelCard.panelEntry !== null ? panelCard.panelEntry.iconPath : ""
+                        tone: "azure"
+
+                        UiPanelBlock {
+                            objectName: "extensionSettingsPanelView"
+                            width: parent ? parent.width : 0
+                            height: implicitHeight
+                            entry: panelCard.panelEntry
+                            shown: page.visible && page.current === "extensions" && !SettingsCatalog.searching
                         }
                     }
                 }

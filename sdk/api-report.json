@@ -1154,6 +1154,36 @@
           "errors": [
             "GS-API-011"
           ]
+        },
+        {
+          "name": "toolbar",
+          "signature": "ui.toolbar(name: string): UiToolbar",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "contextMenu",
+          "signature": "ui.contextMenu(name: string): UiContextMenu",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "tray",
+          "signature": "ui.tray(name: string): UiTray",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
         }
       ]
     },
@@ -2731,6 +2761,27 @@
       ]
     },
     {
+      "name": "UiToolbar",
+      "members": [
+        "set(state: UiToolbarState | null): void",
+        "on(type: \"click\", handler: (event: UiEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "UiContextMenu",
+      "members": [
+        "set(items: readonly UiMenuItem[] | null): void",
+        "on(type: \"choose\", handler: (event: UiChooseEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "UiTray",
+      "members": [
+        "set(items: readonly UiMenuItem[] | null): void",
+        "on(type: \"choose\", handler: (event: UiEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
       "name": "Controls",
       "members": []
     },
@@ -3119,7 +3170,7 @@
     },
     {
       "name": "UiNode",
-      "definition": "UiColumn | UiRow | UiGroup | UiText | UiButton | UiField | UiNumber | UiToggle | UiChoice | UiSlider | UiList | UiTable | UiChart | UiCanvas | UiImage | UiProgress | UiSeparator"
+      "definition": "UiColumn | UiRow | UiGroup | UiText | UiButton | UiField | UiNumber | UiToggle | UiChoice | UiSlider | UiList | UiTable | UiChart | UiCanvas | UiImage | UiProgress | UiSeparator | UiDeviceItem | UiSteps | UiQr | UiKeyValue"
     },
     {
       "name": "UiColumn",
@@ -3232,6 +3283,38 @@
     {
       "name": "UiMenuItem",
       "definition": "{ readonly id: string; readonly title: string; readonly icon?: string; readonly checked?: boolean; readonly enabled?: boolean }"
+    },
+    {
+      "name": "UiDeviceItem",
+      "definition": "{ readonly type: \"deviceItem\"; readonly id?: string; readonly title: string; readonly subtitle?: string; readonly icon?: string; readonly state?: \"ready\" | \"busy\" | \"problem\" | \"offline\"; readonly stateText?: string }"
+    },
+    {
+      "name": "UiSteps",
+      "definition": "{ readonly type: \"steps\"; readonly id?: string; readonly steps: readonly string[]; readonly current?: number; readonly failed?: boolean }"
+    },
+    {
+      "name": "UiQr",
+      "definition": "{ readonly type: \"qr\"; readonly id?: string; readonly text: string; readonly title?: string }"
+    },
+    {
+      "name": "UiKeyValue",
+      "definition": "{ readonly type: \"keyValue\"; readonly id?: string; readonly rows: readonly UiKeyValueRow[] }"
+    },
+    {
+      "name": "UiKeyValueRow",
+      "definition": "{ readonly key: string; readonly value?: string | number | boolean | null }"
+    },
+    {
+      "name": "UiToolbarState",
+      "definition": "{ readonly title?: string; readonly icon?: string; readonly checked?: boolean; readonly enabled?: boolean }"
+    },
+    {
+      "name": "UiTarget",
+      "definition": "{ readonly kind: \"device\" | \"profile\"; readonly id: string; readonly name: string }"
+    },
+    {
+      "name": "UiChooseEvent",
+      "definition": "UiEvent & { readonly target: UiTarget }"
     },
     {
       "name": "HardwareKind",

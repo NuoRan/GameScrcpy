@@ -80,6 +80,18 @@ Item {
             return qsTr("Status bar")
         case "page":
             return qsTr("Main window page")
+        case "device":
+            return qsTr("Device settings on the devices page")
+        case "settings":
+            return qsTr("Section in Settings")
+        case "extension":
+            return qsTr("Its settings window")
+        case "toolbar":
+            return qsTr("Mirror window toolbar button")
+        case "contextMenu":
+            return qsTr("More menu of cards")
+        case "tray":
+            return qsTr("Tray menu")
         default:
             return where
         }
@@ -651,6 +663,8 @@ Item {
                                     objectName: "extensionSettings"
                                     visible: ExtensionLook.showsSettings(card.modelData,
                                                                          (HardwareAccess.grants[card.modelData.id] ?? []).length)
+                                             || ExtensionPanels.panels.some(each => each.where === "extension"
+                                                                                    && each.extension === card.modelData.id)
                                     small: true
                                     tone: "ghost"
                                     text: qsTr("Settings")
@@ -851,6 +865,7 @@ Item {
                             Layout.alignment: Qt.AlignTop
                             name: panelRow.troubled ? "triangle-alert"
                                   : ExtensionPanels.iconOf(panelRow.modelData.icon ?? "") || "panel-top"
+                            customPath: panelRow.troubled ? "" : panelRow.modelData.iconPath ?? ""
                             size: Theme.size.iconSmall
                             color: panelRow.troubled ? Theme.colors.warningText : Theme.colors.textTertiary
                         }

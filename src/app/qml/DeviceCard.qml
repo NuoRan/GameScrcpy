@@ -523,10 +523,13 @@ Card {
                 Button {
                     id: moreButton
 
+                    readonly property bool ownItems: appsCommand.enabled || filesCommand.enabled || screenCommand.enabled
+                                                     || followCommand.enabled || backCommand.enabled
+                                                     || endWirelessCommand.enabled || card.isCapture || card.isEsp32
+                                                     || card.menuActions.length > 0
+
                     objectName: "deviceMore"
-                    visible: appsCommand.enabled || filesCommand.enabled || screenCommand.enabled || followCommand.enabled
-                             || backCommand.enabled || endWirelessCommand.enabled || card.isCapture || card.isEsp32
-                             || card.menuActions.length > 0
+                    visible: moreButton.ownItems || extensionItems.count > 0
                     tone: "ghost"
                     iconName: "ellipsis"
                     toolTip: qsTr("More")
@@ -639,6 +642,19 @@ Card {
                             description: qsTr("Lets go of the board until it is plugged in again or connected in its "
                                               + "settings")
                             onTriggered: DeviceManager.disconnectBoard(card.serial)
+                        }
+                        MenuSeparator {
+                            visible: extensionItems.count > 0 && moreButton.ownItems
+                            height: visible ? implicitHeight : 0
+                        }
+
+                        UiCardMenuItems {
+                            id: extensionItems
+
+                            menu: more
+                            kind: "device"
+                            target: card.serial
+                            targetName: card.name
                         }
                     }
                 }

@@ -433,11 +433,19 @@ struct ScriptContribution {
     friend bool operator==(const ScriptContribution&, const ScriptContribution&) = default;
 };
 
-enum class PanelPlace : std::uint8_t { Mirror, Menu, Status, Page, Device };
-inline constexpr std::array<std::string_view, 5> kPanelPlaceNames{"mirror", "menu", "status", "page", "device"};
+enum class PanelPlace : std::uint8_t { Mirror, Menu, Status, Page, Device, Settings, Extension, Toolbar, ContextMenu, Tray };
+inline constexpr std::array<std::string_view, 10> kPanelPlaceNames{
+    "mirror", "menu", "status", "page", "device", "settings", "extension", "toolbar", "contextMenu", "tray"};
+inline constexpr std::array<std::string_view, 2> kPanelTargetNames{"device", "profile"};
 inline constexpr std::size_t kMaxPanels = 8;
 inline constexpr std::size_t kMaxPanelNameLength = 32;
 inline constexpr std::string_view kMenuPanelName = "menu";
+
+[[nodiscard]] constexpr bool panelForApp(PanelPlace where) noexcept
+{
+    return where == PanelPlace::Page || where == PanelPlace::Device || where == PanelPlace::Settings ||
+           where == PanelPlace::Extension || where == PanelPlace::ContextMenu || where == PanelPlace::Tray;
+}
 
 struct PanelContribution {
     std::string name;
@@ -445,6 +453,7 @@ struct PanelContribution {
     std::string icon;
     PanelPlace where = PanelPlace::Mirror;
     std::string script;
+    std::vector<std::string> on;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -454,6 +463,7 @@ struct PanelContribution {
         v.text("icon", m.icon, {.maxLength = 64});
         v.choice("where", m.where, kPanelPlaceNames, true);
         v.text("script", m.script, {.required = true, .maxLength = 64});
+        v.textList("on", m.on, {.maxItems = 2, .maxLength = 16});
     }
 
     friend bool operator==(const PanelContribution&, const PanelContribution&) = default;

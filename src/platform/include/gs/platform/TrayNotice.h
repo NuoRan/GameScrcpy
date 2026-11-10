@@ -10,6 +10,9 @@ namespace gs::platform {
 struct TrayMenuItem {
     std::wstring text;
     std::function<void()> chosen;
+    bool checked = false;
+    bool enabled = true;
+    bool separator = false;
 };
 
 class TrayNotice

@@ -51,6 +51,8 @@ struct PanelDeclaration {
     QString icon;
     QString extensionName;
     std::filesystem::path folder;
+    QString iconPath;
+    std::vector<std::string> on;
 
     friend bool operator==(const PanelDeclaration&, const PanelDeclaration&) = default;
 };
@@ -65,6 +67,7 @@ struct UiCheck {
 [[nodiscard]] UiCheck checkUiTree(std::string_view json, const std::filesystem::path& folder);
 [[nodiscard]] UiCheck checkStatusTree(std::string_view json);
 [[nodiscard]] UiCheck checkMenuItems(std::string_view json);
+[[nodiscard]] UiCheck checkToolbarState(std::string_view json, const std::filesystem::path& folder);
 [[nodiscard]] std::vector<PanelDeclaration> panelDeclarations(const ExtensionHost& host, const QString& language);
 
 class ExtensionPanels : public QObject
@@ -95,6 +98,8 @@ public:
     Q_INVOKABLE QVariant tree(const QString& key) const;
     Q_INVOKABLE bool send(quint64 logic, const QString& panel, const QString& type, const QString& id,
                           const QVariant& value) const;
+    Q_INVOKABLE bool choose(quint64 logic, const QString& menu, const QString& id, const QVariant& value,
+                            const QVariantMap& target) const;
     Q_INVOKABLE QString iconOf(const QString& name) const;
     Q_INVOKABLE QVariantMap sideState(const QString& serial) const;
     Q_INVOKABLE void setSideState(const QString& serial, const QString& panel, bool open, int width);
@@ -106,7 +111,7 @@ signals:
     void closeRequested(const QString& key);
 
 private:
-    enum class Kind : std::uint8_t { Panel, Status, Menu };
+    enum class Kind : std::uint8_t { Panel, Status, Menu, Toolbar };
 
     struct Slot {
         std::uint64_t logic = 0;
@@ -139,6 +144,9 @@ private:
     [[nodiscard]] static script::ServiceAnswer render(Inbox& inbox, const LogicCaller& caller, std::string_view json);
     [[nodiscard]] static script::ServiceAnswer status(Inbox& inbox, const LogicCaller& caller, std::string_view json);
     [[nodiscard]] static script::ServiceAnswer menu(Inbox& inbox, const LogicCaller& caller, std::string_view json);
+    [[nodiscard]] static script::ServiceAnswer namedMenu(Inbox& inbox, const LogicCaller& caller, std::string_view json,
+                                                         ext::PanelPlace where);
+    [[nodiscard]] static script::ServiceAnswer toolbar(Inbox& inbox, const LogicCaller& caller, std::string_view json);
     [[nodiscard]] static script::ServiceAnswer close(Inbox& inbox, const LogicCaller& caller, std::string_view json);
     [[nodiscard]] static std::optional<PanelDeclaration> declarationFor(Inbox& inbox, const LogicCaller& caller,
                                                                         Kind kind, std::string_view name,

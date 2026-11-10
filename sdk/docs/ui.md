@@ -269,7 +269,7 @@ ui.notify("Done", "All 30 rounds finished");
 
 ## ui.panel(name)
 
-Gives a panel of this extension, declared in contributes.panels: a side panel of the mirror window or a page of the main window. GameScrcpy draws the tree given to render() with its own controls; no interface code of the extension runs.
+Gives a panel of this extension, declared in contributes.panels: a side panel of the mirror window, a page of the main window, a section of Settings, part of the extension's settings window, the settings of a device it adds, or what its toolbar button opens. GameScrcpy draws the tree given to render() with its own controls; no interface code of the extension runs.
 
 ```ts
 ui.panel(name: string): UiPanel
@@ -332,6 +332,72 @@ Errors:
 
 ```ts
 ui.status("fps").render({ type: "text", text: "60" });
+```
+
+## ui.toolbar(name)
+
+Gives a toolbar button of this extension, declared in contributes.panels with where "toolbar": a button on the mirror window's toolbar with the declared title and icon while this logic runs. A click sends click; once ui.panel() of the same name has drawn a tree, the click also opens it under the button.
+
+```ts
+ui.toolbar(name: string): UiToolbar
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `name` | `string` | The name the extension's manifest gives the panel in contributes.panels. |
+
+Returns `UiToolbar`. stable since API 1.
+
+Errors:
+
+- `GS-API-011` when the name is not a string or is empty. Pass the name from contributes.panels.
+
+```ts
+const quick = ui.toolbar("quick"); quick.on("click", () => log.info("pressed"));
+```
+
+## ui.contextMenu(name)
+
+Gives a menu of this extension, declared in contributes.panels with where "contextMenu": its items are added to the More menu of the cards its on names, device cards and profile cards.
+
+```ts
+ui.contextMenu(name: string): UiContextMenu
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `name` | `string` | The name the extension's manifest gives the panel in contributes.panels. |
+
+Returns `UiContextMenu`. stable since API 1.
+
+Errors:
+
+- `GS-API-011` when the name is not a string or is empty. Pass the name from contributes.panels.
+
+```ts
+ui.contextMenu("more").set([{ id: "copy", title: "Copy the id" }]);
+```
+
+## ui.tray(name)
+
+Gives this extension's group of items in the tray menu, declared in contributes.panels with where "tray".
+
+```ts
+ui.tray(name: string): UiTray
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `name` | `string` | The name the extension's manifest gives the panel in contributes.panels. |
+
+Returns `UiTray`. stable since API 1.
+
+Errors:
+
+- `GS-API-011` when the name is not a string or is empty. Pass the name from contributes.panels.
+
+```ts
+ui.tray("quick").set([{ id: "pause", title: "Pause", checked: false }]);
 ```
 
 ## ui.menu.on(type, handler, options?)

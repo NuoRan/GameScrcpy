@@ -7,6 +7,7 @@ T.AbstractButton {
     id: control
 
     property string iconName
+    property string iconPath
     property bool current: false
     property bool focusShown: false
 
@@ -28,6 +29,7 @@ T.AbstractButton {
             Icon {
                 anchors.horizontalCenter: parent.horizontalCenter
                 name: control.iconName
+                customPath: control.iconPath
                 size: Theme.size.iconLarge
                 color: control.current ? Theme.colors.accentText
                      : control.hovered ? Theme.colors.textPrimary : Theme.colors.textSecondary

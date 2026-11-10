@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Layouts
 import GameScrcpy.Theme
 import GameScrcpy.Controls
 import GameScrcpy.App
@@ -17,7 +18,8 @@ Item {
     readonly property string title: root.node?.title ?? ""
     readonly property int childCount: (root.node?.children ?? []).length
     readonly property bool usable: root.node?.enabled !== false
-    readonly property var blocks: ["column", "row", "group", "list", "table", "chart", "separator"]
+    readonly property var blocks: ["column", "row", "group", "list", "table", "chart", "separator", "deviceItem", "steps",
+                                   "keyValue"]
 
     function send(kind: string, value: var) {
         if (root.host !== null)
@@ -123,6 +125,14 @@ Item {
                 return progressPart
             case "separator":
                 return separatorPart
+            case "deviceItem":
+                return deviceItemPart
+            case "steps":
+                return stepsPart
+            case "qr":
+                return qrPart
+            case "keyValue":
+                return keyValuePart
             default:
                 return null
             }
@@ -735,6 +745,189 @@ Item {
                 width: parent.width
                 height: Theme.size.stroke
                 color: Theme.colors.strokeSubtle
+            }
+        }
+    }
+
+    Component {
+        id: deviceItemPart
+
+        Rectangle {
+            id: device
+
+            readonly property string deviceState: root.node?.state ?? ""
+            readonly property bool clickable: root.nodeId !== ""
+
+            implicitWidth: Theme.size.fieldWidth
+            implicitHeight: Math.max(deviceTile.implicitHeight, deviceText.implicitHeight) + 2 * Theme.space.sm
+            radius: Theme.radius.md
+            color: device.clickable && deviceHover.hovered ? Theme.colors.stateHover : "transparent"
+            activeFocusOnTab: device.clickable
+
+            Accessible.role: device.clickable ? Accessible.Button : Accessible.ListItem
+            Accessible.name: root.title
+            Accessible.description: devicePill.visible ? devicePill.text : ""
+            Keys.onSpacePressed: root.send("click", null)
+            Keys.onReturnPressed: root.send("click", null)
+
+            HoverHandler {
+                id: deviceHover
+
+                enabled: device.clickable
+            }
+
+            TapHandler {
+                enabled: device.clickable
+                onTapped: root.send("click", null)
+            }
+
+            Tile {
+                id: deviceTile
+
+                x: Theme.space.sm
+                anchors.verticalCenter: parent.verticalCenter
+                iconName: (root.node?.iconPath ?? "") !== "" ? "" : ExtensionPanels.iconOf(root.node?.icon ?? "") || "plug"
+                iconPath: root.node?.iconPath ?? ""
+                tone: "amber"
+            }
+
+            Column {
+                id: deviceText
+
+                anchors.left: deviceTile.right
+                anchors.leftMargin: Theme.space.md
+                anchors.right: devicePill.visible ? devicePill.left : parent.right
+                anchors.rightMargin: Theme.space.sm
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: Theme.space.xxs
+
+                Text {
+                    width: parent.width
+                    textFormat: Text.PlainText
+                    text: root.title
+                    color: Theme.colors.textPrimary
+                    font.pixelSize: Theme.type.label.size
+                    font.weight: Font.DemiBold
+                    elide: Text.ElideRight
+                }
+
+                Text {
+                    width: parent.width
+                    visible: text !== ""
+                    textFormat: Text.PlainText
+                    text: root.node?.subtitle ?? ""
+                    color: Theme.colors.textTertiary
+                    font.pixelSize: Theme.type.caption.size
+                    elide: Text.ElideRight
+                }
+            }
+
+            StatusPill {
+                id: devicePill
+
+                anchors.right: parent.right
+                anchors.rightMargin: Theme.space.sm
+                anchors.verticalCenter: parent.verticalCenter
+                visible: device.deviceState !== ""
+                text: {
+                    if ((root.node?.stateText ?? "") !== "")
+                        return root.node.stateText
+                    switch (device.deviceState) {
+                    case "ready":
+                        return qsTr("Online")
+                    case "busy":
+                        return qsTr("In use")
+                    case "problem":
+                        return qsTr("Needs attention")
+                    default:
+                        return qsTr("Offline")
+                    }
+                }
+                tone: device.deviceState === "ready" ? "ok"
+                      : device.deviceState === "busy" ? "warn"
+                      : device.deviceState === "problem" ? "bad" : "idle"
+            }
+
+            FocusRing {
+                visible: device.activeFocus
+                baseRadius: device.radius
+            }
+        }
+    }
+
+    Component {
+        id: stepsPart
+
+        ConnectionStepper {
+            implicitWidth: (root.node?.steps ?? []).length * Theme.size.stepWidth
+            steps: root.node?.steps ?? []
+            current: root.node?.current ?? 0
+            failed: root.node?.failed === true
+        }
+    }
+
+    Component {
+        id: qrPart
+
+        Item {
+            id: qrBox
+
+            readonly property int modules: root.node?.modules ?? 0
+
+            implicitWidth: qrCode.implicitWidth
+            implicitHeight: (qrTitle.visible ? qrTitle.implicitHeight + Theme.space.xs : 0) + qrCode.implicitHeight
+
+            Caption {
+                id: qrTitle
+
+                width: parent.width
+                text: root.title
+            }
+
+            QrCodeView {
+                id: qrCode
+
+                y: qrTitle.visible ? qrTitle.implicitHeight + Theme.space.xs : 0
+                modules: qrBox.modules
+                path: root.node?.path ?? ""
+                moduleSize: Math.max(2, Math.min(5, Math.floor(Math.max(qrBox.width, Theme.size.fieldWidth)
+                                                              / Math.max(1, qrBox.modules + 2 * qrCode.quietZone))))
+                Accessible.role: Accessible.Graphic
+                Accessible.name: root.title !== "" ? root.title : qsTr("QR code")
+            }
+        }
+    }
+
+    Component {
+        id: keyValuePart
+
+        GridLayout {
+            id: pairs
+
+            columns: 2
+            columnSpacing: Theme.space.md
+            rowSpacing: Theme.space.xs
+
+            Repeater {
+                model: 2 * (root.node?.rows ?? []).length
+
+                delegate: Text {
+                    id: cell
+
+                    required property int index
+                    readonly property bool isKey: cell.index % 2 === 0
+                    readonly property var row: (root.node?.rows ?? [])[Math.floor(cell.index / 2)] ?? ({})
+
+                    Layout.alignment: Qt.AlignTop
+                    Layout.fillWidth: !cell.isKey
+                    Layout.maximumWidth: cell.isKey ? pairs.width / 2 : Number.POSITIVE_INFINITY
+                    textFormat: Text.PlainText
+                    text: cell.isKey ? cell.row.key ?? "" : cell.row.value ?? ""
+                    color: cell.isKey ? Theme.colors.textTertiary : Theme.colors.textPrimary
+                    font.pixelSize: Theme.type.caption.size
+                    wrapMode: cell.isKey ? Text.NoWrap : Text.Wrap
+                    elide: cell.isKey ? Text.ElideRight : Text.ElideNone
+                }
             }
         }
     }

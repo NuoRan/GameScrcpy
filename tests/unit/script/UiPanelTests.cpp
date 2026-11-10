@@ -204,3 +204,71 @@ export function quiet() {
     CHECK(fixture.recorder.count(logged("select again null")) == 0);
     CHECK(fixture.services->calls().empty());
 }
+
+TEST_CASE("ADR-0112: ui.toolbar, ui.contextMenu and ui.tray reach the ui services, a card menu hears on which card, "
+          "and only the toolbar button's own click reaches ui.toolbar(name).on")
+{
+    Fixture fixture;
+    const ScriptId script = fixture.load(R"js(
+const quick = ui.toolbar("quick");
+const more = ui.contextMenu("more");
+const tray = ui.tray("tray");
+quick.on("click", ({ id }) => log.info("pressed", id === ""));
+ui.panel("quick").on("click", ({ id }) => log.info("panel click", id));
+more.on("choose", ({ id, value, target }) =>
+    log.info("chose", id, value, target.kind, target.id, target.name, Object.isFrozen(target)));
+tray.on("choose", ({ id, value, target }) => log.info("tray", id, value, target === undefined));
+export function run() {
+    quick.set({ title: "Rec", checked: true });
+    quick.set(null);
+    more.set([{ id: "copy", title: "Copy" }]);
+    more.set(null);
+    tray.set([{ id: "pause", title: "Pause", checked: false }]);
+    log.info(ui.toolbar("quick") === quick, Object.isFrozen(quick), String(quick), String(more), String(tray),
+             ui.contextMenu("more") === more, ui.tray("tray") === tray);
+}
+export function wrong() {
+    const codeOf = (action) => {
+        try {
+            action();
+            return "none";
+        } catch (error) {
+            return error.message.split(" ")[0];
+        }
+    };
+    log.info(codeOf(() => ui.toolbar("")), codeOf(() => quick.set()), codeOf(() => quick.on("choose", () => {})),
+             codeOf(() => more.set("copy")), codeOf(() => more.on("click", () => {})),
+             codeOf(() => tray.on("select", () => {})), codeOf(() => ui.contextMenu(3)));
+}
+)js");
+    const Report ended = fixture.run(script, "run");
+    INFO(gs::script::describe(ended));
+    CHECK(ended.kind == ReportKind::TaskFinished);
+    CHECK(fixture.recorder.count(logged("true true [object UiToolbar] [object UiContextMenu] [object UiTray] true true"))
+          == 1);
+    CHECK(fixture.services->calls()
+          == std::vector<std::string>{
+              R"(ui.toolbar {"name":"quick","state":{"title":"Rec","checked":true}})",
+              R"(ui.toolbar {"name":"quick","state":null})",
+              R"(ui.contextMenu {"name":"more","items":[{"id":"copy","title":"Copy"}]})",
+              R"(ui.contextMenu {"name":"more","items":null})",
+              R"(ui.tray {"name":"tray","items":[{"id":"pause","title":"Pause","checked":false}]})",
+          });
+    CHECK(fixture.run(script, "wrong").kind == ReportKind::TaskFinished);
+    CHECK(fixture.recorder.count(
+              logged("GS-API-011 GS-API-075 GS-API-017 GS-API-075 GS-API-017 GS-API-017 GS-API-011"))
+          == 1);
+
+    fixture.host->event("ui", "quick", R"({"type":"click","id":"","value":null})");
+    CHECK(fixture.recorder.waitFor(logged("pressed true")).has_value());
+    fixture.host->event("ui", "quick", R"({"type":"click","id":"go","value":null})");
+    CHECK(fixture.recorder.waitFor(logged("panel click go")).has_value());
+    fixture.host->event(
+        "ui", "more",
+        R"({"type":"choose","id":"copy","value":null,"target":{"kind":"device","id":"phone-a","name":"Pixel"}})");
+    CHECK(fixture.recorder.waitFor(logged("chose copy null device phone-a Pixel true")).has_value());
+    fixture.host->event("ui", "tray", R"({"type":"choose","id":"pause","value":true})");
+    CHECK(fixture.recorder.waitFor(logged("tray pause true true")).has_value());
+    CHECK(fixture.recorder.count(logged("pressed true")) == 1);
+    CHECK(fixture.recorder.count(logged("panel click go")) == 1);
+}

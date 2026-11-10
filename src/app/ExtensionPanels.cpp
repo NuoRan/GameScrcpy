@@ -2,7 +2,9 @@
 
 #include "AppSettings.h"
 #include "ExtensionHost.h"
+#include "ExtensionIcons.h"
 #include "LogicServices.h"
+#include "QrPicture.h"
 #include "QtConversions.h"
 #include "ThemeTokens.h"
 
@@ -59,8 +61,18 @@ constexpr double kLeastChartHeight = 60.0;
 constexpr double kMostChartHeight = 480.0;
 constexpr double kMostStrokeWidth = 20.0;
 
-constexpr std::array<std::string_view, 4> kServices{"ui.render", "ui.status", "ui.menu", "ui.close"};
-constexpr std::array<std::string_view, 6> kEventTypes{"click", "change", "submit", "select", "open", "close"};
+constexpr std::size_t kMostSteps = 8;
+constexpr std::size_t kMostStepTitleLength = 40;
+constexpr std::size_t kMostKeyRows = 100;
+constexpr std::size_t kMostKeyLength = 60;
+constexpr std::size_t kMostQrBytes = 1000;
+constexpr std::size_t kMostToolbarTitleLength = 40;
+constexpr std::size_t kMostStateTextLength = 40;
+
+constexpr std::array<std::string_view, 7> kServices{"ui.render", "ui.status", "ui.menu", "ui.close",
+                                                    "ui.toolbar", "ui.contextMenu", "ui.tray"};
+constexpr std::array<std::string_view, 7> kEventTypes{"click", "change", "submit", "select", "open", "close", "choose"};
+constexpr std::array<std::string_view, 4> kDeviceStates{"ready", "busy", "problem", "offline"};
 constexpr std::array<std::string_view, 6> kTones{"normal", "muted", "accent", "good", "warn", "bad"};
 constexpr std::array<std::string_view, 2> kFormats{"plain", "markdown"};
 constexpr std::array<std::string_view, 3> kTextStyles{"body", "heading", "caption"};
@@ -176,6 +188,26 @@ bool inside(const fs::path& root, const fs::path& file)
 script::ServiceAnswer refused(std::string_view code, std::string problem)
 {
     return {"null", std::string(code), std::move(problem)};
+}
+
+std::string drawnWith(const PanelDeclaration& declaration)
+{
+    const std::string quoted = "\"" + declaration.name + "\"";
+    switch (declaration.where) {
+    case ext::PanelPlace::Status:
+        return "is a status widget; draw it with ui.status(" + quoted + ").render()";
+    case ext::PanelPlace::Menu:
+        return "is the right-click menu; fill it with ui.menu(items)";
+    case ext::PanelPlace::Toolbar:
+        return "is a toolbar button; set it with ui.toolbar(" + quoted + ").set() and draw what it opens with ui.panel(" +
+               quoted + ").render()";
+    case ext::PanelPlace::ContextMenu:
+        return "is a menu on cards; fill it with ui.contextMenu(" + quoted + ").set(items)";
+    case ext::PanelPlace::Tray:
+        return "is a group in the tray menu; fill it with ui.tray(" + quoted + ").set(items)";
+    default:
+        return "is a panel; draw it with ui.panel(" + quoted + ").render()";
+    }
 }
 
 class Reader
@@ -398,6 +430,18 @@ private:
         }
         if (kind == "separator") {
             return true;
+        }
+        if (kind == "deviceItem") {
+            return deviceItemNode(json, path, out);
+        }
+        if (kind == "steps") {
+            return stepsNode(json, path, out);
+        }
+        if (kind == "qr") {
+            return qrNode(json, path, out);
+        }
+        if (kind == "keyValue") {
+            return keyValueNode(json, path, out);
         }
         return fail("\"" + shortened(kind) + "\" is not a node type", member(path, "type"));
     }
@@ -1014,6 +1058,151 @@ private:
         return true;
     }
 
+public:
+    bool readIcon(const Json& object, const char* field, const std::string& path, QString& name, QString& drawn)
+    {
+        QString written;
+        if (!readText(object, field, path, kMostIconLength, written)) {
+            return false;
+        }
+        constexpr QStringView kSvg = u"svg:";
+        if (!written.startsWith(kSvg)) {
+            name = written;
+            return true;
+        }
+        if (m_folder.empty()) {
+            return fail("an svg: icon comes from the extension's folder, and this logic has none", member(path, field));
+        }
+        drawn = extensionIconPath(m_folder, written.mid(kSvg.size()).toStdString());
+        if (drawn.isEmpty()) {
+            return fail("the icon must be an SVG of plain shapes on the 24 grid inside the extension's folder",
+                        member(path, field));
+        }
+        return true;
+    }
+
+private:
+    bool deviceItemNode(const Json& json, const std::string& path, QVariantMap& out)
+    {
+        QString title;
+        QString subtitle;
+        QString icon;
+        QString iconPath;
+        QString state;
+        QString stateText;
+        if (!readText(json, "title", path, kMostTitleLength, title, true) ||
+            !readText(json, "subtitle", path, kMostTitleLength, subtitle) || !readIcon(json, "icon", path, icon, iconPath) ||
+            !readChoice(json, "state", path, kDeviceStates, state) ||
+            !readText(json, "stateText", path, kMostStateTextLength, stateText)) {
+            return false;
+        }
+        if (const auto given = json.find("state"); given == json.end() || given->is_null()) {
+            state.clear();
+        }
+        out.insert(QStringLiteral("title"), title);
+        out.insert(QStringLiteral("subtitle"), subtitle);
+        out.insert(QStringLiteral("icon"), icon);
+        out.insert(QStringLiteral("iconPath"), iconPath);
+        out.insert(QStringLiteral("state"), state);
+        out.insert(QStringLiteral("stateText"), stateText);
+        return true;
+    }
+
+    bool stepsNode(const Json& json, const std::string& path, QVariantMap& out)
+    {
+        const Json* steps = readArray(json, "steps", path, kMostSteps, true);
+        if (steps == nullptr) {
+            return false;
+        }
+        if (steps->size() < 2) {
+            return fail("steps needs at least 2 steps", member(path, "steps"));
+        }
+        QStringList titles;
+        for (std::size_t index = 0; index < steps->size(); ++index) {
+            const Json& step = (*steps)[index];
+            if (!step.is_string() || step.get_ref<const std::string&>().empty() ||
+                characters(step.get_ref<const std::string&>()) > kMostStepTitleLength) {
+                return fail("a step must be text of 1 to " + std::to_string(kMostStepTitleLength) + " characters",
+                            indexed(member(path, "steps"), index));
+            }
+            titles.append(toQString(step.get_ref<const std::string&>()));
+        }
+        std::optional<double> current;
+        bool failed = false;
+        if (!readNumber(json, "current", path, current) || !readFlag(json, "failed", path, failed)) {
+            return false;
+        }
+        const double at = current.value_or(0.0);
+        if (at != std::trunc(at) || at < 0.0 || at > static_cast<double>(steps->size())) {
+            return fail("current must be a whole number from 0 to the number of steps", member(path, "current"));
+        }
+        out.insert(QStringLiteral("steps"), titles);
+        out.insert(QStringLiteral("current"), static_cast<int>(at));
+        out.insert(QStringLiteral("failed"), failed);
+        return true;
+    }
+
+    bool qrNode(const Json& json, const std::string& path, QVariantMap& out)
+    {
+        QString text;
+        QString title;
+        if (!readText(json, "text", path, kMostQrBytes, text, true) ||
+            !readText(json, "title", path, kMostTitleLength, title)) {
+            return false;
+        }
+        const QByteArray bytes = text.toUtf8();
+        if (static_cast<std::size_t>(bytes.size()) > kMostQrBytes) {
+            return fail("text is longer than " + std::to_string(kMostQrBytes) + " bytes as UTF-8", member(path, "text"));
+        }
+        const QrPicture picture = qrPicture(std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size())));
+        if (picture.size <= 0) {
+            return fail("the text does not fit in a QR code", member(path, "text"));
+        }
+        out.insert(QStringLiteral("text"), text);
+        out.insert(QStringLiteral("title"), title);
+        out.insert(QStringLiteral("modules"), picture.size);
+        out.insert(QStringLiteral("path"), QString::fromStdString(picture.path));
+        return true;
+    }
+
+    bool keyValueNode(const Json& json, const std::string& path, QVariantMap& out)
+    {
+        const Json* rows = readArray(json, "rows", path, kMostKeyRows, true);
+        if (rows == nullptr) {
+            return false;
+        }
+        QVariantList list;
+        for (std::size_t index = 0; index < rows->size(); ++index) {
+            const Json& row = (*rows)[index];
+            const std::string where = indexed(member(path, "rows"), index);
+            if (!row.is_object()) {
+                return fail("a row must be an object with a key and a value", where);
+            }
+            QString key;
+            if (!readText(row, "key", where, kMostKeyLength, key, true)) {
+                return false;
+            }
+            QString shown;
+            const auto value = row.find("value");
+            if (value != row.end() && !value->is_null()) {
+                if (value->is_string() && characters(value->get_ref<const std::string&>()) <= kMostCellLength) {
+                    shown = toQString(value->get_ref<const std::string&>());
+                } else if (value->is_number() && std::isfinite(value->get<double>())) {
+                    shown = numberText(value->get<double>());
+                } else if (value->is_boolean()) {
+                    shown = value->get<bool>() ? QStringLiteral("true") : QStringLiteral("false");
+                } else {
+                    return fail("value must be text of at most " + std::to_string(kMostCellLength) +
+                                    " characters, a number, true, false or null",
+                                member(where, "value"));
+                }
+            }
+            list.append(QVariantMap{{QStringLiteral("key"), key}, {QStringLiteral("value"), shown}});
+        }
+        out.insert(QStringLiteral("rows"), list);
+        return true;
+    }
+
     fs::path m_folder;
     std::size_t m_mostNodes = kMostUiNodes;
     bool m_statusOnly = false;
@@ -1113,8 +1302,41 @@ UiCheck checkMenuItems(std::string_view json)
     return check;
 }
 
+UiCheck checkToolbarState(std::string_view json, const std::filesystem::path& folder)
+{
+    UiCheck check;
+    if (json.size() > kMostUiTreeBytes || !nestingWithin(json, kMostJsonNesting)) {
+        check.problem = "the toolbar button is described by too much";
+        return check;
+    }
+    const Json state = Json::parse(json.begin(), json.end(), nullptr, false);
+    if (state.is_discarded() || !state.is_object()) {
+        check.problem = "a toolbar button is set with an object";
+        return check;
+    }
+    Reader reader(folder, 0, false);
+    QString title;
+    QString icon;
+    QString iconPath;
+    bool checked = false;
+    bool enabled = true;
+    if (!reader.readText(state, "title", "$", kMostToolbarTitleLength, title) ||
+        !reader.readIcon(state, "icon", "$", icon, iconPath) || !reader.readFlag(state, "checked", "$", checked) ||
+        !reader.readFlag(state, "enabled", "$", enabled)) {
+        check.problem = reader.problem();
+        return check;
+    }
+    check.value = QVariantMap{{QStringLiteral("title"), title},
+                              {QStringLiteral("icon"), icon},
+                              {QStringLiteral("iconPath"), iconPath},
+                              {QStringLiteral("checked"), checked},
+                              {QStringLiteral("enabled"), enabled}};
+    return check;
+}
+
 std::vector<PanelDeclaration> panelDeclarations(const ExtensionHost& host, const QString& language)
 {
+    constexpr std::string_view kSvg = "svg:";
     std::vector<PanelDeclaration> declarations;
     for (const ExtensionHost::Extension& extension : host.extensions()) {
         if (!extension.active || !extension.manifest) {
@@ -1123,15 +1345,19 @@ std::vector<PanelDeclaration> panelDeclarations(const ExtensionHost& host, const
         const ext::Manifest& manifest = *extension.manifest;
         const QString extensionName = extensionText(manifest, "name", manifest.name, language);
         for (const ext::PanelContribution& panel : manifest.contributes.panels) {
+            const bool svg = panel.icon.starts_with(kSvg);
             declarations.push_back(
                 {.extension = manifest.id,
                  .name = panel.name,
                  .where = panel.where,
                  .script = panel.script,
                  .title = extensionText(manifest, "panels." + panel.name + ".title", panel.title, language),
-                 .icon = toQString(panel.icon),
+                 .icon = svg ? QString() : toQString(panel.icon),
                  .extensionName = extensionName,
-                 .folder = extension.directory});
+                 .folder = extension.directory,
+                 .iconPath = svg ? extensionIconPath(extension.directory, std::string_view(panel.icon).substr(kSvg.size()))
+                                 : QString(),
+                 .on = panel.on});
         }
     }
     return declarations;
@@ -1162,6 +1388,13 @@ ExtensionPanels::ExtensionPanels(QObject* parent)
     services.offerCall(std::string(kServices[1]), guarded(&ExtensionPanels::status));
     services.offerCall(std::string(kServices[2]), guarded(&ExtensionPanels::menu));
     services.offerCall(std::string(kServices[3]), guarded(&ExtensionPanels::close));
+    services.offerCall(std::string(kServices[4]), guarded(&ExtensionPanels::toolbar));
+    services.offerCall(std::string(kServices[5]), guarded([](Inbox& inbox, const LogicCaller& caller, std::string_view json) {
+                           return namedMenu(inbox, caller, json, ext::PanelPlace::ContextMenu);
+                       }));
+    services.offerCall(std::string(kServices[6]), guarded([](Inbox& inbox, const LogicCaller& caller, std::string_view json) {
+                           return namedMenu(inbox, caller, json, ext::PanelPlace::Tray);
+                       }));
     connect(&services, &LogicServices::logicStarted, this, &ExtensionPanels::rebuild);
     connect(&services, &LogicServices::logicEnded, this, [this](quint64 logic) { forget(logic); });
 }
@@ -1238,6 +1471,22 @@ bool ExtensionPanels::send(quint64 logic, const QString& panel, const QString& t
                             {QStringLiteral("id"), id},
                             {QStringLiteral("value"), QJsonValue::fromVariant(value)}};
     return m_teller(logic, QStringLiteral("ui"), panel,
+                    QString::fromUtf8(QJsonDocument(event).toJson(QJsonDocument::Compact)));
+}
+
+bool ExtensionPanels::choose(quint64 logic, const QString& menu, const QString& id, const QVariant& value,
+                             const QVariantMap& target) const
+{
+    if (menu.isEmpty() || id.isEmpty() || !m_teller) {
+        return false;
+    }
+    QJsonObject event{{QStringLiteral("type"), QStringLiteral("choose")},
+                      {QStringLiteral("id"), id},
+                      {QStringLiteral("value"), QJsonValue::fromVariant(value)}};
+    if (!target.isEmpty()) {
+        event.insert(QStringLiteral("target"), QJsonObject::fromVariantMap(target));
+    }
+    return m_teller(logic, QStringLiteral("ui"), menu,
                     QString::fromUtf8(QJsonDocument(event).toJson(QJsonDocument::Compact)));
 }
 
@@ -1369,6 +1618,71 @@ script::ServiceAnswer ExtensionPanels::menu(Inbox& inbox, const LogicCaller& cal
     return {};
 }
 
+script::ServiceAnswer ExtensionPanels::namedMenu(Inbox& inbox, const LogicCaller& caller, std::string_view json,
+                                                 ext::PanelPlace where)
+{
+    if (!nestingWithin(json, kMostJsonNesting)) {
+        return refused(kTreeCode, "the menu items are nested too deeply");
+    }
+    const Json message = Json::parse(json.begin(), json.end(), nullptr, false);
+    const auto name = message.is_object() ? message.find("name") : message.end();
+    const auto items = message.is_object() ? message.find("items") : message.end();
+    if (!message.is_object() || name == message.end() || !name->is_string() || name->get_ref<const std::string&>().empty() ||
+        items == message.end()) {
+        return refused(kTreeCode, "a menu is filled with its name and a list of items");
+    }
+    std::string problem;
+    const std::optional<PanelDeclaration> declaration =
+        declarationFor(inbox, caller, Kind::Menu, name->get_ref<const std::string&>(), problem);
+    if (!declaration) {
+        return refused(kPanelCode, problem);
+    }
+    if (declaration->where != where) {
+        return refused(kPanelCode, declaration->name + " " + drawnWith(*declaration));
+    }
+    QVariant value;
+    if (!items->is_null()) {
+        UiCheck check = checkMenuItems(dumped(*items));
+        if (!check.ok()) {
+            return refused(kTreeCode, check.problem);
+        }
+        if (!check.value.toList().isEmpty()) {
+            value = std::move(check.value);
+        }
+    }
+    post(inbox, Slot{.logic = caller.logic, .kind = Kind::Menu, .name = declaration->name}, std::move(value));
+    return {};
+}
+
+script::ServiceAnswer ExtensionPanels::toolbar(Inbox& inbox, const LogicCaller& caller, std::string_view json)
+{
+    if (!nestingWithin(json, kMostJsonNesting)) {
+        return refused(kTreeCode, "the toolbar button is nested too deeply");
+    }
+    const Json message = Json::parse(json.begin(), json.end(), nullptr, false);
+    const auto name = message.is_object() ? message.find("name") : message.end();
+    const auto state = message.is_object() ? message.find("state") : message.end();
+    if (!message.is_object() || name == message.end() || !name->is_string() || state == message.end()) {
+        return refused(kTreeCode, "a toolbar button is set with its name and what it shows");
+    }
+    std::string problem;
+    const std::optional<PanelDeclaration> declaration =
+        declarationFor(inbox, caller, Kind::Toolbar, name->get_ref<const std::string&>(), problem);
+    if (!declaration) {
+        return refused(kPanelCode, problem);
+    }
+    QVariant value;
+    if (!state->is_null()) {
+        UiCheck check = checkToolbarState(dumped(*state), declaration->folder);
+        if (!check.ok()) {
+            return refused(kTreeCode, check.problem);
+        }
+        value = std::move(check.value);
+    }
+    post(inbox, Slot{.logic = caller.logic, .kind = Kind::Toolbar, .name = declaration->name}, std::move(value));
+    return {};
+}
+
 script::ServiceAnswer ExtensionPanels::close(Inbox& inbox, const LogicCaller& caller, std::string_view json)
 {
     const Json message = Json::parse(json.begin(), json.end(), nullptr, false);
@@ -1399,12 +1713,13 @@ std::optional<PanelDeclaration> ExtensionPanels::declarationFor(Inbox& inbox, co
     }
     const std::string extension = caller.extension.toStdString();
     const std::string script = caller.script.toStdString();
+    const bool rightClick = kind == Kind::Menu && name.empty();
     std::optional<PanelDeclaration> found;
     {
         const std::scoped_lock lock(inbox.mutex);
         for (const PanelDeclaration& declaration : inbox.declarations) {
-            const bool inMenu = declaration.where == ext::PanelPlace::Menu;
-            const bool wanted = kind == Kind::Menu ? inMenu && declaration.script == script : declaration.name == name;
+            const bool wanted = rightClick ? declaration.where == ext::PanelPlace::Menu && declaration.script == script
+                                           : declaration.name == name;
             if (declaration.extension == extension && wanted) {
                 found = declaration;
                 break;
@@ -1412,41 +1727,46 @@ std::optional<PanelDeclaration> ExtensionPanels::declarationFor(Inbox& inbox, co
         }
     }
     if (!found) {
-        problem = kind == Kind::Menu ? extension + " declares no right-click menu for its script " + script
-                                     : extension + " declares no panel named " + shortened(name);
+        problem = rightClick ? extension + " declares no right-click menu for its script " + script
+                             : extension + " declares no panel named " + shortened(name);
         return std::nullopt;
     }
     if (found->script != script) {
         problem = "the panel " + found->name + " is drawn by the script " + found->script + ", not by " + script;
         return std::nullopt;
     }
+    bool fits = false;
     switch (found->where) {
     case ext::PanelPlace::Mirror:
     case ext::PanelPlace::Page:
     case ext::PanelPlace::Device:
-        if (kind != Kind::Panel) {
-            problem = found->name + " is a panel; draw it with ui.panel(\"" + found->name + "\").render()";
-            return std::nullopt;
-        }
+    case ext::PanelPlace::Settings:
+    case ext::PanelPlace::Extension:
+        fits = kind == Kind::Panel;
         break;
     case ext::PanelPlace::Status:
-        if (kind != Kind::Status) {
-            problem = found->name + " is a status widget; draw it with ui.status(\"" + found->name + "\").render()";
-            return std::nullopt;
-        }
+        fits = kind == Kind::Status;
         break;
     case ext::PanelPlace::Menu:
-        if (kind != Kind::Menu) {
-            problem = found->name + " is the right-click menu; fill it with ui.menu(items)";
-            return std::nullopt;
-        }
+        fits = rightClick;
+        break;
+    case ext::PanelPlace::Toolbar:
+        fits = kind == Kind::Panel || kind == Kind::Toolbar;
+        break;
+    case ext::PanelPlace::ContextMenu:
+    case ext::PanelPlace::Tray:
+        fits = kind == Kind::Menu && !rightClick;
         break;
     }
+    if (!fits) {
+        problem = found->name + " " + drawnWith(*found);
+        return std::nullopt;
+    }
     const bool phone = !caller.device.isEmpty();
-    const bool page = found->where == ext::PanelPlace::Page || found->where == ext::PanelPlace::Device;
-    if (page == phone) {
-        problem = page ? "the panel " + found->name + " belongs to the main window, and this logic runs for a phone"
-                       : found->name + " belongs to a phone's mirror window, and this logic runs without a phone";
+    const bool forApp = ext::panelForApp(found->where);
+    if (forApp == phone) {
+        problem = forApp ? "the panel " + found->name + " belongs to the main window, and this logic runs for a phone"
+                         : found->name + " belongs to a phone's mirror window, and this logic runs without a phone";
         return std::nullopt;
     }
     return found;
@@ -1509,7 +1829,7 @@ void ExtensionPanels::show(const Slot& slot, QVariant value)
     if (!has) {
         m_shown.erase(slot);
     }
-    if (had != has || slot.kind == Kind::Menu) {
+    if (had != has || slot.kind == Kind::Menu || slot.kind == Kind::Toolbar) {
         rebuild();
     }
     if (slot.kind == Kind::Status && has) {
@@ -1582,13 +1902,15 @@ void ExtensionPanels::rebuild()
         const std::string script = caller.script.toStdString();
         const bool phone = !caller.device.isEmpty();
         for (const PanelDeclaration& declaration : m_declarations) {
-            const bool forApp =
-                declaration.where == ext::PanelPlace::Page || declaration.where == ext::PanelPlace::Device;
-            if (declaration.extension != extension || declaration.script != script || forApp == phone) {
+            if (declaration.extension != extension || declaration.script != script ||
+                ext::panelForApp(declaration.where) == phone) {
                 continue;
             }
+            const bool menu = declaration.where == ext::PanelPlace::Menu ||
+                              declaration.where == ext::PanelPlace::ContextMenu ||
+                              declaration.where == ext::PanelPlace::Tray;
             const Kind kind = declaration.where == ext::PanelPlace::Status ? Kind::Status
-                              : declaration.where == ext::PanelPlace::Menu ? Kind::Menu
+                              : menu                                       ? Kind::Menu
                                                                            : Kind::Panel;
             const Slot slot{.logic = caller.logic, .kind = kind, .name = declaration.name};
             const auto shown = m_shown.find(slot);
@@ -1605,14 +1927,27 @@ void ExtensionPanels::rebuild()
                 {QStringLiteral("name"), toQString(declaration.name)},
                 {QStringLiteral("title"), declaration.title},
                 {QStringLiteral("icon"), iconOf(declaration.icon)},
+                {QStringLiteral("iconPath"), declaration.iconPath},
                 {QStringLiteral("where"), toQString(ext::kPanelPlaceNames[static_cast<std::size_t>(declaration.where)])},
                 {QStringLiteral("device"), caller.device}};
             if (kind == Kind::Menu) {
+                QStringList targets;
+                for (const std::string& target : declaration.on) {
+                    targets.append(toQString(target));
+                }
                 entry.insert(QStringLiteral("items"), shown->second.value);
+                entry.insert(QStringLiteral("on"), targets);
                 shownMenus.append(entry);
-            } else {
-                shownPanels.append(entry);
+                continue;
             }
+            if (declaration.where == ext::PanelPlace::Toolbar) {
+                const auto button =
+                    m_shown.find(Slot{.logic = caller.logic, .kind = Kind::Toolbar, .name = declaration.name});
+                entry.insert(QStringLiteral("toolbar"), button != m_shown.end() && button->second.value.isValid()
+                                                            ? button->second.value
+                                                            : QVariant(QVariantMap()));
+            }
+            shownPanels.append(entry);
         }
     }
     if (shownPanels != m_panels) {
@@ -1627,7 +1962,10 @@ void ExtensionPanels::rebuild()
 
 QString ExtensionPanels::keyOf(const Slot& slot)
 {
-    const QChar kind = slot.kind == Kind::Panel ? QChar(u'p') : slot.kind == Kind::Status ? QChar(u's') : QChar(u'm');
+    const QChar kind = slot.kind == Kind::Panel    ? QChar(u'p')
+                       : slot.kind == Kind::Status ? QChar(u's')
+                       : slot.kind == Kind::Menu   ? QChar(u'm')
+                                                   : QChar(u't');
     return QString(kind) + u'/' + QString::number(slot.logic) + u'/' + toQString(slot.name);
 }
 
@@ -1652,6 +1990,9 @@ std::optional<ExtensionPanels::Slot> ExtensionPanels::slotOf(const QString& key)
         break;
     case u'm':
         kind = Kind::Menu;
+        break;
+    case u't':
+        kind = Kind::Toolbar;
         break;
     default:
         return std::nullopt;

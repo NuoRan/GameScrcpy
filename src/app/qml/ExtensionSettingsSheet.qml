@@ -18,6 +18,8 @@ SettingsSheet {
     readonly property var parameters: SettingsCatalog.extensionGroups.find(group => group.id === sheet.extensionId)?.settings
                                       ?? []
     readonly property var grants: HardwareAccess.grants[sheet.extensionId] ?? []
+    readonly property var extensionPanels: ExtensionPanels.panels.filter(each => each.where === "extension"
+                                                                         && each.extension === sheet.extensionId)
     readonly property var addOns: ExtensionHost.addOnsRevision >= 0 && ExtensionHost.nativeAttachments.length >= 0
                                    && sheet.extensionId !== "" ? ExtensionHost.globalAddOns(sheet.extensionId) : []
     readonly property var settingRows: {
@@ -141,6 +143,28 @@ SettingsSheet {
                         highlight: ""
                     }
                 }
+            }
+        }
+    }
+
+    Repeater {
+        model: sheet.extensionPanels.length
+
+        delegate: SettingsGroup {
+            id: panelGroup
+
+            required property int index
+            readonly property var panelEntry: sheet.extensionPanels[panelGroup.index] ?? null
+
+            objectName: "extensionPanel"
+            title: panelGroup.panelEntry !== null ? panelGroup.panelEntry.title : ""
+
+            UiPanelBlock {
+                objectName: "extensionPanelView"
+                width: parent ? parent.width : 0
+                height: implicitHeight
+                entry: panelGroup.panelEntry
+                shown: sheet.visible
             }
         }
     }

@@ -6,6 +6,7 @@ Dialog {
     id: sheet
 
     property string iconName
+    property string iconPath
     property string tone
     property string subtitle
     property string statusText
@@ -37,9 +38,10 @@ Dialog {
             spacing: Theme.space.md
 
             Tile {
-                visible: sheet.iconName !== ""
+                visible: sheet.iconName !== "" || sheet.iconPath !== ""
                 large: true
                 iconName: sheet.iconName
+                iconPath: sheet.iconPath
                 tone: sheet.tone
             }
 

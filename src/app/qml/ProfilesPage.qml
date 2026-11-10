@@ -939,6 +939,23 @@ Item {
                                                     }
 
                                                     MenuSeparator {
+                                                        visible: profileExtensionItems.count > 0
+                                                        height: visible ? implicitHeight : 0
+                                                    }
+
+                                                    UiCardMenuItems {
+                                                        id: profileExtensionItems
+
+                                                        menu: moreMenu
+                                                        before: dangerSeparator
+                                                        kind: "profile"
+                                                        target: card.modelData.id
+                                                        targetName: card.modelData.name
+                                                    }
+
+                                                    MenuSeparator {
+                                                        id: dangerSeparator
+
                                                         visible: !card.readOnly
                                                         height: visible ? implicitHeight : 0
                                                     }
