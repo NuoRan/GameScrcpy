@@ -738,6 +738,76 @@ TEST_CASE("ADR-0112: a DLL's device provider lists its devices, says when they c
     }
 }
 
+TEST_CASE("ADR-0112: the registry lists the devices of an extension allowed to add them, leaves out bad ones, "
+          "follows changes and passes on actions")
+{
+    ApplicationScope application;
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.native/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    app::NativeWanted wanted = testWanted(folder);
+    wanted.native.nodes = {{.name = "setBoxes",
+                            .params = {{"boxes", "json"}},
+                            .returns = "number",
+                            .description = {},
+                            .permissions = {}},
+                           {.name = "lastAction", .params = {}, .returns = "string", .description = {}, .permissions = {}}};
+    wanted.native.deviceProviders = {{.name = "boxes", .title = "Boxes", .kinds = {"touchBox"}}};
+    wanted.native.jobs = {{.name = "count",
+                           .title = "Count",
+                           .params = {},
+                           .returns = "json",
+                           .description = {},
+                           .permissions = {},
+                           .most = std::nullopt}};
+    int changes = 0;
+    QObject::connect(&registry, &app::NativeExtensions::providedChanged, [&changes] { ++changes; });
+    const std::string boxes =
+        R"([{"id":"box-1","name":"Box","kind":"touchBox","summary":"USB","touchMethod":"recorder",)"
+        R"("actions":[{"id":"flash","title":"Flash","job":"count"}]},)"
+        R"({"id":"","name":"No id","kind":"touchBox"},)"
+        R"({"id":"box-3","name":"Phone","kind":"phone"},)"
+        R"({"id":"box-4","name":"Bad job","kind":"touchBox","actions":[{"id":"x","title":"X","job":"nope"}]},)"
+        R"({"id":"box-5","name":"Bad method","kind":"touchBox","touchMethod":"nope"}])";
+    const auto setBoxes = [&](const std::string& json) {
+        REQUIRE(registry.call("gstest.native", "setBoxes", {script::NodeValue{.type = script::NodeType::Json, .text = json}})
+                    .problem.empty());
+        for (int round = 0; round < 20; ++round) {
+            QCoreApplication::processEvents();
+        }
+    };
+
+    registry.apply({wanted});
+    setBoxes(boxes);
+    CHECK(registry.providedDevices().empty());
+
+    wanted.granted = {"devices.provide"};
+    registry.apply({wanted});
+    setBoxes(boxes);
+    const std::vector<app::ProvidedDevice> listed = registry.providedDevices();
+    REQUIRE(listed.size() == 1);
+    CHECK(listed[0].extension == "gstest.native");
+    CHECK(listed[0].provider == "boxes");
+    CHECK(listed[0].id == "box-1");
+    CHECK(listed[0].name == "Box");
+    CHECK(listed[0].summary == "USB");
+    CHECK(listed[0].state == "ready");
+    CHECK(listed[0].touchMethod == "gstest.native/recorder");
+    REQUIRE(listed[0].actions.size() == 1);
+    CHECK(listed[0].actions[0].toMap().value(QStringLiteral("job")).toString() == "count");
+    CHECK(changes >= 1);
+
+    CHECK(registry.actOnDevice("gstest.native", "boxes", "box-1", "disconnect").ok());
+    CHECK(registry.call("gstest.native", "lastAction", {}).value.text == "box-1:disconnect");
+    CHECK(registry.actOnDevice("gstest.native", "nope", "box-1", "disconnect").status ==
+          exthost::CallStatus::Unavailable);
+
+    setBoxes("[]");
+    CHECK(registry.providedDevices().empty());
+}
+
 TEST_CASE("ADR-0112: an extension's events reach that extension's own logic and no other")
 {
     ApplicationScope application;

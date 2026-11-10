@@ -21242,6 +21242,10 @@
         <translation>使用你设置好的 AI 服务（会花你的额度）</translation>
     </message>
     <message>
+        <source>Add devices to the devices page</source>
+        <translation>在设备页添加设备</translation>
+    </message>
+    <message>
         <source>Its script %1 is not in the extension</source>
         <translation>扩展里没有它的脚本 %1</translation>
     </message>

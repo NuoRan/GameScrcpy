@@ -639,6 +639,36 @@ TEST_CASE("ADR-0112: native jobs load with their arguments, result and running l
     CHECK(job["properties"]["most"]["maximum"] == kMostRunningNativeJobs);
 }
 
+TEST_CASE("ADR-0112: native device providers load with their kinds and need the permission devices.provide")
+{
+    Json json = nativeBase();
+    json["contributes"]["native"]["deviceProviders"] =
+        Json::array({{{"name", "boards"}, {"title", "ESP32 boards"}, {"kinds", {"touchBox"}}}});
+    json["permissions"].push_back({{"name", "devices.provide"}, {"reason", "Lists the boards."}});
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    REQUIRE(loaded.manifest.contributes.native.has_value());
+    CHECK(loaded.manifest.contributes.native->deviceProviders ==
+          std::vector<NativeDeviceProvider>{{.name = "boards", .title = "ESP32 boards", .kinds = {"touchBox"}}});
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+
+    json["permissions"] = Json::array({{{"name", "notify"}, {"reason", "Shows when it beeps."}}});
+    json["contributes"]["native"]["deviceProviders"].push_back(
+        {{"name", "boards"}, {"title", "Again"}, {"kinds", {"phone"}}});
+    json["contributes"]["native"]["deviceProviders"].push_back({{"name", "more"}, {"title", "More"}});
+    loaded = load(json);
+    INFO(listed(loaded));
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::NativePermissionUndeclared, "$.contributes.native.deviceProviders"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.native.deviceProviders[1].name"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.deviceProviders[1].kinds[0]"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.native.deviceProviders[2].kinds"));
+}
+
 namespace {
 
 Json panelBase()

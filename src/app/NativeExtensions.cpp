@@ -14,6 +14,8 @@
 #include <QVariantMap>
 
 #include <algorithm>
+#include <array>
+#include <iterator>
 #include <map>
 #include <optional>
 #include <utility>
@@ -86,6 +88,94 @@ nlohmann::json partOf(const nlohmann::json& parsed, const char* name)
                                                                                       : nlohmann::json::object();
 }
 
+constexpr std::array<std::string_view, 4> kDeviceStates{"ready", "busy", "problem", "offline"};
+constexpr std::size_t kMostProvidedDevices = 64;
+constexpr std::size_t kMostDeviceActions = 8;
+
+std::optional<std::string> textIn(const nlohmann::json& object, const char* key, std::size_t most)
+{
+    if (!object.contains(key)) {
+        return std::string();
+    }
+    const nlohmann::json& value = object.at(key);
+    if (!value.is_string() || value.get_ref<const std::string&>().size() > most) {
+        return std::nullopt;
+    }
+    return value.get<std::string>();
+}
+
+std::optional<ProvidedDevice> providedOf(const NativeWanted& wanted, const ext::NativeDeviceProvider& declared,
+                                         const nlohmann::json& device, std::string& problem)
+{
+    if (!device.is_object()) {
+        problem = "it is not an object";
+        return std::nullopt;
+    }
+    const std::optional<std::string> id = textIn(device, "id", 64);
+    const std::optional<std::string> name = textIn(device, "name", 64);
+    const std::optional<std::string> kind = textIn(device, "kind", 32);
+    const std::optional<std::string> summary = textIn(device, "summary", 200);
+    const std::optional<std::string> state = textIn(device, "state", 16);
+    const std::optional<std::string> stateText = textIn(device, "stateText", 200);
+    const std::optional<std::string> method = textIn(device, "touchMethod", 64);
+    if (!id || id->empty() || !name || name->empty()) {
+        problem = "it has no id or no name";
+        return std::nullopt;
+    }
+    if (!kind || std::ranges::find(declared.kinds, *kind) == declared.kinds.end()) {
+        problem = "its kind is not one the manifest declares";
+        return std::nullopt;
+    }
+    if (!state || (!state->empty() && std::ranges::find(kDeviceStates, *state) == kDeviceStates.end()) || !summary ||
+        !stateText || !method) {
+        problem = "its state, summary, stateText or touchMethod is not valid text";
+        return std::nullopt;
+    }
+    if (!method->empty() &&
+        std::ranges::find(wanted.native.touchMethods, *method, &ext::NativeTouchMethod::name) ==
+            wanted.native.touchMethods.end()) {
+        problem = "its touchMethod is not one of the extension's touch methods";
+        return std::nullopt;
+    }
+    QVariantList actions;
+    if (device.contains("actions")) {
+        const nlohmann::json& listed = device.at("actions");
+        if (!listed.is_array() || listed.size() > kMostDeviceActions) {
+            problem = "its actions are not a list of at most 8";
+            return std::nullopt;
+        }
+        for (const nlohmann::json& action : listed) {
+            const std::optional<std::string> actionId = action.is_object() ? textIn(action, "id", 64) : std::nullopt;
+            const std::optional<std::string> title = action.is_object() ? textIn(action, "title", 40) : std::nullopt;
+            const std::optional<std::string> panel = action.is_object() ? textIn(action, "panel", 64) : std::nullopt;
+            const std::optional<std::string> job = action.is_object() ? textIn(action, "job", 64) : std::nullopt;
+            if (!actionId || actionId->empty() || !title || title->empty() || !panel || !job ||
+                (!job->empty() &&
+                 std::ranges::find(wanted.native.jobs, *job, &ext::NativeJob::name) == wanted.native.jobs.end())) {
+                problem = "an action has no id or title, or names a job the manifest does not declare";
+                return std::nullopt;
+            }
+            actions.append(QVariantMap{{QStringLiteral("id"), QString::fromStdString(*actionId)},
+                                       {QStringLiteral("title"), QString::fromStdString(*title)},
+                                       {QStringLiteral("panel"), QString::fromStdString(*panel)},
+                                       {QStringLiteral("job"), QString::fromStdString(*job)}});
+        }
+    }
+    const nlohmann::json capture = device.contains("capture") ? device.at("capture") : nlohmann::json(false);
+    return ProvidedDevice{.extension = wanted.id,
+                          .extensionName = wanted.name,
+                          .provider = declared.name,
+                          .id = *id,
+                          .name = QString::fromStdString(*name),
+                          .kind = QString::fromStdString(*kind),
+                          .summary = QString::fromStdString(*summary),
+                          .state = state->empty() ? QStringLiteral("ready") : QString::fromStdString(*state),
+                          .stateText = QString::fromStdString(*stateText),
+                          .touchMethod = method->empty() ? std::string() : wanted.id + "/" + *method,
+                          .capture = capture.is_boolean() && capture.get<bool>(),
+                          .actions = std::move(actions)};
+}
+
 }
 
 std::string nativeTouchOptions(std::string_view snapshot, std::string_view phone, std::string_view device)
@@ -134,6 +224,11 @@ struct NativeExtensions::Shared {
               value = QString::fromUtf8(json.data(), static_cast<qsizetype>(json.size()))](NativeExtensions& owner) {
             emit owner.extensionEvent(extension, name, value);
         });
+    }
+
+    void devicesChanged(const std::string& id)
+    {
+        post([id](NativeExtensions& owner) { owner.refreshProviders(id); });
     }
 
     void lose(const std::string& id, std::uint64_t session)
@@ -189,6 +284,13 @@ public:
         }
     }
 
+    void devicesChanged(std::string_view) override
+    {
+        if (const std::shared_ptr<NativeExtensions::Shared> shared = m_shared.lock()) {
+            shared->devicesChanged(m_id);
+        }
+    }
+
 private:
     std::string m_id;
     QString m_name;
@@ -206,6 +308,7 @@ struct NativeExtensions::Entry {
     std::vector<std::optional<std::size_t>> attachmentIndex;
     std::vector<std::optional<std::size_t>> behaviorIndex;
     std::vector<std::optional<std::size_t>> jobIndex;
+    std::vector<std::optional<std::size_t>> providerIndex;
     bool pending = false;
 };
 
@@ -252,6 +355,17 @@ void matchEntry(NativeExtensions::Entry& entry)
         if (!fits) {
             entry.problems.push_back({ext::Severity::Warning, ext::Code::NativeMismatch,
                                       where + ".jobs[" + std::to_string(index) + "]", job.name});
+        }
+    }
+    for (std::size_t index = 0; index < wanted.native.deviceProviders.size(); ++index) {
+        const ext::NativeDeviceProvider& provider = wanted.native.deviceProviders[index];
+        const auto found = std::ranges::find(info.providers, provider.name, &exthost::ProviderInfo::name);
+        const bool fits = found != info.providers.end();
+        entry.providerIndex.push_back(
+            fits ? std::optional<std::size_t>(static_cast<std::size_t>(found - info.providers.begin())) : std::nullopt);
+        if (!fits) {
+            entry.problems.push_back({ext::Severity::Warning, ext::Code::NativeMismatch,
+                                      where + ".deviceProviders[" + std::to_string(index) + "]", provider.name});
         }
     }
     for (std::size_t index = 0; index < wanted.native.attachments.size(); ++index) {
@@ -363,6 +477,11 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
                 alive->emitted(id, topic, json);
             }
         };
+        options.devicesChanged = [shared, id](const std::string&) {
+            if (const std::shared_ptr<Shared> alive = shared.lock()) {
+                alive->devicesChanged(id);
+            }
+        };
         options.touchLost = [shared, id](std::uint64_t session) {
             if (const std::shared_ptr<Shared> alive = shared.lock()) {
                 alive->lose(id, session);
@@ -431,6 +550,7 @@ void NativeExtensions::matchLate(const exthost::Module* module)
         m_modules.swap(modules);
     }
     emit changed();
+    refreshProviders();
 }
 
 void NativeExtensions::failLate(const exthost::Module* module, const std::string& why)
@@ -493,6 +613,7 @@ void NativeExtensions::apply(std::vector<NativeWanted> wanted)
         behaviorList() != behaviorsBefore || moduleKeys() != modulesBefore) {
         emit changed();
     }
+    refreshProviders();
 }
 
 void NativeExtensions::setSettings(const std::string& id, const std::string& json)
@@ -510,6 +631,71 @@ void NativeExtensions::setSettings(const std::string& id, const std::string& jso
     if (module != nullptr) {
         module->setSettings(json);
     }
+}
+
+std::vector<ProvidedDevice> NativeExtensions::providedDevices() const
+{
+    return m_provided;
+}
+
+void NativeExtensions::refreshProviders(std::string_view extension)
+{
+    std::vector<ProvidedDevice> next;
+    if (!extension.empty()) {
+        std::ranges::copy_if(m_provided, std::back_inserter(next),
+                             [extension](const ProvidedDevice& device) { return device.extension != extension; });
+    }
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        const NativeWanted& wanted = entry->wanted;
+        if ((!extension.empty() && wanted.id != extension) || entry->module == nullptr || entry->pending ||
+            !entry->module->working() || std::ranges::find(wanted.granted, ext::kDevicesPermission) == wanted.granted.end()) {
+            continue;
+        }
+        for (std::size_t index = 0; index < wanted.native.deviceProviders.size(); ++index) {
+            if (index >= entry->providerIndex.size() || !entry->providerIndex[index]) {
+                continue;
+            }
+            const ext::NativeDeviceProvider& declared = wanted.native.deviceProviders[index];
+            const exthost::CallResult listed = entry->module->listDevices(*entry->providerIndex[index]);
+            if (!listed.ok()) {
+                log::warning(kCategory, "{}: the device provider {} failed: {}", wanted.id, declared.name, listed.problem);
+                continue;
+            }
+            const nlohmann::json devices = nlohmann::json::parse(listed.value.text, nullptr, false);
+            std::size_t taken = 0;
+            for (const nlohmann::json& device : devices.is_array() ? devices : nlohmann::json::array()) {
+                std::string problem;
+                std::optional<ProvidedDevice> made = providedOf(wanted, declared, device, problem);
+                if (!made) {
+                    log::warning(kCategory, "{}: a device from {} was left out: {}", wanted.id, declared.name, problem);
+                } else if (taken++ < kMostProvidedDevices) {
+                    next.push_back(std::move(*made));
+                }
+            }
+        }
+    }
+    if (next != m_provided) {
+        m_provided = std::move(next);
+        emit providedChanged();
+    }
+}
+
+exthost::CallResult NativeExtensions::actOnDevice(std::string_view extension, std::string_view provider,
+                                                  std::string_view device, std::string_view action) const
+{
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        if (entry->wanted.id != extension || entry->module == nullptr) {
+            continue;
+        }
+        const std::vector<ext::NativeDeviceProvider>& providers = entry->wanted.native.deviceProviders;
+        const auto found = std::ranges::find(providers, provider, &ext::NativeDeviceProvider::name);
+        const auto index = static_cast<std::size_t>(found - providers.begin());
+        if (found == providers.end() || index >= entry->providerIndex.size() || !entry->providerIndex[index]) {
+            break;
+        }
+        return entry->module->actOnDevice(*entry->providerIndex[index], device, action);
+    }
+    return {exthost::CallStatus::Unavailable, {}, "the extension that adds the device is off"};
 }
 
 void NativeExtensions::setGlobals(GlobalChoices globals)

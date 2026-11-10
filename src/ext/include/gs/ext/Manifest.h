@@ -33,10 +33,10 @@ inline constexpr std::array<std::string_view, 10> kExtensionPointNames{"profile"
 inline constexpr std::array<std::string_view, 8> kNativeTypeNames{"boolean", "number", "string",   "point",
                                                                   "region",  "color",  "duration", "json"};
 
-inline constexpr std::array<std::string_view, 13> kPermissionNames{
+inline constexpr std::array<std::string_view, 14> kPermissionNames{
     "device.input", "device.screen", "device.clipboard", "device.apps", "devices.other", "mapping",
     "notify",       "network",       "files.pick",       "files.paths", "input.read",    "hardware",
-    "ai"};
+    "ai",           "devices.provide"};
 inline constexpr std::size_t kMaxComponentNameLength = 48;
 inline constexpr std::string_view kNeverGrantedPermission = "adb.shell";
 
@@ -338,6 +338,26 @@ struct NativeJob {
     friend bool operator==(const NativeJob&, const NativeJob&) = default;
 };
 
+inline constexpr std::size_t kMostDeviceProviders = 8;
+inline constexpr std::array<std::string_view, 1> kDeviceKindNames{"touchBox"};
+inline constexpr std::string_view kDevicesPermission = "devices.provide";
+
+struct NativeDeviceProvider {
+    std::string name;
+    std::string title;
+    std::vector<std::string> kinds;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+        v.text("title", m.title, {.required = true, .maxLength = 40});
+        v.textList("kinds", m.kinds, {.maxItems = 4, .maxLength = 32});
+    }
+
+    friend bool operator==(const NativeDeviceProvider&, const NativeDeviceProvider&) = default;
+};
+
 struct NativeContribution {
     std::string dll;
     std::vector<NativeTouchMethod> touchMethods;
@@ -345,6 +365,7 @@ struct NativeContribution {
     std::vector<NativeAttachment> attachments;
     std::vector<NativeBehavior> behaviors;
     std::vector<NativeJob> jobs;
+    std::vector<NativeDeviceProvider> deviceProviders;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -355,6 +376,7 @@ struct NativeContribution {
         v.objectList("attachments", m.attachments, kMostNativeAttachments);
         v.objectList("behaviors", m.behaviors, kMostNativeBehaviors);
         v.objectList("jobs", m.jobs, kMostNativeJobs);
+        v.objectList("deviceProviders", m.deviceProviders, kMostDeviceProviders);
     }
 
     friend bool operator==(const NativeContribution&, const NativeContribution&) = default;

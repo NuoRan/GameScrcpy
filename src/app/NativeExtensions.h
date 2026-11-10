@@ -60,6 +60,23 @@ struct NativeWanted {
 [[nodiscard]] std::string nativeTouchOptions(std::string_view snapshot, std::string_view phone,
                                              std::string_view device = {});
 
+struct ProvidedDevice {
+    std::string extension;
+    QString extensionName;
+    std::string provider;
+    std::string id;
+    QString name;
+    QString kind;
+    QString summary;
+    QString state;
+    QString stateText;
+    std::string touchMethod;
+    bool capture = false;
+    QVariantList actions;
+
+    friend bool operator==(const ProvidedDevice&, const ProvidedDevice&) = default;
+};
+
 struct DeclaredModule {
     std::string module;
     std::string extension;
@@ -115,6 +132,10 @@ public:
     [[nodiscard]] QVariantList touchMethods() const;
     [[nodiscard]] std::vector<ext::Diagnostic> problems() const;
     [[nodiscard]] bool loaded(std::string_view id) const;
+    [[nodiscard]] std::vector<ProvidedDevice> providedDevices() const;
+    void refreshProviders(std::string_view extension = {});
+    [[nodiscard]] exthost::CallResult actOnDevice(std::string_view extension, std::string_view provider,
+                                                  std::string_view device, std::string_view action) const;
 
     [[nodiscard]] std::unique_ptr<ExtensionTouch> openTouch(std::string_view key, std::string_view device,
                                                              ControlSink& injection,
@@ -138,6 +159,7 @@ signals:
     void moduleTrouble(const QString& module, const QString& control, int kind);
     void modulesFailed(const QString& id, const QString& name);
     void extensionEvent(const QString& id, const QString& topic, const QString& json);
+    void providedChanged();
 
 private:
     [[nodiscard]] std::shared_ptr<Entry> load(const NativeWanted& wanted) const;
@@ -161,6 +183,7 @@ private:
     GlobalChoices m_globals;
     std::map<std::string, std::deque<Microseconds>, std::less<>> m_faults;
     SteadyClock m_steady;
+    std::vector<ProvidedDevice> m_provided;
 };
 
 }

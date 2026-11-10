@@ -373,6 +373,11 @@ std::pair<std::string_view, std::string_view> identity(const NativeJob& entry)
     return {"name", entry.name};
 }
 
+std::pair<std::string_view, std::string_view> identity(const NativeDeviceProvider& entry)
+{
+    return {"name", entry.name};
+}
+
 std::pair<std::string_view, std::string_view> identity(const DeclaredParam& entry)
 {
     return {"key", entry.key};
@@ -445,6 +450,18 @@ void checkEntry(const NativeParam&, const std::string&, Context&) {}
 void checkEntry(const NativeNode&, const std::string&, Context&) {}
 
 void checkEntry(const NativeJob&, const std::string&, Context&) {}
+
+void checkEntry(const NativeDeviceProvider& provider, const std::string& path, Context& context)
+{
+    if (provider.kinds.empty()) {
+        context.report(Severity::Error, Code::MissingField, path + ".kinds");
+    }
+    for (std::size_t index = 0; index < provider.kinds.size(); ++index) {
+        if (std::ranges::find(kDeviceKindNames, provider.kinds[index]) == kDeviceKindNames.end()) {
+            context.report(Severity::Error, Code::OutOfRange, indexed(path + ".kinds", index), provider.kinds[index]);
+        }
+    }
+}
 
 void checkEntry(const NativeContribution& native, const std::string& path, Context& context)
 {
@@ -1764,6 +1781,11 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
             if (std::ranges::find(contributes.native->nodes, name, &NativeNode::name) != contributes.native->nodes.end()) {
                 context.report(Severity::Error, Code::Duplicate, at + ".name", name);
             }
+        }
+        if (!contributes.native->deviceProviders.empty() &&
+            std::ranges::find(manifest.permissions, kDevicesPermission, &Permission::name) == manifest.permissions.end()) {
+            context.report(Severity::Error, Code::NativePermissionUndeclared, "$.contributes.native.deviceProviders",
+                           std::string(kDevicesPermission));
         }
     }
     if (!manifest.id.empty() && manifest.dependencies.contains(manifest.id)) {

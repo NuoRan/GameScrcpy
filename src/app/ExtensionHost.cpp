@@ -372,6 +372,9 @@ QString permissionTitle(std::string_view name)
     if (name == "ai") {
         return ExtensionHost::tr("Use the AI service you set up (it spends your quota)");
     }
+    if (name == "devices.provide") {
+        return ExtensionHost::tr("Add devices to the devices page");
+    }
     return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
 }
 
