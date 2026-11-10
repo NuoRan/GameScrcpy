@@ -72,6 +72,15 @@ std::string_view nodeScriptType(NodeType type) noexcept
 
 std::string nodeSignature(const NodeInfo& node)
 {
+    if (node.job) {
+        std::string fields;
+        for (const NodeParam& param : node.params) {
+            fields += (fields.empty() ? " " : "; ") + param.name + ": " + std::string(nodeScriptType(param.type));
+        }
+        const std::string result = node.returns == NodeType::None ? "null" : std::string(nodeScriptType(node.returns));
+        return node.name + "(args" + (node.params.empty() ? "?: {}" : ": {" + fields + " }") + "): ExtensionJob<" +
+               result + ">";
+    }
     std::string params;
     for (const NodeParam& param : node.params) {
         if (!params.empty()) {

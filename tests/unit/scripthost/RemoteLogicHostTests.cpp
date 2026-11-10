@@ -100,6 +100,16 @@ public:
         return {"true", {}, {}};
     }
 
+    std::vector<gs::script::NodeInfo> nodes() override
+    {
+        using gs::script::NodeType;
+        gs::script::NodeInfo flash{"alice.tools", "Tools", "flash", {{"port", NodeType::String}, {"size", NodeType::Number}},
+                                   NodeType::Json, "", {}};
+        flash.job = true;
+        return {flash, {"alice.tools", "Tools", "add", {{"a", NodeType::Number}, {"b", NodeType::Number}},
+                        NodeType::Number, "", {}}};
+    }
+
     [[nodiscard]] bool waitFor(std::string_view text, std::chrono::milliseconds timeout = std::chrono::seconds(30))
     {
         std::unique_lock lock(m_mutex);
@@ -248,7 +258,7 @@ export async function play() {
     await touch.tap(0.5, 0.25);
     await touch.swipe(0.1, 0.2, 0.3, 0.4, 50);
     store.set("played", true);
-    log.info("played", device.info().model);
+    log.info("played", device.info().model, ext.alice.tools.flash.length, ext.alice.tools.add.length);
 }
 export async function paste() {
     log.info("clipboard", await clipboard.read());
@@ -276,7 +286,7 @@ export async function paste() {
     REQUIRE(played.has_value());
     INFO(gs::script::describe(played->report));
     CHECK(played->report.kind == ReportKind::TaskFinished);
-    CHECK(recorder.count(logged("played Pixel")) == 1);
+    CHECK(recorder.count(logged("played Pixel 1 2")) == 1);
     CHECK(services->waitFor("tap 0.5 0.25 60"));
     CHECK(services->waitFor("swipe 0.1 0.2 0.3 0.4 50"));
     CHECK(services->waitFor(R"(store {"played":true})"));

@@ -325,7 +325,7 @@
     "label": "ext",
     "kind": "variable",
     "detail": "ext: Extensions",
-    "documentation": "The system nodes that native extensions add: ext.<extension>.<node>(...) runs a node at once and gives its result. <extension> is the extension id with each part in lowerCamelCase, so the nodes of gamescrcpy.pc-clock are ext.gamescrcpy.pcClock. Throws GS-API-060 when the extension is not on, GS-API-061 for values of the wrong type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when the node takes longer than 100 ms.",
+    "documentation": "The system nodes that native extensions add: ext.<extension>.<node>(...) runs a node at once and gives its result. <extension> is the extension id with each part in lowerCamelCase, so the nodes of gamescrcpy.pc-clock are ext.gamescrcpy.pcClock. Throws GS-API-060 when the extension is not on, GS-API-061 for values of the wrong type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when the node takes longer than 100 ms. A job the extension offers, ext.<extension>.<job>({ ... }), starts at once with its arguments by name and gives an ExtensionJob; starting throws GS-API-060, GS-API-061 and GS-API-063 as a node does, and GS-API-067 when the extension runs as many of its jobs as it may.",
     "insertText": "ext"
   },
   {
@@ -3631,6 +3631,13 @@
     "detail": "type StoreValue",
     "documentation": "A value the store can keep.",
     "insertText": "StoreValue"
+  },
+  {
+    "label": "ExtensionJob<T>",
+    "kind": "type",
+    "detail": "type ExtensionJob<T>",
+    "documentation": "A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; cancel asks it to stop. It is cancelled when the script stops.",
+    "insertText": "ExtensionJob<T>"
   },
   {
     "label": "ListenOptions",

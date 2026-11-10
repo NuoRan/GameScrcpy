@@ -467,13 +467,14 @@ void put(Writer& out, const script::NodeInfo& value)
     enumOut(out, value.returns);
     out.text(value.description);
     put(out, value.permissions);
+    out.flag(value.job);
 }
 
 bool get(Reader& in, script::NodeInfo& value)
 {
     return in.text(value.extension) && in.text(value.extensionName) && in.text(value.name) &&
            get(in, value.params) && enumIn(in, value.returns, script::NodeType::Json) && in.text(value.description) &&
-           get(in, value.permissions);
+           get(in, value.permissions) && in.flag(value.job);
 }
 
 void put(Writer& out, const script::NodeValue& value)

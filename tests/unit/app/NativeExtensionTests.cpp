@@ -3,6 +3,7 @@
 #include "ExtensionModules.h"
 #include "ExtensionTouchSink.h"
 #include "NativeExtensions.h"
+#include "NativeJobs.h"
 #include "ProfileEditor.h"
 #include "TouchSinkFakes.h"
 
@@ -49,6 +50,26 @@ using namespace std::chrono_literals;
 namespace fs = std::filesystem;
 
 namespace {
+
+class ApplicationScope
+{
+public:
+    ApplicationScope()
+    {
+        if (QCoreApplication::instance() == nullptr) {
+            m_application = std::make_unique<QCoreApplication>(m_argc, m_argv.data());
+        }
+    }
+
+    ApplicationScope(const ApplicationScope&) = delete;
+    ApplicationScope& operator=(const ApplicationScope&) = delete;
+
+private:
+    int m_argc = 1;
+    std::string m_name = "gs_app_tests";
+    std::array<char*, 2> m_argv{m_name.data(), nullptr};
+    std::unique_ptr<QCoreApplication> m_application;
+};
 
 const fs::path kSampleFolder(GS_PC_CLOCK_DIR);
 const fs::path kTestDll(GS_TEST_NATIVE_DLL);
@@ -313,6 +334,129 @@ TEST_CASE("ADR-0112: jobs of someone else's DLL run through gs-exthost.exe the s
     REQUIRE(module->startJob(jobIndex(*module, "count"), R"({"steps":1000,"pause":20})", stranded.events()) != 0);
     crashOnce(*module, 1);
     CHECK(stranded.wait() == std::pair<bool, std::string>{false, "the extension's process stopped before the job ended"});
+}
+
+TEST_CASE("ADR-0112: a script starts a job by name with checked arguments, hears its progress and gets its result; "
+          "a cancelled or failing job says so, and a job ends with its script")
+{
+    ApplicationScope application;
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.native/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    app::NativeWanted wanted = testWanted(folder);
+    wanted.native.nodes.clear();
+    wanted.native.jobs = {{.name = "count",
+                           .title = "Count",
+                           .params = {{"steps", "number"}, {"pause", "number"}, {"fail", "number"}},
+                           .returns = "json",
+                           .description = "Counts.",
+                           .permissions = {},
+                           .most = 2}};
+    registry.apply({wanted});
+    REQUIRE(registry.problems().empty());
+    const std::vector<script::NodeInfo> listed = registry.nodes();
+    REQUIRE(listed.size() == 1);
+    CHECK(listed[0].job);
+    CHECK(listed[0].name == "count");
+    CHECK(script::nodeSignature(listed[0]) ==
+          "count(args: { steps: number; pause: number; fail: number }): ExtensionJob<StoreValue>");
+
+    struct Heard {
+        std::vector<std::pair<quint64, QString>> answers;
+        std::vector<std::pair<quint64, QString>> refusals;
+        std::vector<QString> told;
+    } heard;
+    app::NativeJobs jobs(registry);
+    jobs.setReplies({.answer = [&heard](std::uint64_t, quint64 request,
+                                        const QString& json) { heard.answers.emplace_back(request, json); },
+                     .refuse = [&heard](std::uint64_t, quint64 request,
+                                        const QString& message) { heard.refusals.emplace_back(request, message); },
+                     .tell = [&heard](std::uint64_t, const QString& kind, const QString&,
+                                      const QString& json) { heard.told.push_back(kind + u' ' + json); }});
+    const auto settled = [](const std::function<bool()>& done) {
+        const auto deadline = std::chrono::steady_clock::now() + 20s;
+        while (!done()) {
+            if (std::chrono::steady_clock::now() > deadline) {
+                return false;
+            }
+            QCoreApplication::processEvents();
+            std::this_thread::sleep_for(5ms);
+        }
+        return true;
+    };
+    const auto idOf = [](const script::ServiceAnswer& answer) {
+        return QString::fromStdString(nlohmann::json::parse(answer.json)["id"].get<std::string>());
+    };
+    const app::LogicCaller caller{.logic = 7};
+    const auto startWith = [&](std::string_view args) {
+        return jobs.start(caller, R"({"extension":"gstest.native","job":"count","args":)" + std::string(args) + "}");
+    };
+
+    const script::ServiceAnswer counted = startWith(R"({"steps":3,"pause":60,"fail":0})");
+    REQUIRE_MESSAGE(counted.code.empty(), counted.problem);
+    jobs.result(caller, 11, QStringLiteral(R"({"id":"%1"})").arg(idOf(counted)));
+    REQUIRE(settled([&] { return !heard.answers.empty(); }));
+    CHECK(heard.answers[0] == std::pair<quint64, QString>{11, QStringLiteral(R"({"counted":3})")});
+    CHECK(heard.told.size() == 4);
+    CHECK(heard.told.front().startsWith(u"job {\"fraction\":0.333"));
+    CHECK(jobs.running() == 0);
+
+    CHECK(startWith(R"({"steps":"three","pause":0,"fail":0})").code == "GS-API-061");
+    CHECK(startWith(R"({"steps":3,"fail":0})").code == "GS-API-061");
+    CHECK(startWith(R"({"steps":3,"pause":0,"fail":0,"extra":1})").code == "GS-API-061");
+    CHECK(jobs.start(caller, R"({"extension":"gstest.native","job":"refuse","args":{}})").code == "GS-API-060");
+    CHECK(jobs.start(caller, R"({"extension":"someone.else","job":"count","args":{}})").code == "GS-API-060");
+
+    const script::ServiceAnswer long1 = startWith(R"({"steps":1000,"pause":20,"fail":0})");
+    const script::ServiceAnswer long2 = startWith(R"({"steps":1000,"pause":20,"fail":0})");
+    REQUIRE(long1.code.empty());
+    REQUIRE(long2.code.empty());
+    CHECK(startWith(R"({"steps":1000,"pause":20,"fail":0})").code == "GS-API-067");
+    jobs.result(caller, 12, QStringLiteral(R"({"id":"%1"})").arg(idOf(long1)));
+    CHECK(jobs.cancel(caller, R"({"id":")" + idOf(long1).toStdString() + "\"}").code.empty());
+    REQUIRE(settled([&] { return !heard.refusals.empty(); }));
+    CHECK(heard.refusals[0] == std::pair<quint64, QString>{12, QStringLiteral("GS-API-066 cancelled")});
+
+    jobs.endLogic(caller.logic);
+    CHECK(jobs.running() == 0);
+
+    const script::ServiceAnswer failing = startWith(R"({"steps":1,"pause":0,"fail":1})");
+    REQUIRE(failing.code.empty());
+    jobs.result(caller, 13, QStringLiteral(R"({"id":"%1"})").arg(idOf(failing)));
+    REQUIRE(settled([&] { return heard.refusals.size() == 2; }));
+    CHECK(heard.refusals[1] == std::pair<quint64, QString>{13, QStringLiteral("GS-API-065 asked to fail")});
+    jobs.result(caller, 14, QStringLiteral(R"({"id":"999"})"));
+    CHECK(heard.refusals.back().second.startsWith(u"GS-API-060"));
+
+    const auto declareReturns = [&](const char* returns) {
+        wanted.native.jobs[0].returns = returns;
+        registry.apply({wanted});
+        REQUIRE(registry.problems().empty());
+    };
+    const auto askResult = [&](quint64 request, const script::ServiceAnswer& started) {
+        REQUIRE_MESSAGE(started.code.empty(), started.problem);
+        jobs.result(caller, request, QStringLiteral(R"({"id":"%1"})").arg(idOf(started)));
+    };
+
+    declareReturns("number");
+    askResult(15, startWith(R"({"steps":1,"pause":0,"fail":0})"));
+    REQUIRE(settled([&] { return heard.refusals.size() == 4; }));
+    CHECK(heard.refusals[3] ==
+          std::pair<quint64, QString>{15, QStringLiteral("GS-API-065 the job gave a result that is not a number")});
+
+    declareReturns("");
+    askResult(16, startWith(R"({"steps":1,"pause":0,"fail":0})"));
+    REQUIRE(settled([&] { return heard.answers.size() == 2; }));
+    CHECK(heard.answers[1] == std::pair<quint64, QString>{16, QStringLiteral("null")});
+
+    askResult(17, startWith(R"({"steps":1000,"pause":20,"fail":0})"));
+    registry.apply({});
+    REQUIRE(settled([&] { return heard.refusals.size() == 5; }));
+    CHECK(heard.refusals[4] ==
+          std::pair<quint64, QString>{17, QStringLiteral("GS-API-065 the extension stopped before the job ended")});
+    CHECK(jobs.running() == 0);
 }
 
 TEST_CASE("ADR-0112: a DLL made for interface version 1 is not loaded and the message says to build it again")
@@ -717,26 +861,6 @@ TEST_CASE("a turned-on built-in native extension is loaded by the extension host
 }
 
 namespace {
-
-class ApplicationScope
-{
-public:
-    ApplicationScope()
-    {
-        if (QCoreApplication::instance() == nullptr) {
-            m_application = std::make_unique<QCoreApplication>(m_argc, m_argv.data());
-        }
-    }
-
-    ApplicationScope(const ApplicationScope&) = delete;
-    ApplicationScope& operator=(const ApplicationScope&) = delete;
-
-private:
-    int m_argc = 1;
-    std::string m_name = "gs_app_tests";
-    std::array<char*, 2> m_argv{m_name.data(), nullptr};
-    std::unique_ptr<QCoreApplication> m_application;
-};
 
 exthost::StepInput outputStep(exthost::CommandKind kind, double x, double y, std::uint64_t at)
 {

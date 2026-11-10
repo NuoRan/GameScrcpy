@@ -579,6 +579,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionTouchSink.h"
             "${PROJECT_SOURCE_DIR}/src/app/NativeExtensions.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/NativeExtensions.h"
+            "${PROJECT_SOURCE_DIR}/src/app/NativeJobs.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/NativeJobs.h"
             "${PROJECT_SOURCE_DIR}/src/app/TouchMethods.h"
             "${PROJECT_SOURCE_DIR}/src/app/FailureAdvice.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/FailureAdvice.h"

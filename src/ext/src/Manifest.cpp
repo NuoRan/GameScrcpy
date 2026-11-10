@@ -368,6 +368,11 @@ std::pair<std::string_view, std::string_view> identity(const NativeNode& entry)
     return {"name", entry.name};
 }
 
+std::pair<std::string_view, std::string_view> identity(const NativeJob& entry)
+{
+    return {"name", entry.name};
+}
+
 std::pair<std::string_view, std::string_view> identity(const DeclaredParam& entry)
 {
     return {"key", entry.key};
@@ -438,6 +443,8 @@ void checkEntry(const NativeTouchMethod&, const std::string&, Context&) {}
 void checkEntry(const NativeParam&, const std::string&, Context&) {}
 
 void checkEntry(const NativeNode&, const std::string&, Context&) {}
+
+void checkEntry(const NativeJob&, const std::string&, Context&) {}
 
 void checkEntry(const NativeContribution& native, const std::string& path, Context& context)
 {
@@ -1732,11 +1739,9 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
         context.report(Severity::Error, Code::PermissionNotAllowed, "$.permissions");
     }
     if (contributes.native) {
-        for (std::size_t node = 0; node < contributes.native->nodes.size(); ++node) {
-            const std::vector<std::string>& needed = contributes.native->nodes[node].permissions;
+        const auto checkNeeded = [&](const std::vector<std::string>& needed, const std::string& at) {
             for (std::size_t index = 0; index < needed.size(); ++index) {
-                const std::string path =
-                    indexed("$.contributes.native.nodes[" + std::to_string(node) + "].permissions", index);
+                const std::string path = indexed(at, index);
                 if (std::ranges::find(kPermissionNames, needed[index]) == kPermissionNames.end()) {
                     context.report(Severity::Error,
                                    needed[index] == kNeverGrantedPermission ? Code::PermissionNeverGranted
@@ -1746,6 +1751,18 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
                            manifest.permissions.end()) {
                     context.report(Severity::Error, Code::NativePermissionUndeclared, path, needed[index]);
                 }
+            }
+        };
+        for (std::size_t node = 0; node < contributes.native->nodes.size(); ++node) {
+            checkNeeded(contributes.native->nodes[node].permissions,
+                        "$.contributes.native.nodes[" + std::to_string(node) + "].permissions");
+        }
+        for (std::size_t job = 0; job < contributes.native->jobs.size(); ++job) {
+            const std::string at = "$.contributes.native.jobs[" + std::to_string(job) + "]";
+            checkNeeded(contributes.native->jobs[job].permissions, at + ".permissions");
+            const std::string& name = contributes.native->jobs[job].name;
+            if (std::ranges::find(contributes.native->nodes, name, &NativeNode::name) != contributes.native->nodes.end()) {
+                context.report(Severity::Error, Code::Duplicate, at + ".name", name);
             }
         }
     }

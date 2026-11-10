@@ -844,6 +844,14 @@ A value the store can keep.
 type StoreValue = null | boolean | number | string | StoreValue[] | { [key: string]: StoreValue };
 ```
 
+### ExtensionJob<T>
+
+A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; cancel asks it to stop. It is cancelled when the script stops.
+
+```ts
+type ExtensionJob<T> = { readonly result: Promise<T>; onProgress(listener: (fraction: number, text: string) => void): ExtensionJob<T>; onLog(listener: (level: number, text: string) => void): ExtensionJob<T>; cancel(): void };
+```
+
 ### ListenOptions
 
 What happens when the event comes again while the last task it started is still running: ignore it (default), restart (cancel the running task first), stop (only cancel the running task), queue (run after it) or parallel (run both).

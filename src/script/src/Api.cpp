@@ -2086,7 +2086,8 @@ JSValue nodesNative(JSContext* ctx, JSValueConst, int, JSValueConst*, int) noexc
                 && define(ctx, entry, "name", JS_NewStringLen(ctx, node.name.data(), node.name.size()),
                           JS_PROP_ENUMERABLE)
                 && define(ctx, entry, "count", JS_NewInt32(ctx, static_cast<int>(node.params.size())),
-                          JS_PROP_ENUMERABLE);
+                          JS_PROP_ENUMERABLE)
+                && define(ctx, entry, "job", JS_NewBool(ctx, node.job), JS_PROP_ENUMERABLE);
             if (!made || JS_SetPropertyUint32(ctx, list, index++, entry) < 0) {
                 if (!made) {
                     JS_FreeValue(ctx, entry);
@@ -3892,6 +3893,13 @@ constexpr Type kTypes[] = {
     {"VarValue", "boolean | number | string", "What a variable holds."},
     {"StoreValue", "null | boolean | number | string | StoreValue[] | { [key: string]: StoreValue }",
      "A value the store can keep."},
+    {"ExtensionJob<T>",
+     "{ readonly result: Promise<T>; onProgress(listener: (fraction: number, text: string) => void): "
+     "ExtensionJob<T>; onLog(listener: (level: number, text: string) => void): ExtensionJob<T>; cancel(): void }",
+     "A job that a native extension runs, such as writing firmware. result settles when it ends and throws "
+     "GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 "
+     "to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 "
+     "warning, 2 error; cancel asks it to stop. It is cancelled when the script stops."},
     {"ListenOptions", "{ readonly again?: \"ignore\" | \"restart\" | \"stop\" | \"queue\" | \"parallel\" }",
      "What happens when the event comes again while the last task it started is still running: ignore it "
      "(default), restart (cancel the running task first), stop (only cancel the running task), queue (run after "
@@ -5112,7 +5120,9 @@ constexpr Value kValues[] = {
      "result. <extension> is the extension id with each part in lowerCamelCase, so the nodes of gamescrcpy.pc-clock "
      "are ext.gamescrcpy.pcClock. Throws GS-API-060 when the extension is not on, GS-API-061 for values of the wrong "
      "type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when "
-     "the node takes longer than 100 ms.",
+     "the node takes longer than 100 ms. A job the extension offers, ext.<extension>.<job>({ ... }), starts at once "
+     "with its arguments by name and gives an ExtensionJob; starting throws GS-API-060, GS-API-061 and GS-API-063 "
+     "as a node does, and GS-API-067 when the extension runs as many of its jobs as it may.",
      "log.info(ext.gamescrcpy.pcClock.now());"},
 };
 

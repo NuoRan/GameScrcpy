@@ -250,7 +250,9 @@ const ApiTexts& apiTexts()
 std::vector<script::NodeInfo> installedNodes()
 {
     const NativeExtensions* native = NativeExtensions::instance();
-    return native != nullptr ? native->nodes() : std::vector<script::NodeInfo>{};
+    std::vector<script::NodeInfo> nodes = native != nullptr ? native->nodes() : std::vector<script::NodeInfo>{};
+    std::erase_if(nodes, [](const script::NodeInfo& node) { return node.job; });
+    return nodes;
 }
 
 nlohmann::json nodeSpaces(const std::vector<script::NodeInfo>& nodes)

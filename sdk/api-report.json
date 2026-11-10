@@ -2881,6 +2881,10 @@
       "definition": "null | boolean | number | string | StoreValue[] | { [key: string]: StoreValue }"
     },
     {
+      "name": "ExtensionJob<T>",
+      "definition": "{ readonly result: Promise<T>; onProgress(listener: (fraction: number, text: string) => void): ExtensionJob<T>; onLog(listener: (level: number, text: string) => void): ExtensionJob<T>; cancel(): void }"
+    },
+    {
       "name": "ListenOptions",
       "definition": "{ readonly again?: \"ignore\" | \"restart\" | \"stop\" | \"queue\" | \"parallel\" }"
     },

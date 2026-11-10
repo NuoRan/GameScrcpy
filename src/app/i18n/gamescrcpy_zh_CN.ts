@@ -14018,6 +14018,10 @@
         <translation>变量里能放的值。</translation>
     </message>
     <message>
+        <source>A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; cancel asks it to stop. It is cancelled when the script stops.</source>
+        <translation>原生扩展运行的一项任务，比如写入固件。result 在任务结束时兑现，任务失败时抛出 GS-API-065，被取消时抛出 GS-API-066；onProgress 收听任务的进度，fraction 从 0 到 1，说不准时为 -1，每秒最多 20 次；onLog 收听任务的日志行，level 0 为信息、1 为警告、2 为错误；cancel 请任务停下。脚本停止时任务会被取消。</translation>
+    </message>
+    <message>
         <source>The options of a control&apos;s key events: again as for other events, and consume. With consume true (the default), the profile&apos;s logic takes the key of a tap, hold, long press, turbo, swipe or multi-press control it listens to: pressing the key no longer touches the phone, and the control touches only when the logic calls it, such as with press() or tap(), a few milliseconds later than its own touch would. consume: false keeps the control&apos;s own touch, which comes before the handler runs. Only the profile&apos;s own logic takes keys: tasks, extension scripts and scripts an AI client runs only listen, the event methods a component class overrides keep the built-in touch, and other controls always keep working.</source>
         <translation>组件按键事件的选项：again 同其他事件，另有 consume。consume 为 true（默认）时，方案的逻辑会拿走它监听的点击、按住、长按、连发、滑动、多点同按组件的键：按这个键不再触摸手机，组件只在逻辑调用它时（如 press() 或 tap()）才触摸，比它自己按晚几毫秒。consume: false 保留组件自己的触摸，它在处理函数运行之前发生。只有方案自己的逻辑会拿走按键：任务、扩展的脚本和 AI 运行的脚本只旁听，组件类改写的事件方法照常让本体先按，其他组件始终照常工作。</translation>
     </message>
@@ -14540,10 +14544,6 @@
     <message>
         <source>Runs a state machine: each member of states is a state, an async function that receives to and returns to.&lt;next state&gt;(reason) to move on, or nothing to end the machine. The first member is the start unless options.start names another. The editor shows the state it is in and every transition with its reason. Throws GS-API-008 when states is not an object of functions and GS-API-002 for an unknown start.</source>
         <translation>运行一个状态机：states 的每个成员是一个状态，即一个收到 to 的 async 函数；返回 to.&lt;next state&gt;(reason) 就转过去，什么都不返回就结束状态机。默认从第一个成员开始，options.start 可以指定别的。编辑器会显示它当前在哪个状态，以及每次转移和原因。states 不是由函数组成的对象时抛出 GS-API-008，开始状态不存在时抛出 GS-API-002。</translation>
-    </message>
-    <message>
-        <source>The system nodes that native extensions add: ext.&lt;extension&gt;.&lt;node&gt;(...) runs a node at once and gives its result. &lt;extension&gt; is the extension id with each part in lowerCamelCase, so the nodes of gamescrcpy.pc-clock are ext.gamescrcpy.pcClock. Throws GS-API-060 when the extension is not on, GS-API-061 for values of the wrong type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when the node takes longer than 100 ms.</source>
-        <translation>原生扩展添加的系统节点：ext.&lt;extension&gt;.&lt;node&gt;(...) 立即运行一个节点并给出结果。&lt;extension&gt; 是扩展 id，每一段写成小驼峰，所以 gamescrcpy.pc-clock 的节点是 ext.gamescrcpy.pcClock。扩展没有打开时抛出 GS-API-060，值的类型不对时抛出 GS-API-061，节点出错时抛出 GS-API-062，扩展缺少某项权限时抛出 GS-API-063 并指出那项权限，节点运行超过 100 毫秒时抛出 GS-API-064。</translation>
     </message>
     <message>
         <source>Starts a timer with this name; log.timeEnd() with the same name writes how long it has been running.</source>
@@ -15544,6 +15544,10 @@
     <message>
         <source>The variables of the profile in use, by id; empty without a phone. In a task they follow the phone&apos;s profile, as controls do.</source>
         <translation>当前方案的变量，按 id 取用；没有手机时为空。在任务里和 controls 一样跟着手机的方案走。</translation>
+    </message>
+    <message>
+        <source>The system nodes that native extensions add: ext.&lt;extension&gt;.&lt;node&gt;(...) runs a node at once and gives its result. &lt;extension&gt; is the extension id with each part in lowerCamelCase, so the nodes of gamescrcpy.pc-clock are ext.gamescrcpy.pcClock. Throws GS-API-060 when the extension is not on, GS-API-061 for values of the wrong type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when the node takes longer than 100 ms. A job the extension offers, ext.&lt;extension&gt;.&lt;job&gt;({ ... }), starts at once with its arguments by name and gives an ExtensionJob; starting throws GS-API-060, GS-API-061 and GS-API-063 as a node does, and GS-API-067 when the extension runs as many of its jobs as it may.</source>
+        <translation>原生扩展添加的系统节点：ext.&lt;extension&gt;.&lt;node&gt;(...) 立即运行一个节点并给出结果。&lt;extension&gt; 是扩展 id，每一段写成小驼峰，所以 gamescrcpy.pc-clock 的节点是 ext.gamescrcpy.pcClock。扩展没有打开时抛出 GS-API-060，值的类型不对时抛出 GS-API-061，节点出错时抛出 GS-API-062，扩展缺少某项权限时抛出 GS-API-063 并指出那项权限，节点运行超过 100 毫秒时抛出 GS-API-064。扩展提供的任务写作 ext.&lt;extension&gt;.&lt;job&gt;({ ... })，按名字传入参数后立即开始，并给出一个 ExtensionJob；开始时会像节点一样抛出 GS-API-060、GS-API-061 和 GS-API-063，扩展同时运行的这项任务已达上限时抛出 GS-API-067。</translation>
     </message>
     <message>
         <source>Pulls down the phone&apos;s notification shade, as the More menu of the mirror window&apos;s toolbar does; true once the phone is asked, false when it cannot be asked now, such as while GameScrcpy reconnects to it. When the phone does not allow it, its mirror window says so. The shade stays down when the logic stops.</source>

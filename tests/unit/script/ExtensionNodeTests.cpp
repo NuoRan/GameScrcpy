@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -28,6 +30,7 @@ using gs::script::ScriptHost;
 using gs::script::ScriptId;
 using gs::script::StateInfo;
 using gs::script::TaskId;
+using gs::script::test::kindIs;
 using gs::script::test::loadScript;
 using gs::script::test::logged;
 using gs::script::test::Recorder;
@@ -77,7 +80,52 @@ public:
     std::optional<std::string> loadStore(std::string_view) override { return std::nullopt; }
     void saveStore(std::string_view, std::string_view) override {}
 
-    std::vector<NodeInfo> nodes() override { return m_hidden.load() ? std::vector<NodeInfo>{} : sampleNodes(); }
+    std::vector<NodeInfo> nodes() override
+    {
+        if (m_hidden.load()) {
+            return {};
+        }
+        std::vector<NodeInfo> all = sampleNodes();
+        NodeInfo flash{"alice.net-tools", "Net tools", "flash", {{"port", NodeType::String}, {"size", NodeType::Number}},
+                       NodeType::Json, "Writes firmware.", {}};
+        flash.job = true;
+        all.push_back(std::move(flash));
+        return all;
+    }
+
+    bool offersService(std::string_view name) override { return name.starts_with("native.job"); }
+
+    gs::script::ServiceAnswer callService(std::string_view name, std::string_view json) override
+    {
+        const std::scoped_lock lock(m_mutex);
+        m_services.push_back(std::string(name) + " " + std::string(json));
+        return {name == "native.jobStart" ? R"({"id":"5"})" : "null", {}, {}};
+    }
+
+    void requestService(std::uint64_t request, std::string_view name, std::string_view json) override
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_services.push_back(std::string(name) + " " + std::string(json));
+            m_requests.push_back(request);
+        }
+        m_requested.notify_all();
+    }
+
+    std::optional<std::uint64_t> waitForRequest(std::size_t index)
+    {
+        std::unique_lock lock(m_mutex);
+        if (!m_requested.wait_for(lock, std::chrono::seconds(30), [&] { return m_requests.size() > index; })) {
+            return std::nullopt;
+        }
+        return m_requests[index];
+    }
+
+    std::vector<std::string> services()
+    {
+        const std::scoped_lock lock(m_mutex);
+        return m_services;
+    }
 
     NodeAnswer callNode(std::string_view extension, std::string_view node, const std::vector<NodeValue>& values) override
     {
@@ -118,8 +166,11 @@ public:
 private:
     std::atomic<bool> m_hidden{false};
     std::mutex m_mutex;
+    std::condition_variable m_requested;
     std::vector<std::string> m_calls;
     std::vector<NodeValue> m_values;
+    std::vector<std::string> m_services;
+    std::vector<std::uint64_t> m_requests;
 };
 
 struct Fixture {
@@ -245,6 +296,77 @@ export function fresh() {
     fixture.host->event("nodes", "", "{}");
     CHECK(fixture.run(script, "fresh").kind == ReportKind::TaskFinished);
     CHECK(fixture.recorder.count(logged("undefined 0")) == 1);
+}
+
+TEST_CASE("ADR-0112: a job of a native extension starts with its arguments by name, hears its progress and log "
+          "lines, gives its result and can be cancelled")
+{
+    Fixture fixture;
+    const ScriptId script = fixture.load(R"js(
+export async function flash() {
+    const job = ext.alice.netTools.flash({ port: "COM3", size: 2 });
+    const heard = [];
+    job.onProgress(() => {
+        throw new Error("the listener broke");
+    });
+    const { onLog } = job;
+    const chained = job.onProgress((fraction, text) => heard.push(fraction + " " + text))
+                       .onLog((level, text) => heard.push(level + " " + text));
+    log.info(chained === job, onLog(() => {}) === job, typeof job.cancel, Object.isFrozen(job),
+             ext.alice.netTools.flash.length);
+    const value = await job.result;
+    log.info(JSON.stringify(value), heard.join(","));
+}
+export async function stop() {
+    const job = ext.alice.netTools.flash({ port: "COM4", size: 1 });
+    job.cancel();
+    try {
+        await job.result;
+    } catch (error) {
+        log.info("stopped", error.message);
+    }
+}
+)js");
+    const TaskId task = fixture.host->start(script, "flash");
+    const std::optional<std::uint64_t> request = fixture.services->waitForRequest(0);
+    REQUIRE(request.has_value());
+    fixture.host->event("job", "5", R"({"kind":"progress","fraction":0.5,"text":"half"})");
+    fixture.host->event("job", "6", R"({"kind":"log","level":2,"text":"not ours"})");
+    fixture.host->event("job", "5", R"({"kind":"log","level":1,"text":"hot"})");
+    fixture.host->answer(*request, R"({"written":2})");
+    const auto ended = fixture.recorder.waitFor(taskEnded(task));
+    REQUIRE(ended.has_value());
+    INFO(gs::script::describe(ended->report));
+    CHECK(ended->report.kind == ReportKind::TaskFinished);
+    CHECK(fixture.recorder.count(logged("true true function true 1")) == 1);
+    CHECK(fixture.recorder.count(logged("{\"written\":2} 0.5 half,1 hot")) == 1);
+    const auto broke = fixture.recorder.waitFor(kindIs(ReportKind::UnhandledRejection));
+    REQUIRE(broke.has_value());
+    CHECK(broke->report.message.find("the listener broke") != std::string::npos);
+
+    const TaskId stopping = fixture.host->start(script, "stop");
+    const std::optional<std::uint64_t> second = fixture.services->waitForRequest(1);
+    REQUIRE(second.has_value());
+    fixture.host->refuse(*second, "GS-API-066 cancelled");
+    const auto stopped = fixture.recorder.waitFor(taskEnded(stopping));
+    REQUIRE(stopped.has_value());
+    CHECK(stopped->report.kind == ReportKind::TaskFinished);
+    CHECK(fixture.recorder.count(logged("stopped GS-API-066 cancelled")) == 1);
+    CHECK(fixture.services->services()
+          == std::vector<std::string>{
+              R"(native.jobStart {"extension":"alice.net-tools","job":"flash","args":{"port":"COM3","size":2}})",
+              R"(native.jobResult {"id":"5"})",
+              R"(native.jobStart {"extension":"alice.net-tools","job":"flash","args":{"port":"COM4","size":1}})",
+              R"(native.jobResult {"id":"5"})",
+              R"(native.jobCancel {"id":"5"})"});
+    CHECK(fixture.services->calls().empty());
+
+    NodeInfo bare{"a.b", "", "scan", {}, NodeType::None, "", {}};
+    bare.job = true;
+    CHECK(gs::script::nodeSignature(bare) == "scan(args?: {}): ExtensionJob<null>");
+    NodeInfo typed{"a.b", "", "flash", {{"port", NodeType::String}, {"at", NodeType::Point}}, NodeType::Number, "", {}};
+    typed.job = true;
+    CHECK(gs::script::nodeSignature(typed) == "flash(args: { port: string; at: PicturePoint }): ExtensionJob<number>");
 }
 
 TEST_CASE("ADR-0097: installed nodes are typed in types/extensions.d.ts under interface Extensions")

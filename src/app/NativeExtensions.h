@@ -69,6 +69,15 @@ struct DeclaredModule {
     NativeTexts texts;
 };
 
+struct NativeJobTarget {
+    std::shared_ptr<exthost::Module> module;
+    std::size_t index = 0;
+    ext::NativeJob declared;
+    std::string extensionName;
+    std::string code;
+    std::string problem;
+};
+
 struct NativeOptions {
     std::filesystem::path program;
     std::filesystem::path storeRoot;
@@ -97,6 +106,7 @@ public:
     [[nodiscard]] std::vector<script::NodeInfo> nodes() const;
     [[nodiscard]] script::NodeAnswer call(std::string_view extension, std::string_view node,
                                           const std::vector<script::NodeValue>& arguments) const;
+    [[nodiscard]] NativeJobTarget jobTarget(std::string_view extension, std::string_view job) const;
     [[nodiscard]] QVariantList touchMethods() const;
     [[nodiscard]] std::vector<ext::Diagnostic> problems() const;
     [[nodiscard]] bool loaded(std::string_view id) const;

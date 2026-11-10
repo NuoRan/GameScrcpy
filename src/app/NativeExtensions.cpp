@@ -165,6 +165,7 @@ struct NativeExtensions::Entry {
     std::vector<ext::Diagnostic> problems;
     std::vector<std::optional<std::size_t>> attachmentIndex;
     std::vector<std::optional<std::size_t>> behaviorIndex;
+    std::vector<std::optional<std::size_t>> jobIndex;
     bool pending = false;
 };
 
@@ -200,6 +201,17 @@ void matchEntry(NativeExtensions::Entry& entry)
         if (!fits) {
             entry.problems.push_back({ext::Severity::Warning, ext::Code::NativeMismatch,
                                       where + ".touchMethods[" + std::to_string(index) + "]", method.name});
+        }
+    }
+    for (std::size_t index = 0; index < wanted.native.jobs.size(); ++index) {
+        const ext::NativeJob& job = wanted.native.jobs[index];
+        const auto found = std::ranges::find(info.jobs, job.name, &exthost::JobInfo::name);
+        const bool fits = found != info.jobs.end();
+        entry.jobIndex.push_back(fits ? std::optional<std::size_t>(static_cast<std::size_t>(found - info.jobs.begin()))
+                                      : std::nullopt);
+        if (!fits) {
+            entry.problems.push_back({ext::Severity::Warning, ext::Code::NativeMismatch,
+                                      where + ".jobs[" + std::to_string(index) + "]", job.name});
         }
     }
     for (std::size_t index = 0; index < wanted.native.attachments.size(); ++index) {
@@ -472,8 +484,62 @@ std::vector<script::NodeInfo> NativeExtensions::nodes() const
             info.permissions = node.permissions;
             list.push_back(std::move(info));
         }
+        for (std::size_t index = 0; index < wanted.native.jobs.size(); ++index) {
+            if (index >= entry->jobIndex.size() || !entry->jobIndex[index]) {
+                continue;
+            }
+            const ext::NativeJob& job = wanted.native.jobs[index];
+            script::NodeInfo info;
+            info.extension = wanted.id;
+            info.extensionName = wanted.name.toStdString();
+            info.name = job.name;
+            for (const ext::NativeParam& param : job.params) {
+                info.params.push_back({param.name, script::nodeTypeNamed(param.type).value_or(script::NodeType::Json)});
+            }
+            info.returns = script::nodeTypeNamed(job.returns).value_or(script::NodeType::None);
+            info.description = job.description.empty() ? job.title : job.description;
+            info.permissions = job.permissions;
+            info.job = true;
+            list.push_back(std::move(info));
+        }
     }
     return list;
+}
+
+NativeJobTarget NativeExtensions::jobTarget(std::string_view extension, std::string_view job) const
+{
+    std::shared_ptr<Entry> entry;
+    for (const std::shared_ptr<Entry>& each : entries()) {
+        if (each->wanted.id == extension) {
+            entry = each;
+            break;
+        }
+    }
+    if (entry == nullptr || entry->module == nullptr || !entry->module->working()) {
+        return {.code = "GS-API-060",
+                .problem = "the extension that adds it is off or did not load; turn it on on the Extensions page"};
+    }
+    const NativeWanted& wanted = entry->wanted;
+    if (entry->pending) {
+        return {.code = "GS-API-060", .problem = wanted.name.toStdString() + " is still starting; try again in a moment"};
+    }
+    const auto found = std::ranges::find(wanted.native.jobs, job, &ext::NativeJob::name);
+    const auto index = static_cast<std::size_t>(found - wanted.native.jobs.begin());
+    if (found == wanted.native.jobs.end() || index >= entry->jobIndex.size() || !entry->jobIndex[index]) {
+        return {.code = "GS-API-060", .problem = wanted.name.toStdString() + " does not offer this job"};
+    }
+    for (const std::string& permission : found->permissions) {
+        if (std::ranges::find(wanted.granted, permission) == wanted.granted.end()) {
+            return {.code = "GS-API-063",
+                    .problem = "it needs the permission \"" + permission + "\", which " + wanted.name.toStdString() +
+                               " has not been allowed; turn the extension off and on again on the Extensions page to "
+                               "allow it"};
+        }
+    }
+    return {.module = entry->module,
+            .index = *entry->jobIndex[index],
+            .declared = *found,
+            .extensionName = wanted.name.toStdString()};
 }
 
 script::NodeAnswer NativeExtensions::call(std::string_view extension, std::string_view node,

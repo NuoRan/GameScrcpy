@@ -214,6 +214,7 @@ struct InProcessModule::Impl {
         std::vector<std::pair<std::uint64_t, std::size_t>> running;
         {
             const std::scoped_lock lock(jobMutex);
+            stopping = true;
             for (const auto& [id, job] : jobs) {
                 running.emplace_back(id, job.index);
             }
@@ -263,6 +264,7 @@ struct InProcessModule::Impl {
     std::condition_variable jobsEnded;
     std::map<std::uint64_t, Job> jobs;
     std::uint64_t nextJob = 0;
+    bool stopping = false;
     ModuleInfo info;
     detail::ModuleStore store;
     std::vector<std::string> granted;
@@ -468,17 +470,22 @@ int32_t hostJobLog(void* context, uint64_t job, uint32_t level, const char* text
     return GS_EXT_OK;
 }
 
-std::optional<JobEvents> endedJob(InProcessModule::Impl& impl, uint64_t job)
+struct EndedJob {
+    JobEvents events;
+    bool stopping = false;
+};
+
+std::optional<EndedJob> endedJob(InProcessModule::Impl& impl, uint64_t job)
 {
     const std::scoped_lock lock(impl.jobMutex);
     const auto found = impl.jobs.find(job);
     if (found == impl.jobs.end()) {
         return std::nullopt;
     }
-    JobEvents events = std::move(found->second.events);
+    EndedJob ended{.events = std::move(found->second.events), .stopping = impl.stopping};
     impl.jobs.erase(found);
     impl.jobsEnded.notify_all();
-    return events;
+    return ended;
 }
 
 int32_t hostJobFinish(void* context, uint64_t job, const char* json, size_t size)
@@ -490,12 +497,12 @@ int32_t hostJobFinish(void* context, uint64_t job, const char* json, size_t size
     if (!validUtf8(result)) {
         return GS_EXT_BAD_ARGUMENT;
     }
-    std::optional<JobEvents> events = endedJob(implOf(context), job);
-    if (!events) {
+    std::optional<EndedJob> ended = endedJob(implOf(context), job);
+    if (!ended) {
         return GS_EXT_BAD_ARGUMENT;
     }
-    if (events->done) {
-        events->done(true, std::string(result));
+    if (ended->events.done) {
+        ended->events.done(true, std::string(result));
     }
     return GS_EXT_OK;
 }
@@ -505,13 +512,18 @@ int32_t hostJobFail(void* context, uint64_t job, const char* text, size_t size)
     if (text == nullptr && size > 0) {
         return GS_EXT_BAD_ARGUMENT;
     }
-    std::optional<JobEvents> events = endedJob(implOf(context), job);
-    if (!events) {
+    std::optional<EndedJob> ended = endedJob(implOf(context), job);
+    if (!ended) {
         return GS_EXT_BAD_ARGUMENT;
     }
-    if (events->done) {
+    if (ended->events.done) {
         std::string problem = lineOf(text, size, kMostErrorBytes);
-        events->done(false, problem.empty() ? std::string("the job did not work") : std::move(problem));
+        if (ended->stopping) {
+            problem = "the extension stopped before the job ended";
+        } else if (problem.empty()) {
+            problem = "the job did not work";
+        }
+        ended->events.done(false, std::move(problem));
     }
     return GS_EXT_OK;
 }
@@ -1127,9 +1139,9 @@ std::uint64_t InProcessModule::startJob(std::size_t job, std::string_view args, 
     const gs_ext_job& entry = d.nativeJobs[job];
     const std::string text = args.empty() ? std::string("{}") : std::string(args);
     if (entry.start(entry.context, id, text.data(), text.size()) != GS_EXT_OK) {
-        std::optional<JobEvents> gone = endedJob(d, id);
-        if (gone && gone->done) {
-            gone->done(false, "the job did not start");
+        std::optional<EndedJob> gone = endedJob(d, id);
+        if (gone && gone->events.done) {
+            gone->events.done(false, "the job did not start");
         }
     }
     return id;

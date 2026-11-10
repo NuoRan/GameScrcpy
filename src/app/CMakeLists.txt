@@ -321,6 +321,8 @@ qt_add_qml_module(GameScrcpy
         MirrorWindow.h
         NativeExtensions.cpp
         NativeExtensions.h
+        NativeJobs.cpp
+        NativeJobs.h
         OfflineNetwork.cpp
         OfflineNetwork.h
         PhoneFiles.cpp

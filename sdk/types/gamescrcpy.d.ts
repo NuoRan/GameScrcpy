@@ -61,6 +61,9 @@ type VarValue = boolean | number | string;
 /** A value the store can keep. */
 type StoreValue = null | boolean | number | string | StoreValue[] | { [key: string]: StoreValue };
 
+/** A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; cancel asks it to stop. It is cancelled when the script stops. */
+type ExtensionJob<T> = { readonly result: Promise<T>; onProgress(listener: (fraction: number, text: string) => void): ExtensionJob<T>; onLog(listener: (level: number, text: string) => void): ExtensionJob<T>; cancel(): void };
+
 /** What happens when the event comes again while the last task it started is still running: ignore it (default), restart (cancel the running task first), stop (only cancel the running task), queue (run after it) or parallel (run both). */
 type ListenOptions = { readonly again?: "ignore" | "restart" | "stop" | "queue" | "parallel" };
 
@@ -2453,7 +2456,7 @@ declare const globals: Globals;
 declare const machine: <S extends string>(states: { readonly [K in S]: (to: MachineTo<S>) => MachineStep | void | Promise<MachineStep | void> }, options?: MachineOptions<S>) => Promise<void>;
 
 /**
- * The system nodes that native extensions add: ext.<extension>.<node>(...) runs a node at once and gives its result. <extension> is the extension id with each part in lowerCamelCase, so the nodes of gamescrcpy.pc-clock are ext.gamescrcpy.pcClock. Throws GS-API-060 when the extension is not on, GS-API-061 for values of the wrong type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when the node takes longer than 100 ms.
+ * The system nodes that native extensions add: ext.<extension>.<node>(...) runs a node at once and gives its result. <extension> is the extension id with each part in lowerCamelCase, so the nodes of gamescrcpy.pc-clock are ext.gamescrcpy.pcClock. Throws GS-API-060 when the extension is not on, GS-API-061 for values of the wrong type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when the node takes longer than 100 ms. A job the extension offers, ext.<extension>.<job>({ ... }), starts at once with its arguments by name and gives an ExtensionJob; starting throws GS-API-060, GS-API-061 and GS-API-063 as a node does, and GS-API-067 when the extension runs as many of its jobs as it may.
  * @example log.info(ext.gamescrcpy.pcClock.now());
  */
 declare const ext: Extensions;

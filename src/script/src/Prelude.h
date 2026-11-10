@@ -2097,6 +2097,54 @@ inline constexpr std::array<std::string_view, 13> kPreludeParts{
             },
         }),
     });
+    const jobListeners = new Map();
+    const jobOf = (extension, job, args) => {
+        const started = host.call("native.jobStart", JSON.stringify({ extension, job, args }));
+        const id = String(started.id);
+        const listeners = { progress: [], log: [] };
+        jobListeners.set(id, listeners);
+        const result = host.request("native.jobResult", JSON.stringify({ id }));
+        result.then(() => jobListeners.delete(id), () => jobListeners.delete(id));
+        const handle = freeze({
+            result,
+            onProgress(listener) {
+                if (typeof listener === "function") {
+                    listeners.progress.push(listener);
+                }
+                return handle;
+            },
+            onLog(listener) {
+                if (typeof listener === "function") {
+                    listeners.log.push(listener);
+                }
+                return handle;
+            },
+            cancel() {
+                host.call("native.jobCancel", JSON.stringify({ id }));
+            },
+        });
+        return handle;
+    };
+    const tellJob = (list, first, second) => {
+        for (const listener of [...list]) {
+            try {
+                listener(first, second);
+            } catch (error) {
+                Promise.reject(error);
+            }
+        }
+    };
+    serviceEvents.set("job", (id, value) => {
+        const listeners = jobListeners.get(id);
+        if (listeners === undefined || value === null || typeof value !== "object") {
+            return;
+        }
+        if (value.kind === "progress") {
+            tellJob(listeners.progress, value.fraction, value.text);
+        } else if (value.kind === "log") {
+            tellJob(listeners.log, value.level, value.text);
+        }
+    });
     const extensionsOf = () => {
         const root = Object.create(null);
         for (const node of host.nodes()) {
@@ -2120,12 +2168,18 @@ inline constexpr std::array<std::string_view, 13> kPreludeParts{
             }
             const extension = node.extension;
             const name = node.name;
-            const call = {
-                [name](...values) {
-                    return host.callNode(extension, name, values);
-                },
-            }[name];
-            defineProperty(call, "length", { value: node.count });
+            const call = node.job
+                ? {
+                      [name](args = {}) {
+                          return jobOf(extension, name, args);
+                      },
+                  }[name]
+                : {
+                      [name](...values) {
+                          return host.callNode(extension, name, values);
+                      },
+                  }[name];
+            defineProperty(call, "length", { value: node.job ? 1 : node.count });
             level[name] = call;
         }
         const seal = (level) => {

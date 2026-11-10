@@ -25,6 +25,7 @@
 #include "McpServer.h"
 #include "McpTools.h"
 #include "MirrorWindow.h"
+#include "NativeJobs.h"
 #include "OfflineNetwork.h"
 #include "ProfileLibrary.h"
 #include "TaskLibrary.h"
@@ -421,6 +422,8 @@ int main(int argc, char* argv[])
                                      data / "hardware-grants.json");
     hardware.follow(extensions);
     hardware.offerServices();
+    gs::app::NativeJobs nativeJobs(*extensions.native());
+    nativeJobs.offerServices();
 
     const auto graphics =
         gs::render::GraphicsDevice::create(false, qEnvironmentVariableIntValue("GS_FORCE_WARP") == 1);

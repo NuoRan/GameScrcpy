@@ -205,6 +205,7 @@ struct NodeInfo {
     NodeType returns = NodeType::None;
     std::string description;
     std::vector<std::string> permissions;
+    bool job = false;
 
     friend bool operator==(const NodeInfo&, const NodeInfo&) = default;
 };

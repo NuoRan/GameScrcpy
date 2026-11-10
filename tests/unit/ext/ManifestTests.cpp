@@ -581,6 +581,64 @@ TEST_CASE("the permissions a native node needs are known ones that the manifest 
     CHECK(native["properties"]["touchMethods"]["items"]["required"] == Json::array({"name", "title"}));
 }
 
+TEST_CASE("ADR-0112: native jobs load with their arguments, result and running limit, survive a save and a load, "
+          "and are checked like nodes")
+{
+    Json json = nativeBase();
+    json["contributes"]["native"]["jobs"] =
+        Json::array({{{"name", "flash"},
+                      {"title", "Write firmware"},
+                      {"params", Json::array({{{"name", "port"}, {"type", "string"}}})},
+                      {"returns", "json"},
+                      {"description", "Writes the firmware."},
+                      {"permissions", {"notify"}},
+                      {"most", 1}},
+                     {{"name", "scan"}, {"title", "Scan"}}});
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    REQUIRE(loaded.manifest.contributes.native.has_value());
+    const std::vector<NativeJob>& jobs = loaded.manifest.contributes.native->jobs;
+    REQUIRE(jobs.size() == 2);
+    CHECK(jobs[0].name == "flash");
+    CHECK(jobs[0].title == "Write firmware");
+    CHECK(jobs[0].params == std::vector<NativeParam>{{"port", "string"}});
+    CHECK(jobs[0].returns == "json");
+    CHECK(jobs[0].description == "Writes the firmware.");
+    CHECK(jobs[0].permissions == std::vector<std::string>{"notify"});
+    CHECK(jobs[0].most == 1);
+    CHECK(jobs[1].params.empty());
+    CHECK(jobs[1].returns.empty());
+    CHECK_FALSE(jobs[1].most.has_value());
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+
+    json["contributes"]["native"]["jobs"][0]["most"] = 5;
+    json["contributes"]["native"]["jobs"][0]["params"][0]["type"] = "int";
+    json["contributes"]["native"]["jobs"][1].erase("title");
+    json["contributes"]["native"]["jobs"].push_back({{"name", "Flash"}, {"title", "Bad"}});
+    json["contributes"]["native"]["jobs"].push_back({{"name", "flash"}, {"title", "Again"}});
+    json["contributes"]["native"]["jobs"].push_back({{"name", "now"}, {"title", "Same as a node"}});
+    json["contributes"]["native"]["jobs"].push_back({{"name", "send"}, {"title", "Send"}, {"permissions", {"network"}}});
+    loaded = load(json);
+    INFO(listed(loaded));
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.jobs[0].most"));
+    CHECK(reports(loaded, Code::NativeTypeInvalid, "$.contributes.native.jobs[0].params[0].type"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.native.jobs[1].title"));
+    CHECK(reports(loaded, Code::NativeNameInvalid, "$.contributes.native.jobs[2].name"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.native.jobs[3].name"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.native.jobs[4].name"));
+    CHECK(reports(loaded, Code::NativePermissionUndeclared, "$.contributes.native.jobs[5].permissions[0]"));
+
+    const Json schema = Json::parse(manifestJsonSchema());
+    const Json job = schema["properties"]["contributes"]["properties"]["native"]["properties"]["jobs"]["items"];
+    CHECK(job["required"] == Json::array({"name", "title"}));
+    CHECK(job["properties"]["most"]["maximum"] == kMostRunningNativeJobs);
+}
+
 namespace {
 
 Json panelBase()

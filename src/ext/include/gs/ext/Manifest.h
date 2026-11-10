@@ -311,12 +311,40 @@ struct NativeBehavior {
 [[nodiscard]] std::string declaredProblem(const DeclaredParam& param, std::string_view json);
 [[nodiscard]] bool knownControlType(std::string_view type) noexcept;
 
+inline constexpr std::size_t kMostNativeJobs = 32;
+inline constexpr std::int64_t kMostRunningNativeJobs = 4;
+
+struct NativeJob {
+    std::string name;
+    std::string title;
+    std::vector<NativeParam> params;
+    std::string returns;
+    std::string description;
+    std::vector<std::string> permissions;
+    std::optional<std::int64_t> most;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+        v.text("title", m.title, {.required = true, .maxLength = 40});
+        v.objectList("params", m.params, 16);
+        v.text("returns", m.returns, {.maxLength = 16, .format = TextFormat::NativeType});
+        v.text("description", m.description, {.maxLength = 500});
+        v.textList("permissions", m.permissions, {.maxItems = 10, .maxLength = 64, .format = TextFormat::PermissionName});
+        v.integer("most", m.most, 1, kMostRunningNativeJobs);
+    }
+
+    friend bool operator==(const NativeJob&, const NativeJob&) = default;
+};
+
 struct NativeContribution {
     std::string dll;
     std::vector<NativeTouchMethod> touchMethods;
     std::vector<NativeNode> nodes;
     std::vector<NativeAttachment> attachments;
     std::vector<NativeBehavior> behaviors;
+    std::vector<NativeJob> jobs;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -326,6 +354,7 @@ struct NativeContribution {
         v.objectList("nodes", m.nodes, 64);
         v.objectList("attachments", m.attachments, kMostNativeAttachments);
         v.objectList("behaviors", m.behaviors, kMostNativeBehaviors);
+        v.objectList("jobs", m.jobs, kMostNativeJobs);
     }
 
     friend bool operator==(const NativeContribution&, const NativeContribution&) = default;
