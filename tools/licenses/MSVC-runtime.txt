@@ -1,0 +1,11 @@
+Microsoft Visual C++ runtime
+
+GameScrcpy is built with Microsoft Visual C++. When a release package
+includes the Visual C++ runtime libraries (vcruntime140.dll,
+vcruntime140_1.dll, msvcp140.dll and the files that come with them), they are
+distributed as Distributable Code under the Microsoft Software License Terms
+for Microsoft Visual Studio. They remain the property of Microsoft Corporation
+and are not covered by the license of GameScrcpy.
+
+License terms: https://visualstudio.microsoft.com/license-terms/
+Distributable files: https://learn.microsoft.com/visualstudio/releases/2022/redistribution

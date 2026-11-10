@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "ci/**"]
+    paths-ignore: ["*.md", "docs/**", ".github/ISSUE_TEMPLATE/**", ".github/PULL_REQUEST_TEMPLATE.md"]
+  pull_request:
+    paths-ignore: ["*.md", "docs/**", ".github/ISSUE_TEMPLATE/**", ".github/PULL_REQUEST_TEMPLATE.md"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  client:
+    name: Client (Windows, MSVC, Qt 6.10)
+    runs-on: windows-2022
+    timeout-minutes: 150
+    env:
+      QSG_RHI_PREFER_SOFTWARE_RENDERER: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: "6.10.1"
+          host: windows
+          target: desktop
+          arch: win64_msvc2022_64
+          modules: qtshadertools
+          cache: true
+
+      - name: MSVC developer environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure, build and test
+        shell: pwsh
+        run: |
+          $env:GS_QT_DIR = $env:QT_ROOT_DIR
+          cmake --workflow --preset ci
+
+      - name: QML lint (zero warnings)
+        shell: pwsh
+        run: |
+          $out = cmake --build --preset ci --target all_qmllint 2>&1
+          $out
+          if ($LASTEXITCODE -ne 0 -or ($out | Select-String -Pattern '^(Warning|Error):')) { exit 1 }
+
+  android:
+    name: Android (protocol, server, companion)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build, test and lint
+        working-directory: android
+        run: ./gradlew build --continue --console=plain

@@ -1,0 +1,15 @@
+{
+  "format": "gamescrcpy.session",
+  "version": 1,
+  "device": { "model": "Demo phone", "android": 15, "width": 1080, "height": 2400, "rotation": 0 },
+  "startedAt": "2026-11-02T12:00:00Z",
+  "frameRate": 50,
+  "events": [
+    { "at": 0, "run": "aim" },
+    { "at": 200, "press": "aim" },
+    { "at": 300, "release": "aim" },
+    { "at": 400, "press": "jump" },
+    { "at": 410, "release": "jump" },
+    { "at": 650, "state": "ready", "value": true }
+  ]
+}

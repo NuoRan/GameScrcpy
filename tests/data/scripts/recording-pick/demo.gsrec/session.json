@@ -1,0 +1,19 @@
+{
+  "format": "gamescrcpy.session",
+  "version": 2,
+  "device": { "model": "Emulator", "android": 15, "width": 288, "height": 640, "rotation": 0 },
+  "startedAt": "2026-11-04T12:00:00Z",
+  "frameRate": 30,
+  "video": "video.media",
+  "videoStartPtsUs": 0,
+  "durationMs": 3000,
+  "events": [
+    { "at": 500, "press": "jump" },
+    { "at": 550, "release": "jump" }
+  ],
+  "operations": [
+    { "at": 500, "touch": { "points": [{ "id": 0, "action": "down", "x": 0.5, "y": 0.5 }] } },
+    { "at": 550, "touch": { "points": [{ "id": 0, "action": "up", "x": 0.5, "y": 0.5 }] } },
+    { "at": 900, "text": { "length": 5 } }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+    "format": "gamescrcpy.task",
+    "version": 1,
+    "name": "Daily check-in template",
+    "schedule": {
+        "mode": "daily",
+        "time": "09:00"
+    }
+}

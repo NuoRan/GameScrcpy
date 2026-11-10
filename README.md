@@ -1,380 +1,136 @@
+<div align="center">
+
+<img src="docs/images/logo.png" width="96" height="96" alt="GameScrcpy">
+
 # GameScrcpy
 
-**[English](README_EN.md)** | 中文
+**在 Windows 上用键盘、鼠标和手柄玩安卓手机游戏**
 
-<h3 align="center">🎮 功能强大的 Android 设备投屏控制工具</h3>
+[![Release](https://img.shields.io/github/v/release/NuoRan/GameScrcpy?style=flat-square)](https://github.com/NuoRan/GameScrcpy/releases/latest)
+[![CI](https://img.shields.io/github/actions/workflow/status/NuoRan/GameScrcpy/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/NuoRan/GameScrcpy/actions/workflows/ci.yml)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/Windows%2010%20%2F%2011-x64-0078D4?style=flat-square)](#系统要求)
 
-<p align="center">
-  <a href="../../releases"><img src="https://img.shields.io/github/v/release/NuoRan/GameScrcpy?style=flat-square&color=blue" alt="Release"></a>
-  <img src="https://img.shields.io/badge/Version-1.3.4-blue?style=flat-square" alt="Version">
-  <img src="https://img.shields.io/badge/Platform-Windows%2010%2F11-blue?style=flat-square" alt="Platform">
-  <img src="https://img.shields.io/badge/Qt-6.x-41CD52?style=flat-square&logo=qt" alt="Qt Version">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-orange?style=flat-square" alt="License"></a>
-  <img src="https://img.shields.io/badge/Android-5.0%2B-3DDC84?style=flat-square&logo=android" alt="Android">
-</p>
+简体中文 · [English](README.en.md)
 
-<p align="center">
-  <a href="#-核心特性">核心特性</a> •
-  <a href="#-快速开始">快速开始</a> •
-  <a href="#️-键位映射">键位映射</a> •
-  <a href="#-脚本系统">脚本系统</a> •
-  <a href="#-companion-app">Companion App</a> •
-  <a href="#-触控后端">触控后端</a> •
-  <a href="#-从源码构建">构建</a>
-</p>
+[下载](https://github.com/NuoRan/GameScrcpy/releases/latest) · [使用帮助](docs/README.md) · [更新日志](CHANGELOG.md) · [参与开发](CONTRIBUTING.md)
 
----
-  交流群：762961615
+<img src="docs/images/keymap-editor.png" width="860" alt="在游戏画面上直接摆放键位">
 
----
+</div>
 
-<p align="center">
-  <img src="docs/images/screenshot_main.png" alt="主界面" width="80%">
-</p>
+GameScrcpy 把安卓手机的画面低延迟地投到电脑上，键位直接摆在游戏画面上，用键盘、鼠标和手柄操作。键位不够用时，可以用蓝图（节点和连线）或 TypeScript 给它们写逻辑，识图、找色、定时任务都能做。手机端服务、通信协议和电脑端全部是这一版重新写的，思路源自 [scrcpy](https://github.com/Genymobile/scrcpy)。
 
-<p align="center">
-  <img src="docs/images/screenshot_keymap.png" alt="键位映射" width="80%">
-</p>
+## 功能
 
-<p align="center">
-  <img src="docs/images/screenshot_script.png" alt="脚本编辑器" width="80%">
-</p>
+### 投屏
 
-<p align="center">
-  <img src="docs/images/screenshot_selection.png" alt="选区编辑器" width="80%">
-</p>
+- **低延迟**：显卡硬件解码，解码出的画面直接交给界面显示，不经过内存拷贝；支持 H.264、H.265、AV1。
+- **声音**：在电脑上播放手机的声音（Android 11 及以上）。
+- **多种连接**：USB 数据线；无线调试，用配对码或扫二维码配对；画面也可以走 WiFi 直连（UDP 加纠错，断线后自动续上）。
+- **多台手机**：每台一个窗口，或者放进宫格里一起看；可以同步操作，也能对选中的几台一起打开应用、安装 APK、发送文件或运行任务。
+- **录像**：录下画面、声音和你的操作，导出 MP4，也能拿来回放测试逻辑。
+- **手机管理**：文件管理、应用管理、状态浮层，把应用开在单独的虚拟屏幕上；还能测出从按键到画面变化的真实延迟。
+- **手机伴侣**：可选装的手机应用，在手机上显示光标和键位提示，提供输入法，扫码就能连上电脑。
 
----
+### 键位映射
 
-## ⭐ 核心特性
+- **在画面上摆键位**：在投屏窗口里打开编辑器，把组件拖到游戏按钮上、配好按键，随时"试一试"。
+- **组件库**：点击、按住、长按、连发、滑动、双指缩放、WASD 轮盘、右键行走、视角、自由视角、技能、方向轮盘、多点同按、动作轮盘、临时光标，以及手柄摇杆与手柄视角。
+- **按游戏自动切换**：每个游戏一套方案，前台换了游戏就自动换方案；每台手机记住自己的选择。
+- **手柄**：Xbox、PlayStation、Switch Pro 手柄可以驱动方案里的键位；也可以把手柄直接交给游戏（实验性）。
+- **分享**：方案导出成文件，带逻辑和图片的方案可以整个打包。
 
-### 🖥️ 高清投屏
+### 蓝图与脚本
 
-- **高清低延迟** — H.264/H.265 硬件解码，延迟 < 50ms
-- **USB / WiFi** — 支持有线和无线两种连接方式
-- **双传输模式** — KCP 可靠传输 + 裸 UDP 极低延迟传输，WiFi 场景自动选择
-- **FEC 前向纠错** — XOR 10:1 冗余编码，组内丢 1 包可恢复，弱网环境更稳定
-- **自适应码率** — 编码器级 ABR + 网络层反馈双层控制，自动调整视频码率
-- **服务端 GPU 滤镜** — OpenGL 仿射变换（旋转/裁剪/缩放），服务端完成画面变换
-- **音频串流** — OPUS 音频实时转发 + WASAPI 低延迟播放
-- **帧率可调** — 0-999 FPS 自由设置，0 = 不限制
-- **性能监控** — 实时 FPS、解码延迟、网络延迟、CPU/内存指标
-- **多触控后端** — Adb / UHID / AOA USB / ESP32 串口四种触控注入方式
-- **Companion App** — 手机端浮动光标 + 远程截屏辅助应用
----
+- **蓝图就是代码**：每个键位一个文件，节点与连线和 TypeScript 是同一份内容，两边随时切换；公共函数放进函数库，任何页都能调用。
+- **识图与文字识别**：在手机画面里找图、找色，用 Windows 自带的 OCR 识别文字。
+- **任务**：按时间表或手动运行的自动化流程。
+- **调试**：断点、单步、看变量；不连手机也能用录像回放测试。
+- **命令行工具 `gs`**：新建方案文件夹、类型检查、回放测试；脚本接口文档见 [`sdk/docs`](sdk/docs/README.md)。
 
-### 🎮 游戏键位映射
+### AI
 
-- **可视化编辑** — 拖拽式键位映射编辑器，所见即所得
-- **多种映射类型** — 点击、方向轮盘、视角控制、自由视角
-- **键位覆盖层** — 实时半透明显示当前键位映射状态，支持脚本动态移动/隐藏
-- **组合键支持** — `Shift+G`、`Ctrl+A`、`Alt+Tab` 等
-- **配置热加载** — 修改 JSON 配置后无需重启
+- **AI 小助手**：在主窗口和各个编辑窗口的右下角，看得到你正在编辑的内容，可以帮你写蓝图、解释节点、排查连接问题。接你自己的 OpenAI 或 Anthropic 兼容接口与密钥，密钥存在 Windows 凭据管理器里。
+- **本地 MCP 服务**：让 Claude、Cursor 等 AI 工具直接读写方案和蓝图、运行测试、查看录像。
 
-| 映射类型 | 说明 | 适用场景 |
-|:---------|:-----|:---------|
-| `click` | 单击 | 技能、菜单 |
-| `steerWheel` | 方向轮盘 | WASD 移动 |
-| `drag` | 拖拽 | 技能方向 |
-| `freeLook` | 自由视角 | FPS 小眼睛 |
-| `script` | 脚本 | 自定义逻辑 |
+### 触控方式与硬件
 
----
+- **USB 调试**：默认方式，不需要额外硬件。
+- **AOA**：手机把电脑当成一块 USB 触摸屏，不打开 USB 调试也能操作（实验性）。
+- **ESP32 触控盒**：刷了 GameScrcpy 固件的 ESP32 开发板扮成手机的触摸屏、键盘、鼠标和手柄。ESP32-S3、S2、P4 走 USB；经典 ESP32、C3、C6 走蓝牙（实验性）。固件随程序附带，在程序里就能刷写，见 [`firmware/esp32`](firmware/esp32/README.md)。
+- **采集卡**：显示 HDMI 采集卡的画面，配合 AOA 或 ESP32 触控（实验性）。
 
-### 🤖 脚本系统
+### 扩展
 
-- **JavaScript 引擎** — 基于 QuickJS 的沙箱化脚本系统
-- **28 个 API** — 触摸、按键、滑动、缩放、延时、图像识别、虚拟按钮、预定义滑动、全局状态等
-- **脚本编辑器** — 内置编辑器 + 快捷指令面板 + 代码片段插入 + 自动补全
-- **获取工具** — 选区编辑器支持获取位置、新建按钮、新建滑动、截取图片、创建选区，右键生成代码
-- **多脚本并行** — 独立沙箱、独立线程、互不干扰
-- **自动启动** — 脚本可在投屏开始时自动运行（`// @autoStart`）
-- **悬浮提示** — `toast()` 在画面上显示实时状态，支持拖拽移动
+- **扩展包 `.gsext`**：主题、画面滤镜、键位方案与补丁、逻辑扩展、原生 DLL 扩展；原生扩展在单独的低权限进程里运行，安装时有安全检查。
+- **整合包 `.gsbundle`**：一次装好一组扩展；出了问题可以一步步找出是哪一个。
+- **开发**：C 接口头文件在 [`sdk/include`](sdk/include/gamescrcpy_ext.h)，示例在 [`examples`](examples)。
 
-```javascript
-// 示例：自动连点
-while (!mapi.isInterrupted()) {
-    mapi.click(0.5, 0.5);
-    mapi.sleep(100);
-}
-```
+### 界面
 
----
+- 深色优先的界面，可选浅色主题与六种强调色；命令面板（Ctrl+K）和可自定义的快捷键。
+- 内置图文帮助（F1）与新手引导；中文与英文界面。
+- 安装包与便携版两种发布形式。
 
-### 📷 图像识别
+## 截图
 
-- **OpenCV 模板匹配** — 精准找图定位
-- **区域限定** — 坐标区域或自定义选区编号，提高效率
-- **选区编辑器** — 可视化创建/编辑搜索区域，自动生成代码
-- **模板截取** — 直接在预览画面上截取保存模板图片
-- **置信度控制** — 自定义匹配精度阈值
+| 设备页 | 投屏窗口 |
+|:---:|:---:|
+| <img src="docs/images/devices.png" alt="设备页" width="420"> | <img src="docs/images/mirror.png" alt="投屏窗口" width="420"> |
+| **键位编辑器** | **蓝图** |
+| <img src="docs/images/keymap-editor.png" alt="键位编辑器" width="420"> | <img src="docs/images/blueprint.png" alt="蓝图" width="420"> |
 
-```javascript
-// 按坐标区域找图
-var result = mapi.findImage("button", 0.7, 0.5, 1.0, 1.0, 0.8);
-if (result.found) {
-    mapi.click(result.x, result.y);
-}
-
-// 按选区编号找图（选区在编辑器中创建）
-var result = mapi.findImageByRegion("button", 3, 0.8);
-```
-
----
-
-### 🎮 虚拟按钮与滑动路径
-
-- **虚拟按钮** — 在选区编辑器中可视化创建屏幕位置标记，保存到 `buttons.json`
-- **滑动路径** — 两次点击设置起点→终点，保存到 `swipes.json`
-- **脚本集成** — `mapi.getbuttonpos(id)` 获取位置，`mapi.swipeById(id)` 执行滑动
-- **右键生成代码** — 直接插入 `mapi.click()`/`mapi.slide()` 等代码到脚本编辑器
-
-```javascript
-// 获取虚拟按钮位置并点击
-var btn = mapi.getbuttonpos(1);
-if (btn.valid) mapi.click(btn.x, btn.y);
-
-// 执行预定义滑动
-mapi.swipeById(1, 200, 10);
-```
-
----
-
-### 🛡️ 拟人化操作
-
-- **触摸随机偏移** — 每次点击/滑动自动添加随机偏移，避免坐标完全一致
-- **滑动轨迹曲线** — 三层正弦叠加模拟真人滑动轨迹（主曲线 + 次曲线 + 微振动）
-- **方向轮盘平滑** — 移动输入自然过渡
-- **可调强度** — UI 滑块实时调节偏移量和曲线幅度 (0~100)
-
----
-
-### 📱 Companion App
-
-手机端辅助应用，为投屏游戏提供光标显示与远程截屏能力。
-
-- **浮动光标** — PC 端鼠标位置实时映射到手机屏幕上的浮动光标覆盖层，帮助瞄准
-  - TCP 端口 26758，归一化坐标传输，5 秒无更新自动隐藏
-  - 适配横屏/竖屏旋转，实时查询 `Display.getRealSize()`
-- **远程截屏** — PC 端一键截取手机当前屏幕，用于脚本调试和图像识别模板制作
-  - TCP 端口 26759，基于 MediaProjection + ImageReader，JPEG 格式传输
-  - 截屏完成自动释放资源
-- **Android 14+ 兼容** — 符合新版前台服务权限要求
-
-> 需在手机端安装 `companion-release.apk` 并手动启动服务，详见 [BUILD.md](docs/BUILD.md)。
-
----
-
-### 🔌 触控后端
-
-支持 4 种触控注入方式，通过 TouchRouter 统一路由管理：
-
-| 后端 | 连接方式 | 说明 |
-|:-----|:---------|:-----|
-| **Adb** | USB / WiFi | scrcpy 原生注入（默认） |
-| **UHID** | USB / WiFi | 通过 `/dev/uhid` 创建虚拟触摸屏，推荐 WiFi 场景 |
-| **AOA** | USB | USB OTG 直接注入，libusb AOA 协议，最低延迟 |
-| **ESP32** | 串口 | ESP32-S3 USB HID 触摸屏，QineTouch v3.2 协议 |
-
-- AOA 后端支持自动安装 WinUSB 驱动
-- HID 报告描述符：7 字节格式，最大 16 触点，坐标范围 0-32767
-- 按键支持 HID 优先 + scrcpy 回退
-
----
-
-### 📖 帮助中心
-
-- **12 节内置帮助文档** — 快速入门 / 连接设备 / 投屏窗口 / 键鼠映射 / 脚本编辑器 / mapi API / 图像识别 / 自定义选区 / 设置参数 / 终端 ADB / 快捷键 / 常见问题
-- **分步引导** — 首次运行自动弹出聚光灯引导（主窗口 9 步 + 投屏窗口 4 步 + 编辑模式引导），可在设置页重新启动
-- **导航栏「帮助」** — 点击打开完整帮助中心
-
----
-
-## 📥 快速开始
-
-### 系统要求
+## 系统要求
 
 | 项目 | 要求 |
-|:-----|:-----|
-| **操作系统** | Windows 10 / 11 (64位) |
-| **Android 设备** | Android 5.0+ (API 21+) |
-| **连接方式** | USB 数据线 或 WiFi 同一局域网 |
+|:--|:--|
+| 电脑 | Windows 10 / 11，64 位；建议使用支持 Direct3D 11 的显卡（没有可用显卡时由处理器解码和绘制，可能会卡） |
+| 手机 | Android 9 或更高版本；声音与无线配对需要 Android 11 或更高版本 |
+| 连接 | USB 数据线，或与电脑在同一局域网的 Wi-Fi |
 
-### 下载安装
+## 下载与安装
 
-从 [Releases](../../releases) 页面下载最新版本，解压后直接运行 `GameScrcpy.exe`。
+从 [Releases](https://github.com/NuoRan/GameScrcpy/releases/latest) 下载其中一种：
 
-### 使用步骤
+- **安装包** `GameScrcpy-<版本>-setup.exe`：默认只为当前用户安装，不需要管理员权限；卸载时保留你的设置、方案和日志（在 `%APPDATA%\GameScrcpy`）。
+- **便携版** `GameScrcpy-<版本>-portable.zip`：解压后直接运行 `GameScrcpy.exe`，数据存在旁边的 `data` 文件夹里。
 
-1. **启用 USB 调试**
-   ```
-   设置 → 关于手机 → 连续点击"版本号" 7 次
-   设置 → 开发者选项 → 启用 USB 调试
-   ```
+两种都自带运行所需的一切（包括 adb），不用另装 Android SDK 或 VC++ 运行库。程序暂时没有代码签名，第一次运行时 Windows 可能提示"Windows 已保护你的电脑"：点"更多信息"，再点"仍要运行"。
 
-2. **连接设备** — USB 数据线连接，或输入设备 IP 进行 WiFi 连接
+## 快速开始
 
-3. **开始投屏** — 点击「刷新设备」→ 选择设备 → 点击「开始投屏」
+1. 在手机上打开"开发者选项"和"USB 调试"。第一次启动时的引导会按手机品牌告诉你怎么开。
+2. 用数据线连接手机，在手机上允许 USB 调试。
+3. 在"设备"页点"投屏"。
+4. 在投屏窗口的工具栏里打开"编辑键位"，把组件拖到游戏按钮上、配好按键。
+5. 按 F1 打开帮助，里面有投屏窗口、键位编辑器、方案、脚本与常见问题的图文说明。
 
+## 文档
 
+| 内容 | 位置 |
+|:--|:--|
+| 使用帮助（与程序里 F1 打开的是同一份） | [docs/README.md](docs/README.md) |
+| 脚本接口 | [sdk/docs](sdk/docs/README.md) |
+| 架构概览 | [docs/architecture.md](docs/architecture.md) |
+| 通信协议 | [protocol/SPEC.md](protocol/SPEC.md) |
+| ESP32 固件 | [firmware/esp32](firmware/esp32/README.md) |
+| 从源码构建与参与开发 | [CONTRIBUTING.md](CONTRIBUTING.md) |
 
----
+## 反馈与交流
 
-## 🤖 脚本 API
+- 问题与建议：[Issues](https://github.com/NuoRan/GameScrcpy/issues)。报告问题时附上程序里"设置 > 关于 > 导出诊断包"生成的文件，能更快找到原因。
+- 安全问题请按 [SECURITY.md](SECURITY.md) 私下报告。
+- QQ 交流群：762961615
 
-通过 `mapi` 对象调用，完整文档见 **[脚本 API 文档](docs/SCRIPT_API.md)**。
+## 赞助
 
-### 常用 API 速览
+GameScrcpy 免费、开源。如果它帮到了你，欢迎在[爱发电](https://afdian.com/a/GameScrcpy)支持后续开发。
 
-```javascript
-// 触摸操作
-mapi.click(x, y)              // 点击
-mapi.holdpress(x, y)          // 按住（松开宏键自动释放）
-mapi.releaseAll()              // 释放所有触摸点
-mapi.slide(x1, y1, x2, y2, duration, steps)  // 滑动
-mapi.pinch(cx, cy, scale, duration, steps)    // 双指缩放
+## 许可证与致谢
 
-// 控制流
-mapi.sleep(ms)                // 延时
-mapi.isInterrupted()          // 检查是否中断
-mapi.isPress()                // 当前宏键是否按下
+GameScrcpy 以 [Apache License 2.0](LICENSE) 发布。
 
-// 按键与工具
-mapi.key("T", 50)             // 模拟键位按键
-mapi.toast("消息", 3000)      // 悬浮提示
-mapi.getKeyState("W")         // 获取按键状态 (1/0)
-mapi.setKeyUIPos("J", x, y)   // 动态设置按键 UI 位置
-
-// 全局状态（跨脚本共享）
-mapi.setGlobal("key", value)
-mapi.getGlobal("key")
-
-// 游戏控制
-mapi.shotmode(true)           // 切换射击/光标模式
-mapi.resetview()              // 重置视角
-mapi.resetwheel()             // 重置方向轮盘
-mapi.setRadialParam(up, down, left, right)  // 设置移动速度
-
-// 图像识别
-mapi.findImage("name", x1, y1, x2, y2, threshold)
-mapi.findImageByRegion("name", regionId, threshold)
-
-// 虚拟按钮与滑动
-mapi.getbuttonpos(buttonId)        // 获取虚拟按钮位置
-mapi.swipeById(swipeId, ms, steps) // 按编号执行滑动
-
-// 模块
-mapi.loadModule("utils.js")   // 加载 ES6 模块
-```
-
----
-
-## 🏗️ 技术架构
-
-```
-GameScrcpy/
-├── client/                 # 客户端 (Qt/C++)
-│   ├── src/
-│   │   ├── app/           # 应用入口、配置、首次运行协议
-│   │   ├── ui/            # Fluent Design UI、键位覆盖层、脚本编辑器、选区编辑器、帮助中心、引导系统
-│   │   ├── control/       # 控制、键位映射、脚本引擎 (沙箱化)、责任链输入处理
-│   │   │   ├── handlers/  # HandlerChain: Viewport(自适应EMA) / SteerWheel / FreeLook / Cursor / Keyboard
-│   │   │   └── hid/       # TouchRouter + 多后端: UHID / AOA / ESP32 / Adb
-│   │   ├── transport/     # 传输 (TCP / KCP / 裸 UDP / ADB / Companion)、FEC 前向纠错
-│   │   ├── decoder/       # FFmpeg 视频解码 (零拷贝 SIMD + D3D11VA GPU 直通)
-│   │   ├── render/        # D3D11 原生渲染 (零拷贝帧提交)
-│   │   ├── core/          # 核心架构 (接口层/基础设施/实现/服务)
-│   │   └── common/        # 配置中心、无锁性能监控、图像识别
-│   └── env/               # 预编译依赖 (FFmpeg, ADB, OpenCV)
-│
-├── companion_app/          # 手机端辅助应用 (Android/Java)
-│   └── app/src/main/
-│       └── java/           # CursorService (光标覆盖) / ScreenshotService (远程截屏) / MainActivity
-│
-├── server/                 # 服务端 (Android/Java)
-│   └── src/main/
-│       ├── control/       # FastTouch O(1) 多点触控、v2 极简协议
-│       ├── video/         # 编码 (ABR 自适应码率)、OpenGL 滤镜管线
-│       ├── kcp/           # KCP 纯 Java 实现、裸 UDP 发送器、FEC 编码器
-│       ├── session/       # 会话架构 (TCP/KCP 模板方法模式)
-│       └── opengl/        # AffineOpenGLFilter GPU 仿射变换
-│
-├── keymap/                 # 键位配置文件
-│   ├── images/            # 模板图片
-│   ├── scripts/           # 脚本模块
-│   └── regions.json       # 自定义选区
-└── config/                 # 全局配置
-```
-
-### 核心依赖
-
-| 组件 | 说明 |
-|:-----|:-----|
-| Qt 6.x (MSVC 2022) | GUI 框架 |
-| FFmpeg 8.0.1 | 视频解码 |
-| QuickJS | JavaScript 脚本引擎 |
-| OpenCV 4.12 | 图像识别 (可选) |
-| KCP | 低延迟 UDP 传输 |
-| libusb | AOA USB HID 触控 (可选) |
-| D3D11 / DXGI | 原生视频渲染 |
-
----
-
-## 🔧 从源码构建
-
-详细构建指南见 **[BUILD.md](docs/BUILD.md)**。
-
-### 一键脚本 (推荐)
-
-```powershell
-cd ci\win
-.\build_all.bat --qt "C:\Qt\6.5.0"
-```
-
-### Qt Creator
-
-1. 安装 Qt 6.5+ (MSVC 2022 64-bit)
-2. 用 Qt Creator 打开 `client/CMakeLists.txt`
-3. 选择 Release 配置，点击构建
-
-### 服务端构建 (可选)
-
-> 已内置预编译服务端，通常无需自行构建
-
-```powershell
-cd server
-..\gradlew.bat assembleRelease
-```
-
-### Companion App 构建
-
-```powershell
-cd companion_app
-..\gradlew.bat :companion:assembleRelease
-```
-
-APK 输出路径：`companion_app/app/build/outputs/apk/release/companion-release.apk`
-
-安装到手机后，需手动授予「悬浮窗」权限，并在应用内分别启动光标服务和截屏服务。
-
----
-
-## 📄 许可证
-
-[Apache License 2.0](LICENSE)
-
----
-
-## 🙏 致谢
-
-- [scrcpy](https://github.com/Genymobile/scrcpy) — Android 投屏先驱
-- [QtScrcpy](https://github.com/barry-ran/QtScrcpy) — 项目基础
-- [opencv_matching](https://github.com/acai66/opencv_matching) — OpenCV 图像匹配封装
-- [QuickJS](https://bellard.org/quickjs/) — 嵌入式 JavaScript 引擎
-- [FFmpeg](https://ffmpeg.org/) / [Qt](https://www.qt.io/) / [OpenCV](https://opencv.org/) / [KCP](https://github.com/skywind3000/kcp)
-
----
-
-<p align="center">
-  如果这个项目对你有帮助，欢迎给一个 ⭐ Star！
-</p>
+- [scrcpy](https://github.com/Genymobile/scrcpy)：安卓投屏的先驱，GameScrcpy 的思路源自它。
+- [QtScrcpy](https://github.com/barry-ran/QtScrcpy)：GameScrcpy 1.x 的基础。
+- 用到的第三方组件（Qt、FFmpeg、dav1d、SDL、libusb、QuickJS-ng、TypeScript、QWindowKit、nlohmann/json、miniz、QR Code generator、Lucide、doctest、tl::expected）及其版本与许可证见 [third_party/README.md](third_party/README.md)，程序里在"设置 > 关于 > 开源许可"。

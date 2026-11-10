@@ -1,0 +1,185 @@
+{
+  "format": "gamescrcpy.protocol-vectors",
+  "protocolVersion": 1,
+  "family": "media-config",
+  "vectors": [
+    {
+      "name": "configure-video-display",
+      "message": "ConfigureVideo",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "source": "display",
+        "displayId": 0,
+        "virtualWidth": 0,
+        "virtualHeight": 0,
+        "virtualDensity": 0,
+        "codec": "h264",
+        "maxSize": 1920,
+        "maxFps": 60,
+        "bitrate": 8000000,
+        "intraRefreshMs": 0
+      },
+      "hex": "0201000000160000000000000000000000010780003c007a12000000"
+    },
+    {
+      "name": "configure-video-virtual",
+      "message": "ConfigureVideo",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "source": "virtualDisplay",
+        "displayId": 0,
+        "virtualWidth": 1920,
+        "virtualHeight": 1080,
+        "virtualDensity": 320,
+        "codec": "h265",
+        "maxSize": 0,
+        "maxFps": 0,
+        "bitrate": 20000000,
+        "intraRefreshMs": 2000
+      },
+      "hex": "0201000000160100000000078004380140020000000001312d0007d0"
+    },
+    {
+      "name": "configure-video-extremes",
+      "message": "ConfigureVideo",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "source": "display",
+        "displayId": 4294967295,
+        "virtualWidth": 65535,
+        "virtualHeight": 65535,
+        "virtualDensity": 65535,
+        "codec": "av1",
+        "maxSize": 65535,
+        "maxFps": 65535,
+        "bitrate": 4294967295,
+        "intraRefreshMs": 65535
+      },
+      "hex": "02010000001600ffffffffffffffffffff03ffffffffffffffffffff"
+    },
+    {
+      "name": "set-video-bitrate-zero",
+      "message": "SetVideoBitrate",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "bitrate": 0
+      },
+      "hex": "02020000000400000000"
+    },
+    {
+      "name": "set-video-bitrate-typical",
+      "message": "SetVideoBitrate",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "bitrate": 8000000
+      },
+      "hex": "020200000004007a1200"
+    },
+    {
+      "name": "set-video-bitrate-max",
+      "message": "SetVideoBitrate",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "bitrate": 4294967295
+      },
+      "hex": "020200000004ffffffff"
+    },
+    {
+      "name": "set-max-fps-unlimited",
+      "message": "SetMaxFps",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "maxFps": 0
+      },
+      "hex": "0203000000020000"
+    },
+    {
+      "name": "set-max-fps-60",
+      "message": "SetMaxFps",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "maxFps": 60
+      },
+      "hex": "020300000002003c"
+    },
+    {
+      "name": "set-max-fps-max",
+      "message": "SetMaxFps",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "maxFps": 65535
+      },
+      "hex": "020300000002ffff"
+    },
+    {
+      "name": "request-key-frame",
+      "message": "RequestKeyFrame",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {},
+      "hex": "020400000000"
+    },
+    {
+      "name": "set-video-paused-true",
+      "message": "SetVideoPaused",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "paused": true
+      },
+      "hex": "02050000000101"
+    },
+    {
+      "name": "set-video-paused-false",
+      "message": "SetVideoPaused",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "paused": false
+      },
+      "hex": "02050000000100"
+    },
+    {
+      "name": "configure-audio-enabled",
+      "message": "ConfigureAudio",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "enabled": true,
+        "bitrate": 128000
+      },
+      "hex": "021100000005010001f400"
+    },
+    {
+      "name": "configure-audio-disabled",
+      "message": "ConfigureAudio",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "enabled": false,
+        "bitrate": 0
+      },
+      "hex": "0211000000050000000000"
+    },
+    {
+      "name": "configure-audio-max",
+      "message": "ConfigureAudio",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "enabled": true,
+        "bitrate": 4294967295
+      },
+      "hex": "02110000000501ffffffff"
+    }
+  ]
+}

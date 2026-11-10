@@ -1,0 +1,382 @@
+{
+  "format": "gamescrcpy.protocol-vectors",
+  "protocolVersion": 1,
+  "family": "device",
+  "vectors": [
+    {
+      "name": "set-clipboard-typical",
+      "message": "SetClipboard",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "sequence": 1,
+        "paste": false,
+        "text": "copy me"
+      },
+      "hex": "030100000010000000010000000007636f7079206d65"
+    },
+    {
+      "name": "set-clipboard-cjk-paste",
+      "message": "SetClipboard",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "sequence": 4294967295,
+        "paste": true,
+        "text": "复制粘贴 ✓"
+      },
+      "hex": "030100000019ffffffff0100000010e5a48de588b6e7b298e8b4b420e29c93"
+    },
+    {
+      "name": "set-clipboard-empty",
+      "message": "SetClipboard",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "sequence": 0,
+        "paste": false,
+        "text": ""
+      },
+      "hex": "030100000009000000000000000000"
+    },
+    {
+      "name": "set-clipboard-large",
+      "message": "SetClipboard",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "sequence": 7,
+        "paste": true,
+        "text": "剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板剪贴板x"
+      },
+      "hex": "030100000bbf000000070100000bb6e589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbfe589aae8b4b4e69dbf78"
+    },
+    {
+      "name": "get-clipboard-none",
+      "message": "GetClipboard",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "copyKey": "none"
+      },
+      "hex": "03020000000100"
+    },
+    {
+      "name": "get-clipboard-copy",
+      "message": "GetClipboard",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "copyKey": "copy"
+      },
+      "hex": "03020000000101"
+    },
+    {
+      "name": "get-clipboard-cut",
+      "message": "GetClipboard",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "copyKey": "cut"
+      },
+      "hex": "03020000000102"
+    },
+    {
+      "name": "set-display-power-on",
+      "message": "SetDisplayPower",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "on": true
+      },
+      "hex": "03030000000101"
+    },
+    {
+      "name": "set-display-power-off",
+      "message": "SetDisplayPower",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "on": false
+      },
+      "hex": "03030000000100"
+    },
+    {
+      "name": "set-orientation-follow",
+      "message": "SetOrientation",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "mode": "follow"
+      },
+      "hex": "03040000000100"
+    },
+    {
+      "name": "set-orientation-lock90",
+      "message": "SetOrientation",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "mode": "lock90"
+      },
+      "hex": "03040000000102"
+    },
+    {
+      "name": "set-orientation-lock270",
+      "message": "SetOrientation",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "mode": "lock270"
+      },
+      "hex": "03040000000104"
+    },
+    {
+      "name": "start-app-typical",
+      "message": "StartApp",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "package": "com.example.game",
+        "forceStop": false,
+        "onVideoDisplay": false
+      },
+      "hex": "03050000001210636f6d2e6578616d706c652e67616d6500"
+    },
+    {
+      "name": "start-app-force-stop",
+      "message": "StartApp",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "package": "com.tencent.tmgp.pubgmhd",
+        "forceStop": true,
+        "onVideoDisplay": false
+      },
+      "hex": "03050000001a18636f6d2e74656e63656e742e746d67702e707562676d686401"
+    },
+    {
+      "name": "start-app-video-display",
+      "message": "StartApp",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "package": "com.miHoYo.Yuanshen",
+        "forceStop": false,
+        "onVideoDisplay": true
+      },
+      "hex": "03050000001513636f6d2e6d69486f596f2e5975616e7368656e02"
+    },
+    {
+      "name": "start-app-max",
+      "message": "StartApp",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "package": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "forceStop": true,
+        "onVideoDisplay": true
+      },
+      "hex": "030500000101ff70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707003"
+    },
+    {
+      "name": "system-panel-notifications",
+      "message": "SystemPanel",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "action": "expandNotifications"
+      },
+      "hex": "03060000000100"
+    },
+    {
+      "name": "system-panel-quick-settings",
+      "message": "SystemPanel",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "action": "expandQuickSettings"
+      },
+      "hex": "03060000000101"
+    },
+    {
+      "name": "system-panel-collapse",
+      "message": "SystemPanel",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "action": "collapse"
+      },
+      "hex": "03060000000102"
+    },
+    {
+      "name": "request-app-list-user",
+      "message": "RequestAppList",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "requestId": 1,
+        "includeSystem": false
+      },
+      "hex": "0307000000050000000100"
+    },
+    {
+      "name": "request-app-list-system",
+      "message": "RequestAppList",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "requestId": 2,
+        "includeSystem": true
+      },
+      "hex": "0307000000050000000201"
+    },
+    {
+      "name": "request-app-list-max-id",
+      "message": "RequestAppList",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "requestId": 4294967295,
+        "includeSystem": true
+      },
+      "hex": "030700000005ffffffff01"
+    },
+    {
+      "name": "request-app-icon-typical",
+      "message": "RequestAppIcon",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "requestId": 1,
+        "package": "com.example.game",
+        "sizePx": 96
+      },
+      "hex": "0308000000170000000110636f6d2e6578616d706c652e67616d650060"
+    },
+    {
+      "name": "request-app-icon-min",
+      "message": "RequestAppIcon",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "requestId": 2,
+        "package": "",
+        "sizePx": 16
+      },
+      "hex": "03080000000700000002000010"
+    },
+    {
+      "name": "request-app-icon-max",
+      "message": "RequestAppIcon",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "requestId": 4294967295,
+        "package": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "sizePx": 512
+      },
+      "hex": "030800000106ffffffffff7070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070700200"
+    },
+    {
+      "name": "request-screenshot-typical",
+      "message": "RequestScreenshot",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "requestId": 1,
+        "displayId": 0,
+        "format": "png"
+      },
+      "hex": "030900000009000000010000000000"
+    },
+    {
+      "name": "request-screenshot-virtual",
+      "message": "RequestScreenshot",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "requestId": 9,
+        "displayId": 2,
+        "format": "png"
+      },
+      "hex": "030900000009000000090000000200"
+    },
+    {
+      "name": "request-screenshot-max",
+      "message": "RequestScreenshot",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "requestId": 4294967295,
+        "displayId": 4294967295,
+        "format": "png"
+      },
+      "hex": "030900000009ffffffffffffffff00"
+    },
+    {
+      "name": "set-show-touches-on",
+      "message": "SetShowTouches",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "on": true
+      },
+      "hex": "030a0000000101"
+    },
+    {
+      "name": "set-show-touches-off",
+      "message": "SetShowTouches",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "on": false
+      },
+      "hex": "030a0000000100"
+    },
+    {
+      "name": "subscribe-status-on",
+      "message": "SubscribeStatus",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "on": true,
+        "periodMs": 2000
+      },
+      "hex": "030b000000030107d0"
+    },
+    {
+      "name": "subscribe-status-off",
+      "message": "SubscribeStatus",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "on": false,
+        "periodMs": 2000
+      },
+      "hex": "030b000000030007d0"
+    },
+    {
+      "name": "subscribe-status-fastest",
+      "message": "SubscribeStatus",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "on": true,
+        "periodMs": 500
+      },
+      "hex": "030b000000030101f4"
+    },
+    {
+      "name": "subscribe-status-slowest",
+      "message": "SubscribeStatus",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "on": true,
+        "periodMs": 60000
+      },
+      "hex": "030b0000000301ea60"
+    }
+  ]
+}

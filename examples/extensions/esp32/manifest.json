@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "gamescrcpy.esp32",
+  "version": "1.0.0",
+  "name": "ESP32 touch box",
+  "description": "An ESP32 board on the phone's USB port or Bluetooth becomes its touch screen, keyboard, mouse and gamepad, so the phone can be controlled without USB debugging.",
+  "authors": ["GameScrcpy"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/NuoRan/GameScrcpy",
+  "requires": {
+    "native": "^1.0"
+  },
+  "contributes": {
+    "native": {
+      "dll": "esp32.dll",
+      "touchMethods": [
+        {
+          "name": "esp32",
+          "title": "ESP32",
+          "description": "Touches, keys and the gamepad go through the ESP32 touch box; set its serial port or Wi-Fi on the Extensions page."
+        }
+      ]
+    }
+  },
+  "l10n": {
+    "zh_CN": {
+      "name": "ESP32 触控盒",
+      "description": "接在手机 USB 口或蓝牙上的 ESP32 开发板充当手机的触摸屏、键盘、鼠标和手柄，不开 USB 调试也能控制手机。",
+      "touchMethods.esp32.title": "ESP32",
+      "touchMethods.esp32.description": "触控、按键和手柄经 ESP32 触控盒发给手机；串口或 Wi-Fi 在扩展页设置。"
+    }
+  }
+}

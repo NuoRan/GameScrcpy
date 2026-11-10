@@ -1,0 +1,3276 @@
+{
+  "api": 1,
+  "globals": [
+    {
+      "name": "sleep",
+      "signature": "sleep(ms: number): Promise<void>",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "RangeError"
+      ]
+    },
+    {
+      "name": "nextFrame",
+      "signature": "nextFrame(): Promise<void>",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": []
+    },
+    {
+      "name": "every",
+      "signature": "every(intervalMs: number, handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-003",
+        "GS-API-008"
+      ]
+    },
+    {
+      "name": "after",
+      "signature": "after(delayMs: number, handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-003",
+        "GS-API-008"
+      ]
+    },
+    {
+      "name": "waitUntil",
+      "signature": "waitUntil(condition: () => unknown, options?: UntilOptions): Promise<NonNullable<unknown>>",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-008",
+        "GS-API-030"
+      ]
+    },
+    {
+      "name": "retry",
+      "signature": "retry(times: number, action: (attempt: number) => unknown): Promise<unknown>",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-003",
+        "GS-API-008"
+      ]
+    },
+    {
+      "name": "withTimeout",
+      "signature": "withTimeout(timeoutMs: number, action: (context: TaskContext) => unknown): Promise<unknown>",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-003",
+        "GS-API-008"
+      ]
+    },
+    {
+      "name": "parallel",
+      "signature": "parallel(...work: Work[]): Promise<unknown[]>",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": []
+    },
+    {
+      "name": "sequence",
+      "signature": "sequence(...work: Work[]): Promise<unknown[]>",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": []
+    },
+    {
+      "name": "multiGate",
+      "signature": "multiGate(name: string, times: number, loop: boolean, random: boolean, ...work: Work[]): Promise<unknown>",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-011",
+        "GS-API-017"
+      ]
+    },
+    {
+      "name": "race",
+      "signature": "race(...work: Work[]): Promise<unknown>",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": []
+    },
+    {
+      "name": "doOnce",
+      "signature": "doOnce(name: string, action: () => unknown): unknown",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-011"
+      ]
+    },
+    {
+      "name": "resetOnce",
+      "signature": "resetOnce(name: string): void",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-011"
+      ]
+    },
+    {
+      "name": "doN",
+      "signature": "doN(name: string, times: number): boolean",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-011",
+        "GS-API-017"
+      ]
+    },
+    {
+      "name": "resetDoN",
+      "signature": "resetDoN(name: string): void",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-011"
+      ]
+    },
+    {
+      "name": "gate",
+      "signature": "gate(name: string, startClosed?: boolean): Gate",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-011"
+      ]
+    },
+    {
+      "name": "flipFlop",
+      "signature": "flipFlop(name: string): \"A\" | \"B\"",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-011"
+      ]
+    },
+    {
+      "name": "throttle",
+      "signature": "throttle(intervalMs: number, action: (...values: unknown[]) => unknown): (...values: unknown[]) => unknown",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-003",
+        "GS-API-008"
+      ]
+    },
+    {
+      "name": "debounce",
+      "signature": "debounce(waitMs: number, action: (...values: unknown[]) => unknown): (...values: unknown[]) => void",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-003",
+        "GS-API-008"
+      ]
+    },
+    {
+      "name": "stopwatch",
+      "signature": "stopwatch(): Stopwatch",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": []
+    },
+    {
+      "name": "point",
+      "signature": "point(x: number, y: number): PicturePoint",
+      "stability": "stable",
+      "since": "1",
+      "permission": "",
+      "errors": [
+        "GS-API-002"
+      ]
+    }
+  ],
+  "values": [
+    {
+      "name": "Component",
+      "type": "ComponentClass"
+    },
+    {
+      "name": "Tap",
+      "type": "BuiltInClass<Tap, ComponentOverrides>"
+    },
+    {
+      "name": "Hold",
+      "type": "BuiltInClass<Hold, HoldOverrides>"
+    },
+    {
+      "name": "LongPress",
+      "type": "BuiltInClass<LongPress, StartEndOverrides>"
+    },
+    {
+      "name": "Turbo",
+      "type": "BuiltInClass<Turbo, ComponentOverrides>"
+    },
+    {
+      "name": "Swipe",
+      "type": "BuiltInClass<Swipe, StartEndOverrides>"
+    },
+    {
+      "name": "Pinch",
+      "type": "BuiltInClass<Pinch, ComponentOverrides>"
+    },
+    {
+      "name": "Wasd",
+      "type": "BuiltInClass<Wasd, StickOverrides>"
+    },
+    {
+      "name": "RightWalk",
+      "type": "BuiltInClass<RightWalk, RightWalkOverrides>"
+    },
+    {
+      "name": "PadStick",
+      "type": "BuiltInClass<PadStick, StickOverrides>"
+    },
+    {
+      "name": "Camera",
+      "type": "BuiltInClass<Camera, CameraOverrides>"
+    },
+    {
+      "name": "PadCamera",
+      "type": "BuiltInClass<PadCamera, LookOverrides>"
+    },
+    {
+      "name": "FreeLook",
+      "type": "BuiltInClass<FreeLook, StartEndOverrides>"
+    },
+    {
+      "name": "Skill",
+      "type": "BuiltInClass<Skill, SkillOverrides>"
+    },
+    {
+      "name": "Dial",
+      "type": "BuiltInClass<Dial, DialOverrides>"
+    },
+    {
+      "name": "MultiPress",
+      "type": "BuiltInClass<MultiPress, HoldOverrides>"
+    },
+    {
+      "name": "TempCursor",
+      "type": "BuiltInClass<TempCursor, TempCursorOverrides>"
+    },
+    {
+      "name": "ActionWheel",
+      "type": "BuiltInClass<ActionWheel, ActionWheelOverrides>"
+    },
+    {
+      "name": "defineInterface",
+      "type": "<T>(name: string) => Interface<T>"
+    },
+    {
+      "name": "Task",
+      "type": "TaskClass"
+    },
+    {
+      "name": "controls",
+      "type": "Controls"
+    },
+    {
+      "name": "vars",
+      "type": "Vars"
+    },
+    {
+      "name": "keys",
+      "type": "Keys"
+    },
+    {
+      "name": "globals",
+      "type": "Globals"
+    },
+    {
+      "name": "machine",
+      "type": "<S extends string>(states: { readonly [K in S]: (to: MachineTo<S>) => MachineStep | void | Promise<MachineStep | void> }, options?: MachineOptions<S>) => Promise<void>"
+    },
+    {
+      "name": "ext",
+      "type": "Extensions"
+    }
+  ],
+  "namespaces": [
+    {
+      "name": "log",
+      "functions": [
+        {
+          "name": "info",
+          "signature": "log.info(...values: unknown[]): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "warn",
+          "signature": "log.warn(...values: unknown[]): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "error",
+          "signature": "log.error(...values: unknown[]): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "time",
+          "signature": "log.time(name: string): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "timeEnd",
+          "signature": "log.timeEnd(name: string): number | null",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "time",
+      "functions": [
+        {
+          "name": "now",
+          "signature": "time.now(): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "name": "touch",
+      "functions": [
+        {
+          "name": "tap",
+          "signature": "touch.tap(x: number | PicturePoint, y?: number, durationMs?: number): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "longPress",
+          "signature": "touch.longPress(x: number | PicturePoint, y?: number, durationMs?: number): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "swipe",
+          "signature": "touch.swipe(fromX: number | PicturePoint, fromY: number | PicturePoint, toX?: number, toY?: number, durationMs?: number): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "down",
+          "signature": "touch.down(x: number | PicturePoint, y?: number): Finger",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "pinch",
+          "signature": "touch.pinch(center: PicturePoint, from: number, to: number, durationMs?: number): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "releaseAll",
+          "signature": "touch.releaseAll(): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-001"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "device",
+      "functions": [
+        {
+          "name": "info",
+          "signature": "device.info(): DeviceInfo",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "back",
+          "signature": "device.back(): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "home",
+          "signature": "device.home(): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "recents",
+          "signature": "device.recents(): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "menu",
+          "signature": "device.menu(): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "power",
+          "signature": "device.power(): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "volumeUp",
+          "signature": "device.volumeUp(): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "volumeDown",
+          "signature": "device.volumeDown(): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "mute",
+          "signature": "device.mute(): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "notifications",
+          "signature": "device.notifications(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-090",
+            "GS-API-091"
+          ]
+        },
+        {
+          "name": "quickSettings",
+          "signature": "device.quickSettings(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-090",
+            "GS-API-091"
+          ]
+        },
+        {
+          "name": "collapsePanels",
+          "signature": "device.collapsePanels(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-090",
+            "GS-API-091"
+          ]
+        },
+        {
+          "name": "pressKey",
+          "signature": "device.pressKey(key: AndroidKey): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-004",
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "type",
+          "signature": "device.type(text: string): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "launch",
+          "signature": "device.launch(packageName: string, options?: LaunchOptions): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "screenOff",
+          "signature": "device.screenOff(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "screenOn",
+          "signature": "device.screenOn(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "foregroundApp",
+          "signature": "device.foregroundApp(): ForegroundApp | null",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "onForegroundApp",
+          "signature": "device.onForegroundApp(handler: (event: TaskContext & ForegroundApp) => void | Promise<void>, options?: ListenOptions): Subscription",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-008",
+            "GS-API-009"
+          ]
+        },
+        {
+          "name": "onRotate",
+          "signature": "device.onRotate(handler: (event: TaskContext & DeviceInfo) => void | Promise<void>, options?: ListenOptions): Subscription",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-008",
+            "GS-API-009"
+          ]
+        },
+        {
+          "name": "connected",
+          "signature": "device.connected(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "onDisconnect",
+          "signature": "device.onDisconnect(handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-008",
+            "GS-API-009"
+          ]
+        },
+        {
+          "name": "onReconnect",
+          "signature": "device.onReconnect(handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-008",
+            "GS-API-009"
+          ]
+        },
+        {
+          "name": "onInputBox",
+          "signature": "device.onInputBox(handler: (event: TaskContext & InputBox) => void | Promise<void>, options?: ListenOptions): Subscription",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-008",
+            "GS-API-009"
+          ]
+        },
+        {
+          "name": "rotate",
+          "signature": "device.rotate(orientation: \"auto\" | \"portrait\" | \"landscape\"): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "clipboard",
+      "functions": [
+        {
+          "name": "read",
+          "signature": "clipboard.read(): Promise<string | null>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "write",
+          "signature": "clipboard.write(text: string): Promise<boolean>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-017",
+            "GS-API-001"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "mapping",
+      "functions": [
+        {
+          "name": "controls",
+          "signature": "mapping.controls(): ControlInfo[]",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "get",
+          "signature": "mapping.get(id: string): Component | null",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "all",
+          "signature": "mapping.all(type?: ComponentType | Interface<unknown> | { readonly prototype: Component } | { readonly component?: Component }): Component[]",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "trigger",
+          "signature": "mapping.trigger(id: string): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-005",
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "hold",
+          "signature": "mapping.hold(id: string, durationMs: number): Action<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-005",
+            "GS-API-003",
+            "GS-API-030",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "setEnabled",
+          "signature": "mapping.setEnabled(id: string, enabled: boolean): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-005",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "on",
+          "signature": "mapping.on(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "off",
+          "signature": "mapping.off(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "toggle",
+          "signature": "mapping.toggle(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "isOn",
+          "signature": "mapping.isOn(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "name": "hints",
+      "functions": [
+        {
+          "name": "show",
+          "signature": "hints.show(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "hide",
+          "signature": "hints.hide(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "toggle",
+          "signature": "hints.toggle(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "setOpacity",
+          "signature": "hints.setOpacity(opacity: number): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "reveal",
+          "signature": "hints.reveal(on: boolean): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "name": "profile",
+      "functions": [
+        {
+          "name": "current",
+          "signature": "profile.current(): ProfileInfo | null",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "switchTo",
+          "signature": "profile.switchTo(name: string): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "next",
+          "signature": "profile.next(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "previous",
+          "signature": "profile.previous(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "save",
+          "signature": "profile.save(): Promise<boolean>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-001"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "store",
+      "functions": [
+        {
+          "name": "get",
+          "signature": "store.get(key: string): StoreValue | undefined",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-006",
+            "GS-API-007"
+          ]
+        },
+        {
+          "name": "set",
+          "signature": "store.set(key: string, value: StoreValue): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-006",
+            "GS-API-007"
+          ]
+        },
+        {
+          "name": "remove",
+          "signature": "store.remove(key: string): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-006",
+            "GS-API-007"
+          ]
+        },
+        {
+          "name": "keys",
+          "signature": "store.keys(): string[]",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        }
+      ]
+    },
+    {
+      "name": "ui",
+      "functions": [
+        {
+          "name": "toast",
+          "signature": "ui.toast(message: string): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "confirm",
+          "signature": "ui.confirm(question: string, options?: ConfirmOptions): Promise<boolean>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "choose",
+          "signature": "ui.choose(question: string, choices: string[]): Promise<number | null>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-012",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "ask",
+          "signature": "ui.ask(question: string, options?: AskOptions): Promise<string | null>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "box",
+          "signature": "ui.box(x: number, y: number, width: number, height: number, options?: BoxOptions): Drawing",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-010",
+            "GS-API-011",
+            "GS-API-014",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "text",
+          "signature": "ui.text(x: number, y: number, text: string, options?: TextOptions): Drawing",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-010",
+            "GS-API-011",
+            "GS-API-014",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "mark",
+          "signature": "ui.mark(x: number, y: number, options?: MarkOptions): Drawing",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-010",
+            "GS-API-011",
+            "GS-API-014",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "image",
+          "signature": "ui.image(image: TemplateName | ImagePath | CapturedImage, region?: Region | RegionName, options?: BoxOptions): Drawing",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-015",
+            "GS-API-018",
+            "GS-API-020",
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-010",
+            "GS-API-011",
+            "GS-API-014",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "progress",
+          "signature": "ui.progress(title: string | null, value?: number): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "notify",
+          "signature": "ui.notify(title: string, text?: string): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "panel",
+          "signature": "ui.panel(name: string): UiPanel",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "menu",
+          "signature": "ui.menu(items: readonly UiMenuItem[]): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-075",
+            "GS-API-076"
+          ]
+        },
+        {
+          "name": "status",
+          "signature": "ui.status(name: string): UiStatus",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "input",
+      "functions": [
+        {
+          "name": "source",
+          "signature": "input.source(name: string): InputSource",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-085",
+            "GS-API-080"
+          ]
+        },
+        {
+          "name": "cursor",
+          "signature": "input.cursor(): PicturePoint | null",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-001",
+            "GS-API-098"
+          ]
+        },
+        {
+          "name": "isDown",
+          "signature": "input.isDown(name: InputName): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-013",
+            "GS-API-001",
+            "GS-API-098"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "hardware",
+      "functions": [
+        {
+          "name": "request",
+          "signature": "hardware.request(options: HardwareRequest): Promise<HardwareInfo[]>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-085",
+            "GS-API-080"
+          ]
+        },
+        {
+          "name": "list",
+          "signature": "hardware.list(): HardwareInfo[]",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-080"
+          ]
+        },
+        {
+          "name": "open",
+          "signature": "hardware.open(id: string, options?: SerialOptions): Promise<SerialDevice | HidDevice | BleDevice>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-081",
+            "GS-API-082",
+            "GS-API-083",
+            "GS-API-085",
+            "GS-API-080"
+          ]
+        },
+        {
+          "name": "forget",
+          "signature": "hardware.forget(id: string): Promise<void>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-085",
+            "GS-API-080"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "window",
+      "functions": [
+        {
+          "name": "focused",
+          "signature": "window.focused(): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "onFocus",
+          "signature": "window.onFocus(handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-008",
+            "GS-API-009"
+          ]
+        },
+        {
+          "name": "onBlur",
+          "signature": "window.onBlur(handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-008",
+            "GS-API-009"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "vision",
+      "functions": [
+        {
+          "name": "find",
+          "signature": "vision.find(image: TemplateName | ImagePath | CapturedImage, options?: FindOptions): Promise<Found | null>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-015",
+            "GS-API-018",
+            "GS-API-020",
+            "GS-API-016",
+            "GS-API-037",
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-017",
+            "GS-API-019",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "findAll",
+          "signature": "vision.findAll(image: TemplateName | ImagePath | CapturedImage, options?: FindOptions): Promise<Found[]>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-015",
+            "GS-API-018",
+            "GS-API-020",
+            "GS-API-016",
+            "GS-API-037",
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-017",
+            "GS-API-019",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "findColor",
+          "signature": "vision.findColor(color: ColorName | HexColor, options?: ColorOptions): Promise<Found | null>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-019",
+            "GS-API-018",
+            "GS-API-020",
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-017",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "pickColor",
+          "signature": "vision.pickColor(at: PicturePoint, options?: PixelOptions): Promise<HexColor | null>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-002",
+            "GS-API-011",
+            "GS-API-003",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "matchColor",
+          "signature": "vision.matchColor(at: PicturePoint, color: ColorName | HexColor, options?: PixelMatchOptions): Promise<boolean>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-002",
+            "GS-API-019",
+            "GS-API-018",
+            "GS-API-020",
+            "GS-API-011",
+            "GS-API-003",
+            "GS-API-017",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "waitFor",
+          "signature": "vision.waitFor(image: TemplateName | ImagePath | CapturedImage, options?: WaitOptions): Promise<Found | null>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-015",
+            "GS-API-018",
+            "GS-API-020",
+            "GS-API-016",
+            "GS-API-037",
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-017",
+            "GS-API-019",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "waitGone",
+          "signature": "vision.waitGone(image: TemplateName | ImagePath | CapturedImage, options?: WaitOptions): Promise<boolean>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-015",
+            "GS-API-018",
+            "GS-API-020",
+            "GS-API-016",
+            "GS-API-037",
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-017",
+            "GS-API-019",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "findAndTap",
+          "signature": "vision.findAndTap(image: TemplateName | ImagePath | CapturedImage, options?: FindOptions): Promise<Found | null>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-015",
+            "GS-API-018",
+            "GS-API-020",
+            "GS-API-016",
+            "GS-API-037",
+            "GS-API-002",
+            "GS-API-003",
+            "GS-API-017",
+            "GS-API-019",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "watch",
+          "signature": "vision.watch(image: TemplateName | ImagePath | CapturedImage, onAppear: (event: TaskContext & Found) => void | Promise<void>, onGone?: (event: TaskContext) => void | Promise<void>, options?: WatchOptions): Subscription",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-008",
+            "GS-API-009",
+            "GS-API-003",
+            "GS-API-015",
+            "GS-API-018",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "capture",
+          "signature": "vision.capture(region?: Region | RegionName, options?: PixelOptions): Promise<CapturedImage | null>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-002",
+            "GS-API-018",
+            "GS-API-020",
+            "GS-API-011",
+            "GS-API-003",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "changed",
+          "signature": "vision.changed(region?: Region | RegionName, options?: ChangeOptions): Promise<boolean>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-002",
+            "GS-API-018",
+            "GS-API-020",
+            "GS-API-011",
+            "GS-API-017",
+            "GS-API-003",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "onChange",
+          "signature": "vision.onChange(region: Region | RegionName, handler: (event: TaskContext) => void | Promise<void>, options?: OnChangeOptions): Subscription",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-008",
+            "GS-API-009",
+            "GS-API-003",
+            "GS-API-002",
+            "GS-API-018",
+            "GS-API-017",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "readText",
+          "signature": "vision.readText(options?: ReadTextOptions): Promise<TextResult | null>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-002",
+            "GS-API-018",
+            "GS-API-020",
+            "GS-API-003",
+            "GS-API-039",
+            "GS-API-001"
+          ]
+        },
+        {
+          "name": "findText",
+          "signature": "vision.findText(text: string, options?: ReadTextOptions): Promise<Found | null>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-002",
+            "GS-API-018",
+            "GS-API-020",
+            "GS-API-003",
+            "GS-API-039",
+            "GS-API-001"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "res",
+      "functions": [
+        {
+          "name": "point",
+          "signature": "res.point(name: PointName): PicturePoint",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-018",
+            "GS-API-020"
+          ]
+        },
+        {
+          "name": "region",
+          "signature": "res.region(name: RegionName): Region",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-018",
+            "GS-API-020"
+          ]
+        },
+        {
+          "name": "path",
+          "signature": "res.path(name: PathName): PicturePath",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-018",
+            "GS-API-020"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "math",
+      "functions": [
+        {
+          "name": "clamp",
+          "signature": "math.clamp(value: number, low: number, high: number): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "lerp",
+          "signature": "math.lerp(from: number, to: number, t: number): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "random",
+          "signature": "math.random(low?: number, high?: number): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "randomInt",
+          "signature": "math.randomInt(low: number, high: number): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "randomIn",
+          "signature": "math.randomIn(region: Region): PicturePoint",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "distance",
+          "signature": "math.distance(from: PicturePoint, to: PicturePoint): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "angle",
+          "signature": "math.angle(from: PicturePoint, to: PicturePoint): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "round",
+          "signature": "math.round(value: number): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "floor",
+          "signature": "math.floor(value: number): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "ceil",
+          "signature": "math.ceil(value: number): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "abs",
+          "signature": "math.abs(value: number): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "min",
+          "signature": "math.min(a: number, b: number): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "max",
+          "signature": "math.max(a: number, b: number): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-017"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "list",
+      "functions": [
+        {
+          "name": "add",
+          "signature": "list.add(items: unknown[], value: unknown): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "insert",
+          "signature": "list.insert(items: unknown[], index: number, value: unknown): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "removeAt",
+          "signature": "list.removeAt(items: unknown[], index: number): unknown",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "remove",
+          "signature": "list.remove(items: unknown[], value: unknown): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "indexOf",
+          "signature": "list.indexOf(items: unknown[], value: unknown): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "at",
+          "signature": "list.at(items: unknown[], index: number): unknown",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "setAt",
+          "signature": "list.setAt(items: unknown[], index: number, value: unknown): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "size",
+          "signature": "list.size(items: unknown[]): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "has",
+          "signature": "list.has(items: unknown[], value: unknown): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "sort",
+          "signature": "list.sort(items: unknown[]): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "shuffle",
+          "signature": "list.shuffle(items: unknown[]): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-017"
+          ]
+        },
+        {
+          "name": "clear",
+          "signature": "list.clear(items: unknown[]): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-017"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "dict",
+      "functions": [
+        {
+          "name": "make",
+          "signature": "dict.make(): Map<unknown, unknown>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "set",
+          "signature": "dict.set(map: Map<unknown, unknown>, key: unknown, value: unknown): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "get",
+          "signature": "dict.get(map: Map<unknown, unknown>, key: unknown): unknown",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "has",
+          "signature": "dict.has(map: Map<unknown, unknown>, key: unknown): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "remove",
+          "signature": "dict.remove(map: Map<unknown, unknown>, key: unknown): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "keys",
+          "signature": "dict.keys(map: Map<unknown, unknown>): unknown[]",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "values",
+          "signature": "dict.values(map: Map<unknown, unknown>): unknown[]",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "size",
+          "signature": "dict.size(map: Map<unknown, unknown>): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "clear",
+          "signature": "dict.clear(map: Map<unknown, unknown>): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "set",
+      "functions": [
+        {
+          "name": "make",
+          "signature": "set.make(): Set<unknown>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "add",
+          "signature": "set.add(items: Set<unknown>, value: unknown): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "has",
+          "signature": "set.has(items: Set<unknown>, value: unknown): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "remove",
+          "signature": "set.remove(items: Set<unknown>, value: unknown): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "values",
+          "signature": "set.values(items: Set<unknown>): unknown[]",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "size",
+          "signature": "set.size(items: Set<unknown>): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "clear",
+          "signature": "set.clear(items: Set<unknown>): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "text",
+      "functions": [
+        {
+          "name": "join",
+          "signature": "text.join(parts: unknown[], separator?: string): string",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "format",
+          "signature": "text.format(template: string, ...values: unknown[]): string",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "find",
+          "signature": "text.find(text: string, part: string): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "has",
+          "signature": "text.has(text: string, part: string): boolean",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "split",
+          "signature": "text.split(text: string, separator: string): string[]",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "replace",
+          "signature": "text.replace(text: string, part: string, instead: string): string",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "upper",
+          "signature": "text.upper(text: string): string",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "lower",
+          "signature": "text.lower(text: string): string",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "trim",
+          "signature": "text.trim(text: string): string",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        },
+        {
+          "name": "length",
+          "signature": "text.length(text: string): number",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "param",
+      "functions": [
+        {
+          "name": "number",
+          "signature": "param.number(value: number, options?: ParamOptions): TaskParam",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-034"
+          ]
+        },
+        {
+          "name": "text",
+          "signature": "param.text(value: string, options?: ParamOptions): TaskParam",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-034"
+          ]
+        },
+        {
+          "name": "toggle",
+          "signature": "param.toggle(value: boolean, options?: ParamOptions): TaskParam",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-034"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "prop",
+      "functions": [
+        {
+          "name": "key",
+          "signature": "prop.key(key?: string, options?: PropOptions): ComponentProp",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-034"
+          ]
+        },
+        {
+          "name": "position",
+          "signature": "prop.position(at?: PicturePoint, options?: PropOptions): ComponentProp",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-034"
+          ]
+        },
+        {
+          "name": "number",
+          "signature": "prop.number(value: number, options?: NumberPropOptions): ComponentProp",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-034"
+          ]
+        },
+        {
+          "name": "text",
+          "signature": "prop.text(value: string, options?: PropOptions): ComponentProp",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-034"
+          ]
+        },
+        {
+          "name": "toggle",
+          "signature": "prop.toggle(value: boolean, options?: PropOptions): ComponentProp",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-034"
+          ]
+        },
+        {
+          "name": "component",
+          "signature": "prop.component(of?: string | Interface<unknown> | { readonly prototype: Component } | { readonly component?: Component }, options?: PropOptions): ComponentProp",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-034"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "mcp",
+      "functions": [
+        {
+          "name": "tool",
+          "signature": "mcp.tool(name: string, spec: McpToolSpec, handler: (input: any, event: TaskContext) => unknown): Subscription",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-074"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ai",
+      "functions": [
+        {
+          "name": "ask",
+          "signature": "ai.ask(question: string, options?: AiAskOptions): Promise<string | null>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-011",
+            "GS-API-003",
+            "GS-API-002",
+            "GS-API-018",
+            "GS-API-020",
+            "GS-API-095",
+            "GS-API-096",
+            "GS-API-097",
+            "GS-API-072",
+            "GS-API-073"
+          ]
+        }
+      ]
+    }
+  ],
+  "interfaces": [
+    {
+      "name": "Component",
+      "members": [
+        "readonly id: string",
+        "readonly name: string",
+        "readonly position: PicturePoint | null",
+        "readonly type: ComponentType",
+        "readonly props: Readonly<Record<string, any>>",
+        "readonly key: InputName | null",
+        "readonly inputs: Readonly<Record<string, InputName>>",
+        "readonly hint: Hint",
+        "enabled: boolean",
+        "enable(): void",
+        "disable(): void",
+        "toggle(): void",
+        "readonly active: boolean",
+        "readonly pressedAt: number | null",
+        "readonly heldMs: number",
+        "readonly touching: boolean",
+        "trigger(): Action<void>",
+        "hold(durationMs: number): Action<void>",
+        "press(): void",
+        "release(): void",
+        "reset(): void",
+        "moveTo(x: number | PicturePoint, y?: number): void",
+        "moveBy(dx: number, dy: number): void",
+        "resetPosition(): void",
+        "resetProps(): void",
+        "bind(property: \"enabled\", compute: () => unknown): Binding",
+        "onPress(handler: (event: ControlEvent) => void | Promise<void>, options?: KeyListenOptions): Subscription",
+        "onRelease(handler: (event: ControlEvent) => void | Promise<void>, options?: KeyListenOptions): Subscription",
+        "whileHeld(handler: (event: ControlEvent) => void | Promise<void>, options?: KeyListenOptions): Subscription",
+        "onEnabled(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onDisabled(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onTouchStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onTouchEnd(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "setup(): void",
+        "event(): ComponentEvent",
+        "child<T extends Component>(kind: { readonly component?: T }): T",
+        "readonly finger: ComponentFinger"
+      ]
+    },
+    {
+      "name": "Hint",
+      "members": [
+        "show(): void",
+        "hide(): void",
+        "setText(text: string): void",
+        "moveTo(x: number | PicturePoint, y?: number): void",
+        "flash(): void",
+        "reset(): void"
+      ]
+    },
+    {
+      "name": "Tap",
+      "members": [
+        "readonly tapMs: number",
+        "tap(): Action<void>",
+        "tapTimes(count: number, gapMs?: number): Action<void>",
+        "setDuration(durationMs: number): void",
+        "resetDuration(): void"
+      ]
+    },
+    {
+      "name": "Hold",
+      "members": [
+        "readonly holding: boolean",
+        "holdFor(durationMs: number): Action<void>",
+        "toggleHold(): void",
+        "onPressed(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onReleased(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "LongPress",
+      "members": [
+        "readonly holdMs: number",
+        "readonly holding: boolean",
+        "longPress(durationMs?: number): Action<void>",
+        "setDuration(durationMs: number): void",
+        "resetDuration(): void",
+        "onStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onEnd(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "Turbo",
+      "members": [
+        "readonly rateHz: number",
+        "readonly tapMs: number",
+        "readonly firing: boolean",
+        "start(rateHz?: number): void",
+        "stop(): void",
+        "burst(count: number): Action<void>",
+        "setRate(rateHz: number): void",
+        "resetRate(): void"
+      ]
+    },
+    {
+      "name": "Swipe",
+      "members": [
+        "readonly durationMs: number",
+        "readonly swiping: boolean",
+        "swipe(): Action<void>",
+        "setDuration(durationMs: number): void",
+        "resetDuration(): void",
+        "onStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onEnd(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "Pinch",
+      "members": [
+        "readonly pinching: boolean",
+        "zoomIn(): void",
+        "zoomOut(): void"
+      ]
+    },
+    {
+      "name": "Stick",
+      "members": [
+        "readonly radius: number",
+        "readonly moving: boolean",
+        "readonly direction: number | null",
+        "readonly amount: number",
+        "push(direction: number, amount?: number): void",
+        "release(): void",
+        "walkFor(direction: number, durationMs: number, amount?: number): Action<void>",
+        "setRadius(radius: number): void",
+        "resetRadius(): void",
+        "onMoveStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onStop(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onDirectionChange(handler: (event: DirectionEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "Wasd",
+      "members": [
+        "readonly walkScale: number",
+        "readonly sprintScale: number"
+      ]
+    },
+    {
+      "name": "PadStick",
+      "members": []
+    },
+    {
+      "name": "RightWalk",
+      "members": [
+        "readonly walking: boolean",
+        "readonly walkMsPerUnit: number",
+        "readonly stopOnRelease: boolean",
+        "walkTo(x: number | PicturePoint, y?: number): void",
+        "stop(): void",
+        "setRadius(radius: number): void",
+        "resetRadius(): void",
+        "onWalkStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onStop(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "Look",
+      "members": [
+        "readonly turning: boolean",
+        "recenter(): void",
+        "turn(dx: number, dy: number): void",
+        "setSensitivity(x: number, y?: number): void",
+        "resetSensitivity(): void",
+        "onTurnStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onTurnEnd(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "Camera",
+      "members": [
+        "readonly locked: boolean",
+        "lock(): void",
+        "unlock(): void",
+        "toggleLock(): void",
+        "onLock(handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onUnlock(handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "PadCamera",
+      "members": []
+    },
+    {
+      "name": "FreeLook",
+      "members": [
+        "readonly looking: boolean",
+        "begin(): void",
+        "end(): void",
+        "turn(dx: number, dy: number): void",
+        "setSensitivity(x: number, y?: number): void",
+        "resetSensitivity(): void",
+        "onStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onEnd(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "Skill",
+      "members": [
+        "readonly aiming: boolean",
+        "aim(): void",
+        "cast(): void",
+        "cancel(): void",
+        "turn(dx: number, dy: number): void",
+        "setRadius(radius: number): void",
+        "resetRadius(): void",
+        "setSensitivity(x: number, y?: number): void",
+        "resetSensitivity(): void",
+        "onAimStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onCast(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onCancel(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "Dial",
+      "members": [
+        "readonly open: boolean",
+        "readonly cell: number",
+        "readonly cells: number",
+        "choose(cell: number): Action<void>",
+        "onOpen(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onChoose(handler: (event: CellEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "MultiPress",
+      "members": [
+        "readonly places: number",
+        "readonly holding: boolean",
+        "holdFor(durationMs: number): Action<void>",
+        "toggleHold(): void",
+        "onPressed(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onReleased(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "TempCursor",
+      "members": [
+        "readonly showing: boolean",
+        "onShow(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onHide(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "ActionWheel",
+      "members": [
+        "readonly open: boolean",
+        "readonly cell: number",
+        "readonly cells: number",
+        "readonly names: readonly string[]",
+        "choose(cell: number): Action<void>",
+        "onOpen(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onChoose(handler: (event: WheelChoice) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "Variable",
+      "members": [
+        "readonly id: string",
+        "readonly name: string",
+        "value: VarValue",
+        "toggle(): void",
+        "onChange(handler: (event: VarChange) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "Key",
+      "members": [
+        "readonly name: InputName",
+        "readonly isDown: boolean",
+        "readonly pressedAt: number | null",
+        "readonly heldMs: number",
+        "onPress(handler: (event: KeyEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onRelease(handler: (event: KeyEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "whileHeld(handler: (event: KeyEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onTap(handler: (event: KeyEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onDoubleTap(handler: (event: KeyEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onLongPress(durationMs: number, handler: (event: KeyEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "Globals",
+      "members": [
+        "get(name: string): StoreValue | undefined",
+        "set(name: string, value: StoreValue): void",
+        "onChange(name: string, handler: (event: GlobalChange) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "Gate",
+      "members": [
+        "readonly isOpen: boolean",
+        "open(): void",
+        "close(): void",
+        "toggle(): void",
+        "run<T>(action: () => T): T | undefined"
+      ]
+    },
+    {
+      "name": "Stopwatch",
+      "members": [
+        "readonly elapsedMs: number",
+        "reset(): void",
+        "lap(): number"
+      ]
+    },
+    {
+      "name": "Finger",
+      "members": [
+        "readonly down: boolean",
+        "move(x: number | PicturePoint, y?: number, durationMs?: number): Action<void>",
+        "up(): void"
+      ]
+    },
+    {
+      "name": "CapturedImage",
+      "members": [
+        "readonly region: Region",
+        "readonly width: number",
+        "readonly height: number",
+        "save(name: string): Promise<void>"
+      ]
+    },
+    {
+      "name": "Task",
+      "members": [
+        "readonly params: TaskParams",
+        "progress(text: string): void",
+        "run(context: TaskContext): Promise<void>"
+      ]
+    },
+    {
+      "name": "ComponentEvent",
+      "members": [
+        "emit(value?: unknown): void",
+        "on(handler: (event: { readonly value: unknown }) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "ComponentFinger",
+      "members": [
+        "readonly isDown: boolean",
+        "down(x: number | PicturePoint, y?: number): Finger",
+        "move(x: number | PicturePoint, y?: number, durationMs?: number): Action<void>",
+        "up(): void"
+      ]
+    },
+    {
+      "name": "ComponentClass",
+      "members": [
+        "new (options?: ComponentOptions): Component",
+        "readonly prototype: Component",
+        "readonly implements?: readonly Interface<unknown>[]"
+      ]
+    },
+    {
+      "name": "ComponentOverrides",
+      "members": [
+        "setup(): void",
+        "onPress(event?: ControlEvent): void | Promise<void>",
+        "onRelease(event?: ControlEvent): void | Promise<void>",
+        "whileHeld(event?: ControlEvent): void | Promise<void>",
+        "onEnabled(event?: ControlEvent): void | Promise<void>",
+        "onDisabled(event?: ControlEvent): void | Promise<void>",
+        "onTouchStart(event?: ControlEvent): void | Promise<void>",
+        "onTouchEnd(event?: ControlEvent): void | Promise<void>"
+      ]
+    },
+    {
+      "name": "HoldOverrides",
+      "members": [
+        "onPressed(event?: ControlEvent): void | Promise<void>",
+        "onReleased(event?: ControlEvent): void | Promise<void>"
+      ]
+    },
+    {
+      "name": "StartEndOverrides",
+      "members": [
+        "onStart(event?: ControlEvent): void | Promise<void>",
+        "onEnd(event?: ControlEvent): void | Promise<void>"
+      ]
+    },
+    {
+      "name": "StickOverrides",
+      "members": [
+        "onMoveStart(event?: ControlEvent): void | Promise<void>",
+        "onStop(event?: ControlEvent): void | Promise<void>",
+        "onDirectionChange(event?: DirectionEvent): void | Promise<void>"
+      ]
+    },
+    {
+      "name": "RightWalkOverrides",
+      "members": [
+        "onWalkStart(event?: ControlEvent): void | Promise<void>",
+        "onStop(event?: ControlEvent): void | Promise<void>"
+      ]
+    },
+    {
+      "name": "LookOverrides",
+      "members": [
+        "onTurnStart(event?: ControlEvent): void | Promise<void>",
+        "onTurnEnd(event?: ControlEvent): void | Promise<void>"
+      ]
+    },
+    {
+      "name": "CameraOverrides",
+      "members": [
+        "onLock(event?: TaskContext): void | Promise<void>",
+        "onUnlock(event?: TaskContext): void | Promise<void>"
+      ]
+    },
+    {
+      "name": "SkillOverrides",
+      "members": [
+        "onAimStart(event?: ControlEvent): void | Promise<void>",
+        "onCast(event?: ControlEvent): void | Promise<void>",
+        "onCancel(event?: ControlEvent): void | Promise<void>"
+      ]
+    },
+    {
+      "name": "DialOverrides",
+      "members": [
+        "onOpen(event?: ControlEvent): void | Promise<void>",
+        "onChoose(event?: CellEvent): void | Promise<void>"
+      ]
+    },
+    {
+      "name": "TempCursorOverrides",
+      "members": [
+        "onShow(event?: ControlEvent): void | Promise<void>",
+        "onHide(event?: ControlEvent): void | Promise<void>"
+      ]
+    },
+    {
+      "name": "ActionWheelOverrides",
+      "members": [
+        "onOpen(event?: ControlEvent): void | Promise<void>",
+        "onChoose(event?: WheelChoice): void | Promise<void>"
+      ]
+    },
+    {
+      "name": "TaskClass",
+      "members": [
+        "new (): Task",
+        "readonly prototype: Task"
+      ]
+    },
+    {
+      "name": "UiPanel",
+      "members": [
+        "render(tree: UiNode | null): void",
+        "on(type: UiEventType, handler: (event: UiEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "close(): void"
+      ]
+    },
+    {
+      "name": "UiStatus",
+      "members": [
+        "render(tree: UiStatusNode | null): void"
+      ]
+    },
+    {
+      "name": "Controls",
+      "members": []
+    },
+    {
+      "name": "Vars",
+      "members": []
+    },
+    {
+      "name": "TemplateNames",
+      "members": []
+    },
+    {
+      "name": "RegionNames",
+      "members": []
+    },
+    {
+      "name": "PointNames",
+      "members": []
+    },
+    {
+      "name": "PathNames",
+      "members": []
+    },
+    {
+      "name": "ColorNames",
+      "members": []
+    },
+    {
+      "name": "Extensions",
+      "members": []
+    },
+    {
+      "name": "HardwareDevice",
+      "members": [
+        "readonly id: string",
+        "readonly kind: HardwareKind",
+        "readonly name: string",
+        "readonly isOpen: boolean",
+        "close(): Promise<void>",
+        "onClose(handler: (event: DeviceCloseEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "SerialDevice",
+      "members": [
+        "readonly kind: \"serial\"",
+        "write(data: HardwareBytes | string): Promise<void>",
+        "setSignals(signals: SerialSignals): Promise<void>",
+        "onData(handler: (event: DeviceDataEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "HidDevice",
+      "members": [
+        "readonly kind: \"hid\"",
+        "sendReport(report: number, data: HardwareBytes): Promise<void>",
+        "sendFeature(report: number, data: HardwareBytes): Promise<void>",
+        "getFeature(report: number): Promise<Uint8Array>",
+        "onReport(handler: (event: DeviceReportEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "BleDevice",
+      "members": [
+        "readonly kind: \"ble\"",
+        "services(): Promise<readonly BleService[]>",
+        "read(service: string, characteristic: string): Promise<Uint8Array>",
+        "write(service: string, characteristic: string, data: HardwareBytes, options?: BleWriteOptions): Promise<void>",
+        "subscribe(service: string, characteristic: string, handler: (event: DeviceNotifyEvent) => void | Promise<void>, options?: ListenOptions): Promise<Subscription>"
+      ]
+    },
+    {
+      "name": "InputSource",
+      "members": [
+        "readonly name: string",
+        "press(key: string): void",
+        "release(key: string): void",
+        "axis(key: string, x: number, y?: number): void"
+      ]
+    }
+  ],
+  "types": [
+    {
+      "name": "AbortSignal",
+      "definition": "{ readonly aborted: boolean; readonly reason: unknown; onabort: (() => void) | null; throwIfAborted(): void; addEventListener(type: \"abort\", listener: () => void): void; removeEventListener(type: \"abort\", listener: () => void): void }"
+    },
+    {
+      "name": "TaskContext",
+      "definition": "{ readonly signal: AbortSignal }"
+    },
+    {
+      "name": "TaskParams",
+      "definition": "{ readonly [name: string]: any }"
+    },
+    {
+      "name": "TaskParam",
+      "definition": "{ readonly kind: \"number\" | \"text\" | \"toggle\"; readonly value: number | string | boolean; readonly label?: string; readonly min?: number; readonly max?: number }"
+    },
+    {
+      "name": "ComponentOptions",
+      "definition": "{ readonly id?: string; readonly enabled?: boolean; readonly [prop: string]: unknown }"
+    },
+    {
+      "name": "ComponentProp",
+      "definition": "{ readonly kind: \"key\" | \"position\" | \"number\" | \"text\" | \"toggle\" | \"component\"; readonly value: unknown; readonly label?: string }"
+    },
+    {
+      "name": "PropOptions",
+      "definition": "{ label?: string }"
+    },
+    {
+      "name": "McpToolSpec",
+      "definition": "{ readonly description: string; readonly input?: { readonly [key: string]: unknown } }"
+    },
+    {
+      "name": "NumberPropOptions",
+      "definition": "{ label?: string; min?: number; max?: number }"
+    },
+    {
+      "name": "ParamOptions",
+      "definition": "{ label?: string; min?: number; max?: number }"
+    },
+    {
+      "name": "AndroidKey",
+      "definition": "\"back\" | \"home\" | \"appSwitch\" | \"menu\" | \"power\" | \"volumeUp\" | \"volumeDown\" | \"volumeMute\" | \"enter\" | \"delete\" | \"tab\" | \"space\" | \"escape\" | \"up\" | \"down\" | \"left\" | \"right\" | \"pageUp\" | \"pageDown\" | \"search\" | \"camera\" | \"mediaPlayPause\" | \"notifications\" | \"settings\""
+    },
+    {
+      "name": "DeviceInfo",
+      "definition": "{ readonly model: string; readonly android: number; readonly width: number; readonly height: number; readonly rotation: 0 | 1 | 2 | 3 }"
+    },
+    {
+      "name": "ComponentType",
+      "definition": "\"tap\" | \"hold\" | \"longPress\" | \"turbo\" | \"swipe\" | \"pinch\" | \"wasd\" | \"rightWalk\" | \"padStick\" | \"camera\" | \"padCamera\" | \"freeLook\" | \"skill\""
+    },
+    {
+      "name": "MachineStep",
+      "definition": "{ readonly state: string; readonly reason: string }"
+    },
+    {
+      "name": "MachineTo<S>",
+      "definition": "{ readonly [K in S & string]: (reason?: string) => MachineStep }"
+    },
+    {
+      "name": "MachineOptions<S>",
+      "definition": "{ name?: string; start?: NoInfer<S & string> }"
+    },
+    {
+      "name": "Interface<T>",
+      "definition": "{ readonly name: string; all(): (Component & T)[] }"
+    },
+    {
+      "name": "BuiltInClass<T, O>",
+      "definition": "{ new (): Omit<T, keyof O> & O; readonly component?: T; readonly implements?: readonly Interface<unknown>[] }"
+    },
+    {
+      "name": "ControlInfo",
+      "definition": "{ readonly id: string; readonly name: string; readonly type: ComponentType; readonly enabled: boolean }"
+    },
+    {
+      "name": "VarValue",
+      "definition": "boolean | number | string"
+    },
+    {
+      "name": "StoreValue",
+      "definition": "null | boolean | number | string | StoreValue[] | { [key: string]: StoreValue }"
+    },
+    {
+      "name": "ListenOptions",
+      "definition": "{ readonly again?: \"ignore\" | \"restart\" | \"stop\" | \"queue\" | \"parallel\" }"
+    },
+    {
+      "name": "KeyListenOptions",
+      "definition": "ListenOptions & { readonly consume?: boolean }"
+    },
+    {
+      "name": "Subscription",
+      "definition": "{ dispose(): void }"
+    },
+    {
+      "name": "UntilOptions",
+      "definition": "{ readonly timeoutMs?: number; readonly retry?: number }"
+    },
+    {
+      "name": "Action<T>",
+      "definition": "Promise<T> & { until<R>(condition: () => R | Promise<R>, options?: UntilOptions): Promise<NonNullable<Awaited<R>>> }"
+    },
+    {
+      "name": "Binding",
+      "definition": "{ dispose(): void }"
+    },
+    {
+      "name": "ControlEvent",
+      "definition": "TaskContext & { readonly control: string }"
+    },
+    {
+      "name": "DirectionEvent",
+      "definition": "ControlEvent & { readonly direction: number }"
+    },
+    {
+      "name": "CellEvent",
+      "definition": "ControlEvent & { readonly cell: number }"
+    },
+    {
+      "name": "WheelChoice",
+      "definition": "ControlEvent & { readonly cell: number; readonly name: string }"
+    },
+    {
+      "name": "VarChange",
+      "definition": "TaskContext & { readonly id: string; readonly value: VarValue }"
+    },
+    {
+      "name": "KeyEvent",
+      "definition": "TaskContext & { readonly key: InputName; readonly heldMs?: number }"
+    },
+    {
+      "name": "Keys",
+      "definition": "{ readonly [name: string]: Key }"
+    },
+    {
+      "name": "GlobalChange",
+      "definition": "TaskContext & { readonly name: string; readonly value: StoreValue }"
+    },
+    {
+      "name": "ForegroundApp",
+      "definition": "{ readonly package: string; readonly game: boolean }"
+    },
+    {
+      "name": "InputBox",
+      "definition": "{ readonly shown: boolean; readonly inputType: number; readonly action: \"unspecified\" | \"none\" | \"go\" | \"search\" | \"send\" | \"next\" | \"done\" | \"previous\"; readonly multiLine: boolean }"
+    },
+    {
+      "name": "LaunchOptions",
+      "definition": "{ readonly restart?: boolean }"
+    },
+    {
+      "name": "ProfileInfo",
+      "definition": "{ readonly id: string; readonly name: string }"
+    },
+    {
+      "name": "Work",
+      "definition": "Promise<unknown> | (() => unknown)"
+    },
+    {
+      "name": "ConfirmOptions",
+      "definition": "{ readonly ok?: string; readonly cancel?: string }"
+    },
+    {
+      "name": "AskOptions",
+      "definition": "{ readonly initial?: string }"
+    },
+    {
+      "name": "PicturePoint",
+      "definition": "{ readonly x: number; readonly y: number }"
+    },
+    {
+      "name": "InputName",
+      "definition": "string"
+    },
+    {
+      "name": "DrawColor",
+      "definition": "\"accent\" | \"good\" | \"warn\" | \"bad\" | \"white\""
+    },
+    {
+      "name": "BoxOptions",
+      "definition": "{ readonly color?: DrawColor; readonly label?: string; readonly durationMs?: number }"
+    },
+    {
+      "name": "TextOptions",
+      "definition": "{ readonly color?: DrawColor; readonly durationMs?: number }"
+    },
+    {
+      "name": "MarkOptions",
+      "definition": "{ readonly color?: DrawColor; readonly label?: string; readonly durationMs?: number }"
+    },
+    {
+      "name": "Drawing",
+      "definition": "{ dispose(): void }"
+    },
+    {
+      "name": "Region",
+      "definition": "{ readonly x: number; readonly y: number; readonly width: number; readonly height: number }"
+    },
+    {
+      "name": "FindOptions",
+      "definition": "{ readonly region?: Region | RegionName; readonly threshold?: number; readonly match?: MatchMode; readonly max?: number; readonly timeoutMs?: number }"
+    },
+    {
+      "name": "Found",
+      "definition": "{ readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly score: number }"
+    },
+    {
+      "name": "WaitOptions",
+      "definition": "FindOptions & { readonly intervalMs?: number }"
+    },
+    {
+      "name": "WatchOptions",
+      "definition": "FindOptions & ListenOptions & { readonly intervalMs?: number }"
+    },
+    {
+      "name": "MatchMode",
+      "definition": "\"color\" | \"grey\""
+    },
+    {
+      "name": "ColorOptions",
+      "definition": "{ readonly region?: Region | RegionName; readonly tolerance?: number; readonly timeoutMs?: number }"
+    },
+    {
+      "name": "PixelOptions",
+      "definition": "{ readonly timeoutMs?: number }"
+    },
+    {
+      "name": "ChangeOptions",
+      "definition": "{ readonly threshold?: number; readonly timeoutMs?: number }"
+    },
+    {
+      "name": "OnChangeOptions",
+      "definition": "ListenOptions & { readonly threshold?: number; readonly intervalMs?: number }"
+    },
+    {
+      "name": "ReadTextOptions",
+      "definition": "{ readonly region?: Region | RegionName; readonly language?: string; readonly timeoutMs?: number }"
+    },
+    {
+      "name": "TextResult",
+      "definition": "{ readonly text: string; readonly lines: readonly TextLine[]; readonly language: string }"
+    },
+    {
+      "name": "TextLine",
+      "definition": "{ readonly text: string; readonly x: number; readonly y: number; readonly width: number; readonly height: number }"
+    },
+    {
+      "name": "PixelMatchOptions",
+      "definition": "{ readonly tolerance?: number; readonly timeoutMs?: number }"
+    },
+    {
+      "name": "PicturePath",
+      "definition": "{ readonly points: readonly PicturePoint[]; readonly durationMs: number }"
+    },
+    {
+      "name": "ImagePath",
+      "definition": "`${string}.png` | `${string}.jpg` | `${string}.jpeg` | `${string}.bmp` | `${string}.PNG` | `${string}.JPG` | `${string}.JPEG` | `${string}.BMP`"
+    },
+    {
+      "name": "HexColor",
+      "definition": "`#${string}`"
+    },
+    {
+      "name": "TemplateName",
+      "definition": "keyof TemplateNames"
+    },
+    {
+      "name": "RegionName",
+      "definition": "keyof RegionNames"
+    },
+    {
+      "name": "PointName",
+      "definition": "keyof PointNames"
+    },
+    {
+      "name": "PathName",
+      "definition": "keyof PathNames"
+    },
+    {
+      "name": "ColorName",
+      "definition": "keyof ColorNames"
+    },
+    {
+      "name": "UiEventType",
+      "definition": "\"click\" | \"change\" | \"submit\" | \"select\" | \"open\" | \"close\""
+    },
+    {
+      "name": "UiEvent",
+      "definition": "TaskContext & { readonly id: string; readonly value: unknown }"
+    },
+    {
+      "name": "UiTone",
+      "definition": "\"normal\" | \"muted\" | \"accent\" | \"good\" | \"warn\" | \"bad\""
+    },
+    {
+      "name": "UiColor",
+      "definition": "string"
+    },
+    {
+      "name": "UiNode",
+      "definition": "UiColumn | UiRow | UiGroup | UiText | UiButton | UiField | UiNumber | UiToggle | UiChoice | UiSlider | UiList | UiTable | UiChart | UiCanvas | UiImage | UiProgress | UiSeparator"
+    },
+    {
+      "name": "UiColumn",
+      "definition": "{ readonly type: \"column\"; readonly id?: string; readonly children?: readonly UiNode[] }"
+    },
+    {
+      "name": "UiRow",
+      "definition": "{ readonly type: \"row\"; readonly id?: string; readonly children?: readonly UiNode[] }"
+    },
+    {
+      "name": "UiGroup",
+      "definition": "{ readonly type: \"group\"; readonly id?: string; readonly title?: string; readonly children?: readonly UiNode[] }"
+    },
+    {
+      "name": "UiText",
+      "definition": "{ readonly type: \"text\"; readonly id?: string; readonly text: string; readonly format?: \"plain\" | \"markdown\"; readonly style?: \"body\" | \"heading\" | \"caption\"; readonly tone?: UiTone }"
+    },
+    {
+      "name": "UiButton",
+      "definition": "{ readonly type: \"button\"; readonly id: string; readonly title: string; readonly icon?: string; readonly style?: \"normal\" | \"primary\" | \"danger\"; readonly enabled?: boolean }"
+    },
+    {
+      "name": "UiField",
+      "definition": "{ readonly type: \"field\"; readonly id: string; readonly title?: string; readonly value?: string; readonly placeholder?: string; readonly enabled?: boolean }"
+    },
+    {
+      "name": "UiNumber",
+      "definition": "{ readonly type: \"number\"; readonly id: string; readonly title?: string; readonly value?: number; readonly min?: number; readonly max?: number; readonly step?: number; readonly unit?: string; readonly enabled?: boolean }"
+    },
+    {
+      "name": "UiToggle",
+      "definition": "{ readonly type: \"toggle\"; readonly id: string; readonly title: string; readonly value?: boolean; readonly enabled?: boolean }"
+    },
+    {
+      "name": "UiChoice",
+      "definition": "{ readonly type: \"choice\"; readonly id: string; readonly title?: string; readonly options: readonly UiOption[]; readonly value?: string; readonly enabled?: boolean }"
+    },
+    {
+      "name": "UiOption",
+      "definition": "string | { readonly id: string; readonly title: string }"
+    },
+    {
+      "name": "UiSlider",
+      "definition": "{ readonly type: \"slider\"; readonly id: string; readonly title?: string; readonly value?: number; readonly min?: number; readonly max?: number; readonly step?: number; readonly enabled?: boolean }"
+    },
+    {
+      "name": "UiList",
+      "definition": "{ readonly type: \"list\"; readonly id: string; readonly items: readonly UiListItem[]; readonly selected?: string; readonly selectable?: boolean }"
+    },
+    {
+      "name": "UiListItem",
+      "definition": "{ readonly id: string; readonly title: string; readonly subtitle?: string; readonly icon?: string }"
+    },
+    {
+      "name": "UiTable",
+      "definition": "{ readonly type: \"table\"; readonly id?: string; readonly columns: readonly string[]; readonly rows?: readonly UiTableRow[] }"
+    },
+    {
+      "name": "UiTableRow",
+      "definition": "readonly UiCell[]"
+    },
+    {
+      "name": "UiCell",
+      "definition": "string | number | boolean | null"
+    },
+    {
+      "name": "UiChart",
+      "definition": "{ readonly type: \"chart\"; readonly id?: string; readonly title?: string; readonly kind?: \"line\" | \"bar\"; readonly series: readonly UiSeries[]; readonly height?: number; readonly min?: number; readonly max?: number }"
+    },
+    {
+      "name": "UiSeries",
+      "definition": "{ readonly title?: string; readonly color?: UiColor; readonly points: readonly number[] }"
+    },
+    {
+      "name": "UiCanvas",
+      "definition": "{ readonly type: \"canvas\"; readonly id?: string; readonly title?: string; readonly width: number; readonly height: number; readonly shapes?: readonly UiShape[] }"
+    },
+    {
+      "name": "UiShape",
+      "definition": "{ readonly kind: \"rect\" | \"circle\" | \"line\" | \"polyline\" | \"text\"; readonly x?: number; readonly y?: number; readonly width?: number; readonly height?: number; readonly radius?: number; readonly x1?: number; readonly y1?: number; readonly x2?: number; readonly y2?: number; readonly points?: readonly number[]; readonly closed?: boolean; readonly text?: string; readonly size?: \"body\" | \"caption\" | \"heading\"; readonly color?: UiColor; readonly fill?: UiColor; readonly stroke?: UiColor; readonly strokeWidth?: number }"
+    },
+    {
+      "name": "UiImage",
+      "definition": "{ readonly type: \"image\"; readonly id?: string; readonly path: string; readonly title?: string; readonly width?: number; readonly height?: number }"
+    },
+    {
+      "name": "UiProgress",
+      "definition": "{ readonly type: \"progress\"; readonly id?: string; readonly title?: string; readonly value?: number | null }"
+    },
+    {
+      "name": "UiSeparator",
+      "definition": "{ readonly type: \"separator\"; readonly id?: string }"
+    },
+    {
+      "name": "UiStatusNode",
+      "definition": "UiStatusRow | UiStatusPart"
+    },
+    {
+      "name": "UiStatusRow",
+      "definition": "{ readonly type: \"row\"; readonly id?: string; readonly children?: readonly UiStatusPart[] }"
+    },
+    {
+      "name": "UiStatusPart",
+      "definition": "UiText | UiStatusIcon | UiProgress"
+    },
+    {
+      "name": "UiStatusIcon",
+      "definition": "{ readonly type: \"icon\"; readonly id?: string; readonly name: string; readonly tone?: UiTone }"
+    },
+    {
+      "name": "UiMenuItem",
+      "definition": "{ readonly id: string; readonly title: string; readonly icon?: string; readonly checked?: boolean; readonly enabled?: boolean }"
+    },
+    {
+      "name": "HardwareKind",
+      "definition": "\"serial\" | \"hid\" | \"ble\""
+    },
+    {
+      "name": "HardwareFilter",
+      "definition": "{ readonly vendorId?: number; readonly productId?: number; readonly usagePage?: number; readonly usage?: number; readonly services?: readonly string[]; readonly namePrefix?: string }"
+    },
+    {
+      "name": "HardwareRequest",
+      "definition": "{ readonly kind: HardwareKind; readonly filters?: readonly HardwareFilter[] }"
+    },
+    {
+      "name": "HardwareInfo",
+      "definition": "{ readonly id: string; readonly kind: HardwareKind; readonly name: string; readonly present?: boolean }"
+    },
+    {
+      "name": "HardwareBytes",
+      "definition": "Uint8Array | ArrayBuffer | ArrayBufferView | readonly number[]"
+    },
+    {
+      "name": "SerialOptions",
+      "definition": "{ readonly baudRate?: number; readonly dataBits?: 5 | 6 | 7 | 8; readonly parity?: \"none\" | \"even\" | \"odd\" | \"mark\" | \"space\"; readonly stopBits?: 1 | 1.5 | 2; readonly flowControl?: \"none\" | \"hardware\" | \"software\"; readonly dtr?: boolean; readonly rts?: boolean }"
+    },
+    {
+      "name": "SerialSignals",
+      "definition": "{ readonly dtr?: boolean; readonly rts?: boolean }"
+    },
+    {
+      "name": "BleService",
+      "definition": "{ readonly uuid: string; readonly characteristics: readonly BleCharacteristic[] }"
+    },
+    {
+      "name": "BleCharacteristic",
+      "definition": "{ readonly uuid: string; readonly properties: readonly string[] }"
+    },
+    {
+      "name": "BleWriteOptions",
+      "definition": "{ readonly response?: boolean }"
+    },
+    {
+      "name": "DeviceDataEvent",
+      "definition": "TaskContext & { readonly data: Uint8Array }"
+    },
+    {
+      "name": "DeviceReportEvent",
+      "definition": "TaskContext & { readonly report: number; readonly data: Uint8Array }"
+    },
+    {
+      "name": "DeviceNotifyEvent",
+      "definition": "TaskContext & { readonly service: string; readonly characteristic: string; readonly data: Uint8Array }"
+    },
+    {
+      "name": "DeviceCloseEvent",
+      "definition": "TaskContext & { readonly reason: \"removed\" | \"failed\" | \"forgotten\"; readonly message: string }"
+    },
+    {
+      "name": "AiAskOptions",
+      "definition": "{ readonly picture?: boolean | Region | RegionName; readonly timeoutMs?: number }"
+    }
+  ]
+}

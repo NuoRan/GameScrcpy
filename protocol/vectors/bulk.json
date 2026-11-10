@@ -1,0 +1,712 @@
+{
+  "format": "gamescrcpy.protocol-vectors",
+  "protocolVersion": 1,
+  "family": "bulk",
+  "vectors": [
+    {
+      "name": "app-list-typical",
+      "message": "AppList",
+      "channel": "bulk",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 1,
+        "apps": [
+          {
+            "package": "com.example.game",
+            "label": "Example Game",
+            "versionCode": "412",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.android.settings",
+            "label": "设置",
+            "versionCode": "35",
+            "system": true,
+            "enabled": true,
+            "game": false
+          }
+        ]
+      },
+      "hex": "85010000005200000001000210636f6d2e6578616d706c652e67616d650c4578616d706c652047616d65000000000000019c0614636f6d2e616e64726f69642e73657474696e677306e8aebee7bdae000000000000002303"
+    },
+    {
+      "name": "app-list-version-extremes",
+      "message": "AppList",
+      "channel": "bulk",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 3,
+        "apps": [
+          {
+            "package": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+            "label": "lllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll",
+            "versionCode": "18446744073709551615",
+            "system": true,
+            "enabled": false,
+            "game": true
+          },
+          {
+            "package": "",
+            "label": "",
+            "versionCode": "0",
+            "system": false,
+            "enabled": false,
+            "game": false
+          }
+        ]
+      },
+      "hex": "85010000021a000000030002ff707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070ff6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6c6cffffffffffffffff050000000000000000000000"
+    },
+    {
+      "name": "app-list-empty",
+      "message": "AppList",
+      "channel": "bulk",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 2,
+        "apps": []
+      },
+      "hex": "850100000006000000020000"
+    },
+    {
+      "name": "app-list-many",
+      "message": "AppList",
+      "channel": "bulk",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 4294967295,
+        "apps": [
+          {
+            "package": "com.example.app0",
+            "label": "应用 0",
+            "versionCode": "7",
+            "system": true,
+            "enabled": false,
+            "game": true
+          },
+          {
+            "package": "com.example.app1",
+            "label": "应用 1",
+            "versionCode": "1007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app2",
+            "label": "应用 2",
+            "versionCode": "2007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app3",
+            "label": "应用 3",
+            "versionCode": "3007",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app4",
+            "label": "应用 4",
+            "versionCode": "4007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app5",
+            "label": "应用 5",
+            "versionCode": "5007",
+            "system": true,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app6",
+            "label": "应用 6",
+            "versionCode": "6007",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app7",
+            "label": "应用 7",
+            "versionCode": "7007",
+            "system": false,
+            "enabled": false,
+            "game": false
+          },
+          {
+            "package": "com.example.app8",
+            "label": "应用 8",
+            "versionCode": "8007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app9",
+            "label": "应用 9",
+            "versionCode": "9007",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app10",
+            "label": "应用 10",
+            "versionCode": "10007",
+            "system": true,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app11",
+            "label": "应用 11",
+            "versionCode": "11007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app12",
+            "label": "应用 12",
+            "versionCode": "12007",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app13",
+            "label": "应用 13",
+            "versionCode": "13007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app14",
+            "label": "应用 14",
+            "versionCode": "14007",
+            "system": false,
+            "enabled": false,
+            "game": false
+          },
+          {
+            "package": "com.example.app15",
+            "label": "应用 15",
+            "versionCode": "15007",
+            "system": true,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app16",
+            "label": "应用 16",
+            "versionCode": "16007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app17",
+            "label": "应用 17",
+            "versionCode": "17007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app18",
+            "label": "应用 18",
+            "versionCode": "18007",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app19",
+            "label": "应用 19",
+            "versionCode": "19007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app20",
+            "label": "应用 20",
+            "versionCode": "20007",
+            "system": true,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app21",
+            "label": "应用 21",
+            "versionCode": "21007",
+            "system": false,
+            "enabled": false,
+            "game": true
+          },
+          {
+            "package": "com.example.app22",
+            "label": "应用 22",
+            "versionCode": "22007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app23",
+            "label": "应用 23",
+            "versionCode": "23007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app24",
+            "label": "应用 24",
+            "versionCode": "24007",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app25",
+            "label": "应用 25",
+            "versionCode": "25007",
+            "system": true,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app26",
+            "label": "应用 26",
+            "versionCode": "26007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app27",
+            "label": "应用 27",
+            "versionCode": "27007",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app28",
+            "label": "应用 28",
+            "versionCode": "28007",
+            "system": false,
+            "enabled": false,
+            "game": false
+          },
+          {
+            "package": "com.example.app29",
+            "label": "应用 29",
+            "versionCode": "29007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app30",
+            "label": "应用 30",
+            "versionCode": "30007",
+            "system": true,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app31",
+            "label": "应用 31",
+            "versionCode": "31007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app32",
+            "label": "应用 32",
+            "versionCode": "32007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app33",
+            "label": "应用 33",
+            "versionCode": "33007",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app34",
+            "label": "应用 34",
+            "versionCode": "34007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app35",
+            "label": "应用 35",
+            "versionCode": "35007",
+            "system": true,
+            "enabled": false,
+            "game": false
+          },
+          {
+            "package": "com.example.app36",
+            "label": "应用 36",
+            "versionCode": "36007",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app37",
+            "label": "应用 37",
+            "versionCode": "37007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app38",
+            "label": "应用 38",
+            "versionCode": "38007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app39",
+            "label": "应用 39",
+            "versionCode": "39007",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app40",
+            "label": "应用 40",
+            "versionCode": "40007",
+            "system": true,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app41",
+            "label": "应用 41",
+            "versionCode": "41007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app42",
+            "label": "应用 42",
+            "versionCode": "42007",
+            "system": false,
+            "enabled": false,
+            "game": true
+          },
+          {
+            "package": "com.example.app43",
+            "label": "应用 43",
+            "versionCode": "43007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app44",
+            "label": "应用 44",
+            "versionCode": "44007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app45",
+            "label": "应用 45",
+            "versionCode": "45007",
+            "system": true,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app46",
+            "label": "应用 46",
+            "versionCode": "46007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app47",
+            "label": "应用 47",
+            "versionCode": "47007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app48",
+            "label": "应用 48",
+            "versionCode": "48007",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app49",
+            "label": "应用 49",
+            "versionCode": "49007",
+            "system": false,
+            "enabled": false,
+            "game": false
+          },
+          {
+            "package": "com.example.app50",
+            "label": "应用 50",
+            "versionCode": "50007",
+            "system": true,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app51",
+            "label": "应用 51",
+            "versionCode": "51007",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app52",
+            "label": "应用 52",
+            "versionCode": "52007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app53",
+            "label": "应用 53",
+            "versionCode": "53007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app54",
+            "label": "应用 54",
+            "versionCode": "54007",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app55",
+            "label": "应用 55",
+            "versionCode": "55007",
+            "system": true,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app56",
+            "label": "应用 56",
+            "versionCode": "56007",
+            "system": false,
+            "enabled": false,
+            "game": false
+          },
+          {
+            "package": "com.example.app57",
+            "label": "应用 57",
+            "versionCode": "57007",
+            "system": false,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app58",
+            "label": "应用 58",
+            "versionCode": "58007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app59",
+            "label": "应用 59",
+            "versionCode": "59007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app60",
+            "label": "应用 60",
+            "versionCode": "60007",
+            "system": true,
+            "enabled": true,
+            "game": true
+          },
+          {
+            "package": "com.example.app61",
+            "label": "应用 61",
+            "versionCode": "61007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app62",
+            "label": "应用 62",
+            "versionCode": "62007",
+            "system": false,
+            "enabled": true,
+            "game": false
+          },
+          {
+            "package": "com.example.app63",
+            "label": "应用 63",
+            "versionCode": "63007",
+            "system": false,
+            "enabled": false,
+            "game": true
+          }
+        ]
+      },
+      "hex": "850100000932ffffffff004010636f6d2e6578616d706c652e6170703008e5ba94e794a8203000000000000000070510636f6d2e6578616d706c652e6170703108e5ba94e794a8203100000000000003ef0210636f6d2e6578616d706c652e6170703208e5ba94e794a8203200000000000007d70210636f6d2e6578616d706c652e6170703308e5ba94e794a820330000000000000bbf0610636f6d2e6578616d706c652e6170703408e5ba94e794a820340000000000000fa70210636f6d2e6578616d706c652e6170703508e5ba94e794a82035000000000000138f0310636f6d2e6578616d706c652e6170703608e5ba94e794a8203600000000000017770610636f6d2e6578616d706c652e6170703708e5ba94e794a820370000000000001b5f0010636f6d2e6578616d706c652e6170703808e5ba94e794a820380000000000001f470210636f6d2e6578616d706c652e6170703908e5ba94e794a82039000000000000232f0611636f6d2e6578616d706c652e617070313009e5ba94e794a820313000000000000027170311636f6d2e6578616d706c652e617070313109e5ba94e794a82031310000000000002aff0211636f6d2e6578616d706c652e617070313209e5ba94e794a82031320000000000002ee70611636f6d2e6578616d706c652e617070313309e5ba94e794a820313300000000000032cf0211636f6d2e6578616d706c652e617070313409e5ba94e794a820313400000000000036b70011636f6d2e6578616d706c652e617070313509e5ba94e794a82031350000000000003a9f0711636f6d2e6578616d706c652e617070313609e5ba94e794a82031360000000000003e870211636f6d2e6578616d706c652e617070313709e5ba94e794a8203137000000000000426f0211636f6d2e6578616d706c652e617070313809e5ba94e794a820313800000000000046570611636f6d2e6578616d706c652e617070313909e5ba94e794a82031390000000000004a3f0211636f6d2e6578616d706c652e617070323009e5ba94e794a82032300000000000004e270311636f6d2e6578616d706c652e617070323109e5ba94e794a8203231000000000000520f0411636f6d2e6578616d706c652e617070323209e5ba94e794a820323200000000000055f70211636f6d2e6578616d706c652e617070323309e5ba94e794a820323300000000000059df0211636f6d2e6578616d706c652e617070323409e5ba94e794a82032340000000000005dc70611636f6d2e6578616d706c652e617070323509e5ba94e794a820323500000000000061af0311636f6d2e6578616d706c652e617070323609e5ba94e794a820323600000000000065970211636f6d2e6578616d706c652e617070323709e5ba94e794a8203237000000000000697f0611636f6d2e6578616d706c652e617070323809e5ba94e794a82032380000000000006d670011636f6d2e6578616d706c652e617070323909e5ba94e794a8203239000000000000714f0211636f6d2e6578616d706c652e617070333009e5ba94e794a820333000000000000075370711636f6d2e6578616d706c652e617070333109e5ba94e794a8203331000000000000791f0211636f6d2e6578616d706c652e617070333209e5ba94e794a82033320000000000007d070211636f6d2e6578616d706c652e617070333309e5ba94e794a820333300000000000080ef0611636f6d2e6578616d706c652e617070333409e5ba94e794a820333400000000000084d70211636f6d2e6578616d706c652e617070333509e5ba94e794a820333500000000000088bf0111636f6d2e6578616d706c652e617070333609e5ba94e794a82033360000000000008ca70611636f6d2e6578616d706c652e617070333709e5ba94e794a8203337000000000000908f0211636f6d2e6578616d706c652e617070333809e5ba94e794a820333800000000000094770211636f6d2e6578616d706c652e617070333909e5ba94e794a8203339000000000000985f0611636f6d2e6578616d706c652e617070343009e5ba94e794a82034300000000000009c470311636f6d2e6578616d706c652e617070343109e5ba94e794a8203431000000000000a02f0211636f6d2e6578616d706c652e617070343209e5ba94e794a8203432000000000000a4170411636f6d2e6578616d706c652e617070343309e5ba94e794a8203433000000000000a7ff0211636f6d2e6578616d706c652e617070343409e5ba94e794a8203434000000000000abe70211636f6d2e6578616d706c652e617070343509e5ba94e794a8203435000000000000afcf0711636f6d2e6578616d706c652e617070343609e5ba94e794a8203436000000000000b3b70211636f6d2e6578616d706c652e617070343709e5ba94e794a8203437000000000000b79f0211636f6d2e6578616d706c652e617070343809e5ba94e794a8203438000000000000bb870611636f6d2e6578616d706c652e617070343909e5ba94e794a8203439000000000000bf6f0011636f6d2e6578616d706c652e617070353009e5ba94e794a8203530000000000000c3570311636f6d2e6578616d706c652e617070353109e5ba94e794a8203531000000000000c73f0611636f6d2e6578616d706c652e617070353209e5ba94e794a8203532000000000000cb270211636f6d2e6578616d706c652e617070353309e5ba94e794a8203533000000000000cf0f0211636f6d2e6578616d706c652e617070353409e5ba94e794a8203534000000000000d2f70611636f6d2e6578616d706c652e617070353509e5ba94e794a8203535000000000000d6df0311636f6d2e6578616d706c652e617070353609e5ba94e794a8203536000000000000dac70011636f6d2e6578616d706c652e617070353709e5ba94e794a8203537000000000000deaf0611636f6d2e6578616d706c652e617070353809e5ba94e794a8203538000000000000e2970211636f6d2e6578616d706c652e617070353909e5ba94e794a8203539000000000000e67f0211636f6d2e6578616d706c652e617070363009e5ba94e794a8203630000000000000ea670711636f6d2e6578616d706c652e617070363109e5ba94e794a8203631000000000000ee4f0211636f6d2e6578616d706c652e617070363209e5ba94e794a8203632000000000000f2370211636f6d2e6578616d706c652e617070363309e5ba94e794a8203633000000000000f61f04"
+    },
+    {
+      "name": "app-icon-typical",
+      "message": "AppIcon",
+      "channel": "bulk",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 1,
+        "package": "com.example.game",
+        "png": "89504e470d0a1a0a0000000d49484452"
+      },
+      "hex": "8502000000290000000110636f6d2e6578616d706c652e67616d650000001089504e470d0a1a0a0000000d49484452"
+    },
+    {
+      "name": "app-icon-empty",
+      "message": "AppIcon",
+      "channel": "bulk",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 2,
+        "package": "",
+        "png": ""
+      },
+      "hex": "850200000009000000020000000000"
+    },
+    {
+      "name": "app-icon-large",
+      "message": "AppIcon",
+      "channel": "bulk",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 3,
+        "package": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "png": "898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788"
+      },
+      "hex": "85020000110800000003ff70707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707000001000898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788"
+    },
+    {
+      "name": "screenshot-typical",
+      "message": "Screenshot",
+      "channel": "bulk",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 1,
+        "width": 1080,
+        "height": 2400,
+        "format": "png",
+        "data": "89504e470d0a1a0a"
+      },
+      "hex": "8503000000150000000104380960000000000889504e470d0a1a0a"
+    },
+    {
+      "name": "screenshot-empty",
+      "message": "Screenshot",
+      "channel": "bulk",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 0,
+        "width": 0,
+        "height": 0,
+        "format": "png",
+        "data": ""
+      },
+      "hex": "85030000000d00000000000000000000000000"
+    },
+    {
+      "name": "screenshot-max-dimensions",
+      "message": "Screenshot",
+      "channel": "bulk",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 4294967295,
+        "width": 65535,
+        "height": 65535,
+        "format": "png",
+        "data": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+      },
+      "hex": "85030000080dffffffffffffffff0000000800000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+    },
+    {
+      "name": "request-failed-not-found",
+      "message": "RequestFailed",
+      "channel": "bulk",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 1,
+        "code": "notFound",
+        "message": "package not found"
+      },
+      "hex": "85040000001900000001000d00117061636b616765206e6f7420666f756e64"
+    },
+    {
+      "name": "request-failed-busy-empty",
+      "message": "RequestFailed",
+      "channel": "bulk",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 0,
+        "code": "resourceBusy",
+        "message": ""
+      },
+      "hex": "85040000000800000000000a0000"
+    },
+    {
+      "name": "request-failed-max",
+      "message": "RequestFailed",
+      "channel": "bulk",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 4294967295,
+        "code": "internalError",
+        "message": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+      },
+      "hex": "850400000408ffffffff000f040065656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565"
+    }
+  ]
+}

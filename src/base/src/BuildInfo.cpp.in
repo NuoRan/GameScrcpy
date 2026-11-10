@@ -1,0 +1,13 @@
+#include "gs/base/BuildInfo.h"
+
+namespace gs {
+
+BuildInfo buildInfo() noexcept
+{
+    return BuildInfo{
+        .version = "@PROJECT_VERSION@",
+        .revision = "@GS_SOURCE_REVISION@",
+    };
+}
+
+}

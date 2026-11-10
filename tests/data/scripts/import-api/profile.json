@@ -1,0 +1,9 @@
+{
+  "format": "gamescrcpy.profile",
+  "version": 3,
+  "meta": { "name": "Module imports" },
+  "controls": [
+    { "id": "jump", "name": "Jump", "type": "hold", "anchor": "bottomRight", "offset": [-0.2, -0.3],
+      "inputs": { "press": "Space" } }
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "session": "../sessions/basic.json",
+  "until": 2000,
+  "seed": 1,
+  "expect": [
+    "0 state aiming on",
+    "0 enable fire off",
+    "100 state aiming off",
+    "100 enable fire on",
+    "200 enable jump off",
+    "300 enable jump on",
+    "400 tap 0.8 0.9 60",
+    "560 tap 0.8 0.9 60",
+    "660 tap 0.5 0.5 60"
+  ]
+}

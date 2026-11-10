@@ -1,0 +1,245 @@
+{
+  "format": "gamescrcpy.companion-lan-vectors",
+  "spec": "11.7",
+  "vectors": [
+    {
+      "key": "30373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb0209",
+      "phone": "5f1e0c9a3b7d42e8a6c1f09d8e7b6a51",
+      "pc": "c0ffee00112233445566778899aabbcc",
+      "context": "GSCP/1 companion lan",
+      "handshakes": [
+        {
+          "name": "pairing",
+          "token": "oKGio6SlpqeoqaqrrK2urw",
+          "phoneNonce": "030a11181f262d343b424950575e656c",
+          "pcNonce": "0910171e252c333a41484f565d646b72",
+          "status": "accepted",
+          "hello": "4753434c01166f4b47696f36536c7071656f71617172724b327572775f1e0c9a3b7d42e8a6c1f09d8e7b6a51030a11181f262d343b424950575e656c",
+          "reply": "4753434c0100c0ffee00112233445566778899aabbcc0910171e252c333a41484f565d646b72",
+          "sessionKey": "014a6f327db376f5dec8c48b1007eece40ce604b80428463f083350d3068fca3",
+          "records": [
+            {
+              "direction": "toCompanion",
+              "counter": 0,
+              "message": "CompanionHello",
+              "frame": "060100000003000100",
+              "hex": "0000001936c38ca640df96b9206e3ca49b3302b210527efa99a5915ff7"
+            },
+            {
+              "direction": "toComputer",
+              "counter": 0,
+              "message": "CompanionWelcome",
+              "frame": "8601000000080001000438096000",
+              "hex": "0000001e9e5eee2a03250b1bea2042b2327005397a1b500960d73747a6811e28bf84"
+            },
+            {
+              "direction": "toComputer",
+              "counter": 1,
+              "message": "InputBoxChanged",
+              "frame": "860300000006010000400104",
+              "hex": "0000001cfbf66235057561cf5aeaf371651473f6c4a6d29a6b480087c5ce7749"
+            },
+            {
+              "direction": "toCompanion",
+              "counter": 1,
+              "message": "CommitText",
+              "frame": "0603000000080006e4bda0e5a5bd",
+              "hex": "0000001e63064395095b465bb96e5625efd73965c4be59814caa417fd6eb8eedd94d"
+            },
+            {
+              "direction": "toCompanion",
+              "counter": 2,
+              "message": "EditorAction",
+              "frame": "06040000000100",
+              "hex": "000000173cf644bd638828b3d071b96bd99a8b4aab08eee4389a0d"
+            },
+            {
+              "direction": "toCompanion",
+              "counter": 3,
+              "message": "KeyHintState",
+              "frame": "060600000002033c",
+              "hex": "00000018f2ed2270ec038f79ef4d89ef854df1f3dac9c044c365c917"
+            }
+          ]
+        },
+        {
+          "name": "reconnect",
+          "token": "",
+          "phoneNonce": "2930373e454c535a61686f767d848b92",
+          "pcNonce": "4d545b626970777e858c939aa1a8afb6",
+          "status": "accepted",
+          "hello": "4753434c01005f1e0c9a3b7d42e8a6c1f09d8e7b6a512930373e454c535a61686f767d848b92",
+          "reply": "4753434c0100c0ffee00112233445566778899aabbcc4d545b626970777e858c939aa1a8afb6",
+          "sessionKey": "6d9d8efa1e639a4428563a4e38ba218352a7dfef8253d52f15d5288d9273adda",
+          "records": [
+            {
+              "direction": "toCompanion",
+              "counter": 0,
+              "message": "CompanionHello",
+              "frame": "060100000003000100",
+              "hex": "00000019ab610112e1dfa5594051703c07de5a1ef0d7d317f2c9fbbb81"
+            },
+            {
+              "direction": "toComputer",
+              "counter": 0,
+              "message": "CompanionWelcome",
+              "frame": "8601000000080001010000000001",
+              "hex": "0000001e511e6743ea2bc4a7b98facb6cbfa6405d4cc6d4747dd9b48547bc84c85fa"
+            },
+            {
+              "direction": "toCompanion",
+              "counter": 1,
+              "message": "Ping",
+              "frame": "04010000000c0000000100000000004c4b40",
+              "hex": "00000022003158c6cd2b3269f6f73b1897a1393c4185a3ac43395de2118ce4ac16a118343aec"
+            },
+            {
+              "direction": "toComputer",
+              "counter": 1,
+              "message": "Pong",
+              "frame": "8401000000140000000100000000004c4b4000000000006acfc0",
+              "hex": "0000002aba49eacb02f681576b7954a5eb5c82bfaede7ac9b7c7f444f3e79cca63197d2a02075fc7eb5f5cd69a36"
+            }
+          ]
+        },
+        {
+          "name": "refused",
+          "token": "",
+          "status": "unknown",
+          "hello": "4753434c01005f1e0c9a3b7d42e8a6c1f09d8e7b6a51050c131a21282f363d444b525960676e",
+          "reply": "4753434c01010000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ],
+      "malformedHellos": [
+        {
+          "name": "short",
+          "hex": "4753434c01166f4b47696f36536c7071656f71617172724b327572775f1e0c9a3b7d42e8a6c1f09d8e7b6a51000000000000000000000000000000",
+          "error": "Truncated"
+        },
+        {
+          "name": "bad-magic",
+          "hex": "4745542001166f4b47696f36536c7071656f71617172724b327572775f1e0c9a3b7d42e8a6c1f09d8e7b6a5100000000000000000000000000000000",
+          "error": "BadMagic"
+        },
+        {
+          "name": "other-version",
+          "hex": "4753434c02166f4b47696f36536c7071656f71617172724b327572775f1e0c9a3b7d42e8a6c1f09d8e7b6a5100000000000000000000000000000000",
+          "error": "VersionMismatch"
+        },
+        {
+          "name": "token-too-long",
+          "hex": "4753434c014174747474747474747474747474747474747474747474747474747474747474747474747474747474747474747474747474747474747474747474747474747474740000000000000000000000000000000000000000000000000000000000000000",
+          "error": "LengthExceeded"
+        }
+      ],
+      "malformedReplies": [
+        {
+          "name": "short",
+          "hex": "4753434c0100c0ffee00112233445566778899aabbcc000000000000000000000000000000",
+          "error": "Truncated"
+        },
+        {
+          "name": "bad-magic",
+          "hex": "485454500100c0ffee00112233445566778899aabbcc00000000000000000000000000000000",
+          "error": "BadMagic"
+        },
+        {
+          "name": "other-version",
+          "hex": "4753434c0300c0ffee00112233445566778899aabbcc00000000000000000000000000000000",
+          "error": "VersionMismatch"
+        },
+        {
+          "name": "invalid-status",
+          "hex": "4753434c01030000000000000000000000000000000000000000000000000000000000000000",
+          "error": "InvalidEnum"
+        }
+      ],
+      "malformedRecords": [
+        {
+          "name": "tag-tampered",
+          "direction": "toCompanion",
+          "counter": 1,
+          "hex": "0000001e63064395095b465bb96e5625efd73965c4be59814caa417fd6eb8eedd94c",
+          "error": "BadTag"
+        },
+        {
+          "name": "wrong-counter",
+          "direction": "toCompanion",
+          "counter": 0,
+          "hex": "00000019ff7fa4d43ea00efa80fcf8bbfcbc6e874b338c8ff93e2556de",
+          "error": "BadTag"
+        },
+        {
+          "name": "too-short",
+          "direction": "toCompanion",
+          "counter": 0,
+          "hex": "00000015000000000000000000000000000000000000000000",
+          "error": "OutOfRange"
+        },
+        {
+          "name": "too-long",
+          "direction": "toCompanion",
+          "counter": 0,
+          "hex": "00004017",
+          "error": "OutOfRange"
+        }
+      ],
+      "qr": [
+        {
+          "host": "192.168.1.23",
+          "port": 27185,
+          "token": "oKGio6SlpqeoqaqrrK2urw",
+          "key": "30373e454c535a61686f767d848b9299a0a7aeb5bcc3cad1d8dfe6edf4fb0209",
+          "url": "http://192.168.1.23:27185/c/oKGio6SlpqeoqaqrrK2urw#k=MDc-RUxTWmFob3Z9hIuSmaCnrrW8w8rR2N_m7fT7Agk",
+          "target": "/c/oKGio6SlpqeoqaqrrK2urw"
+        },
+        {
+          "host": "10.0.0.2",
+          "port": 50123,
+          "token": "AAAAAAAAAAAAAAAAAAAAAA",
+          "key": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+          "url": "http://10.0.0.2:50123/c/AAAAAAAAAAAAAAAAAAAAAA#k=__________________________________________8",
+          "target": "/c/AAAAAAAAAAAAAAAAAAAAAA"
+        }
+      ],
+      "gcm": [
+        {
+          "name": "gcm-spec-13",
+          "key": "0000000000000000000000000000000000000000000000000000000000000000",
+          "nonce": "000000000000000000000000",
+          "aad": "",
+          "plaintext": "",
+          "ciphertext": "",
+          "tag": "530f8afbc74536b9a963b4f1c4cb738b"
+        },
+        {
+          "name": "gcm-spec-14",
+          "key": "0000000000000000000000000000000000000000000000000000000000000000",
+          "nonce": "000000000000000000000000",
+          "aad": "",
+          "plaintext": "00000000000000000000000000000000",
+          "ciphertext": "cea7403d4d606b6e074ec5d3baf39d18",
+          "tag": "d0d1c8a799996bf0265b98b5d48ab919"
+        },
+        {
+          "name": "gcm-spec-15",
+          "key": "feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308",
+          "nonce": "cafebabefacedbaddecaf888",
+          "aad": "",
+          "plaintext": "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b391aafd255",
+          "ciphertext": "522dc1f099567d07f47f37a32a84427d643a8cdcbfe5c0c97598a2bd2555d1aa8cb08e48590dbb3da7b08b1056828838c5f61e6393ba7a0abcc9f662898015ad",
+          "tag": "b094dac5d93471bdec1a502270e3cc6c"
+        },
+        {
+          "name": "gcm-spec-16",
+          "key": "feffe9928665731c6d6a8f9467308308feffe9928665731c6d6a8f9467308308",
+          "nonce": "cafebabefacedbaddecaf888",
+          "aad": "feedfacedeadbeeffeedfacedeadbeefabaddad2",
+          "plaintext": "d9313225f88406e5a55909c5aff5269a86a7a9531534f7da2e4c303d8a318a721c3c0c95956809532fcf0e2449a6b525b16aedf5aa0de657ba637b39",
+          "ciphertext": "522dc1f099567d07f47f37a32a84427d643a8cdcbfe5c0c97598a2bd2555d1aa8cb08e48590dbb3da7b08b1056828838c5f61e6393ba7a0abcc9f662",
+          "tag": "76fc6ece0f4e1768cddf8853bb2d551b"
+        }
+      ]
+    }
+  ]
+}

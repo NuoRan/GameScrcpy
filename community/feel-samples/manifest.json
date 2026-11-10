@@ -1,0 +1,174 @@
+{
+  "schemaVersion": 1,
+  "id": "community.feel-samples",
+  "version": "1.0.0",
+  "name": "Feel samples",
+  "description": "Community samples of attachments and a behavior: random landing, stick glide and wander, curved swipes, smoothing, adaptive smoothing, a response curve, a dead zone, hold time and a finger that draws circles.",
+  "authors": ["GameScrcpy 社区"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/NuoRan/GameScrcpy",
+  "requires": {
+    "native": "^1.0"
+  },
+  "contributes": {
+    "native": {
+      "dll": "feel-samples.dll",
+      "attachments": [
+        {
+          "name": "randomLanding",
+          "title": "Random landing",
+          "description": "Each press lands at a random spot in a small circle; the moves and the lift of that finger keep the same offset.",
+          "appliesTo": ["*"],
+          "params": [
+            {"key": "radius", "type": "number", "title": "Radius", "description": "As a percentage of the picture's short side.", "default": 2, "min": 0, "max": 20, "step": 0.5, "unit": "%"}
+          ]
+        },
+        {
+          "name": "joystickGlide",
+          "title": "Stick glide",
+          "description": "When the stick turns, the finger slides to the new place over a short time instead of jumping there.",
+          "appliesTo": ["wasd", "padStick", "rightWalk"],
+          "params": [
+            {"key": "time", "type": "integer", "title": "Glide time", "default": 80, "min": 0, "max": 500, "step": 10, "unit": "ms"}
+          ]
+        },
+        {
+          "name": "joystickWander",
+          "title": "Stick wander",
+          "description": "While the stick is pushed, the finger drifts slowly and at random, like a hand that never holds perfectly still.",
+          "appliesTo": ["wasd", "padStick", "rightWalk"],
+          "params": [
+            {"key": "amount", "type": "number", "title": "Drift", "description": "As a percentage of the picture's short side.", "default": 3, "min": 0, "max": 20, "step": 0.5, "unit": "%"}
+          ]
+        },
+        {
+          "name": "curvedSwipe",
+          "title": "Curved swipe",
+          "description": "Bends a straight swipe into an arc: the farther from where the finger went down, the more it bends, back on the line at the swipe length.",
+          "appliesTo": ["swipe"],
+          "params": [
+            {"key": "bend", "type": "number", "title": "Bend", "description": "Negative values bend to the other side.", "default": 0.3, "min": -1, "max": 1, "step": 0.05},
+            {"key": "length", "type": "number", "title": "Swipe length", "description": "As a percentage of the picture's short side.", "default": 50, "min": 1, "max": 200, "step": 1, "unit": "%"}
+          ]
+        },
+        {
+          "name": "smoothing",
+          "title": "Smoothing",
+          "description": "Makes the finger follow more softly; higher values are smoother and slower.",
+          "appliesTo": ["*"],
+          "params": [
+            {"key": "strength", "type": "number", "title": "Strength", "default": 0.5, "min": 0, "max": 0.95, "step": 0.05}
+          ]
+        },
+        {
+          "name": "adaptiveSmoothing",
+          "title": "Adaptive smoothing",
+          "description": "A One Euro filter: smooth when moving slowly, quick when moving fast.",
+          "appliesTo": ["*"],
+          "params": [
+            {"key": "minCutoff", "type": "number", "title": "Lowest cutoff", "default": 1, "min": 0.05, "max": 30, "step": 0.05, "unit": "Hz", "log": true},
+            {"key": "beta", "type": "number", "title": "Speed factor", "default": 1, "min": 0, "max": 20, "step": 0.1}
+          ]
+        },
+        {
+          "name": "responseCurve",
+          "title": "Response curve",
+          "description": "Changes how strongly sticks and triggers act along a curve: across is how far they are pushed, up is how far that goes on.",
+          "appliesTo": ["padStick", "padCamera", "behavior"],
+          "params": [
+            {"key": "curve", "type": "curve", "title": "Curve", "default": [[0, 0], [0.5, 0.25], [1, 1]]}
+          ]
+        },
+        {
+          "name": "deadZone",
+          "title": "Dead zone",
+          "description": "Ignores small pushes of sticks and triggers; beyond the dead zone the value starts again from zero.",
+          "appliesTo": ["padStick", "padCamera", "behavior"],
+          "params": [
+            {"key": "size", "type": "number", "title": "Size", "description": "The share of the stick's travel that is ignored.", "default": 0.15, "min": 0, "max": 0.9, "step": 0.01}
+          ]
+        },
+        {
+          "name": "holdTime",
+          "title": "Hold time",
+          "description": "Keeps every press down at least this long, plus a random extra.",
+          "appliesTo": ["*"],
+          "params": [
+            {"key": "minimum", "type": "integer", "title": "Shortest", "default": 80, "min": 0, "max": 2000, "step": 10, "unit": "ms"},
+            {"key": "extra", "type": "integer", "title": "Random extra", "default": 30, "min": 0, "max": 1000, "step": 10, "unit": "ms"}
+          ]
+        }
+      ],
+      "behaviors": [
+        {
+          "name": "circle",
+          "title": "Draw circles",
+          "description": "While the key is held, one finger goes round in a circle around the component.",
+          "slots": [
+            {"name": "hold", "kind": "key", "title": "Hold"}
+          ],
+          "fingers": 1,
+          "frames": true,
+          "params": [
+            {"key": "radius", "type": "number", "title": "Radius", "description": "As a percentage of the picture's short side.", "default": 30, "min": 1, "max": 200, "step": 1, "unit": "%"},
+            {"key": "period", "type": "integer", "title": "One round", "default": 1000, "min": 100, "max": 10000, "step": 50, "unit": "ms"},
+            {"key": "clockwise", "type": "toggle", "title": "Clockwise", "default": true}
+          ]
+        }
+      ]
+    }
+  },
+  "l10n": {
+    "en": {
+      "name": "Feel samples",
+      "attachments.randomLanding.title": "Random landing",
+      "behaviors.circle.title": "Draw circles"
+    },
+    "zh_CN": {
+      "name": "手感样例",
+      "description": "社区做的附加与按法样例：随机落点、轮盘滑行与拟人偏移、弯曲滑动、平滑、自适应平滑、响应曲线、死区、按住时长，以及一根手指画圈。",
+      "attachments.randomLanding.title": "随机落点",
+      "attachments.randomLanding.description": "每次按下时在一个小圆里随机挑落点，这根手指之后的移动与抬起都保持同样的偏移。",
+      "attachments.randomLanding.params.radius.title": "半径",
+      "attachments.randomLanding.params.radius.description": "按画面短边的百分比计。",
+      "attachments.joystickGlide.title": "轮盘滑行",
+      "attachments.joystickGlide.description": "摇杆换方向时，手指在一小段时间里滑到新位置，而不是一下跳过去。",
+      "attachments.joystickGlide.params.time.title": "滑行时间",
+      "attachments.joystickWander.title": "轮盘拟人偏移",
+      "attachments.joystickWander.description": "推着摇杆时，手指缓慢地随机漂移，像人手一样不会完全静止。",
+      "attachments.joystickWander.params.amount.title": "漂移幅度",
+      "attachments.joystickWander.params.amount.description": "按画面短边的百分比计。",
+      "attachments.curvedSwipe.title": "弯曲滑动",
+      "attachments.curvedSwipe.description": "把直线滑动弯成弧线：离按下的地方越远弯得越多，到滑动长度处回到原线上。",
+      "attachments.curvedSwipe.params.bend.title": "弯曲程度",
+      "attachments.curvedSwipe.params.bend.description": "负数向另一侧弯。",
+      "attachments.curvedSwipe.params.length.title": "滑动长度",
+      "attachments.curvedSwipe.params.length.description": "按画面短边的百分比计。",
+      "attachments.smoothing.title": "平滑",
+      "attachments.smoothing.description": "让手指跟得更柔和；数值越大越平滑，也越慢。",
+      "attachments.smoothing.params.strength.title": "平滑强度",
+      "attachments.adaptiveSmoothing.title": "自适应平滑",
+      "attachments.adaptiveSmoothing.description": "One Euro 滤波：慢慢移动时更平滑，快速移动时更跟手。",
+      "attachments.adaptiveSmoothing.params.minCutoff.title": "最低截止频率",
+      "attachments.adaptiveSmoothing.params.beta.title": "速度系数",
+      "attachments.responseCurve.title": "响应曲线",
+      "attachments.responseCurve.description": "按曲线改变摇杆与扳机的力度：横轴是推了多少，纵轴是送出去多少。",
+      "attachments.responseCurve.params.curve.title": "曲线",
+      "attachments.deadZone.title": "死区",
+      "attachments.deadZone.description": "忽略摇杆与扳机的轻微推动；超出死区后从零开始增加。",
+      "attachments.deadZone.params.size.title": "死区大小",
+      "attachments.deadZone.params.size.description": "摇杆行程里被忽略的比例。",
+      "attachments.holdTime.title": "按住时长",
+      "attachments.holdTime.description": "每次按下至少按住这么久，再随机多按一会儿。",
+      "attachments.holdTime.params.minimum.title": "最短时长",
+      "attachments.holdTime.params.extra.title": "随机加长",
+      "behaviors.circle.title": "画圈",
+      "behaviors.circle.description": "按住键时，一根手指绕着组件的位置画圈。",
+      "behaviors.circle.slots.hold.title": "按住",
+      "behaviors.circle.params.radius.title": "半径",
+      "behaviors.circle.params.radius.description": "按画面短边的百分比计。",
+      "behaviors.circle.params.period.title": "一圈用时",
+      "behaviors.circle.params.clockwise.title": "顺时针"
+    }
+  }
+}

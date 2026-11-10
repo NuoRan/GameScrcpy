@@ -1,0 +1,19 @@
+{
+  "format": "gamescrcpy.profile",
+  "version": 3,
+  "meta": { "name": "Racing" },
+  "controls": [
+    { "id": "left", "name": "Left", "type": "hold", "anchor": "bottomLeft", "offset": [0.142, -0.25],
+      "inputs": { "press": "KeyA" } },
+    { "id": "right", "name": "Right", "type": "hold", "anchor": "bottomLeft", "offset": [0.391, -0.25],
+      "inputs": { "press": "KeyD" } },
+    { "id": "accelerate", "name": "Accelerate", "type": "hold", "anchor": "bottomRight", "offset": [-0.178, -0.25],
+      "inputs": { "press": "KeyW" } },
+    { "id": "brake", "name": "Brake", "type": "hold", "anchor": "bottomRight", "offset": [-0.391, -0.2],
+      "inputs": { "press": "KeyS" } },
+    { "id": "drift", "name": "Drift", "type": "hold", "anchor": "right", "offset": [-0.533, 0.15],
+      "inputs": { "press": "Space" } },
+    { "id": "nitro", "name": "Nitro", "type": "tap", "anchor": "right", "offset": [-0.213, 0.05],
+      "inputs": { "press": "ShiftLeft" } }
+  ]
+}

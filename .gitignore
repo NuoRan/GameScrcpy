@@ -1,136 +1,39 @@
-# ===========================
-# 构建输出
-# ===========================
-/output/
+# ---- Build output ----
 /build/
-build-*/
-/client/build/
-/server/build/
+/out/
+/output/
+/dist/
+CMakeUserPresets.json
 
+# ---- Dependency caches (populated by tools/, never committed) ----
+/deps/
+/firmware/esp32/managed_components/
+/firmware/esp32/dependencies.lock
 
-# ===========================
-# IDE 和编辑器
-# ===========================
-# Qt Creator
-*.user
-*.user.*
-*.qmlc
-*.jsc
-CMakeLists.txt.user*
-
-# Visual Studio
+# ---- IDE ----
 .vs/
-*.suo
-*.userosscache
-*.sln.docstates
-*.vcxproj.user
-
-# JetBrains (IntelliJ, Android Studio, CLion)
-.idea/
-*.iml
-*.ipr
-*.iws
-
-# VS Code
 .vscode/
+.idea/
+*.user
+*.suo
+*.iml
 
-# ===========================
-# Gradle / Android
-# ===========================
-.gradle/
-/server/.gradle/
-/server/build/
-/server/local.properties
-gradle/wrapper/gradle-wrapper.jar
+# ---- Android / Gradle ----
+/.gradle/
+/android/.gradle/
+/android/.kotlin/
+/android/**/bin/
+/android/**/build/
+/android/local.properties
 
-# ===========================
-# 系统文件
-# ===========================
-.DS_Store
-*.DS_Store
+# ---- Python ----
+__pycache__/
+
+# ---- OS ----
 Thumbs.db
-ehthumbs.db
 Desktop.ini
+.DS_Store
 
-# ===========================
-# 临时文件
-# ===========================
-*.tmp
-*.temp
-*.swp
-*.swo
-*~
-*.bak
+# ---- Logs and local user data ----
 *.log
-
-# ===========================
-# 用户配置和脚本
-# ===========================
 userdata.ini
-config/userdata.ini
-Info_Mac.plist
-
-# 用户自定义脚本（保护隐私）
-/我的脚本/
-
-# ===========================
-# CI/CD 临时文件
-# ===========================
-/ci/build_temp/
-
-# ===========================
-# 备份文件夹
-# ===========================
-/备份/
-
-# ===========================
-# 二进制依赖 - 只忽略 DLL (需要用户自行下载)
-# ===========================
-/client/env/ffmpeg/bin/
-/client/env/ffmpeg/doc/
-/client/env/ffmpeg/presets/
-/client/env/opencv/build/x64/vc16/bin/
-
-# ===========================
-# 编译产物
-# ===========================
-*.o
-*.obj
-*.a
-*.lib
-*.so
-*.dylib
-*.dll
-*.exe
-*.pdb
-*.ilk
-*.exp
-
-# 保留 ADB 和 scrcpy-server
-!/client/env/adb/
-!/client/env/scrcpy-server
-
-# ===========================
-# 排除外部/参考项目
-# ===========================
-/scrcpy-3.3.4/
-/QineTouch-main/
-
-# ===========================
-# 排除根目录的工具脚本
-# ===========================
-/analyze_separators.py
-/generate_icon.py
-/map_offsets.py
-/parse_dump.py
-/parse_dump2.py
-
-# ===========================
-# Android 构建产物
-# ===========================
-/companion_app/app/build/
-
-# ===========================
-# 日志
-# ===========================
-/日志/

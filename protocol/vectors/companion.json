@@ -1,0 +1,2215 @@
+{
+  "format": "gamescrcpy.protocol-vectors",
+  "protocolVersion": 1,
+  "family": "companion",
+  "vectors": [
+    {
+      "name": "companion-hello",
+      "message": "CompanionHello",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "version": 1,
+        "token": "000102030405060708090a0b0c0d0e0f"
+      },
+      "hex": "060100000013000110000102030405060708090a0b0c0d0e0f"
+    },
+    {
+      "name": "companion-hello-other-version",
+      "message": "CompanionHello",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "version": 65535,
+        "token": "ffffffffffffffffffffffffffffffff"
+      },
+      "hex": "060100000013ffff10ffffffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "companion-hello-empty-token",
+      "message": "CompanionHello",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "version": 1,
+        "token": ""
+      },
+      "hex": "060100000003000100"
+    },
+    {
+      "name": "cursor-state-center",
+      "message": "CursorState",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "x": 32768,
+        "y": 32768,
+        "visible": true,
+        "pressed": false
+      },
+      "hex": "0602000000058000800001"
+    },
+    {
+      "name": "cursor-state-pressed-corner",
+      "message": "CursorState",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "x": 65535,
+        "y": 0,
+        "visible": true,
+        "pressed": true
+      },
+      "hex": "060200000005ffff000003"
+    },
+    {
+      "name": "cursor-state-hidden",
+      "message": "CursorState",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "x": 0,
+        "y": 0,
+        "visible": false,
+        "pressed": false
+      },
+      "hex": "0602000000050000000000"
+    },
+    {
+      "name": "companion-welcome-granted",
+      "message": "CompanionWelcome",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "version": 1,
+        "overlay": "granted",
+        "width": 1080,
+        "height": 2400,
+        "rotation": 0
+      },
+      "hex": "8601000000080001000438096000"
+    },
+    {
+      "name": "companion-welcome-no-permission",
+      "message": "CompanionWelcome",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "version": 1,
+        "overlay": "noPermission",
+        "width": 0,
+        "height": 0,
+        "rotation": 1
+      },
+      "hex": "8601000000080001010000000001"
+    },
+    {
+      "name": "overlay-changed-rotated",
+      "message": "OverlayChanged",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "overlay": "granted",
+        "width": 2400,
+        "height": 1080,
+        "rotation": 1
+      },
+      "hex": "860200000006000960043801"
+    },
+    {
+      "name": "overlay-changed-max",
+      "message": "OverlayChanged",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "overlay": "granted",
+        "width": 65535,
+        "height": 65535,
+        "rotation": 3
+      },
+      "hex": "86020000000600ffffffff03"
+    },
+    {
+      "name": "companion-ping",
+      "message": "Ping",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "nonce": 7,
+        "clientTimeUs": "123456789"
+      },
+      "hex": "04010000000c0000000700000000075bcd15"
+    },
+    {
+      "name": "companion-pong",
+      "message": "Pong",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "nonce": 7,
+        "clientTimeUs": "123456789",
+        "serverTimeUs": "987654321"
+      },
+      "hex": "8401000000140000000700000000075bcd15000000003ade68b1"
+    },
+    {
+      "name": "companion-goodbye",
+      "message": "Goodbye",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "reason": "none"
+      },
+      "hex": "0402000000020000"
+    },
+    {
+      "name": "companion-refused",
+      "message": "ServerGoodbye",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "reason": "authenticationFailed",
+        "message": "wrong token"
+      },
+      "hex": "84020000000f0002000b77726f6e6720746f6b656e"
+    },
+    {
+      "name": "commit-text-ascii",
+      "message": "CommitText",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "text": "gg wp"
+      },
+      "hex": "06030000000700056767207770"
+    },
+    {
+      "name": "commit-text-chinese",
+      "message": "CommitText",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "text": "你好，世界"
+      },
+      "hex": "060300000011000fe4bda0e5a5bdefbc8ce4b896e7958c"
+    },
+    {
+      "name": "commit-text-empty",
+      "message": "CommitText",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "text": ""
+      },
+      "hex": "0603000000020000"
+    },
+    {
+      "name": "commit-text-max",
+      "message": "CommitText",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "text": "字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字字a"
+      },
+      "hex": "0603000010021000e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad97e5ad9761"
+    },
+    {
+      "name": "editor-action-enter",
+      "message": "EditorAction",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "action": "unspecified"
+      },
+      "hex": "06040000000100"
+    },
+    {
+      "name": "editor-action-send",
+      "message": "EditorAction",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "action": "send"
+      },
+      "hex": "06040000000104"
+    },
+    {
+      "name": "editor-action-previous",
+      "message": "EditorAction",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "action": "previous"
+      },
+      "hex": "06040000000107"
+    },
+    {
+      "name": "key-hint-layout-empty",
+      "message": "KeyHintLayout",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "hints": []
+      },
+      "hex": "06050000000100"
+    },
+    {
+      "name": "key-hint-layout-stick",
+      "message": "KeyHintLayout",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "hints": [
+          {
+            "shape": "ring",
+            "x": 13107,
+            "y": 45875,
+            "width": 9830,
+            "height": 16384,
+            "label": ""
+          },
+          {
+            "shape": "key",
+            "x": 13107,
+            "y": 37683,
+            "width": 0,
+            "height": 0,
+            "label": "W"
+          },
+          {
+            "shape": "key",
+            "x": 18022,
+            "y": 45875,
+            "width": 0,
+            "height": 0,
+            "label": "D"
+          },
+          {
+            "shape": "key",
+            "x": 13107,
+            "y": 54067,
+            "width": 0,
+            "height": 0,
+            "label": "S"
+          },
+          {
+            "shape": "key",
+            "x": 8192,
+            "y": 45875,
+            "width": 0,
+            "height": 0,
+            "label": "A"
+          },
+          {
+            "shape": "key",
+            "x": 13107,
+            "y": 45875,
+            "width": 0,
+            "height": 0,
+            "label": "Shift"
+          },
+          {
+            "shape": "camera",
+            "x": 49152,
+            "y": 32768,
+            "width": 0,
+            "height": 0,
+            "label": "`"
+          },
+          {
+            "shape": "tap",
+            "x": 58982,
+            "y": 52428,
+            "width": 0,
+            "height": 0,
+            "label": "空格"
+          }
+        ]
+      },
+      "hex": "06050000006108093333b33326664000000833339333000000000157084666b333000000000144083333d333000000000153082000b333000000000141083333b3330000000005536869667404c000800000000000016000e666cccc0000000006e7a9bae6a0bc"
+    },
+    {
+      "name": "key-hint-layout-every-shape",
+      "message": "KeyHintLayout",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "hints": [
+          {
+            "shape": "tap",
+            "x": 1000,
+            "y": 2000,
+            "width": 0,
+            "height": 0,
+            "label": "Q"
+          },
+          {
+            "shape": "hold",
+            "x": 2000,
+            "y": 4000,
+            "width": 0,
+            "height": 0,
+            "label": "E"
+          },
+          {
+            "shape": "longPress",
+            "x": 3000,
+            "y": 6000,
+            "width": 0,
+            "height": 0,
+            "label": "R"
+          },
+          {
+            "shape": "turbo",
+            "x": 4000,
+            "y": 8000,
+            "width": 0,
+            "height": 0,
+            "label": "F"
+          },
+          {
+            "shape": "camera",
+            "x": 5000,
+            "y": 10000,
+            "width": 0,
+            "height": 0,
+            "label": "`"
+          },
+          {
+            "shape": "aim",
+            "x": 6000,
+            "y": 12000,
+            "width": 0,
+            "height": 0,
+            "label": "LMB"
+          },
+          {
+            "shape": "freeLook",
+            "x": 7000,
+            "y": 14000,
+            "width": 0,
+            "height": 0,
+            "label": "Alt"
+          },
+          {
+            "shape": "swipe",
+            "x": 8000,
+            "y": 16000,
+            "width": 0,
+            "height": 0,
+            "label": "Ctrl+X"
+          },
+          {
+            "shape": "key",
+            "x": 9000,
+            "y": 18000,
+            "width": 0,
+            "height": 0,
+            "label": "↑"
+          },
+          {
+            "shape": "ring",
+            "x": 10000,
+            "y": 20000,
+            "width": 4000,
+            "height": 6000,
+            "label": ""
+          },
+          {
+            "shape": "unbound",
+            "x": 11000,
+            "y": 22000,
+            "width": 0,
+            "height": 0,
+            "label": "Reload"
+          }
+        ]
+      },
+      "hex": "0605000000890b0003e807d00000000001510107d00fa0000000000145020bb81770000000000152030fa01f4000000000014604138827100000000001600517702ee000000000034c4d42061b5836b00000000003416c74071f403e8000000000064374726c2b5808232846500000000003e286910927104e200fa01770000a2af855f0000000000652656c6f6164"
+    },
+    {
+      "name": "key-hint-layout-max",
+      "message": "KeyHintLayout",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "hints": [
+          {
+            "shape": "tap",
+            "x": 65535,
+            "y": 0,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65534,
+            "y": 300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65533,
+            "y": 600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65532,
+            "y": 900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65531,
+            "y": 1200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65530,
+            "y": 1500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65529,
+            "y": 1800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65528,
+            "y": 2100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65527,
+            "y": 2400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65526,
+            "y": 2700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65525,
+            "y": 3000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65524,
+            "y": 3300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65523,
+            "y": 3600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65522,
+            "y": 3900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65521,
+            "y": 4200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65520,
+            "y": 4500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65519,
+            "y": 4800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65518,
+            "y": 5100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65517,
+            "y": 5400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65516,
+            "y": 5700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65515,
+            "y": 6000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65514,
+            "y": 6300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65513,
+            "y": 6600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65512,
+            "y": 6900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65511,
+            "y": 7200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65510,
+            "y": 7500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65509,
+            "y": 7800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65508,
+            "y": 8100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65507,
+            "y": 8400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65506,
+            "y": 8700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65505,
+            "y": 9000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65504,
+            "y": 9300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65503,
+            "y": 9600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65502,
+            "y": 9900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65501,
+            "y": 10200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65500,
+            "y": 10500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65499,
+            "y": 10800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65498,
+            "y": 11100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65497,
+            "y": 11400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65496,
+            "y": 11700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65495,
+            "y": 12000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65494,
+            "y": 12300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65493,
+            "y": 12600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65492,
+            "y": 12900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65491,
+            "y": 13200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65490,
+            "y": 13500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65489,
+            "y": 13800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65488,
+            "y": 14100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65487,
+            "y": 14400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65486,
+            "y": 14700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65485,
+            "y": 15000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65484,
+            "y": 15300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65483,
+            "y": 15600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65482,
+            "y": 15900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65481,
+            "y": 16200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65480,
+            "y": 16500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65479,
+            "y": 16800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65478,
+            "y": 17100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65477,
+            "y": 17400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65476,
+            "y": 17700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65475,
+            "y": 18000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65474,
+            "y": 18300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65473,
+            "y": 18600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65472,
+            "y": 18900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65471,
+            "y": 19200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65470,
+            "y": 19500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65469,
+            "y": 19800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65468,
+            "y": 20100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65467,
+            "y": 20400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65466,
+            "y": 20700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65465,
+            "y": 21000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65464,
+            "y": 21300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65463,
+            "y": 21600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65462,
+            "y": 21900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65461,
+            "y": 22200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65460,
+            "y": 22500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65459,
+            "y": 22800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65458,
+            "y": 23100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65457,
+            "y": 23400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65456,
+            "y": 23700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65455,
+            "y": 24000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65454,
+            "y": 24300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65453,
+            "y": 24600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65452,
+            "y": 24900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65451,
+            "y": 25200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65450,
+            "y": 25500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65449,
+            "y": 25800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65448,
+            "y": 26100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65447,
+            "y": 26400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65446,
+            "y": 26700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65445,
+            "y": 27000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65444,
+            "y": 27300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65443,
+            "y": 27600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65442,
+            "y": 27900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65441,
+            "y": 28200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65440,
+            "y": 28500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65439,
+            "y": 28800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65438,
+            "y": 29100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65437,
+            "y": 29400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65436,
+            "y": 29700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65435,
+            "y": 30000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65434,
+            "y": 30300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65433,
+            "y": 30600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65432,
+            "y": 30900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65431,
+            "y": 31200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65430,
+            "y": 31500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65429,
+            "y": 31800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65428,
+            "y": 32100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65427,
+            "y": 32400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65426,
+            "y": 32700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65425,
+            "y": 33000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65424,
+            "y": 33300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65423,
+            "y": 33600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65422,
+            "y": 33900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65421,
+            "y": 34200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65420,
+            "y": 34500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65419,
+            "y": 34800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65418,
+            "y": 35100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65417,
+            "y": 35400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65416,
+            "y": 35700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65415,
+            "y": 36000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65414,
+            "y": 36300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65413,
+            "y": 36600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65412,
+            "y": 36900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65411,
+            "y": 37200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65410,
+            "y": 37500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65409,
+            "y": 37800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65408,
+            "y": 38100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65407,
+            "y": 38400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65406,
+            "y": 38700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65405,
+            "y": 39000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65404,
+            "y": 39300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65403,
+            "y": 39600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65402,
+            "y": 39900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65401,
+            "y": 40200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65400,
+            "y": 40500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65399,
+            "y": 40800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65398,
+            "y": 41100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65397,
+            "y": 41400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65396,
+            "y": 41700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65395,
+            "y": 42000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65394,
+            "y": 42300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65393,
+            "y": 42600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65392,
+            "y": 42900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65391,
+            "y": 43200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65390,
+            "y": 43500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65389,
+            "y": 43800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65388,
+            "y": 44100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65387,
+            "y": 44400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65386,
+            "y": 44700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65385,
+            "y": 45000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65384,
+            "y": 45300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65383,
+            "y": 45600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65382,
+            "y": 45900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65381,
+            "y": 46200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65380,
+            "y": 46500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65379,
+            "y": 46800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65378,
+            "y": 47100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65377,
+            "y": 47400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65376,
+            "y": 47700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65375,
+            "y": 48000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65374,
+            "y": 48300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65373,
+            "y": 48600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65372,
+            "y": 48900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65371,
+            "y": 49200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65370,
+            "y": 49500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65369,
+            "y": 49800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65368,
+            "y": 50100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65367,
+            "y": 50400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65366,
+            "y": 50700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65365,
+            "y": 51000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65364,
+            "y": 51300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65363,
+            "y": 51600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65362,
+            "y": 51900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65361,
+            "y": 52200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65360,
+            "y": 52500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65359,
+            "y": 52800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65358,
+            "y": 53100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65357,
+            "y": 53400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65356,
+            "y": 53700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65355,
+            "y": 54000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "aim",
+            "x": 65354,
+            "y": 54300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "freeLook",
+            "x": 65353,
+            "y": 54600,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "swipe",
+            "x": 65352,
+            "y": 54900,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "key",
+            "x": 65351,
+            "y": 55200,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "ring",
+            "x": 65350,
+            "y": 55500,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "unbound",
+            "x": 65349,
+            "y": 55800,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "tap",
+            "x": 65348,
+            "y": 56100,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "hold",
+            "x": 65347,
+            "y": 56400,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "longPress",
+            "x": 65346,
+            "y": 56700,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "turbo",
+            "x": 65345,
+            "y": 57000,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          },
+          {
+            "shape": "camera",
+            "x": 65344,
+            "y": 57300,
+            "width": 65535,
+            "height": 65535,
+            "label": "kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+          }
+        ]
+      },
+      "hex": "060500001f81c000ffff0000ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01fffe012cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02fffd0258ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03fffc0384ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04fffb04b0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05fffa05dcffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06fff90708ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07fff80834ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08fff70960ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09fff60a8cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0afff50bb8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00fff40ce4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01fff30e10ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02fff20f3cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03fff11068ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04fff01194ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ffef12c0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ffee13ecffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ffed1518ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ffec1644ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ffeb1770ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0affea189cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ffe919c8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ffe81af4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ffe71c20ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ffe61d4cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ffe51e78ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ffe41fa4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ffe320d0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ffe221fcffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ffe12328ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ffe02454ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0affdf2580ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ffde26acffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ffdd27d8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ffdc2904ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ffdb2a30ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ffda2b5cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ffd92c88ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ffd82db4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ffd72ee0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ffd6300cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ffd53138ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0affd43264ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ffd33390ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ffd234bcffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ffd135e8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ffd03714ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ffcf3840ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ffce396cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ffcd3a98ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ffcc3bc4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ffcb3cf0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ffca3e1cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0affc93f48ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ffc84074ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ffc741a0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ffc642ccffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ffc543f8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ffc44524ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ffc34650ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ffc2477cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ffc148a8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ffc049d4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ffbf4b00ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0affbe4c2cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ffbd4d58ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ffbc4e84ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ffbb4fb0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ffba50dcffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ffb95208ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ffb85334ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ffb75460ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ffb6558cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ffb556b8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ffb457e4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0affb35910ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ffb25a3cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ffb15b68ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ffb05c94ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ffaf5dc0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ffae5eecffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ffad6018ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ffac6144ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ffab6270ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ffaa639cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ffa964c8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0affa865f4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ffa76720ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ffa6684cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ffa56978ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ffa46aa4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ffa36bd0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ffa26cfcffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ffa16e28ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ffa06f54ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ff9f7080ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ff9e71acffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0aff9d72d8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ff9c7404ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ff9b7530ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ff9a765cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ff997788ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ff9878b4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ff9779e0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ff967b0cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ff957c38ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ff947d64ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ff937e90ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0aff927fbcffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ff9180e8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ff908214ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ff8f8340ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ff8e846cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ff8d8598ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ff8c86c4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ff8b87f0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ff8a891cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ff898a48ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ff888b74ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0aff878ca0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ff868dccffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ff858ef8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ff849024ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ff839150ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ff82927cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ff8193a8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ff8094d4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ff7f9600ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ff7e972cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ff7d9858ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0aff7c9984ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ff7b9ab0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ff7a9bdcffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ff799d08ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ff789e34ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ff779f60ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ff76a08cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ff75a1b8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ff74a2e4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ff73a410ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ff72a53cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0aff71a668ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ff70a794ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ff6fa8c0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ff6ea9ecffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ff6dab18ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ff6cac44ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ff6bad70ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ff6aae9cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ff69afc8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ff68b0f4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ff67b220ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0aff66b34cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ff65b478ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ff64b5a4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ff63b6d0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ff62b7fcffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ff61b928ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ff60ba54ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ff5fbb80ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ff5ebcacffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ff5dbdd8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ff5cbf04ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0aff5bc030ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ff5ac15cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ff59c288ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ff58c3b4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ff57c4e0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ff56c60cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ff55c738ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ff54c864ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ff53c990ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ff52cabcffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ff51cbe8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0aff50cd14ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ff4fce40ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ff4ecf6cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ff4dd098ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ff4cd1c4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ff4bd2f0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b05ff4ad41cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b06ff49d548ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b07ff48d674ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b08ff47d7a0ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b09ff46d8ccffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b0aff45d9f8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b00ff44db24ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b01ff43dc50ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b02ff42dd7cffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b03ff41dea8ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b04ff40dfd4ffffffff206b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b"
+    },
+    {
+      "name": "key-hint-state-faded",
+      "message": "KeyHintState",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "shown": true,
+        "faded": true,
+        "opacity": 60
+      },
+      "hex": "060600000002033c"
+    },
+    {
+      "name": "key-hint-state-intro",
+      "message": "KeyHintState",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "shown": true,
+        "faded": false,
+        "opacity": 100
+      },
+      "hex": "0606000000020164"
+    },
+    {
+      "name": "key-hint-state-hidden",
+      "message": "KeyHintState",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "shown": false,
+        "faded": false,
+        "opacity": 0
+      },
+      "hex": "0606000000020000"
+    },
+    {
+      "name": "input-box-chat",
+      "message": "InputBoxChanged",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "shown": true,
+        "multiLine": false,
+        "inputType": 16385,
+        "action": "send"
+      },
+      "hex": "860300000006010000400104"
+    },
+    {
+      "name": "input-box-multi-line",
+      "message": "InputBoxChanged",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "shown": true,
+        "multiLine": true,
+        "inputType": 147457,
+        "action": "unspecified"
+      },
+      "hex": "860300000006030002400100"
+    },
+    {
+      "name": "input-box-number",
+      "message": "InputBoxChanged",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "shown": true,
+        "multiLine": false,
+        "inputType": 2,
+        "action": "done"
+      },
+      "hex": "860300000006010000000206"
+    },
+    {
+      "name": "input-box-hidden",
+      "message": "InputBoxChanged",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "shown": false,
+        "multiLine": false,
+        "inputType": 0,
+        "action": "unspecified"
+      },
+      "hex": "860300000006000000000000"
+    },
+    {
+      "name": "input-box-max",
+      "message": "InputBoxChanged",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "shown": true,
+        "multiLine": true,
+        "inputType": 4294967295,
+        "action": "previous"
+      },
+      "hex": "86030000000603ffffffff07"
+    },
+    {
+      "name": "screenshot-request-default",
+      "message": "ScreenshotRequest",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "requestId": 1,
+        "maxSide": 0,
+        "quality": 90
+      },
+      "hex": "0607000000070000000100005a"
+    },
+    {
+      "name": "screenshot-request-small",
+      "message": "ScreenshotRequest",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "requestId": 7,
+        "maxSide": 1280,
+        "quality": 1
+      },
+      "hex": "06070000000700000007050001"
+    },
+    {
+      "name": "screenshot-request-max",
+      "message": "ScreenshotRequest",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "requestId": 4294967295,
+        "maxSide": 65535,
+        "quality": 100
+      },
+      "hex": "060700000007ffffffffffff64"
+    },
+    {
+      "name": "screenshot-chunk-first",
+      "message": "ScreenshotChunk",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 1,
+        "index": 0,
+        "total": 3,
+        "data": "ffd8ffe0000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafb"
+      },
+      "hex": "860400003c0a00000001000000033c00ffd8ffe0000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafb"
+    },
+    {
+      "name": "screenshot-chunk-last",
+      "message": "ScreenshotChunk",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 1,
+        "index": 2,
+        "total": 3,
+        "data": "ffd9"
+      },
+      "hex": "86040000000c00000001000200030002ffd9"
+    },
+    {
+      "name": "screenshot-chunk-single",
+      "message": "ScreenshotChunk",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 2,
+        "index": 0,
+        "total": 1,
+        "data": "ffd8ffe0090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f4041424344ffd9"
+      },
+      "hex": "86040000004c00000002000000010042ffd8ffe0090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f4041424344ffd9"
+    },
+    {
+      "name": "screenshot-chunk-most",
+      "message": "ScreenshotChunk",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 4294967295,
+        "index": 273,
+        "total": 274,
+        "data": "05060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff0001020304"
+      },
+      "hex": "86040000040affffffff01110112040005060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff0001020304"
+    },
+    {
+      "name": "screenshot-failed-refused",
+      "message": "ScreenshotFailed",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 1,
+        "reason": "refused",
+        "message": "the screen capture was not allowed on the phone"
+      },
+      "hex": "8605000000360000000100002f7468652073637265656e206361707475726520776173206e6f7420616c6c6f776564206f6e207468652070686f6e65"
+    },
+    {
+      "name": "screenshot-failed-unsupported",
+      "message": "ScreenshotFailed",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 2,
+        "reason": "unsupported",
+        "message": ""
+      },
+      "hex": "86050000000700000002010000"
+    },
+    {
+      "name": "screenshot-failed-busy",
+      "message": "ScreenshotFailed",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 3,
+        "reason": "busy",
+        "message": "a screenshot is still being taken"
+      },
+      "hex": "86050000002800000003020021612073637265656e73686f74206973207374696c6c206265696e672074616b656e"
+    },
+    {
+      "name": "screenshot-failed-error",
+      "message": "ScreenshotFailed",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "requestId": 4294967295,
+        "reason": "error",
+        "message": "无法读取画面"
+      },
+      "hex": "860500000019ffffffff030012e697a0e6b395e8afbbe58f96e794bbe99da2"
+    }
+  ]
+}

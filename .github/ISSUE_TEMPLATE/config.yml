@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用帮助 / User guide
+    url: https://github.com/NuoRan/GameScrcpy/blob/main/docs/README.md
+    about: 连接、投屏窗口、键位编辑器、方案、脚本与常见问题 / Connecting, the mirror window, the key mapping editor, profiles, scripts and common questions
+  - name: 报告安全问题 / Report a security problem
+    url: https://github.com/NuoRan/GameScrcpy/security/advisories/new
+    about: 请私下报告，不要公开发 Issue / Please report privately instead of opening a public issue

@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "gamescrcpy.pc-clock",
+  "version": "1.0.0",
+  "name": "PC clock",
+  "description": "A sample native extension: a system node that gives the computer's current time as text.",
+  "authors": ["GameScrcpy"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/NuoRan/GameScrcpy",
+  "requires": {
+    "native": "^1.0"
+  },
+  "contributes": {
+    "native": {
+      "dll": "pc-clock.dll",
+      "nodes": [
+        {"name": "now", "returns": "string", "description": "The computer's current time as text, such as \"14:05:09\"."}
+      ]
+    }
+  },
+  "l10n": {
+    "zh_CN": {
+      "name": "电脑时钟",
+      "description": "原生扩展的样例：一个系统节点，给出电脑当前时间的文字。",
+      "nodes.now.description": "电脑当前时间的文字，如“14:05:09”。"
+    }
+  }
+}

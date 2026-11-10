@@ -1,0 +1,119 @@
+{
+  "popular": ["faq#no-phone", "faq#no-input", "faq#no-sound", "faq#pointer-gone"],
+  "groups": [
+    {
+      "title": { "en": "Guides", "zh_CN": "使用指南" },
+      "articles": [
+        {
+          "slug": "connecting",
+          "icon": "smartphone",
+          "tile": "azure",
+          "hero": "hero-connecting",
+          "title": { "en": "Connecting a phone", "zh_CN": "连接手机" },
+          "summary": {
+            "en": "Turn on USB debugging, then connect with a cable or over Wi-Fi. The first time takes a few minutes.",
+            "zh_CN": "打开 USB 调试，用数据线或 Wi‑Fi 连上手机。第一次几分钟就好。"
+          },
+          "meta": [{ "icon": "smartphone", "text": { "en": "Android 9 or later", "zh_CN": "Android 9 或更高" } }]
+        },
+        {
+          "slug": "aoa-driver",
+          "icon": "usb",
+          "tile": "teal",
+          "title": { "en": "AOA touch and the WinUSB driver", "zh_CN": "AOA 触控与 WinUSB 驱动" },
+          "summary": {
+            "en": "Control a phone over the USB cable, even without USB debugging: install the WinUSB driver once with Zadig.",
+            "zh_CN": "不开 USB 调试也能经数据线控制手机：先用 Zadig 装一次 WinUSB 驱动。"
+          }
+        },
+        {
+          "slug": "esp32-touch",
+          "icon": "plug",
+          "tile": "azure",
+          "title": { "en": "ESP32 touch box", "zh_CN": "ESP32 触控盒" },
+          "summary": {
+            "en": "An ESP32 board becomes the phone's touch screen, keyboard, mouse and gamepad: which port goes where, flashing and BOOT.",
+            "zh_CN": "一块 ESP32 当手机的触摸屏、键盘、鼠标和手柄：哪个口接哪里、刷写固件、什么时候按 BOOT。"
+          }
+        },
+        {
+          "slug": "capture-card",
+          "icon": "monitor-smartphone",
+          "tile": "azure",
+          "title": { "en": "Capture cards", "zh_CN": "采集卡" },
+          "summary": {
+            "en": "Show a phone's HDMI picture through a capture card, without USB debugging; touches over AOA or ESP32.",
+            "zh_CN": "经采集卡显示手机的 HDMI 画面，不开 USB 调试也行；触控走 AOA 或 ESP32。"
+          }
+        },
+        {
+          "slug": "mirror-window",
+          "icon": "monitor-play",
+          "tile": "orange",
+          "title": { "en": "The mirror window", "zh_CN": "投屏窗口与工具栏" },
+          "summary": {
+            "en": "Every button on the toolbar, the status capsule, camera lock, full screen and the mini window.",
+            "zh_CN": "工具栏上每个按钮、状态胶囊、视角锁定、全屏和置顶小窗。"
+          }
+        },
+        {
+          "slug": "keymap-editor",
+          "icon": "sliders-horizontal",
+          "tile": "lime",
+          "title": { "en": "The key mapping editor", "zh_CN": "键位编辑器" },
+          "summary": {
+            "en": "Drag keys onto the game's buttons, press a key for each, try them out and sort out conflicts.",
+            "zh_CN": "把键位拖到游戏按钮上，按一个键，试玩，处理冲突。"
+          }
+        },
+        {
+          "slug": "profiles",
+          "icon": "layers",
+          "tile": "teal",
+          "title": { "en": "Profiles and sharing", "zh_CN": "方案与分享" },
+          "summary": {
+            "en": "Make profiles, link them to games so they switch by themselves, import, export and share.",
+            "zh_CN": "新建方案，关联到游戏自动切换，导入导出与分享。"
+          }
+        },
+        {
+          "slug": "scripts",
+          "icon": "code-xml",
+          "tile": "rose",
+          "title": { "en": "Getting started with scripts", "zh_CN": "脚本入门" },
+          "summary": {
+            "en": "The logic view of the editor, waiting for the picture to change, and finding pictures and colors by name.",
+            "zh_CN": "编辑器的逻辑视图、等画面变化再继续、按名字找图找色。"
+          },
+          "meta": [{ "icon": "flask-conical", "text": { "en": "For players who like to tinker", "zh_CN": "适合喜欢折腾的玩家" } }]
+        },
+        {
+          "slug": "tours",
+          "icon": "navigation",
+          "tile": "azure",
+          "title": { "en": "Guided tours", "zh_CN": "跟着做的新手引导" },
+          "summary": {
+            "en": "The short tour on each main screen, how to skip it, and how to watch one again.",
+            "zh_CN": "每个主要界面的短引导、怎么跳过，以及怎么再看一遍。"
+          }
+        },
+        {
+          "slug": "faq",
+          "icon": "circle-help",
+          "tile": "amber",
+          "layout": "faq",
+          "title": { "en": "Questions and troubleshooting", "zh_CN": "常见问题" },
+          "summary": {
+            "en": "The phone does not show up, the keys do nothing, there is no sound, the pointer is gone…",
+            "zh_CN": "手机不出现、键鼠没反应、没有声音、指针不见了……"
+          }
+        }
+      ]
+    },
+    {
+      "title": { "en": "Script API", "zh_CN": "脚本接口" },
+      "reference": true,
+      "icon": "terminal"
+    }
+  ]
+}

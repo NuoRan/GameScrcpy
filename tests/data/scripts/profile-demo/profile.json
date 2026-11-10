@@ -1,0 +1,16 @@
+{
+  "format": "gamescrcpy.profile",
+  "version": 3,
+  "meta": { "name": "Logic demo" },
+  "controls": [
+    { "id": "jump", "name": "Jump", "type": "hold", "anchor": "bottomRight", "offset": [-0.2, -0.3],
+      "inputs": { "press": "Space" } },
+    { "id": "fire", "name": "Fire", "type": "hold", "anchor": "bottomRight", "offset": [-0.1, -0.2],
+      "inputs": { "press": "KeyF" } },
+    { "id": "dash-move", "name": "Dash", "type": "hold", "anchor": "bottomRight", "offset": [-0.3, -0.1],
+      "inputs": { "press": "KeyQ" } }
+  ],
+  "vars": [
+    { "id": "aiming", "name": "Aiming" }
+  ]
+}

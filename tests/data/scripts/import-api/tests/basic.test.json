@@ -1,0 +1,12 @@
+{
+  "session": "../sessions/basic.json",
+  "until": 2000,
+  "seed": 1,
+  "expect": [
+    "100 vision pickColor 0.5 0.25",
+    "100 vision matchColor 0.5 0.25 #E53935",
+    "100 draw 1 mark 0.5 0.25 accent probe",
+    "100 tap 0.5 0.25 60",
+    "160 erase 1"
+  ]
+}

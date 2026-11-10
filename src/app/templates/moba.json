@@ -1,0 +1,27 @@
+{
+  "format": "gamescrcpy.profile",
+  "version": 3,
+  "meta": { "name": "MOBA" },
+  "controls": [
+    { "id": "move", "name": "Move", "type": "wasd", "anchor": "bottomLeft", "offset": [0.267, -0.25],
+      "inputs": { "up": "KeyW", "down": "KeyS", "left": "KeyA", "right": "KeyD" } },
+    { "id": "attack", "name": "Attack", "type": "hold", "anchor": "bottomRight", "offset": [-0.213, -0.18],
+      "inputs": { "press": "Space" } },
+    { "id": "skill1", "name": "Skill 1", "type": "skill", "anchor": "bottomRight", "offset": [-0.498, -0.14],
+      "direction": "cursor", "inputs": { "press": "KeyQ" } },
+    { "id": "skill2", "name": "Skill 2", "type": "skill", "anchor": "bottomRight", "offset": [-0.409, -0.31],
+      "direction": "cursor", "inputs": { "press": "KeyE" } },
+    { "id": "skill3", "name": "Skill 3", "type": "skill", "anchor": "right", "offset": [-0.249, 0.1],
+      "direction": "cursor", "inputs": { "press": "KeyR" } },
+    { "id": "spell", "name": "Spell", "type": "skill", "anchor": "bottom", "offset": [0.213, -0.12],
+      "direction": "cursor", "inputs": { "press": "KeyF" } },
+    { "id": "recall", "name": "Recall", "type": "tap", "anchor": "bottom", "offset": [-0.036, -0.1],
+      "inputs": { "press": "KeyB" } },
+    { "id": "heal", "name": "Heal", "type": "tap", "anchor": "bottom", "offset": [0.089, -0.1],
+      "inputs": { "press": "KeyH" } },
+    { "id": "item", "name": "Item", "type": "tap", "anchor": "bottom", "offset": [0.284, -0.28],
+      "inputs": { "press": "Digit1" } },
+    { "id": "shop", "name": "Shop", "type": "tap", "anchor": "left", "offset": [0.107, -0.1],
+      "inputs": { "press": "KeyP" } }
+  ]
+}

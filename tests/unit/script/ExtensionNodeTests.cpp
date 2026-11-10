@@ -1,0 +1,288 @@
+#include "ScriptFixture.h"
+
+#include "gs/script/ApiFiles.h"
+#include "gs/script/Services.h"
+
+#include <doctest/doctest.h>
+
+#include <algorithm>
+#include <atomic>
+#include <cstdint>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <string>
+#include <string_view>
+#include <vector>
+
+using gs::script::ControlInfo;
+using gs::script::DeviceInfo;
+using gs::script::NodeAnswer;
+using gs::script::NodeInfo;
+using gs::script::NodeType;
+using gs::script::NodeValue;
+using gs::script::Point;
+using gs::script::Report;
+using gs::script::ReportKind;
+using gs::script::ScriptHost;
+using gs::script::ScriptId;
+using gs::script::StateInfo;
+using gs::script::TaskId;
+using gs::script::test::loadScript;
+using gs::script::test::logged;
+using gs::script::test::Recorder;
+using gs::script::test::ScriptFolder;
+using gs::script::test::taskEnded;
+
+namespace {
+
+std::vector<NodeInfo> sampleNodes()
+{
+    return {
+        {"gamescrcpy.pc-clock", "PC clock", "now", {}, NodeType::String, "The time.", {}},
+        {"alice.net-tools",
+         "Net tools",
+         "fetch",
+         {{"url", NodeType::String}, {"wait", NodeType::Duration}},
+         NodeType::Json,
+         "",
+         {"network"}},
+        {"alice.net-tools",
+         "Net tools",
+         "mark",
+         {{"at", NodeType::Point},
+          {"area", NodeType::Region},
+          {"tint", NodeType::Color},
+          {"on", NodeType::Boolean},
+          {"count", NodeType::Number}},
+         NodeType::Point,
+         "",
+         {}},
+    };
+}
+
+class NodeServices final : public gs::script::ScriptServices
+{
+public:
+    DeviceInfo device() override { return {"Pixel", 15, 1080, 2400, 0}; }
+    void tap(std::uint64_t, Point, double) override {}
+    void swipe(std::uint64_t, Point, Point, double) override {}
+    void key(std::string_view, bool) override {}
+    std::vector<ControlInfo> controls() override { return {}; }
+    bool pressControl(std::string_view, bool) override { return false; }
+    bool enableControl(std::string_view, bool) override { return false; }
+    std::vector<StateInfo> states() override { return {}; }
+    std::optional<gs::script::VarValue> stateValue(std::string_view) override { return std::nullopt; }
+    bool setState(std::string_view, const gs::script::VarValue&) override { return false; }
+    std::optional<std::string> loadStore(std::string_view) override { return std::nullopt; }
+    void saveStore(std::string_view, std::string_view) override {}
+
+    std::vector<NodeInfo> nodes() override { return m_hidden.load() ? std::vector<NodeInfo>{} : sampleNodes(); }
+
+    NodeAnswer callNode(std::string_view extension, std::string_view node, const std::vector<NodeValue>& values) override
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_calls.push_back(std::string(extension) + "." + std::string(node));
+            m_values.insert(m_values.end(), values.begin(), values.end());
+        }
+        if (node == "now") {
+            NodeValue time;
+            time.type = NodeType::String;
+            time.text = "12:34:56";
+            return {time, {}, {}};
+        }
+        if (node == "mark") {
+            NodeValue where;
+            where.type = NodeType::Point;
+            where.area = gs::script::Region{values[0].area.x, values[0].area.y, 0.0, 0.0};
+            return {where, {}, {}};
+        }
+        return {{}, "GS-API-063", "it needs the permission \"network\", which Net tools has not been allowed"};
+    }
+
+    void hide() { m_hidden.store(true); }
+
+    std::vector<std::string> calls()
+    {
+        const std::scoped_lock lock(m_mutex);
+        return m_calls;
+    }
+
+    std::vector<NodeValue> values()
+    {
+        const std::scoped_lock lock(m_mutex);
+        return m_values;
+    }
+
+private:
+    std::atomic<bool> m_hidden{false};
+    std::mutex m_mutex;
+    std::vector<std::string> m_calls;
+    std::vector<NodeValue> m_values;
+};
+
+struct Fixture {
+    ScriptFolder folder;
+    Recorder recorder;
+    std::shared_ptr<NodeServices> services = std::make_shared<NodeServices>();
+    std::unique_ptr<ScriptHost> host =
+        std::make_unique<ScriptHost>(recorder.sink(), gs::script::Limits{}, services);
+
+    ScriptId load(std::string_view main)
+    {
+        folder.write("main.js", main);
+        ScriptId id = 0;
+        const auto report = loadScript(*host, recorder, folder.source(), &id);
+        REQUIRE(report.has_value());
+        INFO(gs::script::describe(*report));
+        REQUIRE(report->kind == ReportKind::ScriptLoaded);
+        return id;
+    }
+
+    Report run(ScriptId script, const std::string& handler)
+    {
+        const TaskId task = host->start(script, handler);
+        const auto ended = recorder.waitFor(taskEnded(task));
+        REQUIRE(ended.has_value());
+        return ended->report;
+    }
+};
+
+}
+
+TEST_CASE("ADR-0097: logic calls the system nodes of native extensions as ext.<extension>.<node>(...)")
+{
+    Fixture fixture;
+    const ScriptId script = fixture.load(R"js(
+export function run() {
+    log.info(typeof ext, typeof ext.gamescrcpy.pcClock.now, ext.gamescrcpy.pcClock.now.length,
+             ext.alice.netTools.fetch.length, ext.gamescrcpy.pcClock.now.name);
+    log.info(ext.gamescrcpy.pcClock.now());
+    const where = ext.alice.netTools.mark({ x: 0.25, y: 0.5 }, { x: 0, y: 0, width: 0.5, height: 0.5 }, "#ff8800",
+                                          true, 3);
+    log.info(where.x, where.y);
+    log.info(Object.isFrozen(ext), Object.isFrozen(ext.alice), Object.isFrozen(ext.alice.netTools));
+}
+)js");
+    const Report ended = fixture.run(script, "run");
+    INFO(gs::script::describe(ended));
+    CHECK(ended.kind == ReportKind::TaskFinished);
+    CHECK(fixture.recorder.count(logged("object function 0 2 now")) == 1);
+    CHECK(fixture.recorder.count(logged("12:34:56")) == 1);
+    CHECK(fixture.recorder.count(logged("0.25 0.5")) == 1);
+    CHECK(fixture.recorder.count(logged("true true true")) == 1);
+    CHECK(fixture.services->calls() == std::vector<std::string>{"gamescrcpy.pc-clock.now", "alice.net-tools.mark"});
+    const std::vector<NodeValue> values = fixture.services->values();
+    REQUIRE(values.size() == 5);
+    CHECK(values[0].type == NodeType::Point);
+    CHECK(values[0].area.x == 0.25);
+    CHECK(values[1].type == NodeType::Region);
+    CHECK(values[1].area.width == 0.5);
+    CHECK(values[2].type == NodeType::Color);
+    CHECK(values[2].text == "#FF8800");
+    CHECK(values[3].flag);
+    CHECK(values[4].number == 3.0);
+}
+
+TEST_CASE("ADR-0097: a node refuses values of the wrong type and names a permission the extension lacks")
+{
+    Fixture fixture;
+    const ScriptId script = fixture.load(R"js(
+const codeOf = (action) => {
+    try {
+        action();
+        return "none";
+    } catch (error) {
+        return error.message.split(" ")[0];
+    }
+};
+const area = { x: 0, y: 0, width: 1, height: 1 };
+export function wrong() {
+    log.info(codeOf(() => ext.alice.netTools.mark(1, area, "#ff8800", true, 3)),
+             codeOf(() => ext.alice.netTools.mark({ x: 0.1, y: 0.1 }, area, "#ff8800", "yes", 3)),
+             codeOf(() => ext.alice.netTools.mark({ x: 0.1, y: 0.1 }, area, "#ff8800", true, Infinity)),
+             codeOf(() => ext.alice.netTools.fetch("https://example.com")),
+             codeOf(() => ext.alice.netTools.fetch(5, 10)),
+             codeOf(() => ext.alice.netTools.fetch("https://example.com", -1)),
+             codeOf(() => ext.alice.netTools.fetch("https://example.com", 10)));
+    try {
+        ext.alice.netTools.fetch("https://example.com", 10);
+    } catch (error) {
+        log.info(error.message.includes("ext.alice.netTools.fetch"), error.message.includes("\"network\""));
+    }
+}
+)js");
+    const Report ended = fixture.run(script, "wrong");
+    INFO(gs::script::describe(ended));
+    CHECK(ended.kind == ReportKind::TaskFinished);
+    CHECK(fixture.recorder.count(
+              logged("GS-API-002 GS-API-061 GS-API-061 GS-API-061 GS-API-061 GS-API-061 GS-API-063"))
+          == 1);
+    CHECK(fixture.recorder.count(logged("true true")) == 1);
+    CHECK(fixture.services->calls()
+          == std::vector<std::string>{"alice.net-tools.fetch", "alice.net-tools.fetch"});
+}
+
+TEST_CASE("ADR-0097: a node that is no longer offered says so, and the ext object follows the installed nodes")
+{
+    Fixture fixture;
+    const ScriptId script = fixture.load(R"js(
+export function stale() {
+    try {
+        ext.gamescrcpy.pcClock.now();
+    } catch (error) {
+        log.info(error.message.split(" ")[0]);
+    }
+}
+export function fresh() {
+    log.info(typeof ext.gamescrcpy, Object.keys(ext).length);
+}
+)js");
+    fixture.services->hide();
+    CHECK(fixture.run(script, "stale").kind == ReportKind::TaskFinished);
+    CHECK(fixture.recorder.count(logged("GS-API-060")) == 1);
+    fixture.host->event("nodes", "", "{}");
+    CHECK(fixture.run(script, "fresh").kind == ReportKind::TaskFinished);
+    CHECK(fixture.recorder.count(logged("undefined 0")) == 1);
+}
+
+TEST_CASE("ADR-0097: installed nodes are typed in types/extensions.d.ts under interface Extensions")
+{
+    CHECK(gs::script::nodePath("gamescrcpy.pc-clock", "now") == "ext.gamescrcpy.pcClock.now");
+    CHECK(gs::script::nodePath("alice.1pass-word", "go") == "ext.alice[\"1passWord\"].go");
+    CHECK(gs::script::nodeSegment("pc-2") == "pc_2");
+    CHECK(gs::script::nodeOwner("a.b-c.d") == std::vector<std::string>{"a", "bC", "d"});
+    CHECK(gs::script::nodeTypeNamed("") == NodeType::None);
+    CHECK(gs::script::nodeTypeNamed("duration") == NodeType::Duration);
+    CHECK_FALSE(gs::script::nodeTypeNamed("int").has_value());
+    CHECK(gs::script::nodeSignature({"a.b", "", "go", {{"function", NodeType::String}, {"at", NodeType::Point}},
+                                     NodeType::None, "", {}})
+          == "go(function_: string, at: PicturePoint): void");
+
+    CHECK(gs::script::extensionTypes({}) == "interface Extensions {}\n");
+    CHECK(gs::script::extensionTypes(sampleNodes()) == R"ts(interface Extensions {
+    readonly alice: {
+        /** Net tools (alice.net-tools) */
+        readonly netTools: {
+            fetch(url: string, wait: number): StoreValue;
+            mark(at: PicturePoint, area: Region, tint: HexColor, on: boolean, count: number): PicturePoint;
+        };
+    };
+    readonly gamescrcpy: {
+        /** PC clock (gamescrcpy.pc-clock) */
+        readonly pcClock: {
+            /** The time. */
+            now(): string;
+        };
+    };
+}
+)ts");
+
+    const std::vector<gs::script::ApiFile> files = gs::script::apiFiles();
+    const auto declarations = std::ranges::find(files, std::string("types/gamescrcpy.d.ts"), &gs::script::ApiFile::path);
+    REQUIRE(declarations != files.end());
+    CHECK(declarations->contents.find("declare const ext: Extensions;") != std::string::npos);
+    CHECK(declarations->contents.find("interface Extensions {}") != std::string::npos);
+    CHECK(declarations->contents.find("export import ext = globalThis.ext;") != std::string::npos);
+}

@@ -1,0 +1,15 @@
+{
+  "format": "gamescrcpy.profile",
+  "version": 3,
+  "meta": { "name": "Cards / Tapping" },
+  "controls": [
+    { "id": "card1", "name": "Card 1", "type": "tap", "anchor": "bottomLeft", "offset": [0.533, -0.15],
+      "inputs": { "press": "Digit1" } },
+    { "id": "card2", "name": "Card 2", "type": "tap", "anchor": "bottom", "offset": [-0.124, -0.15],
+      "inputs": { "press": "Digit2" } },
+    { "id": "card3", "name": "Card 3", "type": "tap", "anchor": "bottom", "offset": [0.124, -0.15],
+      "inputs": { "press": "Digit3" } },
+    { "id": "card4", "name": "Card 4", "type": "tap", "anchor": "bottomRight", "offset": [-0.533, -0.15],
+      "inputs": { "press": "Digit4" } }
+  ]
+}

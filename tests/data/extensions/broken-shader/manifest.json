@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "gstest.broken-shader",
+  "version": "1.0.0",
+  "name": "Broken shader",
+  "description": "Valid filter directives with HLSL that does not compile.",
+  "authors": ["GameScrcpy tests"],
+  "license": "Apache-2.0",
+  "requires": {
+    "filter": "^1.0"
+  },
+  "contributes": {
+    "filters": [
+      {"name": "Broken", "file": "shaders/broken.hlsl"}
+    ]
+  }
+}

@@ -1,0 +1,205 @@
+{
+  "format": "gamescrcpy.protocol-vectors",
+  "protocolVersion": 1,
+  "family": "media",
+  "vectors": [
+    {
+      "name": "video-session-portrait",
+      "message": "VideoSession",
+      "channel": "video",
+      "direction": "toClient",
+      "fields": {
+        "session": 1,
+        "codec": "h264",
+        "frameWidth": 1080,
+        "frameHeight": 2400,
+        "displayId": 0,
+        "displayWidth": 1080,
+        "displayHeight": 2400,
+        "rotation": 0
+      },
+      "hex": "000000010000000000000000000000000000000e0104380960000000000438096000"
+    },
+    {
+      "name": "video-session-landscape",
+      "message": "VideoSession",
+      "channel": "video",
+      "direction": "toClient",
+      "fields": {
+        "session": 2,
+        "codec": "h265",
+        "frameWidth": 1920,
+        "frameHeight": 864,
+        "displayId": 0,
+        "displayWidth": 2400,
+        "displayHeight": 1080,
+        "rotation": 1
+      },
+      "hex": "000000020000000000000000000000000000000e0207800360000000000960043801"
+    },
+    {
+      "name": "video-session-max",
+      "message": "VideoSession",
+      "channel": "video",
+      "direction": "toClient",
+      "fields": {
+        "session": 65535,
+        "codec": "av1",
+        "frameWidth": 65535,
+        "frameHeight": 65535,
+        "displayId": 4294967295,
+        "displayWidth": 65535,
+        "displayHeight": 65535,
+        "rotation": 3
+      },
+      "hex": "0000ffff0000000000000000000000000000000e03ffffffffffffffffffffffff03"
+    },
+    {
+      "name": "audio-session-stereo",
+      "message": "AudioSession",
+      "channel": "audio",
+      "direction": "toClient",
+      "fields": {
+        "session": 1,
+        "codec": "opus",
+        "sampleRate": 48000,
+        "channels": 2
+      },
+      "hex": "0000000100000000000000000000000000000006010000bb8002"
+    },
+    {
+      "name": "audio-session-mono",
+      "message": "AudioSession",
+      "channel": "audio",
+      "direction": "toClient",
+      "fields": {
+        "session": 2,
+        "codec": "opus",
+        "sampleRate": 44100,
+        "channels": 1
+      },
+      "hex": "0000000200000000000000000000000000000006010000ac4401"
+    },
+    {
+      "name": "audio-session-max",
+      "message": "AudioSession",
+      "channel": "audio",
+      "direction": "toClient",
+      "fields": {
+        "session": 65535,
+        "codec": "opus",
+        "sampleRate": 4294967295,
+        "channels": 255
+      },
+      "hex": "0000ffff0000000000000000000000000000000601ffffffffff"
+    },
+    {
+      "name": "video-config-sps",
+      "message": "MediaConfig",
+      "channel": "video",
+      "direction": "toClient",
+      "fields": {
+        "session": 1,
+        "payload": "00000001674d401fe8802800b5"
+      },
+      "hex": "010000010000000000000000000000000000000d00000001674d401fe8802800b5"
+    },
+    {
+      "name": "audio-config-opus-head",
+      "message": "MediaConfig",
+      "channel": "audio",
+      "direction": "toClient",
+      "fields": {
+        "session": 1,
+        "payload": "4f707573486561640102"
+      },
+      "hex": "010000010000000000000000000000000000000a4f707573486561640102"
+    },
+    {
+      "name": "video-config-empty",
+      "message": "MediaConfig",
+      "channel": "video",
+      "direction": "toClient",
+      "fields": {
+        "session": 3,
+        "payload": ""
+      },
+      "hex": "0100000300000000000000000000000000000000"
+    },
+    {
+      "name": "video-frame-key",
+      "message": "MediaFrame",
+      "channel": "video",
+      "direction": "toClient",
+      "fields": {
+        "session": 1,
+        "keyFrame": true,
+        "discardable": false,
+        "ptsUs": "0",
+        "encodeDelayUs": 0,
+        "payload": "0000000165888400"
+      },
+      "hex": "02010001000000000000000000000000000000080000000165888400"
+    },
+    {
+      "name": "video-frame-delta",
+      "message": "MediaFrame",
+      "channel": "video",
+      "direction": "toClient",
+      "fields": {
+        "session": 1,
+        "keyFrame": false,
+        "discardable": false,
+        "ptsUs": "16666",
+        "encodeDelayUs": 8250,
+        "payload": "000000014188"
+      },
+      "hex": "02000001000000000000411a0000203a00000006000000014188"
+    },
+    {
+      "name": "video-frame-discardable",
+      "message": "MediaFrame",
+      "channel": "video",
+      "direction": "toClient",
+      "fields": {
+        "session": 1,
+        "keyFrame": false,
+        "discardable": true,
+        "ptsUs": "33333",
+        "encodeDelayUs": 12345,
+        "payload": "000000010188"
+      },
+      "hex": "0202000100000000000082350000303900000006000000010188"
+    },
+    {
+      "name": "audio-frame",
+      "message": "MediaFrame",
+      "channel": "audio",
+      "direction": "toClient",
+      "fields": {
+        "session": 1,
+        "keyFrame": false,
+        "discardable": false,
+        "ptsUs": "20000",
+        "encodeDelayUs": 21000,
+        "payload": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f7071727374757677"
+      },
+      "hex": "020000010000000000004e200000520800000078000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f7071727374757677"
+    },
+    {
+      "name": "video-frame-max-pts",
+      "message": "MediaFrame",
+      "channel": "video",
+      "direction": "toClient",
+      "fields": {
+        "session": 65535,
+        "keyFrame": true,
+        "discardable": true,
+        "ptsUs": "9223372036854775807",
+        "encodeDelayUs": 4294967295,
+        "payload": ""
+      },
+      "hex": "0203ffff7fffffffffffffffffffffff00000000"
+    }
+  ]
+}

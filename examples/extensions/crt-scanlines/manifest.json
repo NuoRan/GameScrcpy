@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "gamescrcpy.crt-scanlines",
+  "version": "1.0.0",
+  "name": "CRT scanlines",
+  "description": "Darkens every few rows of the picture, like an old CRT screen.",
+  "authors": ["GameScrcpy"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/NuoRan/GameScrcpy",
+  "requires": {
+    "filter": "^1.0"
+  },
+  "contributes": {
+    "filters": [
+      {"name": "Scanlines", "file": "shaders/scanlines.hlsl"}
+    ]
+  },
+  "settings": [
+    {"key": "strength", "type": "number", "title": "Strength", "min": 0, "max": 1, "step": 0.05, "default": 0.35, "live": true},
+    {"key": "lineHeight", "type": "number", "title": "Line height", "description": "Rows per scanline, in picture pixels.", "min": 1, "max": 8, "step": 0.5, "default": 3, "live": true}
+  ],
+  "l10n": {
+    "zh_CN": {
+      "name": "CRT 扫描线",
+      "description": "每隔几行把画面压暗，像老式显像管屏幕。",
+      "settings.strength.title": "强度",
+      "settings.lineHeight.title": "行高",
+      "settings.lineHeight.description": "每条扫描线占的画面像素行数。"
+    }
+  }
+}

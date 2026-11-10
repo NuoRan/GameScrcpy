@@ -1,0 +1,11 @@
+{
+  "format": "gamescrcpy.profile",
+  "version": 3,
+  "meta": { "name": "Renamed control" },
+  "controls": [
+    { "id": "leap", "name": "Jump", "type": "hold", "anchor": "bottomRight", "offset": [-0.2, -0.3],
+      "inputs": { "press": "Space" } },
+    { "id": "fire", "name": "Fire", "type": "hold", "anchor": "bottomRight", "offset": [-0.1, -0.2],
+      "inputs": { "press": "KeyF" } }
+  ]
+}

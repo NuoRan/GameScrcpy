@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GameScrcpy Companion</string>
+    <string name="notification_channel">Cursor on this phone</string>
+    <string name="notification_running">GameScrcpy Companion is running</string>
+    <string name="notification_stop">Stop</string>
+    <string name="overlay_title">Display over other apps</string>
+    <string name="overlay_granted">Allowed: the computer\'s cursor can show on this phone.</string>
+    <string name="overlay_missing">Not allowed yet, so the computer\'s cursor cannot show on this phone.</string>
+    <string name="overlay_open">Open settings</string>
+    <string name="connection_title">Connection</string>
+    <string name="connection_connected">Connected to GameScrcpy on the computer.</string>
+    <string name="connection_waiting">Waiting for GameScrcpy on the computer.</string>
+    <string name="connection_none">Not connected. Turn on “Show the cursor on the phone” in GameScrcpy on the computer.</string>
+    <string name="lan_title">Wi-Fi connection</string>
+    <string name="lan_none">Not paired with a computer yet. Tap “Scan to connect” and scan the code in GameScrcpy\'s control window.</string>
+    <string name="lan_paired">Paired with a computer. On the same Wi-Fi it connects by itself while GameScrcpy\'s control window is open.</string>
+    <string name="lan_searching">Looking for the computer on this Wi-Fi…</string>
+    <string name="lan_connected">Connected to the computer over Wi-Fi.</string>
+    <string name="lan_failed">Could not connect. Check that the computer and this phone are on the same Wi-Fi and that Windows Firewall allows GameScrcpy.</string>
+    <string name="lan_scan">Scan to connect</string>
+    <string name="lan_connect">Connect now</string>
+    <string name="ime_title">Input method</string>
+    <string name="ime_ready">GameScrcpy Companion is the input method: what you type on the computer goes into this phone\'s input boxes.</string>
+    <string name="ime_enabled">Turned on but not chosen. Choose it while you play from the computer.</string>
+    <string name="ime_disabled">Not turned on. Without USB debugging, turn it on here once.</string>
+    <string name="ime_enable">Turn on the input method</string>
+    <string name="ime_choose">Choose the input method</string>
+    <string name="ime_typing">Typing with the computer\'s keyboard</string>
+    <string name="ime_waiting">The computer is not connected. Tap to go back to the phone\'s keyboard.</string>
+    <string name="scan_title">Scan the code in GameScrcpy\'s control window.</string>
+    <string name="scan_not_ours">This is not a GameScrcpy code.</string>
+    <string name="scan_camera_needed">Scanning needs the camera. Allow it in this app\'s settings.</string>
+    <string name="scan_cancel">Cancel</string>
+    <string name="capture_title">Screenshot for GameScrcpy</string>
+    <string name="capture_text">The computer wants a screenshot of this phone. Tap to allow the screen capture.</string>
+</resources>

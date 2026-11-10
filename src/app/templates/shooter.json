@@ -1,0 +1,31 @@
+{
+  "format": "gamescrcpy.profile",
+  "version": 3,
+  "meta": { "name": "Shooter" },
+  "controls": [
+    { "id": "move", "name": "Move", "type": "wasd", "anchor": "bottomLeft", "offset": [0.231, -0.28],
+      "inputs": { "up": "KeyW", "down": "KeyS", "left": "KeyA", "right": "KeyD" } },
+    { "id": "view", "name": "View", "type": "camera", "anchor": "center", "offset": [0.213, -0.1],
+      "lockKey": "Backquote", "inputs": { "look": "Mouse.Move" } },
+    { "id": "fire", "name": "Fire", "type": "hold", "anchor": "right", "offset": [-0.32, 0.12],
+      "inputs": { "press": "Mouse.Left" } },
+    { "id": "scope", "name": "Aim down sights", "type": "hold", "anchor": "right", "offset": [-0.178, -0.05],
+      "inputs": { "press": "Mouse.Right" } },
+    { "id": "jump", "name": "Jump", "type": "tap", "anchor": "bottomRight", "offset": [-0.142, -0.22],
+      "inputs": { "press": "Space" } },
+    { "id": "crouch", "name": "Crouch", "type": "tap", "anchor": "bottomRight", "offset": [-0.284, -0.12],
+      "inputs": { "press": "KeyC" } },
+    { "id": "prone", "name": "Prone", "type": "tap", "anchor": "bottomRight", "offset": [-0.124, -0.07],
+      "inputs": { "press": "KeyZ" } },
+    { "id": "reload", "name": "Reload", "type": "tap", "anchor": "bottomRight", "offset": [-0.444, -0.15],
+      "inputs": { "press": "KeyR" } },
+    { "id": "interact", "name": "Interact", "type": "tap", "anchor": "center", "offset": [0.213, 0.08],
+      "inputs": { "press": "KeyF" } },
+    { "id": "grenade", "name": "Grenade", "type": "hold", "anchor": "bottomRight", "offset": [-0.533, -0.28],
+      "inputs": { "press": "KeyG" } },
+    { "id": "bag", "name": "Bag", "type": "tap", "anchor": "topLeft", "offset": [0.178, 0.15],
+      "inputs": { "press": "Tab" } },
+    { "id": "map", "name": "Map", "type": "tap", "anchor": "topRight", "offset": [-0.213, 0.1],
+      "inputs": { "press": "KeyM" } }
+  ]
+}

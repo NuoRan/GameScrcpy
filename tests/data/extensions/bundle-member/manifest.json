@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "id": "gstest.bundle-tint",
+  "version": "1.0.0",
+  "name": "Bundle tint",
+  "description": "A small valid filter that make_bundles.py packs into the CLI test bundles.",
+  "authors": ["GameScrcpy tests"],
+  "license": "Apache-2.0",
+  "requires": {
+    "filter": "^1.0"
+  },
+  "contributes": {
+    "filters": [
+      {"name": "Tint", "file": "shaders/tint.hlsl"}
+    ]
+  }
+}

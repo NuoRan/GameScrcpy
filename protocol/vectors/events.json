@@ -1,0 +1,477 @@
+{
+  "format": "gamescrcpy.protocol-vectors",
+  "protocolVersion": 1,
+  "family": "events",
+  "vectors": [
+    {
+      "name": "uhid-output-typical",
+      "message": "UhidOutput",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "id": 1,
+        "data": "02"
+      },
+      "hex": "8110000000050001000102"
+    },
+    {
+      "name": "uhid-output-empty",
+      "message": "UhidOutput",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "id": 0,
+        "data": ""
+      },
+      "hex": "81100000000400000000"
+    },
+    {
+      "name": "uhid-output-max",
+      "message": "UhidOutput",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "id": 65535,
+        "data": "090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708"
+      },
+      "hex": "811000000204ffff0200090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebfc0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedfe0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff000102030405060708"
+    },
+    {
+      "name": "uhid-status-recognized",
+      "message": "UhidStatus",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "id": 257,
+        "recognized": true,
+        "vibration": true
+      },
+      "hex": "81110000000401010101"
+    },
+    {
+      "name": "uhid-status-not-recognized",
+      "message": "UhidStatus",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "id": 258,
+        "recognized": false,
+        "vibration": false
+      },
+      "hex": "81110000000401020000"
+    },
+    {
+      "name": "uhid-status-silent-pad",
+      "message": "UhidStatus",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "id": 65535,
+        "recognized": true,
+        "vibration": false
+      },
+      "hex": "811100000004ffff0100"
+    },
+    {
+      "name": "clipboard-changed-ascii",
+      "message": "ClipboardChanged",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "text": "hello"
+      },
+      "hex": "8301000000090000000568656c6c6f"
+    },
+    {
+      "name": "clipboard-changed-cjk",
+      "message": "ClipboardChanged",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "text": "来自手机的文字"
+      },
+      "hex": "83010000001900000015e69da5e887aae6898be69cbae79a84e69687e5ad97"
+    },
+    {
+      "name": "clipboard-changed-empty",
+      "message": "ClipboardChanged",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "text": ""
+      },
+      "hex": "83010000000400000000"
+    },
+    {
+      "name": "clipboard-ack-zero",
+      "message": "ClipboardAck",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "sequence": 0
+      },
+      "hex": "83020000000400000000"
+    },
+    {
+      "name": "clipboard-ack-one",
+      "message": "ClipboardAck",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "sequence": 1
+      },
+      "hex": "83020000000400000001"
+    },
+    {
+      "name": "clipboard-ack-max",
+      "message": "ClipboardAck",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "sequence": 4294967295
+      },
+      "hex": "830200000004ffffffff"
+    },
+    {
+      "name": "display-changed-phone",
+      "message": "DisplayChanged",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "display": {
+          "displayId": 0,
+          "width": 1080,
+          "height": 2400,
+          "rotation": 0,
+          "densityDpi": 440,
+          "refreshMilliHz": 120000,
+          "safeLeft": 0,
+          "safeTop": 110,
+          "safeRight": 0,
+          "safeBottom": 0
+        }
+      },
+      "hex": "83030000001700000000043809600001b80001d4c00000006e00000000"
+    },
+    {
+      "name": "display-changed-rotated",
+      "message": "DisplayChanged",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "display": {
+          "displayId": 0,
+          "width": 2400,
+          "height": 1080,
+          "rotation": 1,
+          "densityDpi": 440,
+          "refreshMilliHz": 120000,
+          "safeLeft": 110,
+          "safeTop": 0,
+          "safeRight": 0,
+          "safeBottom": 0
+        }
+      },
+      "hex": "83030000001700000000096004380101b80001d4c0006e000000000000"
+    },
+    {
+      "name": "display-changed-max",
+      "message": "DisplayChanged",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "display": {
+          "displayId": 4294967295,
+          "width": 65535,
+          "height": 65535,
+          "rotation": 3,
+          "densityDpi": 65535,
+          "refreshMilliHz": 4294967295,
+          "safeLeft": 65535,
+          "safeTop": 65535,
+          "safeRight": 65535,
+          "safeBottom": 65535
+        }
+      },
+      "hex": "830300000017ffffffffffffffff03ffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "foreground-app-game",
+      "message": "ForegroundAppChanged",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "package": "com.tencent.tmgp.pubgmhd",
+        "activity": "com.epicgames.ue4.GameActivity",
+        "game": true
+      },
+      "hex": "83040000003918636f6d2e74656e63656e742e746d67702e707562676d68641e636f6d2e6570696367616d65732e7565342e47616d65416374697669747901"
+    },
+    {
+      "name": "foreground-app-not-game",
+      "message": "ForegroundAppChanged",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "package": "com.android.settings",
+        "activity": "com.android.settings.Settings",
+        "game": false
+      },
+      "hex": "83040000003414636f6d2e616e64726f69642e73657474696e67731d636f6d2e616e64726f69642e73657474696e67732e53657474696e677300"
+    },
+    {
+      "name": "foreground-app-empty",
+      "message": "ForegroundAppChanged",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "package": "",
+        "activity": "",
+        "game": false
+      },
+      "hex": "830400000003000000"
+    },
+    {
+      "name": "foreground-app-max",
+      "message": "ForegroundAppChanged",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "package": "ppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp",
+        "activity": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "game": true
+      },
+      "hex": "830400000201ff707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070707070ff61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616101"
+    },
+    {
+      "name": "device-status-charging",
+      "message": "DeviceStatus",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "batteryPercent": 82,
+        "charging": true,
+        "temperatureDeciC": 365,
+        "cpuPermille": 230
+      },
+      "hex": "8305000000065201016d00e6"
+    },
+    {
+      "name": "device-status-unknown",
+      "message": "DeviceStatus",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "batteryPercent": 255,
+        "charging": false,
+        "temperatureDeciC": -32768,
+        "cpuPermille": 65535
+      },
+      "hex": "830500000006ff008000ffff"
+    },
+    {
+      "name": "device-status-partly-known",
+      "message": "DeviceStatus",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "batteryPercent": 64,
+        "charging": false,
+        "temperatureDeciC": -32768,
+        "cpuPermille": 47
+      },
+      "hex": "83050000000640008000002f"
+    },
+    {
+      "name": "device-status-cold-empty-idle",
+      "message": "DeviceStatus",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "batteryPercent": 0,
+        "charging": false,
+        "temperatureDeciC": -125,
+        "cpuPermille": 0
+      },
+      "hex": "8305000000060000ff830000"
+    },
+    {
+      "name": "device-status-extremes",
+      "message": "DeviceStatus",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "batteryPercent": 100,
+        "charging": true,
+        "temperatureDeciC": 32767,
+        "cpuPermille": 1000
+      },
+      "hex": "83050000000664017fff03e8"
+    },
+    {
+      "name": "pong-typical",
+      "message": "Pong",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "nonce": 1,
+        "clientTimeUs": "1000",
+        "serverTimeUs": "123456789"
+      },
+      "hex": "8401000000140000000100000000000003e800000000075bcd15"
+    },
+    {
+      "name": "pong-zero",
+      "message": "Pong",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "nonce": 0,
+        "clientTimeUs": "0",
+        "serverTimeUs": "0"
+      },
+      "hex": "8401000000140000000000000000000000000000000000000000"
+    },
+    {
+      "name": "pong-max",
+      "message": "Pong",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "nonce": 4294967295,
+        "clientTimeUs": "18446744073709551615",
+        "serverTimeUs": "18446744073709551615"
+      },
+      "hex": "840100000014ffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "server-goodbye-timeout",
+      "message": "ServerGoodbye",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "reason": "timeout",
+        "message": "heartbeat timeout"
+      },
+      "hex": "840200000015000e00116865617274626561742074696d656f7574"
+    },
+    {
+      "name": "server-goodbye-empty",
+      "message": "ServerGoodbye",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "reason": "none",
+        "message": ""
+      },
+      "hex": "84020000000400000000"
+    },
+    {
+      "name": "server-goodbye-max",
+      "message": "ServerGoodbye",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "reason": "internalError",
+        "message": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm"
+      },
+      "hex": "840200000404000f04006d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d"
+    },
+    {
+      "name": "notice-warning",
+      "message": "Notice",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "level": "warning",
+        "code": "encoderFailure",
+        "message": "hardware encoder failed, using software"
+      },
+      "hex": "84030000002c01000b0027686172647761726520656e636f646572206661696c65642c207573696e6720736f667477617265"
+    },
+    {
+      "name": "notice-info-empty",
+      "message": "Notice",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "level": "info",
+        "code": "none",
+        "message": ""
+      },
+      "hex": "8403000000050000000000"
+    },
+    {
+      "name": "notice-error-cjk",
+      "message": "Notice",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "level": "error",
+        "code": "permissionDenied",
+        "message": "音频采集权限被拒绝"
+      },
+      "hex": "84030000002002000c001be99fb3e9a291e98787e99b86e69d83e99990e8a2abe68b92e7bb9d"
+    },
+    {
+      "name": "notice-injection-denied",
+      "message": "Notice",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "level": "error",
+        "code": "injectionDenied",
+        "message": "input injection is not permitted (INJECT_EVENTS)"
+      },
+      "hex": "8403000000350200100030696e70757420696e6a656374696f6e206973206e6f74207065726d69747465642028494e4a4543545f4556454e545329"
+    },
+    {
+      "name": "notice-clipboard-denied",
+      "message": "Notice",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "level": "error",
+        "code": "clipboardDenied",
+        "message": "the clipboard refused access"
+      },
+      "hex": "840300000021020011001c74686520636c6970626f617264207265667573656420616363657373"
+    },
+    {
+      "name": "notice-audio-capture-failed",
+      "message": "Notice",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "level": "warning",
+        "code": "audioCaptureFailed",
+        "message": "cannot start capturing the audio output"
+      },
+      "hex": "84030000002c010012002763616e6e6f7420737461727420636170747572696e672074686520617564696f206f7574707574"
+    },
+    {
+      "name": "notice-video-reduced",
+      "message": "Notice",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "level": "warning",
+        "code": "videoReduced",
+        "message": "video reduced to 810x1800 for the link"
+      },
+      "hex": "84030000002b0100130026766964656f207265647563656420746f20383130783138303020666f7220746865206c696e6b"
+    },
+    {
+      "name": "notice-video-restored",
+      "message": "Notice",
+      "channel": "control",
+      "direction": "toClient",
+      "fields": {
+        "level": "info",
+        "code": "videoRestored",
+        "message": "video back to the setting, 1080x2400"
+      },
+      "hex": "8403000000290000140024766964656f206261636b20746f207468652073657474696e672c20313038307832343030"
+    }
+  ]
+}

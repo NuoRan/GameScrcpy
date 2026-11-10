@@ -1,0 +1,610 @@
+{
+  "format": "gamescrcpy.protocol-vectors",
+  "protocolVersion": 1,
+  "family": "handshake",
+  "vectors": [
+    {
+      "name": "server-hello-typical",
+      "message": "ServerHello",
+      "channel": "handshake",
+      "direction": "toClient",
+      "fields": {
+        "protocolVersion": 1,
+        "nonce": "000102030405060708090a0b0c0d0e0f"
+      },
+      "hex": "800100000016475343500001000102030405060708090a0b0c0d0e0f"
+    },
+    {
+      "name": "server-hello-zero-nonce",
+      "message": "ServerHello",
+      "channel": "handshake",
+      "direction": "toClient",
+      "fields": {
+        "protocolVersion": 1,
+        "nonce": "00000000000000000000000000000000"
+      },
+      "hex": "80010000001647534350000100000000000000000000000000000000"
+    },
+    {
+      "name": "server-hello-max-version",
+      "message": "ServerHello",
+      "channel": "handshake",
+      "direction": "toClient",
+      "fields": {
+        "protocolVersion": 65535,
+        "nonce": "ffffffffffffffffffffffffffffffff"
+      },
+      "hex": "80010000001647534350ffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "client-hello-typical",
+      "message": "ClientHello",
+      "channel": "handshake",
+      "direction": "toServer",
+      "fields": {
+        "protocolVersion": 1,
+        "clientVersion": "2.0.0",
+        "proof": "a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf"
+      },
+      "hex": "000200000028000105322e302e30a0a1a2a3a4a5a6a7a8a9aaabacadaeafb0b1b2b3b4b5b6b7b8b9babbbcbdbebf"
+    },
+    {
+      "name": "client-hello-empty-version",
+      "message": "ClientHello",
+      "channel": "handshake",
+      "direction": "toServer",
+      "fields": {
+        "protocolVersion": 1,
+        "clientVersion": "",
+        "proof": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "hex": "0002000000230001000000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "client-hello-max-version-string",
+      "message": "ClientHello",
+      "channel": "handshake",
+      "direction": "toServer",
+      "fields": {
+        "protocolVersion": 1,
+        "clientVersion": "vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv",
+        "proof": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "hex": "0002000000430001207676767676767676767676767676767676767676767676767676767676767676ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "welcome-typical",
+      "message": "Welcome",
+      "channel": "handshake",
+      "direction": "toClient",
+      "fields": {
+        "serverVersion": "2.0.0",
+        "manufacturer": "Xiaomi",
+        "model": "23049RAD8C",
+        "androidRelease": "14",
+        "sdkInt": 34,
+        "serialNo": "ca411890",
+        "displays": [
+          {
+            "displayId": 0,
+            "width": 1080,
+            "height": 2400,
+            "rotation": 0,
+            "densityDpi": 440,
+            "refreshMilliHz": 120000,
+            "safeLeft": 0,
+            "safeTop": 110,
+            "safeRight": 0,
+            "safeBottom": 0
+          }
+        ],
+        "encoders": [
+          {
+            "codec": "h264",
+            "name": "c2.qti.avc.encoder",
+            "hardware": true
+          },
+          {
+            "codec": "h265",
+            "name": "c2.qti.hevc.encoder",
+            "hardware": true
+          }
+        ],
+        "audioStatus": "available",
+        "capabilities": 511,
+        "resumed": false
+      },
+      "hex": "80030000007005322e302e30065869616f6d690a3233303439524144384302313400220863613431313839300100000000043809600001b80001d4c00000006e0000000002011263322e7174692e6176632e656e636f64657201021363322e7174692e686576632e656e636f6465720100000001ff00"
+    },
+    {
+      "name": "welcome-minimal",
+      "message": "Welcome",
+      "channel": "handshake",
+      "direction": "toClient",
+      "fields": {
+        "serverVersion": "",
+        "manufacturer": "",
+        "model": "",
+        "androidRelease": "9",
+        "sdkInt": 28,
+        "serialNo": "",
+        "displays": [],
+        "encoders": [],
+        "audioStatus": "unsupportedAndroid",
+        "capabilities": 0,
+        "resumed": false
+      },
+      "hex": "8003000000100000000139001c000000010000000000"
+    },
+    {
+      "name": "welcome-maximal",
+      "message": "Welcome",
+      "channel": "handshake",
+      "direction": "toClient",
+      "fields": {
+        "serverVersion": "ssssssssssssssssssssssssssssssss",
+        "manufacturer": "mmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmmm",
+        "model": "游戏手机游戏手机游戏手机游戏手机游戏手机xxxx",
+        "androidRelease": "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+        "sdkInt": 65535,
+        "serialNo": "0000000000000000000000000000000000000000000000000000000000000000",
+        "displays": [
+          {
+            "displayId": 0,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 1,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 2,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 3,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 4,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 5,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 6,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 7,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 8,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 9,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 10,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 11,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 12,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 13,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 14,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          },
+          {
+            "displayId": 15,
+            "width": 65535,
+            "height": 65535,
+            "rotation": 3,
+            "densityDpi": 65535,
+            "refreshMilliHz": 4294967295,
+            "safeLeft": 65535,
+            "safeTop": 65535,
+            "safeRight": 65535,
+            "safeBottom": 65535
+          }
+        ],
+        "encoders": [
+          {
+            "codec": "h264",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "h265",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "av1",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "h264",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "h265",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "av1",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "h264",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "h265",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "av1",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "h264",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "h265",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "av1",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "h264",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "h265",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "av1",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "h264",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "h265",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "av1",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "h264",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "h265",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "av1",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "h264",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "h265",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "av1",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "h264",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "h265",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "av1",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "h264",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "h265",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "av1",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          },
+          {
+            "codec": "h264",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": true
+          },
+          {
+            "codec": "h265",
+            "name": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+            "hardware": false
+          }
+        ],
+        "audioStatus": "captureFailed",
+        "capabilities": 8191,
+        "resumed": true
+      },
+      "hex": "8003000012df207373737373737373737373737373737373737373737373737373737373737373406d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d6d40e6b8b8e6888fe6898be69cbae6b8b8e6888fe6898be69cbae6b8b8e6888fe6898be69cbae6b8b8e6888fe6898be69cbae6b8b8e6888fe6898be69cba78787878207272727272727272727272727272727272727272727272727272727272727272ffff40303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030303030301000000000ffffffff03ffffffffffffffffffffffffffff00000001ffffffff03ffffffffffffffffffffffffffff00000002ffffffff03ffffffffffffffffffffffffffff00000003ffffffff03ffffffffffffffffffffffffffff00000004ffffffff03ffffffffffffffffffffffffffff00000005ffffffff03ffffffffffffffffffffffffffff00000006ffffffff03ffffffffffffffffffffffffffff00000007ffffffff03ffffffffffffffffffffffffffff00000008ffffffff03ffffffffffffffffffffffffffff00000009ffffffff03ffffffffffffffffffffffffffff0000000affffffff03ffffffffffffffffffffffffffff0000000bffffffff03ffffffffffffffffffffffffffff0000000cffffffff03ffffffffffffffffffffffffffff0000000dffffffff03ffffffffffffffffffffffffffff0000000effffffff03ffffffffffffffffffffffffffff0000000fffffffff03ffffffffffffffffffffffffffff20018065656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565650102806565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565000380656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656501018065656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565650002806565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565010380656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656500018065656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565650102806565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565000380656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656501018065656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565650002806565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565010380656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656500018065656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565650102806565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565000380656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656501018065656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565650002806565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565010380656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656500018065656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565650102806565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565000380656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656501018065656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565650002806565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565010380656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656500018065656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565650102806565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565000380656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656501018065656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565650002806565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565010380656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656500018065656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565650102806565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565656565000200001fff01"
+    },
+    {
+      "name": "handshake-error-version",
+      "message": "HandshakeError",
+      "channel": "handshake",
+      "direction": "toClient",
+      "fields": {
+        "code": "versionMismatch",
+        "message": "client 1, server 2"
+      },
+      "hex": "80040000001600010012636c69656e7420312c207365727665722032"
+    },
+    {
+      "name": "handshake-error-auth-empty",
+      "message": "HandshakeError",
+      "channel": "handshake",
+      "direction": "toClient",
+      "fields": {
+        "code": "authenticationFailed",
+        "message": ""
+      },
+      "hex": "80040000000400020000"
+    },
+    {
+      "name": "handshake-error-max-message",
+      "message": "HandshakeError",
+      "channel": "handshake",
+      "direction": "toClient",
+      "fields": {
+        "code": "internalError",
+        "message": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "hex": "800400000404000f040078787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878"
+    },
+    {
+      "name": "channel-open-video",
+      "message": "ChannelOpen",
+      "channel": "handshake",
+      "direction": "toServer",
+      "fields": {
+        "channel": "video",
+        "proof": "101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f"
+      },
+      "hex": "00050000002101101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f"
+    },
+    {
+      "name": "channel-open-audio",
+      "message": "ChannelOpen",
+      "channel": "handshake",
+      "direction": "toServer",
+      "fields": {
+        "channel": "audio",
+        "proof": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "hex": "000500000021020000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "channel-open-bulk",
+      "message": "ChannelOpen",
+      "channel": "handshake",
+      "direction": "toServer",
+      "fields": {
+        "channel": "bulk",
+        "proof": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+      },
+      "hex": "00050000002103ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+    },
+    {
+      "name": "channel-accepted-video",
+      "message": "ChannelAccepted",
+      "channel": "handshake",
+      "direction": "toClient",
+      "fields": {
+        "channel": "video"
+      },
+      "hex": "80060000000101"
+    },
+    {
+      "name": "channel-accepted-audio",
+      "message": "ChannelAccepted",
+      "channel": "handshake",
+      "direction": "toClient",
+      "fields": {
+        "channel": "audio"
+      },
+      "hex": "80060000000102"
+    },
+    {
+      "name": "channel-accepted-bulk",
+      "message": "ChannelAccepted",
+      "channel": "handshake",
+      "direction": "toClient",
+      "fields": {
+        "channel": "bulk"
+      },
+      "hex": "80060000000103"
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "format": "gamescrcpy.resources",
+  "version": 1,
+  "templates": [
+    { "name": "startButton", "file": "startButton.png", "threshold": 0.9, "match": "color", "region": "bottomRight",
+      "source": { "width": 1080, "height": 2400 } }
+  ],
+  "regions": [
+    { "name": "bottomRight", "x": 0.5, "y": 0.6, "width": 0.5, "height": 0.4 }
+  ],
+  "points": [
+    { "name": "活动入口", "x": 0.12, "y": 0.08 }
+  ],
+  "paths": [
+    { "name": "dragMap", "points": [[0.1, 0.8], [0.3, 0.75]], "durationMs": 400 }
+  ],
+  "colors": [
+    { "name": "banner", "color": "#F5C542", "tolerance": 0.1, "region": "bottomRight" }
+  ]
+}

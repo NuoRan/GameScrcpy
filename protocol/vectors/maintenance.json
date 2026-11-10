@@ -1,0 +1,127 @@
+{
+  "format": "gamescrcpy.protocol-vectors",
+  "protocolVersion": 1,
+  "family": "maintenance",
+  "vectors": [
+    {
+      "name": "ping-typical",
+      "message": "Ping",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "nonce": 1,
+        "clientTimeUs": "1000"
+      },
+      "hex": "04010000000c0000000100000000000003e8"
+    },
+    {
+      "name": "ping-zero",
+      "message": "Ping",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "nonce": 0,
+        "clientTimeUs": "0"
+      },
+      "hex": "04010000000c000000000000000000000000"
+    },
+    {
+      "name": "ping-max",
+      "message": "Ping",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "nonce": 4294967295,
+        "clientTimeUs": "18446744073709551615"
+      },
+      "hex": "04010000000cffffffffffffffffffffffff"
+    },
+    {
+      "name": "goodbye-none",
+      "message": "Goodbye",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "reason": "none"
+      },
+      "hex": "0402000000020000"
+    },
+    {
+      "name": "goodbye-timeout",
+      "message": "Goodbye",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "reason": "timeout"
+      },
+      "hex": "040200000002000e"
+    },
+    {
+      "name": "goodbye-internal",
+      "message": "Goodbye",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "reason": "internalError"
+      },
+      "hex": "040200000002000f"
+    },
+    {
+      "name": "receiver-report-typical",
+      "message": "ReceiverReport",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "videoSession": 3,
+        "intervalUs": 200000,
+        "frames": 12,
+        "bytes": 96240,
+        "delayMinUs": "-1234567890123",
+        "delayMeanUs": "-1234567885000",
+        "delayMaxUs": "-1234567871000",
+        "roundTripUs": 1200,
+        "lostPackets": 0,
+        "recoveredPackets": 0
+      },
+      "hex": "040300000030000300030d40000c000177f0fffffee08e04fb35fffffee08e050f38fffffee08e0545e8000004b00000000000000000"
+    },
+    {
+      "name": "receiver-report-idle",
+      "message": "ReceiverReport",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "videoSession": 1,
+        "intervalUs": 200000,
+        "frames": 0,
+        "bytes": 0,
+        "delayMinUs": "0",
+        "delayMeanUs": "0",
+        "delayMaxUs": "0",
+        "roundTripUs": 0,
+        "lostPackets": 0,
+        "recoveredPackets": 0
+      },
+      "hex": "040300000030000100030d40000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    },
+    {
+      "name": "receiver-report-max",
+      "message": "ReceiverReport",
+      "channel": "control",
+      "direction": "toServer",
+      "fields": {
+        "videoSession": 65535,
+        "intervalUs": 4294967295,
+        "frames": 65535,
+        "bytes": 4294967295,
+        "delayMinUs": "-9223372036854775808",
+        "delayMeanUs": "0",
+        "delayMaxUs": "9223372036854775807",
+        "roundTripUs": 4294967295,
+        "lostPackets": 4294967295,
+        "recoveredPackets": 4294967295
+      },
+      "hex": "040300000030ffffffffffffffffffffffff800000000000000000000000000000007fffffffffffffffffffffffffffffffffffffff"
+    }
+  ]
+}

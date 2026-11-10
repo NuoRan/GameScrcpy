@@ -1,0 +1,9 @@
+{
+    "format": "gamescrcpy.task",
+    "version": 1,
+    "name": "Tap places in order",
+    "schedule": {
+        "mode": "manual",
+        "time": "08:00"
+    }
+}

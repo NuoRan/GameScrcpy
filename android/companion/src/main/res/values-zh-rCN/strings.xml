@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">GameScrcpy 伴侣</string>
+    <string name="notification_channel">手机上的光标</string>
+    <string name="notification_running">GameScrcpy 伴侣正在运行</string>
+    <string name="notification_stop">停止</string>
+    <string name="overlay_title">悬浮窗权限</string>
+    <string name="overlay_granted">已允许：电脑的光标可以显示在这台手机上。</string>
+    <string name="overlay_missing">尚未允许，电脑的光标无法显示在这台手机上。</string>
+    <string name="overlay_open">去打开</string>
+    <string name="connection_title">连接状态</string>
+    <string name="connection_connected">已连接电脑上的 GameScrcpy。</string>
+    <string name="connection_waiting">正在等待电脑上的 GameScrcpy。</string>
+    <string name="connection_none">未连接。在电脑上的 GameScrcpy 里打开“在手机上显示光标”。</string>
+    <string name="lan_title">局域网连接</string>
+    <string name="lan_none">还没配对电脑。点“扫码连接”，扫 GameScrcpy 控制窗口里的二维码。</string>
+    <string name="lan_paired">已配对电脑。在同一个 Wi-Fi 下，只要 GameScrcpy 的控制窗口开着就会自己连上。</string>
+    <string name="lan_searching">正在这个 Wi-Fi 里找电脑……</string>
+    <string name="lan_connected">已经过 Wi-Fi 连上电脑。</string>
+    <string name="lan_failed">连不上。看看电脑和这台手机是不是在同一个 Wi-Fi，以及 Windows 防火墙是否允许了 GameScrcpy。</string>
+    <string name="lan_scan">扫码连接</string>
+    <string name="lan_connect">现在连接</string>
+    <string name="ime_title">输入法</string>
+    <string name="ime_ready">GameScrcpy 伴侣是当前输入法：电脑上打的字会直接进这台手机的输入框。</string>
+    <string name="ime_enabled">已启用但没选中。用电脑玩时选它。</string>
+    <string name="ime_disabled">尚未启用。没有 USB 调试时，在这里启用一次。</string>
+    <string name="ime_enable">启用输入法</string>
+    <string name="ime_choose">选输入法</string>
+    <string name="ime_typing">正在用电脑键盘打字</string>
+    <string name="ime_waiting">电脑没有连接，点这里换回手机键盘。</string>
+    <string name="scan_title">扫 GameScrcpy 控制窗口里的二维码。</string>
+    <string name="scan_not_ours">这不是 GameScrcpy 的二维码。</string>
+    <string name="scan_camera_needed">扫码需要相机权限，请在这个应用的设置里允许。</string>
+    <string name="scan_cancel">取消</string>
+    <string name="capture_title">为 GameScrcpy 截图</string>
+    <string name="capture_text">电脑要截一张这台手机的屏幕，点这里允许录屏。</string>
+</resources>

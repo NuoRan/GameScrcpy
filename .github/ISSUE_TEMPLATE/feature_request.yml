@@ -1,0 +1,23 @@
+name: 功能建议 / Feature request
+description: 想要新功能或者改进 / Suggest a new feature or an improvement
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解决什么问题 / The problem
+      description: 在什么游戏或场景下、遇到了什么不方便 / In which game or situation, and what gets in the way
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: 希望怎么做 / The idea
+      description: 你希望看到的样子 / What you would like to see
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 现在的变通办法 / Workarounds
+      description: 现在是怎么凑合的，或者想过的其他办法 / How you get by today, or other ways you considered

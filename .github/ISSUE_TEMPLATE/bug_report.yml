@@ -1,0 +1,74 @@
+name: 问题反馈 / Bug report
+description: 程序出错、行为不对或者崩溃 / Something is broken or behaves wrongly
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈！提交前请先搜一下有没有人报过，并看看[常见问题](https://github.com/NuoRan/GameScrcpy/blob/main/src/app/help/zh_CN/faq.md)。安全问题请按 [SECURITY.md](https://github.com/NuoRan/GameScrcpy/blob/main/SECURITY.md) 私下报告。
+        Thanks for reporting! Please search existing issues and the [FAQ](https://github.com/NuoRan/GameScrcpy/blob/main/src/app/help/en/faq.md) first. Report security problems privately as described in [SECURITY.md](https://github.com/NuoRan/GameScrcpy/blob/main/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: GameScrcpy 版本 / Version
+      description: 设置 > 关于 / Settings > About
+      placeholder: "2.0.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: package
+    attributes:
+      label: 安装方式 / Package
+      options:
+        - 安装包 / Installer
+        - 便携版 / Portable
+        - 自己编译 / Built from source
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows 版本 / Windows version
+      placeholder: "Windows 11 24H2"
+    validations:
+      required: true
+  - type: input
+    id: phone
+    attributes:
+      label: 手机型号与 Android 版本 / Phone model and Android version
+      placeholder: "Xiaomi 14, Android 15"
+  - type: dropdown
+    id: connection
+    attributes:
+      label: 连接与触控方式 / Connection and touch
+      multiple: true
+      options:
+        - USB 数据线 / USB cable
+        - 无线调试 / Wireless debugging
+        - WiFi 直连 / WiFi direct
+        - AOA
+        - ESP32 触控盒 / ESP32 touch box
+        - 采集卡 / Capture card
+        - 不涉及手机 / Not about a phone
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么 / What happened
+      description: 你看到了什么，期望看到什么 / What you saw and what you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤 / Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: 诊断包与截图 / Diagnostics and screenshots
+      description: 在"设置 > 关于 > 导出诊断包"生成文件后拖到这里；有截图或录屏也请附上 / Drag in the file made by "Settings > About > Export diagnostics", plus screenshots or recordings if you have them

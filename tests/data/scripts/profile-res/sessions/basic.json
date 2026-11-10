@@ -1,0 +1,10 @@
+{
+  "format": "gamescrcpy.session",
+  "version": 1,
+  "device": { "model": "Demo phone", "android": 15, "width": 1080, "height": 2400, "rotation": 0 },
+  "startedAt": "2026-11-01T12:00:00Z",
+  "events": [
+    { "at": 100, "press": "jump" },
+    { "at": 150, "release": "jump" }
+  ]
+}

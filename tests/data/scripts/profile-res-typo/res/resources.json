@@ -1,0 +1,7 @@
+{
+  "format": "gamescrcpy.resources",
+  "version": 1,
+  "templates": [
+    { "name": "startButton", "file": "startButton.png", "threshold": 0.9, "match": "grey" }
+  ]
+}

@@ -1,0 +1,4321 @@
+[
+  {
+    "label": "sleep",
+    "kind": "function",
+    "detail": "sleep(ms: number): Promise<void>",
+    "documentation": "Waits without blocking other tasks. Rejects with an AbortError when the task is cancelled.",
+    "insertText": "sleep(${1:ms})"
+  },
+  {
+    "label": "nextFrame",
+    "kind": "function",
+    "detail": "nextFrame(): Promise<void>",
+    "documentation": "Waits until the next picture frame is shown.",
+    "insertText": "nextFrame()"
+  },
+  {
+    "label": "every",
+    "kind": "function",
+    "detail": "every(intervalMs: number, handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Runs a handler again and again, waiting intervalMs before each run.",
+    "insertText": "every(${1:intervalMs}, ${2:handler})"
+  },
+  {
+    "label": "after",
+    "kind": "function",
+    "detail": "after(delayMs: number, handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Runs a handler once after a delay, unless it is disposed first.",
+    "insertText": "after(${1:delayMs}, ${2:handler})"
+  },
+  {
+    "label": "waitUntil",
+    "kind": "function",
+    "detail": "waitUntil(condition: () => unknown, options?: UntilOptions): Promise<NonNullable<unknown>>",
+    "documentation": "Waits until a condition gives a truthy value and resolves with it; rejects with a TimeoutError (GS-API-030) when the time is up.",
+    "insertText": "waitUntil(${1:condition})"
+  },
+  {
+    "label": "retry",
+    "kind": "function",
+    "detail": "retry(times: number, action: (attempt: number) => unknown): Promise<unknown>",
+    "documentation": "Runs an action and tries again when it throws, up to times more; a cancelled task is not retried.",
+    "insertText": "retry(${1:times}, ${2:action})"
+  },
+  {
+    "label": "withTimeout",
+    "kind": "function",
+    "detail": "withTimeout(timeoutMs: number, action: (context: TaskContext) => unknown): Promise<unknown>",
+    "documentation": "Runs an action with a time limit: when the time is up its signal aborts and the Promise rejects with a TimeoutError (GS-API-030).",
+    "insertText": "withTimeout(${1:timeoutMs}, ${2:action})"
+  },
+  {
+    "label": "parallel",
+    "kind": "function",
+    "detail": "parallel(...work: Work[]): Promise<unknown[]>",
+    "documentation": "Runs several things at the same time and waits for all of them.",
+    "insertText": "parallel()"
+  },
+  {
+    "label": "sequence",
+    "kind": "function",
+    "detail": "sequence(...work: Work[]): Promise<unknown[]>",
+    "documentation": "Runs several things one after another, in order, waiting for each before it starts the next.",
+    "insertText": "sequence()"
+  },
+  {
+    "label": "multiGate",
+    "kind": "function",
+    "detail": "multiGate(name: string, times: number, loop: boolean, random: boolean, ...work: Work[]): Promise<unknown>",
+    "documentation": "Runs the next of several functions each time it is called, in turn or in random order, and one more function after they have all run.",
+    "insertText": "multiGate(${1:name}, ${2:times}, ${3:loop}, ${4:random})"
+  },
+  {
+    "label": "race",
+    "kind": "function",
+    "detail": "race(...work: Work[]): Promise<unknown>",
+    "documentation": "Runs several things at the same time and waits for the first to finish.",
+    "insertText": "race()"
+  },
+  {
+    "label": "doOnce",
+    "kind": "function",
+    "detail": "doOnce(name: string, action: () => unknown): unknown",
+    "documentation": "Runs an action only the first time it is called with this name.",
+    "insertText": "doOnce(${1:name}, ${2:action})"
+  },
+  {
+    "label": "resetOnce",
+    "kind": "function",
+    "detail": "resetOnce(name: string): void",
+    "documentation": "Lets doOnce run the action with this name again.",
+    "insertText": "resetOnce(${1:name})"
+  },
+  {
+    "label": "doN",
+    "kind": "function",
+    "detail": "doN(name: string, times: number): boolean",
+    "documentation": "Says yes for the first times calls with this name, and no after that, until resetDoN with the same name.",
+    "insertText": "doN(${1:name}, ${2:times})"
+  },
+  {
+    "label": "resetDoN",
+    "kind": "function",
+    "detail": "resetDoN(name: string): void",
+    "documentation": "Lets doN with this name pass that many times again.",
+    "insertText": "resetDoN(${1:name})"
+  },
+  {
+    "label": "gate",
+    "kind": "function",
+    "detail": "gate(name: string, startClosed?: boolean): Gate",
+    "documentation": "A named gate that lets an action through only while it is open.",
+    "insertText": "gate(${1:name})"
+  },
+  {
+    "label": "flipFlop",
+    "kind": "function",
+    "detail": "flipFlop(name: string): \"A\" | \"B\"",
+    "documentation": "Gives \"A\" and \"B\" in turn, starting with \"A\", for each name.",
+    "insertText": "flipFlop(${1:name})"
+  },
+  {
+    "label": "throttle",
+    "kind": "function",
+    "detail": "throttle(intervalMs: number, action: (...values: unknown[]) => unknown): (...values: unknown[]) => unknown",
+    "documentation": "Makes a function that runs the action at most once per interval and ignores calls in between.",
+    "insertText": "throttle(${1:intervalMs}, ${2:action})"
+  },
+  {
+    "label": "debounce",
+    "kind": "function",
+    "detail": "debounce(waitMs: number, action: (...values: unknown[]) => unknown): (...values: unknown[]) => void",
+    "documentation": "Makes a function that runs the action only after the calls have stopped for waitMs.",
+    "insertText": "debounce(${1:waitMs}, ${2:action})"
+  },
+  {
+    "label": "stopwatch",
+    "kind": "function",
+    "detail": "stopwatch(): Stopwatch",
+    "documentation": "A stopwatch that starts now.",
+    "insertText": "stopwatch()"
+  },
+  {
+    "label": "point",
+    "kind": "function",
+    "detail": "point(x: number, y: number): PicturePoint",
+    "documentation": "A position on the picture, as ratios.",
+    "insertText": "point(${1:x}, ${2:y})"
+  },
+  {
+    "label": "Component",
+    "kind": "variable",
+    "detail": "Component: ComponentClass",
+    "documentation": "The base class of components made in logic: extend it, declare static props and set them up in setup(); create them with new at the top level of the logic.",
+    "insertText": "Component"
+  },
+  {
+    "label": "Tap",
+    "kind": "variable",
+    "detail": "Tap: BuiltInClass<Tap, ComponentOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "Tap"
+  },
+  {
+    "label": "Hold",
+    "kind": "variable",
+    "detail": "Hold: BuiltInClass<Hold, HoldOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "Hold"
+  },
+  {
+    "label": "LongPress",
+    "kind": "variable",
+    "detail": "LongPress: BuiltInClass<LongPress, StartEndOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "LongPress"
+  },
+  {
+    "label": "Turbo",
+    "kind": "variable",
+    "detail": "Turbo: BuiltInClass<Turbo, ComponentOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "Turbo"
+  },
+  {
+    "label": "Swipe",
+    "kind": "variable",
+    "detail": "Swipe: BuiltInClass<Swipe, StartEndOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "Swipe"
+  },
+  {
+    "label": "Pinch",
+    "kind": "variable",
+    "detail": "Pinch: BuiltInClass<Pinch, ComponentOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "Pinch"
+  },
+  {
+    "label": "Wasd",
+    "kind": "variable",
+    "detail": "Wasd: BuiltInClass<Wasd, StickOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "Wasd"
+  },
+  {
+    "label": "RightWalk",
+    "kind": "variable",
+    "detail": "RightWalk: BuiltInClass<RightWalk, RightWalkOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "RightWalk"
+  },
+  {
+    "label": "PadStick",
+    "kind": "variable",
+    "detail": "PadStick: BuiltInClass<PadStick, StickOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "PadStick"
+  },
+  {
+    "label": "Camera",
+    "kind": "variable",
+    "detail": "Camera: BuiltInClass<Camera, CameraOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "Camera"
+  },
+  {
+    "label": "PadCamera",
+    "kind": "variable",
+    "detail": "PadCamera: BuiltInClass<PadCamera, LookOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "PadCamera"
+  },
+  {
+    "label": "FreeLook",
+    "kind": "variable",
+    "detail": "FreeLook: BuiltInClass<FreeLook, StartEndOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "FreeLook"
+  },
+  {
+    "label": "Skill",
+    "kind": "variable",
+    "detail": "Skill: BuiltInClass<Skill, SkillOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "Skill"
+  },
+  {
+    "label": "Dial",
+    "kind": "variable",
+    "detail": "Dial: BuiltInClass<Dial, DialOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "Dial"
+  },
+  {
+    "label": "MultiPress",
+    "kind": "variable",
+    "detail": "MultiPress: BuiltInClass<MultiPress, HoldOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "MultiPress"
+  },
+  {
+    "label": "TempCursor",
+    "kind": "variable",
+    "detail": "TempCursor: BuiltInClass<TempCursor, TempCursorOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "TempCursor"
+  },
+  {
+    "label": "ActionWheel",
+    "kind": "variable",
+    "detail": "ActionWheel: BuiltInClass<ActionWheel, ActionWheelOverrides>",
+    "documentation": "A built-in component class. A class of yours that extends it is placed in the editor as this component, presses the screen just as it does and runs the event methods it writes as well; children are made with this.child(). Components of these classes only come from the profile: new on them throws GS-API-036.",
+    "insertText": "ActionWheel"
+  },
+  {
+    "label": "defineInterface",
+    "kind": "variable",
+    "detail": "defineInterface: <T>(name: string) => Interface<T>",
+    "documentation": "Makes an interface, or gives back the one with this name, so components of different kinds can answer the same call: list it in static implements of their classes, then mapping.all(it) or it.all() gives every component that implements it. Throws GS-API-011 for a name that is not a string or is empty.",
+    "insertText": "defineInterface"
+  },
+  {
+    "label": "Task",
+    "kind": "variable",
+    "detail": "Task: TaskClass",
+    "documentation": "The base class of a task. The task.ts of a task exports a class that extends it: static params lists its settings and run() does the work.",
+    "insertText": "Task"
+  },
+  {
+    "label": "controls",
+    "kind": "variable",
+    "detail": "controls: Controls",
+    "documentation": "The components of the profile in use, by id; empty without a phone. In a task they are the components of the profile the phone uses now, and are made again from the new profile when the phone switches.",
+    "insertText": "controls"
+  },
+  {
+    "label": "vars",
+    "kind": "variable",
+    "detail": "vars: Vars",
+    "documentation": "The variables of the profile in use, by id; empty without a phone. In a task they follow the phone's profile, as controls do.",
+    "insertText": "vars"
+  },
+  {
+    "label": "keys",
+    "kind": "variable",
+    "detail": "keys: Keys",
+    "documentation": "Keys, mouse buttons and gamepad buttons by name: keys.F, keys.Space, keys.MouseLeft, keys.GamepadA.",
+    "insertText": "keys"
+  },
+  {
+    "label": "globals",
+    "kind": "variable",
+    "detail": "globals: Globals",
+    "documentation": "Values shared by every profile and task on this phone.",
+    "insertText": "globals"
+  },
+  {
+    "label": "machine",
+    "kind": "variable",
+    "detail": "machine: <S extends string>(states: { readonly [K in S]: (to: MachineTo<S>) => MachineStep | void | Promise<MachineStep | void> }, options?: MachineOptions<S>) => Promise<void>",
+    "documentation": "Runs a state machine: each member of states is a state, an async function that receives to and returns to.<next state>(reason) to move on, or nothing to end the machine. The first member is the start unless options.start names another. The editor shows the state it is in and every transition with its reason. Throws GS-API-008 when states is not an object of functions and GS-API-002 for an unknown start.",
+    "insertText": "machine"
+  },
+  {
+    "label": "ext",
+    "kind": "variable",
+    "detail": "ext: Extensions",
+    "documentation": "The system nodes that native extensions add: ext.<extension>.<node>(...) runs a node at once and gives its result. <extension> is the extension id with each part in lowerCamelCase, so the nodes of gamescrcpy.pc-clock are ext.gamescrcpy.pcClock. Throws GS-API-060 when the extension is not on, GS-API-061 for values of the wrong type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when the node takes longer than 100 ms.",
+    "insertText": "ext"
+  },
+  {
+    "label": "log",
+    "kind": "namespace",
+    "detail": "log",
+    "documentation": "Lines in the script console, with the task that wrote them.",
+    "insertText": "log"
+  },
+  {
+    "label": "log.info",
+    "kind": "function",
+    "detail": "log.info(...values: unknown[]): void",
+    "documentation": "Writes an information line to the script console.",
+    "insertText": "log.info()"
+  },
+  {
+    "label": "log.warn",
+    "kind": "function",
+    "detail": "log.warn(...values: unknown[]): void",
+    "documentation": "Writes a warning line to the script console.",
+    "insertText": "log.warn()"
+  },
+  {
+    "label": "log.error",
+    "kind": "function",
+    "detail": "log.error(...values: unknown[]): void",
+    "documentation": "Writes an error line to the script console.",
+    "insertText": "log.error()"
+  },
+  {
+    "label": "log.time",
+    "kind": "function",
+    "detail": "log.time(name: string): void",
+    "documentation": "Starts a timer with this name; log.timeEnd() with the same name writes how long it has been running.",
+    "insertText": "log.time(${1:name})"
+  },
+  {
+    "label": "log.timeEnd",
+    "kind": "function",
+    "detail": "log.timeEnd(name: string): number | null",
+    "documentation": "Writes an information line with the milliseconds since log.time() with this name and gives that number; with no such timer it writes a warning line and gives null.",
+    "insertText": "log.timeEnd(${1:name})"
+  },
+  {
+    "label": "time",
+    "kind": "namespace",
+    "detail": "time",
+    "documentation": "The script clock.",
+    "insertText": "time"
+  },
+  {
+    "label": "time.now",
+    "kind": "function",
+    "detail": "time.now(): number",
+    "documentation": "Milliseconds since the scripts started; virtual time when replaying a recording.",
+    "insertText": "time.now()"
+  },
+  {
+    "label": "touch",
+    "kind": "namespace",
+    "detail": "touch",
+    "documentation": "Touches on the phone picture. Positions are ratios of the picture: (0, 0) top left, (1, 1) bottom right.",
+    "insertText": "touch"
+  },
+  {
+    "label": "touch.tap",
+    "kind": "function",
+    "detail": "touch.tap(x: number | PicturePoint, y?: number, durationMs?: number): Action<void>",
+    "documentation": "Taps the picture at a position; resolves when the finger is lifted, which is at once if the task is cancelled.",
+    "insertText": "touch.tap(${1:x})"
+  },
+  {
+    "label": "touch.longPress",
+    "kind": "function",
+    "detail": "touch.longPress(x: number | PicturePoint, y?: number, durationMs?: number): Action<void>",
+    "documentation": "Presses and holds the picture at a position, then lifts the finger.",
+    "insertText": "touch.longPress(${1:x})"
+  },
+  {
+    "label": "touch.swipe",
+    "kind": "function",
+    "detail": "touch.swipe(fromX: number | PicturePoint, fromY: number | PicturePoint, toX?: number, toY?: number, durationMs?: number): Action<void>",
+    "documentation": "Swipes from one position to another; resolves when it ends. If the task is cancelled, the finger is lifted where it is.",
+    "insertText": "touch.swipe(${1:fromX}, ${2:fromY})"
+  },
+  {
+    "label": "touch.down",
+    "kind": "function",
+    "detail": "touch.down(x: number | PicturePoint, y?: number): Finger",
+    "documentation": "Puts a finger down and keeps it there until up() or the end of the task that put it down.",
+    "insertText": "touch.down(${1:x})"
+  },
+  {
+    "label": "touch.pinch",
+    "kind": "function",
+    "detail": "touch.pinch(center: PicturePoint, from: number, to: number, durationMs?: number): Action<void>",
+    "documentation": "Pinches with two fingers around a position: from is how far apart they start and to how far apart they end, as ratios of the picture width, so a growing distance zooms in. If the task is cancelled, both fingers are lifted.",
+    "insertText": "touch.pinch(${1:center}, ${2:from}, ${3:to})"
+  },
+  {
+    "label": "touch.releaseAll",
+    "kind": "function",
+    "detail": "touch.releaseAll(): void",
+    "documentation": "Lifts every finger the script has put down.",
+    "insertText": "touch.releaseAll()"
+  },
+  {
+    "label": "device",
+    "kind": "namespace",
+    "detail": "device",
+    "documentation": "The phone this script runs on.",
+    "insertText": "device"
+  },
+  {
+    "label": "device.info",
+    "kind": "function",
+    "detail": "device.info(): DeviceInfo",
+    "documentation": "The phone this script runs on: model, Android version, screen size and rotation.",
+    "insertText": "device.info()"
+  },
+  {
+    "label": "device.back",
+    "kind": "function",
+    "detail": "device.back(): Action<void>",
+    "documentation": "Presses the phone's Back key.",
+    "insertText": "device.back()"
+  },
+  {
+    "label": "device.home",
+    "kind": "function",
+    "detail": "device.home(): Action<void>",
+    "documentation": "Presses the phone's Home key.",
+    "insertText": "device.home()"
+  },
+  {
+    "label": "device.recents",
+    "kind": "function",
+    "detail": "device.recents(): Action<void>",
+    "documentation": "Opens the list of recent apps.",
+    "insertText": "device.recents()"
+  },
+  {
+    "label": "device.menu",
+    "kind": "function",
+    "detail": "device.menu(): Action<void>",
+    "documentation": "Presses the phone's Menu key.",
+    "insertText": "device.menu()"
+  },
+  {
+    "label": "device.power",
+    "kind": "function",
+    "detail": "device.power(): Action<void>",
+    "documentation": "Presses the phone's Power key.",
+    "insertText": "device.power()"
+  },
+  {
+    "label": "device.volumeUp",
+    "kind": "function",
+    "detail": "device.volumeUp(): Action<void>",
+    "documentation": "Turns the phone's volume up one step.",
+    "insertText": "device.volumeUp()"
+  },
+  {
+    "label": "device.volumeDown",
+    "kind": "function",
+    "detail": "device.volumeDown(): Action<void>",
+    "documentation": "Turns the phone's volume down one step.",
+    "insertText": "device.volumeDown()"
+  },
+  {
+    "label": "device.mute",
+    "kind": "function",
+    "detail": "device.mute(): Action<void>",
+    "documentation": "Mutes or unmutes the phone.",
+    "insertText": "device.mute()"
+  },
+  {
+    "label": "device.notifications",
+    "kind": "function",
+    "detail": "device.notifications(): boolean",
+    "documentation": "Pulls down the phone's notification shade, as the More menu of the mirror window's toolbar does; true once the phone is asked, false when it cannot be asked now, such as while GameScrcpy reconnects to it. When the phone does not allow it, its mirror window says so. The shade stays down when the logic stops.",
+    "insertText": "device.notifications()"
+  },
+  {
+    "label": "device.quickSettings",
+    "kind": "function",
+    "detail": "device.quickSettings(): boolean",
+    "documentation": "Opens the phone's quick settings, as the More menu of the mirror window's toolbar does; true once the phone is asked, false when it cannot be asked now. They stay open when the logic stops.",
+    "insertText": "device.quickSettings()"
+  },
+  {
+    "label": "device.collapsePanels",
+    "kind": "function",
+    "detail": "device.collapsePanels(): boolean",
+    "documentation": "Closes the phone's notification shade and quick settings, as the More menu of the mirror window's toolbar does; true once the phone is asked, false when it cannot be asked now.",
+    "insertText": "device.collapsePanels()"
+  },
+  {
+    "label": "device.pressKey",
+    "kind": "function",
+    "detail": "device.pressKey(key: AndroidKey): Action<void>",
+    "documentation": "Presses and releases an Android key on the phone.",
+    "insertText": "device.pressKey(${1:key})"
+  },
+  {
+    "label": "device.type",
+    "kind": "function",
+    "detail": "device.type(text: string): void",
+    "documentation": "Types text into the box that has the focus on the phone.",
+    "insertText": "device.type(${1:text})"
+  },
+  {
+    "label": "device.launch",
+    "kind": "function",
+    "detail": "device.launch(packageName: string, options?: LaunchOptions): boolean",
+    "documentation": "Starts an app on the phone; false when the phone cannot be asked now.",
+    "insertText": "device.launch(${1:packageName})"
+  },
+  {
+    "label": "device.screenOff",
+    "kind": "function",
+    "detail": "device.screenOff(): boolean",
+    "documentation": "Turns the phone's screen off while mirroring goes on.",
+    "insertText": "device.screenOff()"
+  },
+  {
+    "label": "device.screenOn",
+    "kind": "function",
+    "detail": "device.screenOn(): boolean",
+    "documentation": "Turns the phone's screen back on.",
+    "insertText": "device.screenOn()"
+  },
+  {
+    "label": "device.foregroundApp",
+    "kind": "function",
+    "detail": "device.foregroundApp(): ForegroundApp | null",
+    "documentation": "The app in front on the phone, when the phone has said which.",
+    "insertText": "device.foregroundApp()"
+  },
+  {
+    "label": "device.onForegroundApp",
+    "kind": "function",
+    "detail": "device.onForegroundApp(handler: (event: TaskContext & ForegroundApp) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time another app comes to the front.",
+    "insertText": "device.onForegroundApp(${1:handler})"
+  },
+  {
+    "label": "device.onRotate",
+    "kind": "function",
+    "detail": "device.onRotate(handler: (event: TaskContext & DeviceInfo) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the phone's screen turns.",
+    "insertText": "device.onRotate(${1:handler})"
+  },
+  {
+    "label": "device.connected",
+    "kind": "function",
+    "detail": "device.connected(): boolean",
+    "documentation": "Whether the phone is connected now; false while GameScrcpy is reconnecting to it. Taps, swipes, key presses and other actions made while it is not connected wait and happen once it is back; the logic and tasks go on, and stop only when reconnecting is given up.",
+    "insertText": "device.connected()"
+  },
+  {
+    "label": "device.onDisconnect",
+    "kind": "function",
+    "detail": "device.onDisconnect(handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the connection to the phone drops and reconnecting begins.",
+    "insertText": "device.onDisconnect(${1:handler})"
+  },
+  {
+    "label": "device.onReconnect",
+    "kind": "function",
+    "detail": "device.onReconnect(handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the phone is connected again after it dropped.",
+    "insertText": "device.onReconnect(${1:handler})"
+  },
+  {
+    "label": "device.onInputBox",
+    "kind": "function",
+    "detail": "device.onInputBox(handler: (event: TaskContext & InputBox) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time an input box opens, changes or closes on the phone. It needs the GameScrcpy Companion input method on the phone; without it, and in replays, it never fires.",
+    "insertText": "device.onInputBox(${1:handler})"
+  },
+  {
+    "label": "device.rotate",
+    "kind": "function",
+    "detail": "device.rotate(orientation: \"auto\" | \"portrait\" | \"landscape\"): boolean",
+    "documentation": "Keeps the phone's screen upright or sideways, or lets it follow the phone again, like the screen direction in the mirror toolbar; false when the phone cannot be asked now.",
+    "insertText": "device.rotate(${1:orientation})"
+  },
+  {
+    "label": "clipboard",
+    "kind": "namespace",
+    "detail": "clipboard",
+    "documentation": "The phone's clipboard, not the computer's.",
+    "insertText": "clipboard"
+  },
+  {
+    "label": "clipboard.read",
+    "kind": "function",
+    "detail": "clipboard.read(): Promise<string | null>",
+    "documentation": "Reads the text on the phone's clipboard, an empty string when it holds no text; null when the phone cannot share its clipboard now, such as when it is not mirroring or mirrors an app on its own display, and in replays.",
+    "insertText": "clipboard.read()"
+  },
+  {
+    "label": "clipboard.write",
+    "kind": "function",
+    "detail": "clipboard.write(text: string): Promise<boolean>",
+    "documentation": "Puts text on the phone's clipboard; the computer's clipboard stays as it is. Resolves with true when the text was sent to the phone, false when the phone cannot share its clipboard now and in replays.",
+    "insertText": "clipboard.write(${1:text})"
+  },
+  {
+    "label": "mapping",
+    "kind": "namespace",
+    "detail": "mapping",
+    "documentation": "The controls of the profile in use, by id; the script's output never feeds back into its input.",
+    "insertText": "mapping"
+  },
+  {
+    "label": "mapping.controls",
+    "kind": "function",
+    "detail": "mapping.controls(): ControlInfo[]",
+    "documentation": "The controls of the profile in use, with their ids and whether they are on.",
+    "insertText": "mapping.controls()"
+  },
+  {
+    "label": "mapping.get",
+    "kind": "function",
+    "detail": "mapping.get(id: string): Component | null",
+    "documentation": "The component with this id, or null.",
+    "insertText": "mapping.get(${1:id})"
+  },
+  {
+    "label": "mapping.all",
+    "kind": "function",
+    "detail": "mapping.all(type?: ComponentType | Interface<unknown> | { readonly prototype: Component } | { readonly component?: Component }): Component[]",
+    "documentation": "All components of the profile, or those of one type, of one class or with one interface.",
+    "insertText": "mapping.all()"
+  },
+  {
+    "label": "mapping.trigger",
+    "kind": "function",
+    "detail": "mapping.trigger(id: string): Action<void>",
+    "documentation": "Presses and releases a control as if its key were tapped; the script's own output never triggers scripts.",
+    "insertText": "mapping.trigger(${1:id})"
+  },
+  {
+    "label": "mapping.hold",
+    "kind": "function",
+    "detail": "mapping.hold(id: string, durationMs: number): Action<void>",
+    "documentation": "Holds a control down for a while, then releases it; released early if the task is cancelled.",
+    "insertText": "mapping.hold(${1:id}, ${2:durationMs})"
+  },
+  {
+    "label": "mapping.setEnabled",
+    "kind": "function",
+    "detail": "mapping.setEnabled(id: string, enabled: boolean): void",
+    "documentation": "Turns a control on or off until the script ends or the profile changes; this ends a binding of the control's enabled.",
+    "insertText": "mapping.setEnabled(${1:id}, ${2:enabled})"
+  },
+  {
+    "label": "mapping.on",
+    "kind": "function",
+    "detail": "mapping.on(): boolean",
+    "documentation": "Turns key mapping on for this phone.",
+    "insertText": "mapping.on()"
+  },
+  {
+    "label": "mapping.off",
+    "kind": "function",
+    "detail": "mapping.off(): boolean",
+    "documentation": "Turns key mapping off for this phone, so keys go to the phone as they are.",
+    "insertText": "mapping.off()"
+  },
+  {
+    "label": "mapping.toggle",
+    "kind": "function",
+    "detail": "mapping.toggle(): boolean",
+    "documentation": "Turns key mapping on or off for this phone.",
+    "insertText": "mapping.toggle()"
+  },
+  {
+    "label": "mapping.isOn",
+    "kind": "function",
+    "detail": "mapping.isOn(): boolean",
+    "documentation": "Whether key mapping is on for this phone.",
+    "insertText": "mapping.isOn()"
+  },
+  {
+    "label": "hints",
+    "kind": "namespace",
+    "detail": "hints",
+    "documentation": "The key hints drawn on the phone picture.",
+    "insertText": "hints"
+  },
+  {
+    "label": "hints.show",
+    "kind": "function",
+    "detail": "hints.show(): boolean",
+    "documentation": "Shows the key hints on the picture.",
+    "insertText": "hints.show()"
+  },
+  {
+    "label": "hints.hide",
+    "kind": "function",
+    "detail": "hints.hide(): boolean",
+    "documentation": "Hides the key hints on the picture.",
+    "insertText": "hints.hide()"
+  },
+  {
+    "label": "hints.toggle",
+    "kind": "function",
+    "detail": "hints.toggle(): boolean",
+    "documentation": "Shows or hides the key hints.",
+    "insertText": "hints.toggle()"
+  },
+  {
+    "label": "hints.setOpacity",
+    "kind": "function",
+    "detail": "hints.setOpacity(opacity: number): boolean",
+    "documentation": "Sets how solid the key hints are.",
+    "insertText": "hints.setOpacity(${1:opacity})"
+  },
+  {
+    "label": "hints.reveal",
+    "kind": "function",
+    "detail": "hints.reveal(on: boolean): boolean",
+    "documentation": "While on, every key hint of this phone is drawn at full opacity, even when the hints are hidden or faded; typing on the phone still hides them. Each logic and each task has its own switch, which turns off when that logic or task stops.",
+    "insertText": "hints.reveal(${1:on})"
+  },
+  {
+    "label": "profile",
+    "kind": "namespace",
+    "detail": "profile",
+    "documentation": "The profile in use on this phone.",
+    "insertText": "profile"
+  },
+  {
+    "label": "profile.current",
+    "kind": "function",
+    "detail": "profile.current(): ProfileInfo | null",
+    "documentation": "The profile this script belongs to.",
+    "insertText": "profile.current()"
+  },
+  {
+    "label": "profile.switchTo",
+    "kind": "function",
+    "detail": "profile.switchTo(name: string): boolean",
+    "documentation": "Switches this phone to another profile by id or name; this script stops and that profile's logic starts.",
+    "insertText": "profile.switchTo(${1:name})"
+  },
+  {
+    "label": "profile.next",
+    "kind": "function",
+    "detail": "profile.next(): boolean",
+    "documentation": "Switches this phone to the next profile in the library.",
+    "insertText": "profile.next()"
+  },
+  {
+    "label": "profile.previous",
+    "kind": "function",
+    "detail": "profile.previous(): boolean",
+    "documentation": "Switches this phone to the previous profile in the library.",
+    "insertText": "profile.previous()"
+  },
+  {
+    "label": "profile.save",
+    "kind": "function",
+    "detail": "profile.save(): Promise<boolean>",
+    "documentation": "Asks in the phone's mirror window whether to keep the changes this logic made to its components (each shown as old and new value) in the profile, and resolves with whether they were saved. Saving reloads the profile and starts the logic again, as saving in the key editor does. Resolves with false at once when nothing was changed, while the key editor is open, for a profile that is not in the library, and in a task.",
+    "insertText": "profile.save()"
+  },
+  {
+    "label": "store",
+    "kind": "namespace",
+    "detail": "store",
+    "documentation": "Values this script keeps between runs (up to 1 MiB of JSON).",
+    "insertText": "store"
+  },
+  {
+    "label": "store.get",
+    "kind": "function",
+    "detail": "store.get(key: string): StoreValue | undefined",
+    "documentation": "Reads a value this script stored earlier, or undefined.",
+    "insertText": "store.get(${1:key})"
+  },
+  {
+    "label": "store.set",
+    "kind": "function",
+    "detail": "store.set(key: string, value: StoreValue): void",
+    "documentation": "Stores a value that stays after the script and the program restart.",
+    "insertText": "store.set(${1:key}, ${2:value})"
+  },
+  {
+    "label": "store.remove",
+    "kind": "function",
+    "detail": "store.remove(key: string): void",
+    "documentation": "Removes a stored value.",
+    "insertText": "store.remove(${1:key})"
+  },
+  {
+    "label": "store.keys",
+    "kind": "function",
+    "detail": "store.keys(): string[]",
+    "documentation": "The names of all stored values.",
+    "insertText": "store.keys()"
+  },
+  {
+    "label": "ui",
+    "kind": "namespace",
+    "detail": "ui",
+    "documentation": "Messages, questions and drawings in the phone's mirror window.",
+    "insertText": "ui"
+  },
+  {
+    "label": "ui.toast",
+    "kind": "function",
+    "detail": "ui.toast(message: string): void",
+    "documentation": "Shows a short message in the phone's mirror window.",
+    "insertText": "ui.toast(${1:message})"
+  },
+  {
+    "label": "ui.confirm",
+    "kind": "function",
+    "detail": "ui.confirm(question: string, options?: ConfirmOptions): Promise<boolean>",
+    "documentation": "Asks a yes or no question in the phone's mirror window and resolves with the answer; cancelling the task closes the question.",
+    "insertText": "ui.confirm(${1:question})"
+  },
+  {
+    "label": "ui.choose",
+    "kind": "function",
+    "detail": "ui.choose(question: string, choices: string[]): Promise<number | null>",
+    "documentation": "Offers choices in the phone's mirror window and resolves with the index chosen, or null when it is closed.",
+    "insertText": "ui.choose(${1:question}, ${2:choices})"
+  },
+  {
+    "label": "ui.ask",
+    "kind": "function",
+    "detail": "ui.ask(question: string, options?: AskOptions): Promise<string | null>",
+    "documentation": "Asks for a line of text in the phone's mirror window and resolves with it, or null when it is closed.",
+    "insertText": "ui.ask(${1:question})"
+  },
+  {
+    "label": "ui.box",
+    "kind": "function",
+    "detail": "ui.box(x: number, y: number, width: number, height: number, options?: BoxOptions): Drawing",
+    "documentation": "Draws a box on the phone picture until it is disposed, its duration ends or the task that drew it ends.",
+    "insertText": "ui.box(${1:x}, ${2:y}, ${3:width}, ${4:height})"
+  },
+  {
+    "label": "ui.text",
+    "kind": "function",
+    "detail": "ui.text(x: number, y: number, text: string, options?: TextOptions): Drawing",
+    "documentation": "Writes text on the phone picture until it is disposed, its duration ends or the task that drew it ends.",
+    "insertText": "ui.text(${1:x}, ${2:y}, ${3:text})"
+  },
+  {
+    "label": "ui.mark",
+    "kind": "function",
+    "detail": "ui.mark(x: number, y: number, options?: MarkOptions): Drawing",
+    "documentation": "Marks a point on the phone picture with a ring and a dot until it is disposed, its duration ends or the task that drew it ends; the label shows to the right of the ring.",
+    "insertText": "ui.mark(${1:x}, ${2:y})"
+  },
+  {
+    "label": "ui.image",
+    "kind": "function",
+    "detail": "ui.image(image: TemplateName | ImagePath | CapturedImage, region?: Region | RegionName, options?: BoxOptions): Drawing",
+    "documentation": "Shows a picture on the phone picture in a thin frame until it is disposed, its duration ends or the task that drew it ends. An image from vision.capture() that is no longer kept shows nothing.",
+    "insertText": "ui.image(${1:image})"
+  },
+  {
+    "label": "ui.progress",
+    "kind": "function",
+    "detail": "ui.progress(title: string | null, value?: number): void",
+    "documentation": "Shows a card at the top of the phone picture with the title, a bar and the percentage. Each logic and each task has one card: calling again updates it, and it goes away with ui.progress(null) or when the logic or task stops.",
+    "insertText": "ui.progress(${1:title})"
+  },
+  {
+    "label": "ui.notify",
+    "kind": "function",
+    "detail": "ui.notify(title: string, text?: string): boolean",
+    "documentation": "Shows a Windows notification; clicking it opens the phone's mirror window. Each logic and each task shows at most one every 10 seconds; false means this one was not shown.",
+    "insertText": "ui.notify(${1:title})"
+  },
+  {
+    "label": "ui.panel",
+    "kind": "function",
+    "detail": "ui.panel(name: string): UiPanel",
+    "documentation": "Gives a panel of this extension, declared in contributes.panels: a side panel of the mirror window or a page of the main window. GameScrcpy draws the tree given to render() with its own controls; no interface code of the extension runs.",
+    "insertText": "ui.panel(${1:name})"
+  },
+  {
+    "label": "ui.menu",
+    "kind": "function",
+    "detail": "ui.menu(items: readonly UiMenuItem[]): void",
+    "documentation": "Puts this extension's group of items into the right-click menu on the phone picture, in place of the last ones; ui.menu.on(\"select\", handler) hears the item picked.",
+    "insertText": "ui.menu(${1:items})"
+  },
+  {
+    "label": "ui.status",
+    "kind": "function",
+    "detail": "ui.status(name: string): UiStatus",
+    "documentation": "Gives a status widget of this extension, declared in contributes.panels: a little text, icons and progress shown with the status of the mirror window.",
+    "insertText": "ui.status(${1:name})"
+  },
+  {
+    "label": "input",
+    "kind": "namespace",
+    "detail": "input",
+    "documentation": "What the user holds and points at, readable only while the phone's mirror window is in front.",
+    "insertText": "input"
+  },
+  {
+    "label": "input.source",
+    "kind": "function",
+    "detail": "input.source(name: string): InputSource",
+    "documentation": "An input source of this logic, such as a device it reads: the keys it presses and the axes it moves reach the phone's key mapping as the input Ext.<extension id>.<name>.<key>, or Ext.mine.<name>.<key> for your own logic, which profiles bind like any key. While the key editor waits for a key, a press is taken as that key.",
+    "insertText": "input.source(${1:name})"
+  },
+  {
+    "label": "input.cursor",
+    "kind": "function",
+    "detail": "input.cursor(): PicturePoint | null",
+    "documentation": "Where the pointer is over the phone picture, as ratios; null when the phone's mirror window is not in front or the pointer is outside the picture.",
+    "insertText": "input.cursor()"
+  },
+  {
+    "label": "input.isDown",
+    "kind": "function",
+    "detail": "input.isDown(name: InputName): boolean",
+    "documentation": "Whether a key or mouse button is held; always false when the phone's mirror window is not in front.",
+    "insertText": "input.isDown(${1:name})"
+  },
+  {
+    "label": "hardware",
+    "kind": "namespace",
+    "detail": "hardware",
+    "documentation": "Serial ports, USB HID devices and Bluetooth LE devices the user allows. Every logic, your own too, can only open the devices the user ticked; the logic of an extension also needs the permission hardware.",
+    "insertText": "hardware"
+  },
+  {
+    "label": "hardware.request",
+    "kind": "function",
+    "detail": "hardware.request(options: HardwareRequest): Promise<HardwareInfo[]>",
+    "documentation": "Shows the user a list of the connected devices of that kind; the user ticks the ones this logic may use. Resolves with every ticked device, those allowed before included, or with an empty list when the user cancels. Bluetooth devices are looked for while the list is open.",
+    "insertText": "hardware.request(${1:options})"
+  },
+  {
+    "label": "hardware.list",
+    "kind": "function",
+    "detail": "hardware.list(): HardwareInfo[]",
+    "documentation": "The devices this logic may open, connected or not; present says whether each one is connected now.",
+    "insertText": "hardware.list()"
+  },
+  {
+    "label": "hardware.open",
+    "kind": "function",
+    "detail": "hardware.open(id: string, options?: SerialOptions): Promise<SerialDevice | HidDevice | BleDevice>",
+    "documentation": "Opens an allowed device; a device can be open only once in GameScrcpy. A device opened in a task closes when the task ends, one opened at the top level when the logic stops.",
+    "insertText": "hardware.open(${1:id})"
+  },
+  {
+    "label": "hardware.forget",
+    "kind": "function",
+    "detail": "hardware.forget(id: string): Promise<void>",
+    "documentation": "Gives up the permission to use a device, as its remove button on the Extensions page does; the device closes if it is open.",
+    "insertText": "hardware.forget(${1:id})"
+  },
+  {
+    "label": "window",
+    "kind": "namespace",
+    "detail": "window",
+    "documentation": "The phone's mirror window.",
+    "insertText": "window"
+  },
+  {
+    "label": "window.focused",
+    "kind": "function",
+    "detail": "window.focused(): boolean",
+    "documentation": "Whether the phone's mirror window is the active window, the one that gets the keyboard; false while another window is in front or the mirror window is closed.",
+    "insertText": "window.focused()"
+  },
+  {
+    "label": "window.onFocus",
+    "kind": "function",
+    "detail": "window.onFocus(handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the phone's mirror window becomes the active window.",
+    "insertText": "window.onFocus(${1:handler})"
+  },
+  {
+    "label": "window.onBlur",
+    "kind": "function",
+    "detail": "window.onBlur(handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the phone's mirror window stops being the active window, such as when another window comes to the front.",
+    "insertText": "window.onBlur(${1:handler})"
+  },
+  {
+    "label": "vision",
+    "kind": "namespace",
+    "detail": "vision",
+    "documentation": "Finding pictures in the phone's picture: the next frame, or the picture already shown when none comes within 0.25 s.",
+    "insertText": "vision"
+  },
+  {
+    "label": "vision.find",
+    "kind": "function",
+    "detail": "vision.find(image: TemplateName | ImagePath | CapturedImage, options?: FindOptions): Promise<Found | null>",
+    "documentation": "Looks for a picture in the next frame, or in the picture already shown when no new frame comes within 0.25 s, and resolves with the best place; null when it is not there, or when there is no picture before the timeout.",
+    "insertText": "vision.find(${1:image})"
+  },
+  {
+    "label": "vision.findAll",
+    "kind": "function",
+    "detail": "vision.findAll(image: TemplateName | ImagePath | CapturedImage, options?: FindOptions): Promise<Found[]>",
+    "documentation": "Looks for every place a picture appears in the next frame (or the picture already shown), best first, without overlapping matches.",
+    "insertText": "vision.findAll(${1:image})"
+  },
+  {
+    "label": "vision.findColor",
+    "kind": "function",
+    "detail": "vision.findColor(color: ColorName | HexColor, options?: ColorOptions): Promise<Found | null>",
+    "documentation": "Looks for a color in the next frame (or the picture already shown) and resolves with its largest group of pixels: a pixel matches when its red, green and blue each differ from the color by at most tolerance times 255, and matching pixels that touch, diagonally too, form one group. x and y are the center of the group's bounding box, width and height its size, and score the share of matching pixels in that box; null when no pixel matches, or when there is no picture before the timeout.",
+    "insertText": "vision.findColor(${1:color})"
+  },
+  {
+    "label": "vision.pickColor",
+    "kind": "function",
+    "detail": "vision.pickColor(at: PicturePoint, options?: PixelOptions): Promise<HexColor | null>",
+    "documentation": "Reads the color of one pixel in the next frame, or in the picture already shown when no new frame comes within 0.25 s, and resolves with it written \"#RRGGBB\"; null when there is no picture before the timeout.",
+    "insertText": "vision.pickColor(${1:at})"
+  },
+  {
+    "label": "vision.matchColor",
+    "kind": "function",
+    "detail": "vision.matchColor(at: PicturePoint, color: ColorName | HexColor, options?: PixelMatchOptions): Promise<boolean>",
+    "documentation": "Checks one pixel in the next frame (or the picture already shown) against a color: true when its red, green and blue each differ from the color by at most tolerance times 255; false when they do not, or when there is no picture before the timeout.",
+    "insertText": "vision.matchColor(${1:at}, ${2:color})"
+  },
+  {
+    "label": "vision.waitFor",
+    "kind": "function",
+    "detail": "vision.waitFor(image: TemplateName | ImagePath | CapturedImage, options?: WaitOptions): Promise<Found | null>",
+    "documentation": "Looks for a picture again and again until it appears and resolves with where it is; null when it has not appeared within timeoutMs.",
+    "insertText": "vision.waitFor(${1:image})"
+  },
+  {
+    "label": "vision.waitGone",
+    "kind": "function",
+    "detail": "vision.waitGone(image: TemplateName | ImagePath | CapturedImage, options?: WaitOptions): Promise<boolean>",
+    "documentation": "Looks for a picture again and again until it is gone; true when it went away, false when it was still there after timeoutMs.",
+    "insertText": "vision.waitGone(${1:image})"
+  },
+  {
+    "label": "vision.findAndTap",
+    "kind": "function",
+    "detail": "vision.findAndTap(image: TemplateName | ImagePath | CapturedImage, options?: FindOptions): Promise<Found | null>",
+    "documentation": "Looks for a picture once and taps the middle of the best place; resolves with where it was, or null without tapping when it is not there.",
+    "insertText": "vision.findAndTap(${1:image})"
+  },
+  {
+    "label": "vision.watch",
+    "kind": "function",
+    "detail": "vision.watch(image: TemplateName | ImagePath | CapturedImage, onAppear: (event: TaskContext & Found) => void | Promise<void>, onGone?: (event: TaskContext) => void | Promise<void>, options?: WatchOptions): Subscription",
+    "documentation": "Keeps looking for a picture, starting onAppear each time it appears and onGone each time it goes away, each run as its own task; dispose() stops looking.",
+    "insertText": "vision.watch(${1:image}, ${2:onAppear})"
+  },
+  {
+    "label": "vision.capture",
+    "kind": "function",
+    "detail": "vision.capture(region?: Region | RegionName, options?: PixelOptions): Promise<CapturedImage | null>",
+    "documentation": "Takes part of the next frame, or of the picture already shown when no new frame comes within 0.25 s, as an image: look for it later with find(), show it with ui.image() or keep it with save(). Resolves with null when there is no picture before the timeout. A script keeps its 8 latest images; older ones can no longer be used.",
+    "insertText": "vision.capture()"
+  },
+  {
+    "label": "vision.changed",
+    "kind": "function",
+    "detail": "vision.changed(region?: Region | RegionName, options?: ChangeOptions): Promise<boolean>",
+    "documentation": "Looks at part of the next frame (or the picture already shown) and compares it with how it looked the last time changed() looked at the same region: true when it changed. The first look only remembers it and resolves with false, as does a look without a picture before the timeout.",
+    "insertText": "vision.changed()"
+  },
+  {
+    "label": "vision.onChange",
+    "kind": "function",
+    "detail": "vision.onChange(region: Region | RegionName, handler: (event: TaskContext) => void | Promise<void>, options?: OnChangeOptions): Subscription",
+    "documentation": "Keeps looking at part of the picture and starts a task each time it changed since the last look; the first look only remembers it. dispose() stops looking.",
+    "insertText": "vision.onChange(${1:region}, ${2:handler})"
+  },
+  {
+    "label": "vision.readText",
+    "kind": "function",
+    "detail": "vision.readText(options?: ReadTextOptions): Promise<TextResult | null>",
+    "documentation": "Reads the text in the next frame, or in the picture already shown when no new frame comes within 0.25 s, with the text recognition that comes with Windows, and resolves with each line and where it is; null when there is no picture before the timeout. Chinese and Japanese characters are joined without spaces, other words with one. Name the language the game is written in: Chinese recognition reads English words poorly and English recognition cannot read Chinese. Reading a whole picture can take a few tenths of a second, so give a region when you can.",
+    "insertText": "vision.readText()"
+  },
+  {
+    "label": "vision.findText",
+    "kind": "function",
+    "detail": "vision.findText(text: string, options?: ReadTextOptions): Promise<Found | null>",
+    "documentation": "Reads the text in the next frame (or the picture already shown) and resolves with where a line says it: a line that says only that comes first, then the first line from the top that contains it, ignoring capitals and spaces. The place covers the words that say it and score is always 1; null when no line says it, or when there is no picture before the timeout.",
+    "insertText": "vision.findText(${1:text})"
+  },
+  {
+    "label": "res",
+    "kind": "namespace",
+    "detail": "res",
+    "documentation": "The named points, regions and paths of the profile, kept in res/resources.json by the vision workbench.",
+    "insertText": "res"
+  },
+  {
+    "label": "res.point",
+    "kind": "function",
+    "detail": "res.point(name: PointName): PicturePoint",
+    "documentation": "A named point of the profile, as picture ratios.",
+    "insertText": "res.point(${1:name})"
+  },
+  {
+    "label": "res.region",
+    "kind": "function",
+    "detail": "res.region(name: RegionName): Region",
+    "documentation": "A named region of the profile, as picture ratios.",
+    "insertText": "res.region(${1:name})"
+  },
+  {
+    "label": "res.path",
+    "kind": "function",
+    "detail": "res.path(name: PathName): PicturePath",
+    "documentation": "A named path of the profile: its points as picture ratios and how long a swipe along it takes.",
+    "insertText": "res.path(${1:name})"
+  },
+  {
+    "label": "math",
+    "kind": "namespace",
+    "detail": "math",
+    "documentation": "Numbers and positions.",
+    "insertText": "math"
+  },
+  {
+    "label": "math.clamp",
+    "kind": "function",
+    "detail": "math.clamp(value: number, low: number, high: number): number",
+    "documentation": "Keeps a number between low and high.",
+    "insertText": "math.clamp(${1:value}, ${2:low}, ${3:high})"
+  },
+  {
+    "label": "math.lerp",
+    "kind": "function",
+    "detail": "math.lerp(from: number, to: number, t: number): number",
+    "documentation": "The number t of the way from from to to.",
+    "insertText": "math.lerp(${1:from}, ${2:to}, ${3:t})"
+  },
+  {
+    "label": "math.random",
+    "kind": "function",
+    "detail": "math.random(low?: number, high?: number): number",
+    "documentation": "A random number from low up to high.",
+    "insertText": "math.random()"
+  },
+  {
+    "label": "math.randomInt",
+    "kind": "function",
+    "detail": "math.randomInt(low: number, high: number): number",
+    "documentation": "A random whole number from low to high, both included.",
+    "insertText": "math.randomInt(${1:low}, ${2:high})"
+  },
+  {
+    "label": "math.randomIn",
+    "kind": "function",
+    "detail": "math.randomIn(region: Region): PicturePoint",
+    "documentation": "A random position inside a region.",
+    "insertText": "math.randomIn(${1:region})"
+  },
+  {
+    "label": "math.distance",
+    "kind": "function",
+    "detail": "math.distance(from: PicturePoint, to: PicturePoint): number",
+    "documentation": "How far apart two positions are, as a ratio of the picture.",
+    "insertText": "math.distance(${1:from}, ${2:to})"
+  },
+  {
+    "label": "math.angle",
+    "kind": "function",
+    "detail": "math.angle(from: PicturePoint, to: PicturePoint): number",
+    "documentation": "The direction from one position to another in degrees: 0 is up, 90 right, 180 down and 270 left.",
+    "insertText": "math.angle(${1:from}, ${2:to})"
+  },
+  {
+    "label": "math.round",
+    "kind": "function",
+    "detail": "math.round(value: number): number",
+    "documentation": "The nearest whole number; a half goes up.",
+    "insertText": "math.round(${1:value})"
+  },
+  {
+    "label": "math.floor",
+    "kind": "function",
+    "detail": "math.floor(value: number): number",
+    "documentation": "The largest whole number that is not more than the value.",
+    "insertText": "math.floor(${1:value})"
+  },
+  {
+    "label": "math.ceil",
+    "kind": "function",
+    "detail": "math.ceil(value: number): number",
+    "documentation": "The smallest whole number that is not less than the value.",
+    "insertText": "math.ceil(${1:value})"
+  },
+  {
+    "label": "math.abs",
+    "kind": "function",
+    "detail": "math.abs(value: number): number",
+    "documentation": "The value without its sign.",
+    "insertText": "math.abs(${1:value})"
+  },
+  {
+    "label": "math.min",
+    "kind": "function",
+    "detail": "math.min(a: number, b: number): number",
+    "documentation": "The smaller of two numbers.",
+    "insertText": "math.min(${1:a}, ${2:b})"
+  },
+  {
+    "label": "math.max",
+    "kind": "function",
+    "detail": "math.max(a: number, b: number): number",
+    "documentation": "The larger of two numbers.",
+    "insertText": "math.max(${1:a}, ${2:b})"
+  },
+  {
+    "label": "list",
+    "kind": "namespace",
+    "detail": "list",
+    "documentation": "Lists of values, changed in place.",
+    "insertText": "list"
+  },
+  {
+    "label": "list.add",
+    "kind": "function",
+    "detail": "list.add(items: unknown[], value: unknown): void",
+    "documentation": "Adds a value to the end of the list.",
+    "insertText": "list.add(${1:items}, ${2:value})"
+  },
+  {
+    "label": "list.insert",
+    "kind": "function",
+    "detail": "list.insert(items: unknown[], index: number, value: unknown): void",
+    "documentation": "Puts a value into the list at a position; the rest move up.",
+    "insertText": "list.insert(${1:items}, ${2:index}, ${3:value})"
+  },
+  {
+    "label": "list.removeAt",
+    "kind": "function",
+    "detail": "list.removeAt(items: unknown[], index: number): unknown",
+    "documentation": "Takes the value at a position out of the list and gives it back.",
+    "insertText": "list.removeAt(${1:items}, ${2:index})"
+  },
+  {
+    "label": "list.remove",
+    "kind": "function",
+    "detail": "list.remove(items: unknown[], value: unknown): boolean",
+    "documentation": "Takes the first value equal to it out of the list; says whether it found one.",
+    "insertText": "list.remove(${1:items}, ${2:value})"
+  },
+  {
+    "label": "list.indexOf",
+    "kind": "function",
+    "detail": "list.indexOf(items: unknown[], value: unknown): number",
+    "documentation": "The position of the first value equal to it, or -1 when it is not there.",
+    "insertText": "list.indexOf(${1:items}, ${2:value})"
+  },
+  {
+    "label": "list.at",
+    "kind": "function",
+    "detail": "list.at(items: unknown[], index: number): unknown",
+    "documentation": "The value at a position, or undefined when the list is shorter.",
+    "insertText": "list.at(${1:items}, ${2:index})"
+  },
+  {
+    "label": "list.setAt",
+    "kind": "function",
+    "detail": "list.setAt(items: unknown[], index: number, value: unknown): void",
+    "documentation": "Replaces the value at a position.",
+    "insertText": "list.setAt(${1:items}, ${2:index}, ${3:value})"
+  },
+  {
+    "label": "list.size",
+    "kind": "function",
+    "detail": "list.size(items: unknown[]): number",
+    "documentation": "How many values the list has.",
+    "insertText": "list.size(${1:items})"
+  },
+  {
+    "label": "list.has",
+    "kind": "function",
+    "detail": "list.has(items: unknown[], value: unknown): boolean",
+    "documentation": "Whether the list has a value equal to it.",
+    "insertText": "list.has(${1:items}, ${2:value})"
+  },
+  {
+    "label": "list.sort",
+    "kind": "function",
+    "detail": "list.sort(items: unknown[]): void",
+    "documentation": "Sorts the list in place: numbers by size, other values as text.",
+    "insertText": "list.sort(${1:items})"
+  },
+  {
+    "label": "list.shuffle",
+    "kind": "function",
+    "detail": "list.shuffle(items: unknown[]): void",
+    "documentation": "Mixes the list into a random order, in place.",
+    "insertText": "list.shuffle(${1:items})"
+  },
+  {
+    "label": "list.clear",
+    "kind": "function",
+    "detail": "list.clear(items: unknown[]): void",
+    "documentation": "Takes every value out of the list.",
+    "insertText": "list.clear(${1:items})"
+  },
+  {
+    "label": "dict",
+    "kind": "namespace",
+    "detail": "dict",
+    "documentation": "Dictionaries from keys to values, as JavaScript's Map.",
+    "insertText": "dict"
+  },
+  {
+    "label": "dict.make",
+    "kind": "function",
+    "detail": "dict.make(): Map<unknown, unknown>",
+    "documentation": "A new, empty dictionary.",
+    "insertText": "dict.make()"
+  },
+  {
+    "label": "dict.set",
+    "kind": "function",
+    "detail": "dict.set(map: Map<unknown, unknown>, key: unknown, value: unknown): void",
+    "documentation": "Stores a value under a key, replacing what was there.",
+    "insertText": "dict.set(${1:map}, ${2:key}, ${3:value})"
+  },
+  {
+    "label": "dict.get",
+    "kind": "function",
+    "detail": "dict.get(map: Map<unknown, unknown>, key: unknown): unknown",
+    "documentation": "The value stored under a key, or undefined.",
+    "insertText": "dict.get(${1:map}, ${2:key})"
+  },
+  {
+    "label": "dict.has",
+    "kind": "function",
+    "detail": "dict.has(map: Map<unknown, unknown>, key: unknown): boolean",
+    "documentation": "Whether the dictionary has a value under that key.",
+    "insertText": "dict.has(${1:map}, ${2:key})"
+  },
+  {
+    "label": "dict.remove",
+    "kind": "function",
+    "detail": "dict.remove(map: Map<unknown, unknown>, key: unknown): boolean",
+    "documentation": "Removes the value under a key; says whether there was one.",
+    "insertText": "dict.remove(${1:map}, ${2:key})"
+  },
+  {
+    "label": "dict.keys",
+    "kind": "function",
+    "detail": "dict.keys(map: Map<unknown, unknown>): unknown[]",
+    "documentation": "All the keys of the dictionary, as a list.",
+    "insertText": "dict.keys(${1:map})"
+  },
+  {
+    "label": "dict.values",
+    "kind": "function",
+    "detail": "dict.values(map: Map<unknown, unknown>): unknown[]",
+    "documentation": "All the values of the dictionary, as a list.",
+    "insertText": "dict.values(${1:map})"
+  },
+  {
+    "label": "dict.size",
+    "kind": "function",
+    "detail": "dict.size(map: Map<unknown, unknown>): number",
+    "documentation": "How many keys the dictionary has.",
+    "insertText": "dict.size(${1:map})"
+  },
+  {
+    "label": "dict.clear",
+    "kind": "function",
+    "detail": "dict.clear(map: Map<unknown, unknown>): void",
+    "documentation": "Takes every key out of the dictionary.",
+    "insertText": "dict.clear(${1:map})"
+  },
+  {
+    "label": "set",
+    "kind": "namespace",
+    "detail": "set",
+    "documentation": "Sets of values that each appear once, as JavaScript's Set.",
+    "insertText": "set"
+  },
+  {
+    "label": "set.make",
+    "kind": "function",
+    "detail": "set.make(): Set<unknown>",
+    "documentation": "A new, empty set.",
+    "insertText": "set.make()"
+  },
+  {
+    "label": "set.add",
+    "kind": "function",
+    "detail": "set.add(items: Set<unknown>, value: unknown): void",
+    "documentation": "Adds a value to the set; a value that is already there stays once.",
+    "insertText": "set.add(${1:items}, ${2:value})"
+  },
+  {
+    "label": "set.has",
+    "kind": "function",
+    "detail": "set.has(items: Set<unknown>, value: unknown): boolean",
+    "documentation": "Whether the set has that value.",
+    "insertText": "set.has(${1:items}, ${2:value})"
+  },
+  {
+    "label": "set.remove",
+    "kind": "function",
+    "detail": "set.remove(items: Set<unknown>, value: unknown): boolean",
+    "documentation": "Takes a value out of the set; says whether it was there.",
+    "insertText": "set.remove(${1:items}, ${2:value})"
+  },
+  {
+    "label": "set.values",
+    "kind": "function",
+    "detail": "set.values(items: Set<unknown>): unknown[]",
+    "documentation": "All the values of the set, as a list.",
+    "insertText": "set.values(${1:items})"
+  },
+  {
+    "label": "set.size",
+    "kind": "function",
+    "detail": "set.size(items: Set<unknown>): number",
+    "documentation": "How many values the set has.",
+    "insertText": "set.size(${1:items})"
+  },
+  {
+    "label": "set.clear",
+    "kind": "function",
+    "detail": "set.clear(items: Set<unknown>): void",
+    "documentation": "Takes every value out of the set.",
+    "insertText": "set.clear(${1:items})"
+  },
+  {
+    "label": "text",
+    "kind": "namespace",
+    "detail": "text",
+    "documentation": "Text: joining, filling in, finding, cutting and changing case.",
+    "insertText": "text"
+  },
+  {
+    "label": "text.join",
+    "kind": "function",
+    "detail": "text.join(parts: unknown[], separator?: string): string",
+    "documentation": "Joins values into one text, with a separator between them.",
+    "insertText": "text.join(${1:parts})"
+  },
+  {
+    "label": "text.format",
+    "kind": "function",
+    "detail": "text.format(template: string, ...values: unknown[]): string",
+    "documentation": "Fills {0}, {1} and so on in a template with the values.",
+    "insertText": "text.format(${1:template})"
+  },
+  {
+    "label": "text.find",
+    "kind": "function",
+    "detail": "text.find(text: string, part: string): number",
+    "documentation": "Where the part starts, or -1 when it is not there.",
+    "insertText": "text.find(${1:text}, ${2:part})"
+  },
+  {
+    "label": "text.has",
+    "kind": "function",
+    "detail": "text.has(text: string, part: string): boolean",
+    "documentation": "Whether the text contains the part.",
+    "insertText": "text.has(${1:text}, ${2:part})"
+  },
+  {
+    "label": "text.split",
+    "kind": "function",
+    "detail": "text.split(text: string, separator: string): string[]",
+    "documentation": "Cuts the text wherever the separator is and gives the pieces as a list.",
+    "insertText": "text.split(${1:text}, ${2:separator})"
+  },
+  {
+    "label": "text.replace",
+    "kind": "function",
+    "detail": "text.replace(text: string, part: string, instead: string): string",
+    "documentation": "Gives the text with the first part replaced by the other text.",
+    "insertText": "text.replace(${1:text}, ${2:part}, ${3:instead})"
+  },
+  {
+    "label": "text.upper",
+    "kind": "function",
+    "detail": "text.upper(text: string): string",
+    "documentation": "The same text in upper case.",
+    "insertText": "text.upper(${1:text})"
+  },
+  {
+    "label": "text.lower",
+    "kind": "function",
+    "detail": "text.lower(text: string): string",
+    "documentation": "The same text in lower case.",
+    "insertText": "text.lower(${1:text})"
+  },
+  {
+    "label": "text.trim",
+    "kind": "function",
+    "detail": "text.trim(text: string): string",
+    "documentation": "The same text without spaces at either end.",
+    "insertText": "text.trim(${1:text})"
+  },
+  {
+    "label": "text.length",
+    "kind": "function",
+    "detail": "text.length(text: string): number",
+    "documentation": "How many characters the text has.",
+    "insertText": "text.length(${1:text})"
+  },
+  {
+    "label": "param",
+    "kind": "namespace",
+    "detail": "param",
+    "documentation": "Settings a task declares in static params; the Tasks page shows them and passes the values to the task.",
+    "insertText": "param"
+  },
+  {
+    "label": "param.number",
+    "kind": "function",
+    "detail": "param.number(value: number, options?: ParamOptions): TaskParam",
+    "documentation": "A number setting of a task, shown as a number box on the Tasks page.",
+    "insertText": "param.number(${1:value})"
+  },
+  {
+    "label": "param.text",
+    "kind": "function",
+    "detail": "param.text(value: string, options?: ParamOptions): TaskParam",
+    "documentation": "A text setting of a task, shown as a text box on the Tasks page.",
+    "insertText": "param.text(${1:value})"
+  },
+  {
+    "label": "param.toggle",
+    "kind": "function",
+    "detail": "param.toggle(value: boolean, options?: ParamOptions): TaskParam",
+    "documentation": "An on or off setting of a task, shown as a switch on the Tasks page.",
+    "insertText": "param.toggle(${1:value})"
+  },
+  {
+    "label": "prop",
+    "kind": "namespace",
+    "detail": "prop",
+    "documentation": "Properties a component made in logic declares in static props.",
+    "insertText": "prop"
+  },
+  {
+    "label": "prop.key",
+    "kind": "function",
+    "detail": "prop.key(key?: string, options?: PropOptions): ComponentProp",
+    "documentation": "A key property: the component gets it as a Key object in props.",
+    "insertText": "prop.key()"
+  },
+  {
+    "label": "prop.position",
+    "kind": "function",
+    "detail": "prop.position(at?: PicturePoint, options?: PropOptions): ComponentProp",
+    "documentation": "A position property: the component gets it as a point in props.",
+    "insertText": "prop.position()"
+  },
+  {
+    "label": "prop.number",
+    "kind": "function",
+    "detail": "prop.number(value: number, options?: NumberPropOptions): ComponentProp",
+    "documentation": "A number property.",
+    "insertText": "prop.number(${1:value})"
+  },
+  {
+    "label": "prop.text",
+    "kind": "function",
+    "detail": "prop.text(value: string, options?: PropOptions): ComponentProp",
+    "documentation": "A text property.",
+    "insertText": "prop.text(${1:value})"
+  },
+  {
+    "label": "prop.toggle",
+    "kind": "function",
+    "detail": "prop.toggle(value: boolean, options?: PropOptions): ComponentProp",
+    "documentation": "An on or off property.",
+    "insertText": "prop.toggle(${1:value})"
+  },
+  {
+    "label": "prop.component",
+    "kind": "function",
+    "detail": "prop.component(of?: string | Interface<unknown> | { readonly prototype: Component } | { readonly component?: Component }, options?: PropOptions): ComponentProp",
+    "documentation": "A property that names another component; the component gets that component object in props, or null when the named one is not of the class or interface given.",
+    "insertText": "prop.component()"
+  },
+  {
+    "label": "mcp",
+    "kind": "namespace",
+    "detail": "mcp",
+    "documentation": "Tools that the app script of an extension offers to AI clients over the local MCP connection.",
+    "insertText": "mcp"
+  },
+  {
+    "label": "mcp.tool",
+    "kind": "function",
+    "detail": "mcp.tool(name: string, spec: McpToolSpec, handler: (input: any, event: TaskContext) => unknown): Subscription",
+    "documentation": "Offers a function of this extension to AI clients as a tool of the local MCP connection. The user confirms each call, as for running a script on a phone. The tool is gone when the subscription is disposed or the logic stops.",
+    "insertText": "mcp.tool(${1:name}, ${2:spec}, ${3:handler})"
+  },
+  {
+    "label": "ai",
+    "kind": "namespace",
+    "detail": "ai",
+    "documentation": "Questions from logic to the AI service set up in Settings, AI; they work only while Let logic call AI is on there.",
+    "insertText": "ai"
+  },
+  {
+    "label": "ai.ask",
+    "kind": "function",
+    "detail": "ai.ask(question: string, options?: AiAskOptions): Promise<string | null>",
+    "documentation": "Asks the AI service set up in Settings, AI, the one the assistant in the editor uses, and resolves with the text of its answer; null when it answers without text, when a picture is asked for and the phone has shown none yet, and in replays, which ask nothing. With picture, the phone's picture or a part of it goes along, made smaller so its long side is at most 1024 pixels. It works only while Let logic call AI is on there: each question spends your quota, and each logic may ask at most 10 times a minute. Cancelling the task stops waiting.",
+    "insertText": "ai.ask(${1:question})"
+  },
+  {
+    "label": "ui.menu.on",
+    "kind": "function",
+    "detail": "ui.menu.on(type: \"select\", handler: (event: UiEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time an item of this extension's group in the right-click menu is picked.",
+    "insertText": "ui.menu.on(${1:type}, ${2:handler})"
+  },
+  {
+    "label": "Component.id",
+    "kind": "property",
+    "detail": "readonly id: string",
+    "documentation": "The control id from the profile; stays the same when the control is renamed.",
+    "insertText": "id"
+  },
+  {
+    "label": "Component.name",
+    "kind": "property",
+    "detail": "readonly name: string",
+    "documentation": "The name shown in the editor.",
+    "insertText": "name"
+  },
+  {
+    "label": "Component.position",
+    "kind": "property",
+    "detail": "readonly position: PicturePoint | null",
+    "documentation": "Where the component sits on the picture, as ratios, for the phone's picture when the logic started; it follows moveTo(). null for a component made in logic with new.",
+    "insertText": "position"
+  },
+  {
+    "label": "Component.type",
+    "kind": "property",
+    "detail": "readonly type: ComponentType",
+    "documentation": "The kind of component, such as \"tap\", \"wasd\" or \"camera\".",
+    "insertText": "type"
+  },
+  {
+    "label": "Component.props",
+    "kind": "property",
+    "detail": "readonly props: Readonly<Record<string, any>>",
+    "documentation": "The component's settings: from profile.json, or for a component made in logic its static props with the values given to it (keys become Key objects, positions points and component ids components).",
+    "insertText": "props"
+  },
+  {
+    "label": "Component.key",
+    "kind": "property",
+    "detail": "readonly key: InputName | null",
+    "documentation": "Its main key, such as \"KeyF\" or \"Mouse.Right\"; null when it has none.",
+    "insertText": "key"
+  },
+  {
+    "label": "Component.inputs",
+    "kind": "property",
+    "detail": "readonly inputs: Readonly<Record<string, InputName>>",
+    "documentation": "Every key of the component by slot, such as { up: \"KeyW\" }.",
+    "insertText": "inputs"
+  },
+  {
+    "label": "Component.hint",
+    "kind": "property",
+    "detail": "readonly hint: Hint",
+    "documentation": "Its key hint on the picture.",
+    "insertText": "hint"
+  },
+  {
+    "label": "Component.enabled",
+    "kind": "property",
+    "detail": "enabled: boolean",
+    "documentation": "Whether the control reacts to its keys. Setting it lasts until the script stops or the profile changes, and ends a binding made with bind().",
+    "insertText": "enabled"
+  },
+  {
+    "label": "Component.enable",
+    "kind": "method",
+    "detail": "enable(): void",
+    "documentation": "Turns the component on (the same as enabled = true).",
+    "insertText": "enable(${1})"
+  },
+  {
+    "label": "Component.disable",
+    "kind": "method",
+    "detail": "disable(): void",
+    "documentation": "Turns the component off.",
+    "insertText": "disable(${1})"
+  },
+  {
+    "label": "Component.toggle",
+    "kind": "method",
+    "detail": "toggle(): void",
+    "documentation": "Turns the component on or off.",
+    "insertText": "toggle(${1})"
+  },
+  {
+    "label": "Component.active",
+    "kind": "property",
+    "detail": "readonly active: boolean",
+    "documentation": "Whether its key is held down now.",
+    "insertText": "active"
+  },
+  {
+    "label": "Component.pressedAt",
+    "kind": "property",
+    "detail": "readonly pressedAt: number | null",
+    "documentation": "When its key went down (time.now()), or null when it is up.",
+    "insertText": "pressedAt"
+  },
+  {
+    "label": "Component.heldMs",
+    "kind": "property",
+    "detail": "readonly heldMs: number",
+    "documentation": "How long its key has been held, in milliseconds; 0 when it is up.",
+    "insertText": "heldMs"
+  },
+  {
+    "label": "Component.touching",
+    "kind": "property",
+    "detail": "readonly touching: boolean",
+    "documentation": "Whether it has a finger on the phone's screen now.",
+    "insertText": "touching"
+  },
+  {
+    "label": "Component.trigger",
+    "kind": "method",
+    "detail": "trigger(): Action<void>",
+    "documentation": "Presses and releases the control with its own behavior; the script's own output never triggers scripts.",
+    "insertText": "trigger(${1})"
+  },
+  {
+    "label": "Component.hold",
+    "kind": "method",
+    "detail": "hold(durationMs: number): Action<void>",
+    "documentation": "Holds the control down for a while, then releases it; released early if the task is cancelled. Throws GS-API-003 when the duration is not more than 0 and at most 60000.",
+    "insertText": "hold(${1})"
+  },
+  {
+    "label": "Component.press",
+    "kind": "method",
+    "detail": "press(): void",
+    "documentation": "Puts its finger down and keeps it there until release().",
+    "insertText": "press(${1})"
+  },
+  {
+    "label": "Component.release",
+    "kind": "method",
+    "detail": "release(): void",
+    "documentation": "Lifts its finger.",
+    "insertText": "release(${1})"
+  },
+  {
+    "label": "Component.reset",
+    "kind": "method",
+    "detail": "reset(): void",
+    "documentation": "Lifts all its fingers and puts it back at rest: a stick back to the middle, a view back to its anchor.",
+    "insertText": "reset(${1})"
+  },
+  {
+    "label": "Component.moveTo",
+    "kind": "method",
+    "detail": "moveTo(x: number | PicturePoint, y?: number): void",
+    "documentation": "Moves the component and its key hint to another place on the picture until the logic stops or the profile changes; a finger already down stays where it is, and profile.save() can keep the new place. Throws GS-API-002 for a place outside the picture and GS-API-036 for a component made in logic with new.",
+    "insertText": "moveTo(${1})"
+  },
+  {
+    "label": "Component.moveBy",
+    "kind": "method",
+    "detail": "moveBy(dx: number, dy: number): void",
+    "documentation": "Moves the component by picture ratios, as moveTo() does.",
+    "insertText": "moveBy(${1})"
+  },
+  {
+    "label": "Component.resetPosition",
+    "kind": "method",
+    "detail": "resetPosition(): void",
+    "documentation": "Puts the component back where the profile has it.",
+    "insertText": "resetPosition(${1})"
+  },
+  {
+    "label": "Component.resetProps",
+    "kind": "method",
+    "detail": "resetProps(): void",
+    "documentation": "Puts back everything the logic changed on this component: its place, rate, duration, radius and sensitivity.",
+    "insertText": "resetProps(${1})"
+  },
+  {
+    "label": "Component.bind",
+    "kind": "method",
+    "detail": "bind(property: \"enabled\", compute: () => unknown): Binding",
+    "documentation": "Keeps a property computed from states: compute runs at once and again whenever a state it read last time changes, also when the script changes it. Only \"enabled\" can be bound. Disposing the binding, or the end of the task that made it, puts the property back to its value from before the binding; binding it again takes over without putting it back, and setting it directly, or with mapping.setEnabled, ends the binding. Throws GS-API-031 for another property, GS-API-008 for a compute that is not a function and GS-API-032 when compute returns a Promise. Later, a compute that throws is reported and keeps the last value, and one that returns a Promise is reported with GS-API-032 and ends the binding as dispose() does.",
+    "insertText": "bind(${1})"
+  },
+  {
+    "label": "Component.onPress",
+    "kind": "method",
+    "detail": "onPress(handler: (event: ControlEvent) => void | Promise<void>, options?: KeyListenOptions): Subscription",
+    "documentation": "Starts a task each time the control's key goes down. In the profile's logic it takes the key of a tap, hold, long press, turbo, swipe or multi-press control unless consume is false (KeyListenOptions). Throws GS-API-008 for a handler that is not a function, GS-API-009 for an unknown again rule and GS-API-011 for a consume that is not true or false.",
+    "insertText": "onPress(${1})"
+  },
+  {
+    "label": "Component.onRelease",
+    "kind": "method",
+    "detail": "onRelease(handler: (event: ControlEvent) => void | Promise<void>, options?: KeyListenOptions): Subscription",
+    "documentation": "Starts a task each time the control's key comes up. It takes the key as onPress does.",
+    "insertText": "onRelease(${1})"
+  },
+  {
+    "label": "Component.whileHeld",
+    "kind": "method",
+    "detail": "whileHeld(handler: (event: ControlEvent) => void | Promise<void>, options?: KeyListenOptions): Subscription",
+    "documentation": "Starts a task when the control's key goes down and cancels it when the key comes up. It takes the key as onPress does.",
+    "insertText": "whileHeld(${1})"
+  },
+  {
+    "label": "Component.onEnabled",
+    "kind": "method",
+    "detail": "onEnabled(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it is turned on.",
+    "insertText": "onEnabled(${1})"
+  },
+  {
+    "label": "Component.onDisabled",
+    "kind": "method",
+    "detail": "onDisabled(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it is turned off.",
+    "insertText": "onDisabled(${1})"
+  },
+  {
+    "label": "Component.onTouchStart",
+    "kind": "method",
+    "detail": "onTouchStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it puts a finger on the screen.",
+    "insertText": "onTouchStart(${1})"
+  },
+  {
+    "label": "Component.onTouchEnd",
+    "kind": "method",
+    "detail": "onTouchEnd(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it lifts its last finger.",
+    "insertText": "onTouchEnd(${1})"
+  },
+  {
+    "label": "Component.setup",
+    "kind": "method",
+    "detail": "setup(): void",
+    "documentation": "For a component made in logic: runs once after it is created; set up its listeners here. Create components at the top level of the logic so these listeners last.",
+    "insertText": "setup(${1})"
+  },
+  {
+    "label": "Component.event",
+    "kind": "method",
+    "detail": "event(): ComponentEvent",
+    "documentation": "Makes an event the component can emit and others can listen to, kept in a field: pressed = this.event().",
+    "insertText": "event(${1})"
+  },
+  {
+    "label": "Component.child",
+    "kind": "method",
+    "detail": "child<T extends Component>(kind: { readonly component?: T }): T",
+    "documentation": "In a field of a component class: one of its child components, a built-in component the editor places with it and moves with it, such as cancel = this.child(Tap) or skills = [this.child(Skill), this.child(Skill)]. The calls take the children in the order the class declares them; null when the profile has no such child. Throws GS-API-008 when kind is not a class.",
+    "insertText": "child(${1})"
+  },
+  {
+    "label": "Component.finger",
+    "kind": "property",
+    "detail": "readonly finger: ComponentFinger",
+    "documentation": "For a component made in logic: its own finger, which stays down until up() or until the logic stops.",
+    "insertText": "finger"
+  },
+  {
+    "label": "Hint.show",
+    "kind": "method",
+    "detail": "show(): void",
+    "documentation": "Shows this hint again after hide().",
+    "insertText": "show(${1})"
+  },
+  {
+    "label": "Hint.hide",
+    "kind": "method",
+    "detail": "hide(): void",
+    "documentation": "Hides this hint on the picture; the component still works.",
+    "insertText": "hide(${1})"
+  },
+  {
+    "label": "Hint.setText",
+    "kind": "method",
+    "detail": "setText(text: string): void",
+    "documentation": "Writes other words in the hint, up to 16 characters.",
+    "insertText": "setText(${1})"
+  },
+  {
+    "label": "Hint.moveTo",
+    "kind": "method",
+    "detail": "moveTo(x: number | PicturePoint, y?: number): void",
+    "documentation": "Shows the hint at another place on the picture; the component itself still touches where the profile has it.",
+    "insertText": "moveTo(${1})"
+  },
+  {
+    "label": "Hint.flash",
+    "kind": "method",
+    "detail": "flash(): void",
+    "documentation": "Makes the hint flash twice to draw the eye to it; nothing else changes.",
+    "insertText": "flash(${1})"
+  },
+  {
+    "label": "Hint.reset",
+    "kind": "method",
+    "detail": "reset(): void",
+    "documentation": "Puts the hint back as the profile has it.",
+    "insertText": "reset(${1})"
+  },
+  {
+    "label": "Tap.tapMs",
+    "kind": "property",
+    "detail": "readonly tapMs: number",
+    "documentation": "How long each tap holds the finger down, in milliseconds; 0 means two frames.",
+    "insertText": "tapMs"
+  },
+  {
+    "label": "Tap.tap",
+    "kind": "method",
+    "detail": "tap(): Action<void>",
+    "documentation": "Taps once, holding the finger down for tapMs (60 milliseconds when tapMs is 0).",
+    "insertText": "tap(${1})"
+  },
+  {
+    "label": "Tap.tapTimes",
+    "kind": "method",
+    "detail": "tapTimes(count: number, gapMs?: number): Action<void>",
+    "documentation": "Taps count times (1 to 100), gapMs apart (100 by default), each as long as tap().",
+    "insertText": "tapTimes(${1})"
+  },
+  {
+    "label": "Tap.setDuration",
+    "kind": "method",
+    "detail": "setDuration(durationMs: number): void",
+    "documentation": "Changes how long each tap holds the finger down (0 to 1000 milliseconds; 0 means two frames) until the logic stops or the profile changes. Throws GS-API-017 outside that range.",
+    "insertText": "setDuration(${1})"
+  },
+  {
+    "label": "Tap.resetDuration",
+    "kind": "method",
+    "detail": "resetDuration(): void",
+    "documentation": "Puts back the tap length from the profile.",
+    "insertText": "resetDuration(${1})"
+  },
+  {
+    "label": "Hold.holding",
+    "kind": "property",
+    "detail": "readonly holding: boolean",
+    "documentation": "Whether it is pressing the screen now.",
+    "insertText": "holding"
+  },
+  {
+    "label": "Hold.holdFor",
+    "kind": "method",
+    "detail": "holdFor(durationMs: number): Action<void>",
+    "documentation": "Presses for a while, then lets go.",
+    "insertText": "holdFor(${1})"
+  },
+  {
+    "label": "Hold.toggleHold",
+    "kind": "method",
+    "detail": "toggleHold(): void",
+    "documentation": "Presses if it is up, lets go if it is pressing.",
+    "insertText": "toggleHold(${1})"
+  },
+  {
+    "label": "Hold.onPressed",
+    "kind": "method",
+    "detail": "onPressed(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it puts a finger on the screen.",
+    "insertText": "onPressed(${1})"
+  },
+  {
+    "label": "Hold.onReleased",
+    "kind": "method",
+    "detail": "onReleased(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it lifts its last finger.",
+    "insertText": "onReleased(${1})"
+  },
+  {
+    "label": "LongPress.holdMs",
+    "kind": "property",
+    "detail": "readonly holdMs: number",
+    "documentation": "How long a long press lasts, in milliseconds.",
+    "insertText": "holdMs"
+  },
+  {
+    "label": "LongPress.holding",
+    "kind": "property",
+    "detail": "readonly holding: boolean",
+    "documentation": "Whether it is pressing the screen now.",
+    "insertText": "holding"
+  },
+  {
+    "label": "LongPress.longPress",
+    "kind": "method",
+    "detail": "longPress(durationMs?: number): Action<void>",
+    "documentation": "Long-presses for holdMs, or for durationMs when given.",
+    "insertText": "longPress(${1})"
+  },
+  {
+    "label": "LongPress.setDuration",
+    "kind": "method",
+    "detail": "setDuration(durationMs: number): void",
+    "documentation": "Changes how long a long press lasts (100 to 10000 milliseconds) until the logic stops or the profile changes. Throws GS-API-017 outside that range.",
+    "insertText": "setDuration(${1})"
+  },
+  {
+    "label": "LongPress.resetDuration",
+    "kind": "method",
+    "detail": "resetDuration(): void",
+    "documentation": "Puts back the long press length from the profile.",
+    "insertText": "resetDuration(${1})"
+  },
+  {
+    "label": "LongPress.onStart",
+    "kind": "method",
+    "detail": "onStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it puts a finger on the screen.",
+    "insertText": "onStart(${1})"
+  },
+  {
+    "label": "LongPress.onEnd",
+    "kind": "method",
+    "detail": "onEnd(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it lifts its last finger.",
+    "insertText": "onEnd(${1})"
+  },
+  {
+    "label": "Turbo.rateHz",
+    "kind": "property",
+    "detail": "readonly rateHz: number",
+    "documentation": "Presses a second: from the profile, or the rate setRate() gave.",
+    "insertText": "rateHz"
+  },
+  {
+    "label": "Turbo.tapMs",
+    "kind": "property",
+    "detail": "readonly tapMs: number",
+    "documentation": "How long each tap holds the finger down, in milliseconds; 0 means two frames.",
+    "insertText": "tapMs"
+  },
+  {
+    "label": "Turbo.firing",
+    "kind": "property",
+    "detail": "readonly firing: boolean",
+    "documentation": "Whether start() is pressing again and again now.",
+    "insertText": "firing"
+  },
+  {
+    "label": "Turbo.start",
+    "kind": "method",
+    "detail": "start(rateHz?: number): void",
+    "documentation": "Presses again and again until stop(), at rateHz or the given rate (1 to 30 a second).",
+    "insertText": "start(${1})"
+  },
+  {
+    "label": "Turbo.stop",
+    "kind": "method",
+    "detail": "stop(): void",
+    "documentation": "Stops start().",
+    "insertText": "stop(${1})"
+  },
+  {
+    "label": "Turbo.burst",
+    "kind": "method",
+    "detail": "burst(count: number): Action<void>",
+    "documentation": "Presses count times (1 to 100) at its rate.",
+    "insertText": "burst(${1})"
+  },
+  {
+    "label": "Turbo.setRate",
+    "kind": "method",
+    "detail": "setRate(rateHz: number): void",
+    "documentation": "Changes the presses a second (1 to 30) for its key, start() and burst(), until the logic stops or the profile changes. Throws GS-API-017 outside that range.",
+    "insertText": "setRate(${1})"
+  },
+  {
+    "label": "Turbo.resetRate",
+    "kind": "method",
+    "detail": "resetRate(): void",
+    "documentation": "Puts back the rate from the profile.",
+    "insertText": "resetRate(${1})"
+  },
+  {
+    "label": "Swipe.durationMs",
+    "kind": "property",
+    "detail": "readonly durationMs: number",
+    "documentation": "How long the swipe takes, in milliseconds.",
+    "insertText": "durationMs"
+  },
+  {
+    "label": "Swipe.swiping",
+    "kind": "property",
+    "detail": "readonly swiping: boolean",
+    "documentation": "Whether it is swiping now.",
+    "insertText": "swiping"
+  },
+  {
+    "label": "Swipe.swipe",
+    "kind": "method",
+    "detail": "swipe(): Action<void>",
+    "documentation": "Swipes along its path once.",
+    "insertText": "swipe(${1})"
+  },
+  {
+    "label": "Swipe.setDuration",
+    "kind": "method",
+    "detail": "setDuration(durationMs: number): void",
+    "documentation": "Changes how long the swipe takes (10 to 10000 milliseconds) until the logic stops or the profile changes. Throws GS-API-017 outside that range.",
+    "insertText": "setDuration(${1})"
+  },
+  {
+    "label": "Swipe.resetDuration",
+    "kind": "method",
+    "detail": "resetDuration(): void",
+    "documentation": "Puts back the swipe length from the profile.",
+    "insertText": "resetDuration(${1})"
+  },
+  {
+    "label": "Swipe.onStart",
+    "kind": "method",
+    "detail": "onStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it puts a finger on the screen.",
+    "insertText": "onStart(${1})"
+  },
+  {
+    "label": "Swipe.onEnd",
+    "kind": "method",
+    "detail": "onEnd(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it lifts its last finger.",
+    "insertText": "onEnd(${1})"
+  },
+  {
+    "label": "Pinch.pinching",
+    "kind": "property",
+    "detail": "readonly pinching: boolean",
+    "documentation": "Whether it is pinching now.",
+    "insertText": "pinching"
+  },
+  {
+    "label": "Pinch.zoomIn",
+    "kind": "method",
+    "detail": "zoomIn(): void",
+    "documentation": "Spreads two fingers apart once.",
+    "insertText": "zoomIn(${1})"
+  },
+  {
+    "label": "Pinch.zoomOut",
+    "kind": "method",
+    "detail": "zoomOut(): void",
+    "documentation": "Pinches two fingers together once.",
+    "insertText": "zoomOut(${1})"
+  },
+  {
+    "label": "Stick.radius",
+    "kind": "property",
+    "detail": "readonly radius: number",
+    "documentation": "The stick's radius, as a ratio of the picture height.",
+    "insertText": "radius"
+  },
+  {
+    "label": "Stick.moving",
+    "kind": "property",
+    "detail": "readonly moving: boolean",
+    "documentation": "Whether the stick is pushed now.",
+    "insertText": "moving"
+  },
+  {
+    "label": "Stick.direction",
+    "kind": "property",
+    "detail": "readonly direction: number | null",
+    "documentation": "Where the stick points in degrees (0 up, 90 right, 180 down, 270 left); null when it is in the middle.",
+    "insertText": "direction"
+  },
+  {
+    "label": "Stick.amount",
+    "kind": "property",
+    "detail": "readonly amount: number",
+    "documentation": "How far the stick is pushed, from 0 to 1.",
+    "insertText": "amount"
+  },
+  {
+    "label": "Stick.push",
+    "kind": "method",
+    "detail": "push(direction: number, amount?: number): void",
+    "documentation": "Pushes the stick toward a direction in degrees (0 up, 90 right, 180 down, 270 left), amount from 0 to 1 (1 by default), until release().",
+    "insertText": "push(${1})"
+  },
+  {
+    "label": "Stick.release",
+    "kind": "method",
+    "detail": "release(): void",
+    "documentation": "Lets the stick go back to the middle after push().",
+    "insertText": "release(${1})"
+  },
+  {
+    "label": "Stick.walkFor",
+    "kind": "method",
+    "detail": "walkFor(direction: number, durationMs: number, amount?: number): Action<void>",
+    "documentation": "Pushes the stick toward a direction in degrees (0 up, 90 right, 180 down, 270 left) for a while, then lets it go.",
+    "insertText": "walkFor(${1})"
+  },
+  {
+    "label": "Stick.setRadius",
+    "kind": "method",
+    "detail": "setRadius(radius: number): void",
+    "documentation": "Changes the stick's radius (0.01 to 1, a ratio of the picture height) until the logic stops or the profile changes. Throws GS-API-017 outside that range.",
+    "insertText": "setRadius(${1})"
+  },
+  {
+    "label": "Stick.resetRadius",
+    "kind": "method",
+    "detail": "resetRadius(): void",
+    "documentation": "Puts back the radius from the profile.",
+    "insertText": "resetRadius(${1})"
+  },
+  {
+    "label": "Stick.onMoveStart",
+    "kind": "method",
+    "detail": "onMoveStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the stick starts moving.",
+    "insertText": "onMoveStart(${1})"
+  },
+  {
+    "label": "Stick.onStop",
+    "kind": "method",
+    "detail": "onStop(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the stick comes back to the middle.",
+    "insertText": "onStop(${1})"
+  },
+  {
+    "label": "Stick.onDirectionChange",
+    "kind": "method",
+    "detail": "onDirectionChange(handler: (event: DirectionEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the stick points another way.",
+    "insertText": "onDirectionChange(${1})"
+  },
+  {
+    "label": "Wasd.walkScale",
+    "kind": "property",
+    "detail": "readonly walkScale: number",
+    "documentation": "How far the walk key pushes the stick, from the profile.",
+    "insertText": "walkScale"
+  },
+  {
+    "label": "Wasd.sprintScale",
+    "kind": "property",
+    "detail": "readonly sprintScale: number",
+    "documentation": "How far the sprint key pushes the stick, from the profile.",
+    "insertText": "sprintScale"
+  },
+  {
+    "label": "RightWalk.walking",
+    "kind": "property",
+    "detail": "readonly walking: boolean",
+    "documentation": "Whether it is walking now.",
+    "insertText": "walking"
+  },
+  {
+    "label": "RightWalk.walkMsPerUnit",
+    "kind": "property",
+    "detail": "readonly walkMsPerUnit: number",
+    "documentation": "How long it walks to cross the picture's height, in milliseconds.",
+    "insertText": "walkMsPerUnit"
+  },
+  {
+    "label": "RightWalk.stopOnRelease",
+    "kind": "property",
+    "detail": "readonly stopOnRelease: boolean",
+    "documentation": "Whether letting go of its key stops the walk.",
+    "insertText": "stopOnRelease"
+  },
+  {
+    "label": "RightWalk.walkTo",
+    "kind": "method",
+    "detail": "walkTo(x: number | PicturePoint, y?: number): void",
+    "documentation": "Walks toward a position on the picture, as a click there would.",
+    "insertText": "walkTo(${1})"
+  },
+  {
+    "label": "RightWalk.stop",
+    "kind": "method",
+    "detail": "stop(): void",
+    "documentation": "Stops walking.",
+    "insertText": "stop(${1})"
+  },
+  {
+    "label": "RightWalk.setRadius",
+    "kind": "method",
+    "detail": "setRadius(radius: number): void",
+    "documentation": "Changes the radius of its stick (0.01 to 1, a ratio of the picture height) until the logic stops or the profile changes. Throws GS-API-017 outside that range.",
+    "insertText": "setRadius(${1})"
+  },
+  {
+    "label": "RightWalk.resetRadius",
+    "kind": "method",
+    "detail": "resetRadius(): void",
+    "documentation": "Puts back the radius from the profile.",
+    "insertText": "resetRadius(${1})"
+  },
+  {
+    "label": "RightWalk.onWalkStart",
+    "kind": "method",
+    "detail": "onWalkStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it starts walking.",
+    "insertText": "onWalkStart(${1})"
+  },
+  {
+    "label": "RightWalk.onStop",
+    "kind": "method",
+    "detail": "onStop(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it stops walking.",
+    "insertText": "onStop(${1})"
+  },
+  {
+    "label": "Look.turning",
+    "kind": "property",
+    "detail": "readonly turning: boolean",
+    "documentation": "Whether its finger is turning the view now.",
+    "insertText": "turning"
+  },
+  {
+    "label": "Look.recenter",
+    "kind": "method",
+    "detail": "recenter(): void",
+    "documentation": "Lifts its finger so the next turn starts from its anchor again.",
+    "insertText": "recenter(${1})"
+  },
+  {
+    "label": "Look.turn",
+    "kind": "method",
+    "detail": "turn(dx: number, dy: number): void",
+    "documentation": "Turns the view as if the mouse moved dx and dy counts.",
+    "insertText": "turn(${1})"
+  },
+  {
+    "label": "Look.setSensitivity",
+    "kind": "method",
+    "detail": "setSensitivity(x: number, y?: number): void",
+    "documentation": "Changes how far the view turns for each mouse or stick count (0.01 to 100; y is x when left out) until the logic stops or the profile changes. Throws GS-API-017 outside that range.",
+    "insertText": "setSensitivity(${1})"
+  },
+  {
+    "label": "Look.resetSensitivity",
+    "kind": "method",
+    "detail": "resetSensitivity(): void",
+    "documentation": "Puts back the sensitivity from the profile.",
+    "insertText": "resetSensitivity(${1})"
+  },
+  {
+    "label": "Look.onTurnStart",
+    "kind": "method",
+    "detail": "onTurnStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it puts a finger on the screen.",
+    "insertText": "onTurnStart(${1})"
+  },
+  {
+    "label": "Look.onTurnEnd",
+    "kind": "method",
+    "detail": "onTurnEnd(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it lifts its last finger.",
+    "insertText": "onTurnEnd(${1})"
+  },
+  {
+    "label": "Camera.locked",
+    "kind": "property",
+    "detail": "readonly locked: boolean",
+    "documentation": "Whether the view is locked to the mouse now.",
+    "insertText": "locked"
+  },
+  {
+    "label": "Camera.lock",
+    "kind": "method",
+    "detail": "lock(): void",
+    "documentation": "Locks the view to the mouse, as the lock key does.",
+    "insertText": "lock(${1})"
+  },
+  {
+    "label": "Camera.unlock",
+    "kind": "method",
+    "detail": "unlock(): void",
+    "documentation": "Gives the mouse back.",
+    "insertText": "unlock(${1})"
+  },
+  {
+    "label": "Camera.toggleLock",
+    "kind": "method",
+    "detail": "toggleLock(): void",
+    "documentation": "Locks or unlocks the view.",
+    "insertText": "toggleLock(${1})"
+  },
+  {
+    "label": "Camera.onLock",
+    "kind": "method",
+    "detail": "onLock(handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the view is locked.",
+    "insertText": "onLock(${1})"
+  },
+  {
+    "label": "Camera.onUnlock",
+    "kind": "method",
+    "detail": "onUnlock(handler: (event: TaskContext) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the view is unlocked.",
+    "insertText": "onUnlock(${1})"
+  },
+  {
+    "label": "FreeLook.looking",
+    "kind": "property",
+    "detail": "readonly looking: boolean",
+    "documentation": "Whether it is looking around now.",
+    "insertText": "looking"
+  },
+  {
+    "label": "FreeLook.begin",
+    "kind": "method",
+    "detail": "begin(): void",
+    "documentation": "Starts looking around, as holding its key does.",
+    "insertText": "begin(${1})"
+  },
+  {
+    "label": "FreeLook.end",
+    "kind": "method",
+    "detail": "end(): void",
+    "documentation": "Stops looking around.",
+    "insertText": "end(${1})"
+  },
+  {
+    "label": "FreeLook.turn",
+    "kind": "method",
+    "detail": "turn(dx: number, dy: number): void",
+    "documentation": "Turns the view as if the mouse moved dx and dy counts; it only turns while it is looking around (begin() or its key).",
+    "insertText": "turn(${1})"
+  },
+  {
+    "label": "FreeLook.setSensitivity",
+    "kind": "method",
+    "detail": "setSensitivity(x: number, y?: number): void",
+    "documentation": "Changes how far looking around turns for each mouse count (0.01 to 100; y is x when left out) until the logic stops or the profile changes. Throws GS-API-017 outside that range.",
+    "insertText": "setSensitivity(${1})"
+  },
+  {
+    "label": "FreeLook.resetSensitivity",
+    "kind": "method",
+    "detail": "resetSensitivity(): void",
+    "documentation": "Puts back the sensitivity from the profile.",
+    "insertText": "resetSensitivity(${1})"
+  },
+  {
+    "label": "FreeLook.onStart",
+    "kind": "method",
+    "detail": "onStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it puts a finger on the screen.",
+    "insertText": "onStart(${1})"
+  },
+  {
+    "label": "FreeLook.onEnd",
+    "kind": "method",
+    "detail": "onEnd(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it lifts its last finger.",
+    "insertText": "onEnd(${1})"
+  },
+  {
+    "label": "Skill.aiming",
+    "kind": "property",
+    "detail": "readonly aiming: boolean",
+    "documentation": "Whether it is aiming now.",
+    "insertText": "aiming"
+  },
+  {
+    "label": "Skill.aim",
+    "kind": "method",
+    "detail": "aim(): void",
+    "documentation": "Starts aiming, as pressing its key does.",
+    "insertText": "aim(${1})"
+  },
+  {
+    "label": "Skill.cast",
+    "kind": "method",
+    "detail": "cast(): void",
+    "documentation": "Casts the skill where it is aiming.",
+    "insertText": "cast(${1})"
+  },
+  {
+    "label": "Skill.cancel",
+    "kind": "method",
+    "detail": "cancel(): void",
+    "documentation": "Cancels the skill.",
+    "insertText": "cancel(${1})"
+  },
+  {
+    "label": "Skill.turn",
+    "kind": "method",
+    "detail": "turn(dx: number, dy: number): void",
+    "documentation": "Turns the view as if the mouse moved dx and dy counts.",
+    "insertText": "turn(${1})"
+  },
+  {
+    "label": "Skill.setRadius",
+    "kind": "method",
+    "detail": "setRadius(radius: number): void",
+    "documentation": "Changes how far the aiming finger can move from the skill's place (0.01 to 1, a ratio of the picture height) until the logic stops or the profile changes. Throws GS-API-017 outside that range.",
+    "insertText": "setRadius(${1})"
+  },
+  {
+    "label": "Skill.resetRadius",
+    "kind": "method",
+    "detail": "resetRadius(): void",
+    "documentation": "Puts back the radius from the profile.",
+    "insertText": "resetRadius(${1})"
+  },
+  {
+    "label": "Skill.setSensitivity",
+    "kind": "method",
+    "detail": "setSensitivity(x: number, y?: number): void",
+    "documentation": "Changes how far aiming moves for each mouse count (0.01 to 100; y is x when left out) until the logic stops or the profile changes. Throws GS-API-017 outside that range.",
+    "insertText": "setSensitivity(${1})"
+  },
+  {
+    "label": "Skill.resetSensitivity",
+    "kind": "method",
+    "detail": "resetSensitivity(): void",
+    "documentation": "Puts back the sensitivity from the profile.",
+    "insertText": "resetSensitivity(${1})"
+  },
+  {
+    "label": "Skill.onAimStart",
+    "kind": "method",
+    "detail": "onAimStart(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it starts aiming.",
+    "insertText": "onAimStart(${1})"
+  },
+  {
+    "label": "Skill.onCast",
+    "kind": "method",
+    "detail": "onCast(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the skill is cast.",
+    "insertText": "onCast(${1})"
+  },
+  {
+    "label": "Skill.onCancel",
+    "kind": "method",
+    "detail": "onCancel(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the skill is cancelled.",
+    "insertText": "onCancel(${1})"
+  },
+  {
+    "label": "Dial.open",
+    "kind": "property",
+    "detail": "readonly open: boolean",
+    "documentation": "Whether the finger is down on the wheel now.",
+    "insertText": "open"
+  },
+  {
+    "label": "Dial.cell",
+    "kind": "property",
+    "detail": "readonly cell: number",
+    "documentation": "The cell the finger is on now, counted from 0 at the first cell going clockwise; -1 while it is in the middle or the key is up.",
+    "insertText": "cell"
+  },
+  {
+    "label": "Dial.cells",
+    "kind": "property",
+    "detail": "readonly cells: number",
+    "documentation": "How many cells the wheel has, from the profile.",
+    "insertText": "cells"
+  },
+  {
+    "label": "Dial.choose",
+    "kind": "method",
+    "detail": "choose(cell: number): Action<void>",
+    "documentation": "Presses the middle of the wheel, slides to the cell (0 is the first, going clockwise) and lets go, as if its key were pressed and the mouse moved that way. Throws GS-API-017 when the cell is not a whole number from 0 to cells - 1.",
+    "insertText": "choose(${1})"
+  },
+  {
+    "label": "Dial.onOpen",
+    "kind": "method",
+    "detail": "onOpen(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it puts a finger on the screen.",
+    "insertText": "onOpen(${1})"
+  },
+  {
+    "label": "Dial.onChoose",
+    "kind": "method",
+    "detail": "onChoose(handler: (event: CellEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the key is let go with the finger on a cell; the event says which.",
+    "insertText": "onChoose(${1})"
+  },
+  {
+    "label": "MultiPress.places",
+    "kind": "property",
+    "detail": "readonly places: number",
+    "documentation": "How many places it presses together, from 2 to 10.",
+    "insertText": "places"
+  },
+  {
+    "label": "MultiPress.holding",
+    "kind": "property",
+    "detail": "readonly holding: boolean",
+    "documentation": "Whether it is pressing the screen now.",
+    "insertText": "holding"
+  },
+  {
+    "label": "MultiPress.holdFor",
+    "kind": "method",
+    "detail": "holdFor(durationMs: number): Action<void>",
+    "documentation": "Presses every place for a while, then lets go.",
+    "insertText": "holdFor(${1})"
+  },
+  {
+    "label": "MultiPress.toggleHold",
+    "kind": "method",
+    "detail": "toggleHold(): void",
+    "documentation": "Presses if it is up, lets go if it is pressing.",
+    "insertText": "toggleHold(${1})"
+  },
+  {
+    "label": "MultiPress.onPressed",
+    "kind": "method",
+    "detail": "onPressed(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it puts a finger on the screen.",
+    "insertText": "onPressed(${1})"
+  },
+  {
+    "label": "MultiPress.onReleased",
+    "kind": "method",
+    "detail": "onReleased(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it lifts its last finger.",
+    "insertText": "onReleased(${1})"
+  },
+  {
+    "label": "TempCursor.showing",
+    "kind": "property",
+    "detail": "readonly showing: boolean",
+    "documentation": "Whether it has the cursor out now: its key is held while the view is locked.",
+    "insertText": "showing"
+  },
+  {
+    "label": "TempCursor.onShow",
+    "kind": "method",
+    "detail": "onShow(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time it brings the cursor out.",
+    "insertText": "onShow(${1})"
+  },
+  {
+    "label": "TempCursor.onHide",
+    "kind": "method",
+    "detail": "onHide(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the cursor goes back and the view locks again.",
+    "insertText": "onHide(${1})"
+  },
+  {
+    "label": "ActionWheel.open",
+    "kind": "property",
+    "detail": "readonly open: boolean",
+    "documentation": "Whether the wheel is open in the middle of the picture now.",
+    "insertText": "open"
+  },
+  {
+    "label": "ActionWheel.cell",
+    "kind": "property",
+    "detail": "readonly cell: number",
+    "documentation": "The cell the mouse points at now, counted from 0 at the top going clockwise; -1 while it points at the middle or the wheel is closed.",
+    "insertText": "cell"
+  },
+  {
+    "label": "ActionWheel.cells",
+    "kind": "property",
+    "detail": "readonly cells: number",
+    "documentation": "How many cells the wheel has, from the profile.",
+    "insertText": "cells"
+  },
+  {
+    "label": "ActionWheel.names",
+    "kind": "property",
+    "detail": "readonly names: readonly string[]",
+    "documentation": "The names of the cells, from the profile; empty for a cell without a name.",
+    "insertText": "names"
+  },
+  {
+    "label": "ActionWheel.choose",
+    "kind": "method",
+    "detail": "choose(cell: number): Action<void>",
+    "documentation": "Opens the wheel, points at the cell (0 is the top, going clockwise) and lets go, so the cell runs as if its key were used. Throws GS-API-017 when the cell is not a whole number from 0 to cells - 1.",
+    "insertText": "choose(${1})"
+  },
+  {
+    "label": "ActionWheel.onOpen",
+    "kind": "method",
+    "detail": "onOpen(handler: (event: ControlEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time its key opens the wheel.",
+    "insertText": "onOpen(${1})"
+  },
+  {
+    "label": "ActionWheel.onChoose",
+    "kind": "method",
+    "detail": "onChoose(handler: (event: WheelChoice) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the key is let go while pointing at a cell; the event says which cell and its name.",
+    "insertText": "onChoose(${1})"
+  },
+  {
+    "label": "Variable.id",
+    "kind": "property",
+    "detail": "readonly id: string",
+    "documentation": "The variable id from the profile.",
+    "insertText": "id"
+  },
+  {
+    "label": "Variable.name",
+    "kind": "property",
+    "detail": "readonly name: string",
+    "documentation": "The name shown in the editor.",
+    "insertText": "name"
+  },
+  {
+    "label": "Variable.value",
+    "kind": "property",
+    "detail": "value: VarValue",
+    "documentation": "The current value: true or false, a number or a string. Setting it changes what controls and logic see; throws GS-API-010 for other values or when the profile no longer has the variable.",
+    "insertText": "value"
+  },
+  {
+    "label": "Variable.toggle",
+    "kind": "method",
+    "detail": "toggle(): void",
+    "documentation": "Flips a true or false value.",
+    "insertText": "toggle(${1})"
+  },
+  {
+    "label": "Variable.onChange",
+    "kind": "method",
+    "detail": "onChange(handler: (event: VarChange) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the value changes, whoever changed it.",
+    "insertText": "onChange(${1})"
+  },
+  {
+    "label": "Key.name",
+    "kind": "property",
+    "detail": "readonly name: InputName",
+    "documentation": "The key's name, such as \"KeyF\".",
+    "insertText": "name"
+  },
+  {
+    "label": "Key.isDown",
+    "kind": "property",
+    "detail": "readonly isDown: boolean",
+    "documentation": "Whether the key is held down now.",
+    "insertText": "isDown"
+  },
+  {
+    "label": "Key.pressedAt",
+    "kind": "property",
+    "detail": "readonly pressedAt: number | null",
+    "documentation": "When the key went down (time.now()), or null when it is up.",
+    "insertText": "pressedAt"
+  },
+  {
+    "label": "Key.heldMs",
+    "kind": "property",
+    "detail": "readonly heldMs: number",
+    "documentation": "How long the key has been held, in milliseconds; 0 when it is up.",
+    "insertText": "heldMs"
+  },
+  {
+    "label": "Key.onPress",
+    "kind": "method",
+    "detail": "onPress(handler: (event: KeyEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the key goes down.",
+    "insertText": "onPress(${1})"
+  },
+  {
+    "label": "Key.onRelease",
+    "kind": "method",
+    "detail": "onRelease(handler: (event: KeyEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the key comes up.",
+    "insertText": "onRelease(${1})"
+  },
+  {
+    "label": "Key.whileHeld",
+    "kind": "method",
+    "detail": "whileHeld(handler: (event: KeyEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task when the key goes down and cancels it when the key comes up.",
+    "insertText": "whileHeld(${1})"
+  },
+  {
+    "label": "Key.onTap",
+    "kind": "method",
+    "detail": "onTap(handler: (event: KeyEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task when the key is let go within 250 ms of pressing it.",
+    "insertText": "onTap(${1})"
+  },
+  {
+    "label": "Key.onDoubleTap",
+    "kind": "method",
+    "detail": "onDoubleTap(handler: (event: KeyEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task when the key is pressed again within 300 ms of a tap.",
+    "insertText": "onDoubleTap(${1})"
+  },
+  {
+    "label": "Key.onLongPress",
+    "kind": "method",
+    "detail": "onLongPress(durationMs: number, handler: (event: KeyEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task when the key has been held for durationMs (500 by default).",
+    "insertText": "onLongPress(${1})"
+  },
+  {
+    "label": "Globals.get",
+    "kind": "method",
+    "detail": "get(name: string): StoreValue | undefined",
+    "documentation": "Reads a global value, shared by every profile and task on this phone.",
+    "insertText": "get(${1})"
+  },
+  {
+    "label": "Globals.set",
+    "kind": "method",
+    "detail": "set(name: string, value: StoreValue): void",
+    "documentation": "Sets a global value; it lasts until the program closes.",
+    "insertText": "set(${1})"
+  },
+  {
+    "label": "Globals.onChange",
+    "kind": "method",
+    "detail": "onChange(name: string, handler: (event: GlobalChange) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time a global value changes.",
+    "insertText": "onChange(${1})"
+  },
+  {
+    "label": "Gate.isOpen",
+    "kind": "property",
+    "detail": "readonly isOpen: boolean",
+    "documentation": "Whether the gate is open.",
+    "insertText": "isOpen"
+  },
+  {
+    "label": "Gate.open",
+    "kind": "method",
+    "detail": "open(): void",
+    "documentation": "Opens the gate.",
+    "insertText": "open(${1})"
+  },
+  {
+    "label": "Gate.close",
+    "kind": "method",
+    "detail": "close(): void",
+    "documentation": "Closes the gate.",
+    "insertText": "close(${1})"
+  },
+  {
+    "label": "Gate.toggle",
+    "kind": "method",
+    "detail": "toggle(): void",
+    "documentation": "Opens or closes the gate.",
+    "insertText": "toggle(${1})"
+  },
+  {
+    "label": "Gate.run",
+    "kind": "method",
+    "detail": "run<T>(action: () => T): T | undefined",
+    "documentation": "Runs the action when the gate is open.",
+    "insertText": "run(${1})"
+  },
+  {
+    "label": "Stopwatch.elapsedMs",
+    "kind": "property",
+    "detail": "readonly elapsedMs: number",
+    "documentation": "Milliseconds since it started or was reset.",
+    "insertText": "elapsedMs"
+  },
+  {
+    "label": "Stopwatch.reset",
+    "kind": "method",
+    "detail": "reset(): void",
+    "documentation": "Starts again from 0.",
+    "insertText": "reset(${1})"
+  },
+  {
+    "label": "Stopwatch.lap",
+    "kind": "method",
+    "detail": "lap(): number",
+    "documentation": "Milliseconds since the last lap, or since it started.",
+    "insertText": "lap(${1})"
+  },
+  {
+    "label": "Finger.down",
+    "kind": "property",
+    "detail": "readonly down: boolean",
+    "documentation": "Whether the finger is still down.",
+    "insertText": "down"
+  },
+  {
+    "label": "Finger.move",
+    "kind": "method",
+    "detail": "move(x: number | PicturePoint, y?: number, durationMs?: number): Action<void>",
+    "documentation": "Moves the finger to a position, at once or over durationMs.",
+    "insertText": "move(${1})"
+  },
+  {
+    "label": "Finger.up",
+    "kind": "method",
+    "detail": "up(): void",
+    "documentation": "Lifts the finger.",
+    "insertText": "up(${1})"
+  },
+  {
+    "label": "CapturedImage.region",
+    "kind": "property",
+    "detail": "readonly region: Region",
+    "documentation": "Where it was taken, as ratios of the picture.",
+    "insertText": "region"
+  },
+  {
+    "label": "CapturedImage.width",
+    "kind": "property",
+    "detail": "readonly width: number",
+    "documentation": "Its width in pixels.",
+    "insertText": "width"
+  },
+  {
+    "label": "CapturedImage.height",
+    "kind": "property",
+    "detail": "readonly height: number",
+    "documentation": "Its height in pixels.",
+    "insertText": "height"
+  },
+  {
+    "label": "CapturedImage.save",
+    "kind": "method",
+    "detail": "save(name: string): Promise<void>",
+    "documentation": "Keeps it as a template of the script's folder: res/<name>.png and an entry in res/resources.json, replacing the picture of a template with that name; resolves once both are written. Logic keeps running. Throws GS-API-038 when the name is not allowed; rejects with GS-API-038 when the files cannot be written and GS-API-037 when the image is no longer kept.",
+    "insertText": "save(${1})"
+  },
+  {
+    "label": "Task.params",
+    "kind": "property",
+    "detail": "readonly params: TaskParams",
+    "documentation": "The settings chosen for this task on the Tasks page, or the values it declares in static params.",
+    "insertText": "params"
+  },
+  {
+    "label": "Task.progress",
+    "kind": "method",
+    "detail": "progress(text: string): void",
+    "documentation": "Shows how far the task has come on its card and in the mirror window's task menu.",
+    "insertText": "progress(${1})"
+  },
+  {
+    "label": "Task.run",
+    "kind": "method",
+    "detail": "run(context: TaskContext): Promise<void>",
+    "documentation": "What the task does once it starts. When it returns the task is done; an error ends it as failed; Stop cancels it.",
+    "insertText": "run(${1})"
+  },
+  {
+    "label": "ComponentEvent.emit",
+    "kind": "method",
+    "detail": "emit(value?: unknown): void",
+    "documentation": "Starts a task in each listener with { value }.",
+    "insertText": "emit(${1})"
+  },
+  {
+    "label": "ComponentEvent.on",
+    "kind": "method",
+    "detail": "on(handler: (event: { readonly value: unknown }) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the event is emitted.",
+    "insertText": "on(${1})"
+  },
+  {
+    "label": "ComponentFinger.isDown",
+    "kind": "property",
+    "detail": "readonly isDown: boolean",
+    "documentation": "Whether the finger is down.",
+    "insertText": "isDown"
+  },
+  {
+    "label": "ComponentFinger.down",
+    "kind": "method",
+    "detail": "down(x: number | PicturePoint, y?: number): Finger",
+    "documentation": "Puts the finger down at a position, lifting it first when it is already down; it stays down after the task ends.",
+    "insertText": "down(${1})"
+  },
+  {
+    "label": "ComponentFinger.move",
+    "kind": "method",
+    "detail": "move(x: number | PicturePoint, y?: number, durationMs?: number): Action<void>",
+    "documentation": "Moves the finger, at once or over durationMs.",
+    "insertText": "move(${1})"
+  },
+  {
+    "label": "ComponentFinger.up",
+    "kind": "method",
+    "detail": "up(): void",
+    "documentation": "Lifts the finger.",
+    "insertText": "up(${1})"
+  },
+  {
+    "label": "ComponentClass.new",
+    "kind": "method",
+    "detail": "new (options?: ComponentOptions): Component",
+    "documentation": "Makes a component of a class that extends Component, with values for its static props; then calls its setup().",
+    "insertText": "new(${1})"
+  },
+  {
+    "label": "ComponentClass.prototype",
+    "kind": "property",
+    "detail": "readonly prototype: Component",
+    "documentation": "The members every component has.",
+    "insertText": "prototype"
+  },
+  {
+    "label": "ComponentClass.implements",
+    "kind": "property",
+    "detail": "readonly implements?: readonly Interface<unknown>[]",
+    "documentation": "The interfaces the components of a class implement, written static implements = [Fire]; the classes that extend it implement them too.",
+    "insertText": "implements"
+  },
+  {
+    "label": "ComponentOverrides.setup",
+    "kind": "method",
+    "detail": "setup(): void",
+    "documentation": "Runs once after the component is created; set up its listeners here.",
+    "insertText": "setup(${1})"
+  },
+  {
+    "label": "ComponentOverrides.onPress",
+    "kind": "method",
+    "detail": "onPress(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onPress(${1})"
+  },
+  {
+    "label": "ComponentOverrides.onRelease",
+    "kind": "method",
+    "detail": "onRelease(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onRelease(${1})"
+  },
+  {
+    "label": "ComponentOverrides.whileHeld",
+    "kind": "method",
+    "detail": "whileHeld(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "whileHeld(${1})"
+  },
+  {
+    "label": "ComponentOverrides.onEnabled",
+    "kind": "method",
+    "detail": "onEnabled(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onEnabled(${1})"
+  },
+  {
+    "label": "ComponentOverrides.onDisabled",
+    "kind": "method",
+    "detail": "onDisabled(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onDisabled(${1})"
+  },
+  {
+    "label": "ComponentOverrides.onTouchStart",
+    "kind": "method",
+    "detail": "onTouchStart(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onTouchStart(${1})"
+  },
+  {
+    "label": "ComponentOverrides.onTouchEnd",
+    "kind": "method",
+    "detail": "onTouchEnd(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onTouchEnd(${1})"
+  },
+  {
+    "label": "HoldOverrides.onPressed",
+    "kind": "method",
+    "detail": "onPressed(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onPressed(${1})"
+  },
+  {
+    "label": "HoldOverrides.onReleased",
+    "kind": "method",
+    "detail": "onReleased(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onReleased(${1})"
+  },
+  {
+    "label": "StartEndOverrides.onStart",
+    "kind": "method",
+    "detail": "onStart(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onStart(${1})"
+  },
+  {
+    "label": "StartEndOverrides.onEnd",
+    "kind": "method",
+    "detail": "onEnd(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onEnd(${1})"
+  },
+  {
+    "label": "StickOverrides.onMoveStart",
+    "kind": "method",
+    "detail": "onMoveStart(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onMoveStart(${1})"
+  },
+  {
+    "label": "StickOverrides.onStop",
+    "kind": "method",
+    "detail": "onStop(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onStop(${1})"
+  },
+  {
+    "label": "StickOverrides.onDirectionChange",
+    "kind": "method",
+    "detail": "onDirectionChange(event?: DirectionEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onDirectionChange(${1})"
+  },
+  {
+    "label": "RightWalkOverrides.onWalkStart",
+    "kind": "method",
+    "detail": "onWalkStart(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onWalkStart(${1})"
+  },
+  {
+    "label": "RightWalkOverrides.onStop",
+    "kind": "method",
+    "detail": "onStop(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onStop(${1})"
+  },
+  {
+    "label": "LookOverrides.onTurnStart",
+    "kind": "method",
+    "detail": "onTurnStart(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onTurnStart(${1})"
+  },
+  {
+    "label": "LookOverrides.onTurnEnd",
+    "kind": "method",
+    "detail": "onTurnEnd(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onTurnEnd(${1})"
+  },
+  {
+    "label": "CameraOverrides.onLock",
+    "kind": "method",
+    "detail": "onLock(event?: TaskContext): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onLock(${1})"
+  },
+  {
+    "label": "CameraOverrides.onUnlock",
+    "kind": "method",
+    "detail": "onUnlock(event?: TaskContext): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onUnlock(${1})"
+  },
+  {
+    "label": "SkillOverrides.onAimStart",
+    "kind": "method",
+    "detail": "onAimStart(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onAimStart(${1})"
+  },
+  {
+    "label": "SkillOverrides.onCast",
+    "kind": "method",
+    "detail": "onCast(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onCast(${1})"
+  },
+  {
+    "label": "SkillOverrides.onCancel",
+    "kind": "method",
+    "detail": "onCancel(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onCancel(${1})"
+  },
+  {
+    "label": "DialOverrides.onOpen",
+    "kind": "method",
+    "detail": "onOpen(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onOpen(${1})"
+  },
+  {
+    "label": "DialOverrides.onChoose",
+    "kind": "method",
+    "detail": "onChoose(event?: CellEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onChoose(${1})"
+  },
+  {
+    "label": "TempCursorOverrides.onShow",
+    "kind": "method",
+    "detail": "onShow(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onShow(${1})"
+  },
+  {
+    "label": "TempCursorOverrides.onHide",
+    "kind": "method",
+    "detail": "onHide(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onHide(${1})"
+  },
+  {
+    "label": "ActionWheelOverrides.onOpen",
+    "kind": "method",
+    "detail": "onOpen(event?: ControlEvent): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onOpen(${1})"
+  },
+  {
+    "label": "ActionWheelOverrides.onChoose",
+    "kind": "method",
+    "detail": "onChoose(event?: WheelChoice): void | Promise<void>",
+    "documentation": "Write it as a method in a class that extends this built-in component: it runs each time the event comes, as well as the built-in behavior, which cannot be changed. Calling super is not needed and does nothing.",
+    "insertText": "onChoose(${1})"
+  },
+  {
+    "label": "TaskClass.new",
+    "kind": "method",
+    "detail": "new (): Task",
+    "documentation": "GameScrcpy makes the task when it starts; scripts do not create tasks themselves.",
+    "insertText": "new(${1})"
+  },
+  {
+    "label": "TaskClass.prototype",
+    "kind": "property",
+    "detail": "readonly prototype: Task",
+    "documentation": "The members every task has.",
+    "insertText": "prototype"
+  },
+  {
+    "label": "UiPanel.render",
+    "kind": "method",
+    "detail": "render(tree: UiNode | null): void",
+    "documentation": "Shows the tree in the panel in place of what it showed; null empties it. GameScrcpy draws at most 30 trees a second, so of quicker ones the last shows. Throws GS-API-075 for a tree that is not right, naming the node, and GS-API-076 when the extension does not declare the panel for this logic.",
+    "insertText": "render(${1})"
+  },
+  {
+    "label": "UiPanel.on",
+    "kind": "method",
+    "detail": "on(type: UiEventType, handler: (event: UiEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task each time the user does something in the panel: click on a button; change of a field, number, toggle, choice or slider; submit with Enter in a field; select of a list item; open and close of the panel. Throws GS-API-017 for another event.",
+    "insertText": "on(${1})"
+  },
+  {
+    "label": "UiPanel.close",
+    "kind": "method",
+    "detail": "close(): void",
+    "documentation": "Closes the mirror window's side panel when it shows this panel.",
+    "insertText": "close(${1})"
+  },
+  {
+    "label": "UiStatus.render",
+    "kind": "method",
+    "detail": "render(tree: UiStatusNode | null): void",
+    "documentation": "Shows the widget in place of what it showed; null takes it away. Throws GS-API-075 for a tree that is not right and GS-API-076 when the extension does not declare the widget for this logic.",
+    "insertText": "render(${1})"
+  },
+  {
+    "label": "HardwareDevice.id",
+    "kind": "property",
+    "detail": "readonly id: string",
+    "documentation": "The id of the device.",
+    "insertText": "id"
+  },
+  {
+    "label": "HardwareDevice.kind",
+    "kind": "property",
+    "detail": "readonly kind: HardwareKind",
+    "documentation": "The kind of device.",
+    "insertText": "kind"
+  },
+  {
+    "label": "HardwareDevice.name",
+    "kind": "property",
+    "detail": "readonly name: string",
+    "documentation": "The name of the device, as in the device list.",
+    "insertText": "name"
+  },
+  {
+    "label": "HardwareDevice.isOpen",
+    "kind": "property",
+    "detail": "readonly isOpen: boolean",
+    "documentation": "Whether it is still open.",
+    "insertText": "isOpen"
+  },
+  {
+    "label": "HardwareDevice.close",
+    "kind": "method",
+    "detail": "close(): Promise<void>",
+    "documentation": "Closes the device, so that it can be opened again.",
+    "insertText": "close(${1})"
+  },
+  {
+    "label": "HardwareDevice.onClose",
+    "kind": "method",
+    "detail": "onClose(handler: (event: DeviceCloseEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task when the device closes by itself: it was unplugged, failed or the permission was taken back.",
+    "insertText": "onClose(${1})"
+  },
+  {
+    "label": "SerialDevice.kind",
+    "kind": "property",
+    "detail": "readonly kind: \"serial\"",
+    "documentation": "Always \"serial\".",
+    "insertText": "kind"
+  },
+  {
+    "label": "SerialDevice.write",
+    "kind": "method",
+    "detail": "write(data: HardwareBytes | string): Promise<void>",
+    "documentation": "Sends bytes, or text as UTF-8, up to 65536 bytes at a time; resolves once they are sent.",
+    "insertText": "write(${1})"
+  },
+  {
+    "label": "SerialDevice.setSignals",
+    "kind": "method",
+    "detail": "setSignals(signals: SerialSignals): Promise<void>",
+    "documentation": "Turns the DTR and RTS lines on or off.",
+    "insertText": "setSignals(${1})"
+  },
+  {
+    "label": "SerialDevice.onData",
+    "kind": "method",
+    "detail": "onData(handler: (event: DeviceDataEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task for each piece of data that comes in; by default the events queue, so none is lost.",
+    "insertText": "onData(${1})"
+  },
+  {
+    "label": "HidDevice.kind",
+    "kind": "property",
+    "detail": "readonly kind: \"hid\"",
+    "documentation": "Always \"hid\".",
+    "insertText": "kind"
+  },
+  {
+    "label": "HidDevice.sendReport",
+    "kind": "method",
+    "detail": "sendReport(report: number, data: HardwareBytes): Promise<void>",
+    "documentation": "Sends an output report: its id, 0 when the device numbers none, and the bytes after it.",
+    "insertText": "sendReport(${1})"
+  },
+  {
+    "label": "HidDevice.sendFeature",
+    "kind": "method",
+    "detail": "sendFeature(report: number, data: HardwareBytes): Promise<void>",
+    "documentation": "Sends a feature report: its id and the bytes after it.",
+    "insertText": "sendFeature(${1})"
+  },
+  {
+    "label": "HidDevice.getFeature",
+    "kind": "method",
+    "detail": "getFeature(report: number): Promise<Uint8Array>",
+    "documentation": "Reads a feature report; resolves with the bytes after its id.",
+    "insertText": "getFeature(${1})"
+  },
+  {
+    "label": "HidDevice.onReport",
+    "kind": "method",
+    "detail": "onReport(handler: (event: DeviceReportEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task for each input report; by default the events queue, so none is lost.",
+    "insertText": "onReport(${1})"
+  },
+  {
+    "label": "BleDevice.kind",
+    "kind": "property",
+    "detail": "readonly kind: \"ble\"",
+    "documentation": "Always \"ble\".",
+    "insertText": "kind"
+  },
+  {
+    "label": "BleDevice.services",
+    "kind": "method",
+    "detail": "services(): Promise<readonly BleService[]>",
+    "documentation": "The services and characteristics the device offers.",
+    "insertText": "services(${1})"
+  },
+  {
+    "label": "BleDevice.read",
+    "kind": "method",
+    "detail": "read(service: string, characteristic: string): Promise<Uint8Array>",
+    "documentation": "Reads a characteristic. A UUID may be written short, such as \"180f\".",
+    "insertText": "read(${1})"
+  },
+  {
+    "label": "BleDevice.write",
+    "kind": "method",
+    "detail": "write(service: string, characteristic: string, data: HardwareBytes, options?: BleWriteOptions): Promise<void>",
+    "documentation": "Writes up to 512 bytes to a characteristic.",
+    "insertText": "write(${1})"
+  },
+  {
+    "label": "BleDevice.subscribe",
+    "kind": "method",
+    "detail": "subscribe(service: string, characteristic: string, handler: (event: DeviceNotifyEvent) => void | Promise<void>, options?: ListenOptions): Promise<Subscription>",
+    "documentation": "Turns on the notifications of a characteristic and starts a task for each new value; resolves once they are on. Disposing the last subscription of the characteristic turns them off; by default the events queue, so none is lost.",
+    "insertText": "subscribe(${1})"
+  },
+  {
+    "label": "InputSource.name",
+    "kind": "property",
+    "detail": "readonly name: string",
+    "documentation": "The name of the input source.",
+    "insertText": "name"
+  },
+  {
+    "label": "InputSource.press",
+    "kind": "method",
+    "detail": "press(key: string): void",
+    "documentation": "Presses a key of the source, named with 1 to 32 letters, digits, _ or -; it stays down until release() or until the logic stops.",
+    "insertText": "press(${1})"
+  },
+  {
+    "label": "InputSource.release",
+    "kind": "method",
+    "detail": "release(key: string): void",
+    "documentation": "Lets go of a key of the source.",
+    "insertText": "release(${1})"
+  },
+  {
+    "label": "InputSource.axis",
+    "kind": "method",
+    "detail": "axis(key: string, x: number, y?: number): void",
+    "documentation": "Moves an axis of the source to x and y, each from -1 to 1 (y is 0 when left out); bound to a stick it pushes the stick, and 0, 0 lets it go.",
+    "insertText": "axis(${1})"
+  },
+  {
+    "label": "AbortSignal",
+    "kind": "type",
+    "detail": "type AbortSignal",
+    "documentation": "Tells a task that it was cancelled: when its key is released, the script stops or the profile changes.",
+    "insertText": "AbortSignal"
+  },
+  {
+    "label": "TaskContext",
+    "kind": "type",
+    "detail": "type TaskContext",
+    "documentation": "What every exported handler receives when a key, a blueprint or the console starts it.",
+    "insertText": "TaskContext"
+  },
+  {
+    "label": "TaskParams",
+    "kind": "type",
+    "detail": "type TaskParams",
+    "documentation": "The settings of a running task, as chosen on the Tasks page; the task declares them in static params.",
+    "insertText": "TaskParams"
+  },
+  {
+    "label": "TaskParam",
+    "kind": "type",
+    "detail": "type TaskParam",
+    "documentation": "A task setting made by param.number, param.text or param.toggle.",
+    "insertText": "TaskParam"
+  },
+  {
+    "label": "ComponentOptions",
+    "kind": "type",
+    "detail": "type ComponentOptions",
+    "documentation": "The values for a new component's static props, with an optional id and whether it starts on.",
+    "insertText": "ComponentOptions"
+  },
+  {
+    "label": "ComponentProp",
+    "kind": "type",
+    "detail": "type ComponentProp",
+    "documentation": "A property declared in static props with prop.key, prop.position, prop.number, prop.text, prop.toggle or prop.component.",
+    "insertText": "ComponentProp"
+  },
+  {
+    "label": "PropOptions",
+    "kind": "type",
+    "detail": "type PropOptions",
+    "documentation": "How a component property is labelled.",
+    "insertText": "PropOptions"
+  },
+  {
+    "label": "McpToolSpec",
+    "kind": "type",
+    "detail": "type McpToolSpec",
+    "documentation": "What an MCP tool of an extension does, in a sentence or two for the AI, and the JSON Schema of its input: an object of type object of at most 16 KiB; without one the tool takes an empty object.",
+    "insertText": "McpToolSpec"
+  },
+  {
+    "label": "NumberPropOptions",
+    "kind": "type",
+    "detail": "type NumberPropOptions",
+    "documentation": "How a number property is labelled, and the smallest and largest value its box in the property panel takes.",
+    "insertText": "NumberPropOptions"
+  },
+  {
+    "label": "ParamOptions",
+    "kind": "type",
+    "detail": "type ParamOptions",
+    "documentation": "How a task setting shows on the Tasks page: its label, and for numbers the smallest and largest value.",
+    "insertText": "ParamOptions"
+  },
+  {
+    "label": "AndroidKey",
+    "kind": "type",
+    "detail": "type AndroidKey",
+    "documentation": "The Android keys a script can press.",
+    "insertText": "AndroidKey"
+  },
+  {
+    "label": "DeviceInfo",
+    "kind": "type",
+    "detail": "type DeviceInfo",
+    "documentation": "The phone: model name, Android version, screen size in pixels and rotation in quarter turns.",
+    "insertText": "DeviceInfo"
+  },
+  {
+    "label": "ComponentType",
+    "kind": "type",
+    "detail": "type ComponentType",
+    "documentation": "The 13 kinds of component.",
+    "insertText": "ComponentType"
+  },
+  {
+    "label": "MachineStep",
+    "kind": "type",
+    "detail": "type MachineStep",
+    "documentation": "A move to another state, made by to.<state>(reason) and returned from a state of machine().",
+    "insertText": "MachineStep"
+  },
+  {
+    "label": "MachineTo<S>",
+    "kind": "type",
+    "detail": "type MachineTo<S>",
+    "documentation": "What a state of machine() receives: one function per state that makes the move to it, with an optional reason the editor shows on the transition.",
+    "insertText": "MachineTo<S>"
+  },
+  {
+    "label": "MachineOptions<S>",
+    "kind": "type",
+    "detail": "type MachineOptions<S>",
+    "documentation": "The name the editor shows for a state machine, and the state it starts in (the first one when left out).",
+    "insertText": "MachineOptions<S>"
+  },
+  {
+    "label": "Interface<T>",
+    "kind": "type",
+    "detail": "type Interface<T>",
+    "documentation": "An interface made with defineInterface(): its name, and all(), every component of the profile whose class lists it in static implements, so logic can tell each of them at once.",
+    "insertText": "Interface<T>"
+  },
+  {
+    "label": "BuiltInClass<T, O>",
+    "kind": "type",
+    "detail": "type BuiltInClass<T, O>",
+    "documentation": "A built-in component class. A component of yours that extends it is placed as that built-in component and presses the screen just as it does; the event methods of O that the class writes run each time the event comes, as well. T is the type its components have in controls.",
+    "insertText": "BuiltInClass<T, O>"
+  },
+  {
+    "label": "ControlInfo",
+    "kind": "type",
+    "detail": "type ControlInfo",
+    "documentation": "A control of the profile in use.",
+    "insertText": "ControlInfo"
+  },
+  {
+    "label": "VarValue",
+    "kind": "type",
+    "detail": "type VarValue",
+    "documentation": "What a variable holds.",
+    "insertText": "VarValue"
+  },
+  {
+    "label": "StoreValue",
+    "kind": "type",
+    "detail": "type StoreValue",
+    "documentation": "A value the store can keep.",
+    "insertText": "StoreValue"
+  },
+  {
+    "label": "ListenOptions",
+    "kind": "type",
+    "detail": "type ListenOptions",
+    "documentation": "What happens when the event comes again while the last task it started is still running: ignore it (default), restart (cancel the running task first), stop (only cancel the running task), queue (run after it) or parallel (run both).",
+    "insertText": "ListenOptions"
+  },
+  {
+    "label": "KeyListenOptions",
+    "kind": "type",
+    "detail": "type KeyListenOptions",
+    "documentation": "The options of a control's key events: again as for other events, and consume. With consume true (the default), the profile's logic takes the key of a tap, hold, long press, turbo, swipe or multi-press control it listens to: pressing the key no longer touches the phone, and the control touches only when the logic calls it, such as with press() or tap(), a few milliseconds later than its own touch would. consume: false keeps the control's own touch, which comes before the handler runs. Only the profile's own logic takes keys: tasks, extension scripts and scripts an AI client runs only listen, the event methods a component class overrides keep the built-in touch, and other controls always keep working.",
+    "insertText": "KeyListenOptions"
+  },
+  {
+    "label": "Subscription",
+    "kind": "type",
+    "detail": "type Subscription",
+    "documentation": "A listener; dispose() stops it. Listeners made inside a task stop when that task ends, those made at module top level last as long as the script.",
+    "insertText": "Subscription"
+  },
+  {
+    "label": "UntilOptions",
+    "kind": "type",
+    "detail": "type UntilOptions",
+    "documentation": "How long until() waits for its condition after each try of the action, in milliseconds (5000 by default, from 1 to 600000), and how many more times it does the action when the condition does not come true in time (0 by default, at most 10).",
+    "insertText": "UntilOptions"
+  },
+  {
+    "label": "Action<T>",
+    "kind": "type",
+    "detail": "type Action<T>",
+    "documentation": "What an action returns: a Promise that resolves when the action is done, with until(), which then checks the condition once per frame and resolves with its first truthy value, doing the action again, as often as retry allows, when it does not come true in time. The condition may return a Promise, as vision.find() does. until() rejects with a TimeoutError (GS-API-030) when the tries run out and with an AbortError when the task is cancelled; it throws GS-API-008 for a condition that is not a function, GS-API-011 for options that are not an object, GS-API-003 for a timeoutMs out of range and GS-API-017 for a retry out of range.",
+    "insertText": "Action<T>"
+  },
+  {
+    "label": "Binding",
+    "kind": "type",
+    "detail": "type Binding",
+    "documentation": "A binding made with bind(); dispose() stops it and puts the property back to its value from before the binding. Bindings made inside a task stop when that task ends, those made at module top level last as long as the script.",
+    "insertText": "Binding"
+  },
+  {
+    "label": "ControlEvent",
+    "kind": "type",
+    "detail": "type ControlEvent",
+    "documentation": "What a control listener receives: the cancel signal and the id of the control.",
+    "insertText": "ControlEvent"
+  },
+  {
+    "label": "DirectionEvent",
+    "kind": "type",
+    "detail": "type DirectionEvent",
+    "documentation": "What onDirectionChange receives: the new direction in degrees.",
+    "insertText": "DirectionEvent"
+  },
+  {
+    "label": "CellEvent",
+    "kind": "type",
+    "detail": "type CellEvent",
+    "documentation": "What a direction wheel's onChoose receives: the cell picked, counted from 0 at the first cell going clockwise.",
+    "insertText": "CellEvent"
+  },
+  {
+    "label": "WheelChoice",
+    "kind": "type",
+    "detail": "type WheelChoice",
+    "documentation": "What an action wheel's onChoose receives: the cell run, counted from 0 at the top going clockwise, and its name.",
+    "insertText": "WheelChoice"
+  },
+  {
+    "label": "VarChange",
+    "kind": "type",
+    "detail": "type VarChange",
+    "documentation": "What a variable listener receives: the cancel signal, the variable id and its new value.",
+    "insertText": "VarChange"
+  },
+  {
+    "label": "KeyEvent",
+    "kind": "type",
+    "detail": "type KeyEvent",
+    "documentation": "What a key listener receives: the key's name, and on release how long it was held.",
+    "insertText": "KeyEvent"
+  },
+  {
+    "label": "Keys",
+    "kind": "type",
+    "detail": "type Keys",
+    "documentation": "Keys by name, as in profiles (\"KeyF\", \"Space\", \"Mouse.Left\") or short (F, Esc, MouseLeft, WheelUp, GamepadA).",
+    "insertText": "Keys"
+  },
+  {
+    "label": "GlobalChange",
+    "kind": "type",
+    "detail": "type GlobalChange",
+    "documentation": "What a global listener receives: the name and the new value.",
+    "insertText": "GlobalChange"
+  },
+  {
+    "label": "ForegroundApp",
+    "kind": "type",
+    "detail": "type ForegroundApp",
+    "documentation": "The app in front on the phone: its package and whether Android calls it a game.",
+    "insertText": "ForegroundApp"
+  },
+  {
+    "label": "InputBox",
+    "kind": "type",
+    "detail": "type InputBox",
+    "documentation": "An input box on the phone: whether it is open, its kind as Android's InputType number (1 text, 2 number, 3 phone, 4 date and time, with the variation and flag bits added), what its Enter key does and whether it takes several lines. When it closes the other fields are 0, \"unspecified\" and false.",
+    "insertText": "InputBox"
+  },
+  {
+    "label": "LaunchOptions",
+    "kind": "type",
+    "detail": "type LaunchOptions",
+    "documentation": "Whether to stop the app before starting it.",
+    "insertText": "LaunchOptions"
+  },
+  {
+    "label": "ProfileInfo",
+    "kind": "type",
+    "detail": "type ProfileInfo",
+    "documentation": "A profile's id and name.",
+    "insertText": "ProfileInfo"
+  },
+  {
+    "label": "Work",
+    "kind": "type",
+    "detail": "type Work",
+    "documentation": "Something to run: a Promise, or a function to start.",
+    "insertText": "Work"
+  },
+  {
+    "label": "ConfirmOptions",
+    "kind": "type",
+    "detail": "type ConfirmOptions",
+    "documentation": "The words on the two buttons of a yes or no question (up to 60 characters each).",
+    "insertText": "ConfirmOptions"
+  },
+  {
+    "label": "AskOptions",
+    "kind": "type",
+    "detail": "type AskOptions",
+    "documentation": "The text already in the box when the question opens.",
+    "insertText": "AskOptions"
+  },
+  {
+    "label": "PicturePoint",
+    "kind": "type",
+    "detail": "type PicturePoint",
+    "documentation": "A position on the phone picture as ratios: (0, 0) top left, (1, 1) bottom right.",
+    "insertText": "PicturePoint"
+  },
+  {
+    "label": "InputName",
+    "kind": "type",
+    "detail": "type InputName",
+    "documentation": "A key or mouse button, written as in profiles, such as \"KeyW\", \"ShiftLeft\" or \"Mouse.Right\".",
+    "insertText": "InputName"
+  },
+  {
+    "label": "DrawColor",
+    "kind": "type",
+    "detail": "type DrawColor",
+    "documentation": "The colors a drawing can use; they follow the program's theme.",
+    "insertText": "DrawColor"
+  },
+  {
+    "label": "BoxOptions",
+    "kind": "type",
+    "detail": "type BoxOptions",
+    "documentation": "A box's color (accent by default), a label of up to 60 characters and how long it stays, in milliseconds.",
+    "insertText": "BoxOptions"
+  },
+  {
+    "label": "TextOptions",
+    "kind": "type",
+    "detail": "type TextOptions",
+    "documentation": "The text's color (accent by default) and how long it stays, in milliseconds.",
+    "insertText": "TextOptions"
+  },
+  {
+    "label": "MarkOptions",
+    "kind": "type",
+    "detail": "type MarkOptions",
+    "documentation": "A mark's color (accent by default), a label of up to 60 characters shown to the right of the ring and how long it stays, in milliseconds.",
+    "insertText": "MarkOptions"
+  },
+  {
+    "label": "Drawing",
+    "kind": "type",
+    "detail": "type Drawing",
+    "documentation": "Something drawn on the picture; dispose() removes it. At most 64 are shown at a time.",
+    "insertText": "Drawing"
+  },
+  {
+    "label": "Region",
+    "kind": "type",
+    "detail": "type Region",
+    "documentation": "Part of the picture, as ratios: left, top, width and height.",
+    "insertText": "Region"
+  },
+  {
+    "label": "FindOptions",
+    "kind": "type",
+    "detail": "type FindOptions",
+    "documentation": "Where to look (a region or a region name; the whole picture by default), how alike it must be from 0 to 1 (0.8 by default), how to compare (grey by default), how many to return for findAll (16 by default, at most 64) and how long to wait while there is no picture yet (2000 ms by default, at most 10000). A template name brings its own threshold, match mode and region; options given here win.",
+    "insertText": "FindOptions"
+  },
+  {
+    "label": "Found",
+    "kind": "type",
+    "detail": "type Found",
+    "documentation": "Where a picture was found: x and y are its center and width and height its size, as ratios of the picture; score is how alike it is, from 0 to 1.",
+    "insertText": "Found"
+  },
+  {
+    "label": "WaitOptions",
+    "kind": "type",
+    "detail": "type WaitOptions",
+    "documentation": "Where to look and how alike it must be, as for find(); timeoutMs is how long to keep looking in all (10000 ms by default, at most 600000) and intervalMs how long to wait between looks (250 ms by default, from 50 to 60000).",
+    "insertText": "WaitOptions"
+  },
+  {
+    "label": "WatchOptions",
+    "kind": "type",
+    "detail": "type WatchOptions",
+    "documentation": "Where to look and how alike it must be, as for find(); intervalMs is how long to wait between looks (500 ms by default, from 50 to 60000), and again what happens when the picture comes or goes again while the last task it started is still running.",
+    "insertText": "WatchOptions"
+  },
+  {
+    "label": "MatchMode",
+    "kind": "type",
+    "detail": "type MatchMode",
+    "documentation": "How a template is compared. \"grey\" compares brightness only (zero-mean normalized cross-correlation). \"color\" also compares colors: the score is multiplied by 1 - d / 128 (at least 0), where d is the mean absolute difference of red, green and blue (0 to 255) over the template's opaque pixels, so the same shape in another color scores low.",
+    "insertText": "MatchMode"
+  },
+  {
+    "label": "ColorOptions",
+    "kind": "type",
+    "detail": "type ColorOptions",
+    "documentation": "Where to look (the whole picture by default), how far each of red, green and blue may be from the color as a ratio of 255 (0.1 by default) and how long to wait while there is no picture yet (2000 ms by default, at most 10000). A color name brings its own tolerance and region; options given here win.",
+    "insertText": "ColorOptions"
+  },
+  {
+    "label": "PixelOptions",
+    "kind": "type",
+    "detail": "type PixelOptions",
+    "documentation": "How long to wait while there is no picture yet (2000 ms by default, at most 10000).",
+    "insertText": "PixelOptions"
+  },
+  {
+    "label": "ChangeOptions",
+    "kind": "type",
+    "detail": "type ChangeOptions",
+    "documentation": "How much must change to count, as the share of the region from 0 to 1 (0.05 by default; a spot counts when its brightness moves by about a tenth or more), and how long to wait while there is no picture yet (2000 ms by default, at most 10000).",
+    "insertText": "ChangeOptions"
+  },
+  {
+    "label": "OnChangeOptions",
+    "kind": "type",
+    "detail": "type OnChangeOptions",
+    "documentation": "How much must change, as for changed(); intervalMs is how long to wait between looks (500 ms by default, from 50 to 60000), and again what happens when it changes again while the last task it started is still running.",
+    "insertText": "OnChangeOptions"
+  },
+  {
+    "label": "ReadTextOptions",
+    "kind": "type",
+    "detail": "type ReadTextOptions",
+    "documentation": "Where to read (a region or a region name; the whole picture by default), the language as a tag such as \"zh-Hans\" or \"en\" (by default the first Windows display language that has text recognition, otherwise the first one this computer has; findText looks for text of English letters, digits and signs with English recognition when the computer has it) and how long to wait while there is no picture yet (2000 ms by default, at most 10000).",
+    "insertText": "ReadTextOptions"
+  },
+  {
+    "label": "TextResult",
+    "kind": "type",
+    "detail": "type TextResult",
+    "documentation": "Text read from the picture: text is every line joined with line breaks, lines each line with its place from top to bottom, and language the tag of the language it was read in, such as \"zh-Hans-CN\".",
+    "insertText": "TextResult"
+  },
+  {
+    "label": "TextLine",
+    "kind": "type",
+    "detail": "type TextLine",
+    "documentation": "One line of text: x and y are its center and width and height its size, as ratios of the picture.",
+    "insertText": "TextLine"
+  },
+  {
+    "label": "PixelMatchOptions",
+    "kind": "type",
+    "detail": "type PixelMatchOptions",
+    "documentation": "How far each of red, green and blue may be from the color as a ratio of 255 (0.1 by default; a color name brings its own) and how long to wait while there is no picture yet (2000 ms by default, at most 10000).",
+    "insertText": "PixelMatchOptions"
+  },
+  {
+    "label": "PicturePath",
+    "kind": "type",
+    "detail": "type PicturePath",
+    "documentation": "A path on the picture: its points as ratios and how long a swipe along it takes, in milliseconds.",
+    "insertText": "PicturePath"
+  },
+  {
+    "label": "ImagePath",
+    "kind": "type",
+    "detail": "type ImagePath",
+    "documentation": "A picture in the profile folder, written as a relative path such as \"res/chest.png\".",
+    "insertText": "ImagePath"
+  },
+  {
+    "label": "HexColor",
+    "kind": "type",
+    "detail": "type HexColor",
+    "documentation": "A color written \"#RRGGBB\", such as \"#F5C542\".",
+    "insertText": "HexColor"
+  },
+  {
+    "label": "TemplateName",
+    "kind": "type",
+    "detail": "type TemplateName",
+    "documentation": "The name of a template in res/resources.json.",
+    "insertText": "TemplateName"
+  },
+  {
+    "label": "RegionName",
+    "kind": "type",
+    "detail": "type RegionName",
+    "documentation": "The name of a region in res/resources.json.",
+    "insertText": "RegionName"
+  },
+  {
+    "label": "PointName",
+    "kind": "type",
+    "detail": "type PointName",
+    "documentation": "The name of a point in res/resources.json.",
+    "insertText": "PointName"
+  },
+  {
+    "label": "PathName",
+    "kind": "type",
+    "detail": "type PathName",
+    "documentation": "The name of a path in res/resources.json.",
+    "insertText": "PathName"
+  },
+  {
+    "label": "ColorName",
+    "kind": "type",
+    "detail": "type ColorName",
+    "documentation": "The name of a color in res/resources.json.",
+    "insertText": "ColorName"
+  },
+  {
+    "label": "UiEventType",
+    "kind": "type",
+    "detail": "type UiEventType",
+    "documentation": "What the user does in a panel.",
+    "insertText": "UiEventType"
+  },
+  {
+    "label": "UiEvent",
+    "kind": "type",
+    "detail": "type UiEvent",
+    "documentation": "What a panel or menu listener receives: the id of the node or item, and its new value or null.",
+    "insertText": "UiEvent"
+  },
+  {
+    "label": "UiTone",
+    "kind": "type",
+    "detail": "type UiTone",
+    "documentation": "The colors of text and icons in a panel; they follow the program's theme.",
+    "insertText": "UiTone"
+  },
+  {
+    "label": "UiColor",
+    "kind": "type",
+    "detail": "type UiColor",
+    "documentation": "A color in a chart or canvas: \"#RRGGBB\", or the name of a theme color such as \"accent\", \"textPrimary\" or \"success\".",
+    "insertText": "UiColor"
+  },
+  {
+    "label": "UiNode",
+    "kind": "type",
+    "detail": "type UiNode",
+    "documentation": "A node of a panel tree. A tree is at most 256 KiB as JSON, 2000 nodes and 16 levels deep.",
+    "insertText": "UiNode"
+  },
+  {
+    "label": "UiColumn",
+    "kind": "type",
+    "detail": "type UiColumn",
+    "documentation": "Nodes one under another.",
+    "insertText": "UiColumn"
+  },
+  {
+    "label": "UiRow",
+    "kind": "type",
+    "detail": "type UiRow",
+    "documentation": "Nodes side by side, going on in the next line when the panel is too narrow.",
+    "insertText": "UiRow"
+  },
+  {
+    "label": "UiGroup",
+    "kind": "type",
+    "detail": "type UiGroup",
+    "documentation": "Nodes in a card with a title.",
+    "insertText": "UiGroup"
+  },
+  {
+    "label": "UiText",
+    "kind": "type",
+    "detail": "type UiText",
+    "documentation": "Text of up to 4000 characters. With markdown it shows **bold**, *italic*, `code` and lines that start with - or 1.; it never opens links or shows pictures.",
+    "insertText": "UiText"
+  },
+  {
+    "label": "UiButton",
+    "kind": "type",
+    "detail": "type UiButton",
+    "documentation": "A button; a click sends click. icon is the name of a GameScrcpy icon.",
+    "insertText": "UiButton"
+  },
+  {
+    "label": "UiField",
+    "kind": "type",
+    "detail": "type UiField",
+    "documentation": "A text box; leaving it sends change with the text, and Enter sends submit as well. The phone's keys pause while it has the keyboard.",
+    "insertText": "UiField"
+  },
+  {
+    "label": "UiNumber",
+    "kind": "type",
+    "detail": "type UiNumber",
+    "documentation": "A number box; a new number sends change.",
+    "insertText": "UiNumber"
+  },
+  {
+    "label": "UiToggle",
+    "kind": "type",
+    "detail": "type UiToggle",
+    "documentation": "A switch; flipping it sends change with true or false.",
+    "insertText": "UiToggle"
+  },
+  {
+    "label": "UiChoice",
+    "kind": "type",
+    "detail": "type UiChoice",
+    "documentation": "Up to 64 options to pick one from; picking sends change with the option's id.",
+    "insertText": "UiChoice"
+  },
+  {
+    "label": "UiOption",
+    "kind": "type",
+    "detail": "type UiOption",
+    "documentation": "An option of a choice: text that is both its id and its title, or an id and a title.",
+    "insertText": "UiOption"
+  },
+  {
+    "label": "UiSlider",
+    "kind": "type",
+    "detail": "type UiSlider",
+    "documentation": "A slider from min (0 if left out) to max (1 if left out); letting it go sends change with the value.",
+    "insertText": "UiSlider"
+  },
+  {
+    "label": "UiList",
+    "kind": "type",
+    "detail": "type UiList",
+    "documentation": "A list of up to 500 items; clicking one sends select with its id, unless selectable is false.",
+    "insertText": "UiList"
+  },
+  {
+    "label": "UiListItem",
+    "kind": "type",
+    "detail": "type UiListItem",
+    "documentation": "An item of a list.",
+    "insertText": "UiListItem"
+  },
+  {
+    "label": "UiTable",
+    "kind": "type",
+    "detail": "type UiTable",
+    "documentation": "A table of up to 16 columns and 200 rows.",
+    "insertText": "UiTable"
+  },
+  {
+    "label": "UiTableRow",
+    "kind": "type",
+    "detail": "type UiTableRow",
+    "documentation": "A row of a table, one cell for each column.",
+    "insertText": "UiTableRow"
+  },
+  {
+    "label": "UiCell",
+    "kind": "type",
+    "detail": "type UiCell",
+    "documentation": "A cell of a table.",
+    "insertText": "UiCell"
+  },
+  {
+    "label": "UiChart",
+    "kind": "type",
+    "detail": "type UiChart",
+    "documentation": "A line or bar chart of up to 4 series; height is from 60 to 480, and min and max fix the scale.",
+    "insertText": "UiChart"
+  },
+  {
+    "label": "UiSeries",
+    "kind": "type",
+    "detail": "type UiSeries",
+    "documentation": "A series of a chart: up to 500 values from left to right.",
+    "insertText": "UiSeries"
+  },
+  {
+    "label": "UiCanvas",
+    "kind": "type",
+    "detail": "type UiCanvas",
+    "documentation": "A drawing of up to 500 shapes. width and height, from 1 to 2000, are in the panel's units; a wider drawing is made smaller to fit.",
+    "insertText": "UiCanvas"
+  },
+  {
+    "label": "UiShape",
+    "kind": "type",
+    "detail": "type UiShape",
+    "documentation": "A shape of a canvas: rect (x, y, width, height, radius), circle (x, y, radius), line (x1, y1, x2, y2), polyline (points as x, y, x, y… and closed) or text (x, y, text, size, color); fill, stroke and strokeWidth paint it.",
+    "insertText": "UiShape"
+  },
+  {
+    "label": "UiImage",
+    "kind": "type",
+    "detail": "type UiImage",
+    "documentation": "A PNG or SVG picture of up to 2 MiB in the extension's folder, written as a relative path; nothing outside the folder is shown.",
+    "insertText": "UiImage"
+  },
+  {
+    "label": "UiProgress",
+    "kind": "type",
+    "detail": "type UiProgress",
+    "documentation": "A progress bar from 0 to 1; while value is null or left out it moves on its own.",
+    "insertText": "UiProgress"
+  },
+  {
+    "label": "UiSeparator",
+    "kind": "type",
+    "detail": "type UiSeparator",
+    "documentation": "A thin line between nodes.",
+    "insertText": "UiSeparator"
+  },
+  {
+    "label": "UiStatusNode",
+    "kind": "type",
+    "detail": "type UiStatusNode",
+    "documentation": "A status widget: a row or a single part, at most 64 nodes.",
+    "insertText": "UiStatusNode"
+  },
+  {
+    "label": "UiStatusRow",
+    "kind": "type",
+    "detail": "type UiStatusRow",
+    "documentation": "Parts of a status widget side by side.",
+    "insertText": "UiStatusRow"
+  },
+  {
+    "label": "UiStatusPart",
+    "kind": "type",
+    "detail": "type UiStatusPart",
+    "documentation": "A part of a status widget; its text is at most 100 characters.",
+    "insertText": "UiStatusPart"
+  },
+  {
+    "label": "UiStatusIcon",
+    "kind": "type",
+    "detail": "type UiStatusIcon",
+    "documentation": "A GameScrcpy icon by its name.",
+    "insertText": "UiStatusIcon"
+  },
+  {
+    "label": "UiMenuItem",
+    "kind": "type",
+    "detail": "type UiMenuItem",
+    "documentation": "An item of the right-click menu; with checked it shows a check mark, and picking it sends the opposite.",
+    "insertText": "UiMenuItem"
+  },
+  {
+    "label": "HardwareKind",
+    "kind": "type",
+    "detail": "type HardwareKind",
+    "documentation": "The kinds of device logic can use: serial ports, USB HID devices and Bluetooth LE devices.",
+    "insertText": "HardwareKind"
+  },
+  {
+    "label": "HardwareFilter",
+    "kind": "type",
+    "detail": "type HardwareFilter",
+    "documentation": "What a listed device must have: USB vendor and product ids and HID usage page and usage (0 to 65535), one of the Bluetooth service UUIDs, and how its name starts (up to 64 characters). A device is listed when it matches any one filter.",
+    "insertText": "HardwareFilter"
+  },
+  {
+    "label": "HardwareRequest",
+    "kind": "type",
+    "detail": "type HardwareRequest",
+    "documentation": "Which devices hardware.request() lists: one kind and up to 16 filters.",
+    "insertText": "HardwareRequest"
+  },
+  {
+    "label": "HardwareInfo",
+    "kind": "type",
+    "detail": "type HardwareInfo",
+    "documentation": "An allowed device: the id to open it with, its kind and name and, in hardware.list(), whether it is connected now.",
+    "insertText": "HardwareInfo"
+  },
+  {
+    "label": "HardwareBytes",
+    "kind": "type",
+    "detail": "type HardwareBytes",
+    "documentation": "Bytes to send: a Uint8Array, another typed array or a list of numbers from 0 to 255.",
+    "insertText": "HardwareBytes"
+  },
+  {
+    "label": "SerialOptions",
+    "kind": "type",
+    "detail": "type SerialOptions",
+    "documentation": "How a serial port talks: 115200 baud (50 to 4000000), 8 data bits, no parity, 1 stop bit and no flow control unless given, with the DTR and RTS lines on.",
+    "insertText": "SerialOptions"
+  },
+  {
+    "label": "SerialSignals",
+    "kind": "type",
+    "detail": "type SerialSignals",
+    "documentation": "The DTR and RTS lines of a serial port to turn on or off; the lines left out stay as they are.",
+    "insertText": "SerialSignals"
+  },
+  {
+    "label": "BleService",
+    "kind": "type",
+    "detail": "type BleService",
+    "documentation": "A service of a Bluetooth LE device and its characteristics.",
+    "insertText": "BleService"
+  },
+  {
+    "label": "BleCharacteristic",
+    "kind": "type",
+    "detail": "type BleCharacteristic",
+    "documentation": "A characteristic and what it allows: read, write, writeWithoutResponse, notify and indicate.",
+    "insertText": "BleCharacteristic"
+  },
+  {
+    "label": "BleWriteOptions",
+    "kind": "type",
+    "detail": "type BleWriteOptions",
+    "documentation": "Whether a write waits for the device to confirm it (true unless given).",
+    "insertText": "BleWriteOptions"
+  },
+  {
+    "label": "DeviceDataEvent",
+    "kind": "type",
+    "detail": "type DeviceDataEvent",
+    "documentation": "What onData receives: the bytes that came in.",
+    "insertText": "DeviceDataEvent"
+  },
+  {
+    "label": "DeviceReportEvent",
+    "kind": "type",
+    "detail": "type DeviceReportEvent",
+    "documentation": "What onReport receives: the report id and the bytes after it.",
+    "insertText": "DeviceReportEvent"
+  },
+  {
+    "label": "DeviceNotifyEvent",
+    "kind": "type",
+    "detail": "type DeviceNotifyEvent",
+    "documentation": "What a subscription receives: the service and characteristic UUIDs, written in full, and the new value.",
+    "insertText": "DeviceNotifyEvent"
+  },
+  {
+    "label": "DeviceCloseEvent",
+    "kind": "type",
+    "detail": "type DeviceCloseEvent",
+    "documentation": "Why a device closed by itself: it went away, Windows reported an error, or the permission to use it was taken back.",
+    "insertText": "DeviceCloseEvent"
+  },
+  {
+    "label": "AiAskOptions",
+    "kind": "type",
+    "detail": "type AiAskOptions",
+    "documentation": "What ai.ask() sends along and how long it waits: picture true for the whole phone picture, a region or the name of one for that part of it, false or nothing for no picture; timeoutMs from 1000 to 120000 milliseconds, 60000 by default.",
+    "insertText": "AiAskOptions"
+  }
+]

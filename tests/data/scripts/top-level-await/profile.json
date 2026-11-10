@@ -1,0 +1,9 @@
+{
+  "format": "gamescrcpy.profile",
+  "version": 3,
+  "meta": { "name": "Top-level await" },
+  "controls": [
+    { "id": "fire", "name": "Fire", "type": "hold", "anchor": "bottomRight", "offset": [-0.1, -0.2],
+      "inputs": { "press": "KeyF" } }
+  ]
+}

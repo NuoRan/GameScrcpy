@@ -1,0 +1,2 @@
+# Build tools of tools/build_ffmpeg.ps1, installed into deps/ffmpeg/venv (ADR-0046).
+meson==1.12.1 --hash=sha256:930bc7542cbd9f57009e182fd014eba48cf1a0180a7b9006d2d32d8f168d8b02

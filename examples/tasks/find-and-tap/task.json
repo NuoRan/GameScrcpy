@@ -1,0 +1,9 @@
+{
+    "format": "gamescrcpy.task",
+    "version": 1,
+    "name": "Find a picture and tap it",
+    "schedule": {
+        "mode": "manual",
+        "time": "08:00"
+    }
+}

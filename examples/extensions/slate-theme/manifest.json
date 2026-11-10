@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "id": "gamescrcpy.slate-theme",
+  "version": "1.0.0",
+  "name": "Slate",
+  "description": "Cool blue-grey surfaces for the hub and the mirror windows.",
+  "authors": ["GameScrcpy"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/NuoRan/GameScrcpy",
+  "requires": {
+    "theme": "^1.0"
+  },
+  "contributes": {
+    "themes": [
+      {
+        "name": "Slate",
+        "dark": {
+          "bgBase": "#0E1116",
+          "bgRaised": "#141922",
+          "bgOverlay": "#1A202B",
+          "bgElevated": "#212836",
+          "bgSunken": "#0A0D11",
+          "textPrimary": "#E6EAF0",
+          "textSecondary": "#A4AEBE",
+          "textTertiary": "#7D8798"
+        },
+        "light": {
+          "bgBase": "#E6EAF1",
+          "bgRaised": "#F3F5F9",
+          "bgOverlay": "#FFFFFF",
+          "bgElevated": "#FFFFFF",
+          "bgSunken": "#E4E9F1",
+          "textPrimary": "#0F1520",
+          "textSecondary": "#46526A",
+          "textTertiary": "#5A6579"
+        }
+      }
+    ]
+  },
+  "l10n": {
+    "zh_CN": {
+      "name": "石板",
+      "description": "中枢窗口与投屏窗口的冷灰蓝底色。",
+      "themes.Slate.name": "石板"
+    }
+  }
+}

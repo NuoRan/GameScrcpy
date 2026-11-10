@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "gstest.missing-license",
+  "version": "1.0.0",
+  "name": "Missing license",
+  "description": "A manifest without the required license field.",
+  "authors": ["GameScrcpy tests"],
+  "requires": {
+    "theme": "^1.0"
+  },
+  "contributes": {
+    "themes": [
+      {
+        "name": "Plain",
+        "dark": {
+          "bgBase": "#0E1116"
+        },
+        "light": {
+          "bgBase": "#F2F4F8"
+        }
+      }
+    ]
+  }
+}

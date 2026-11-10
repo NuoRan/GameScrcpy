@@ -1,0 +1,34 @@
+/.github/**         text=auto eol=lf
+/android/**         text=auto eol=lf
+/cmake/**           text=auto eol=lf
+/docs/**            text=auto eol=lf
+/examples/**        text=auto eol=lf
+/firmware/**        text=auto eol=lf
+/protocol/**        text=auto eol=lf
+/sdk/**             text=auto eol=lf
+/src/**             text=auto eol=lf
+/tests/**           text=auto eol=lf
+/third_party/**     text=auto eol=lf
+/tools/**           text=auto eol=lf
+/.clang-format      text eol=lf
+/.editorconfig      text eol=lf
+/.gitattributes     text eol=lf
+/.gitignore         text eol=lf
+/AGENTS.md          text eol=lf
+/CMakeLists.txt     text eol=lf
+/CMakePresets.json  text eol=lf
+
+# Windows batch files must keep CRLF (checked after the directory rules so they win).
+*.bat               text eol=crlf
+*.cmd               text eol=crlf
+
+*.jar               binary
+*.dll               binary
+*.exe               binary
+*.lib               binary
+*.pdb               binary
+*.media             binary
+*.png               binary
+*.ico               binary
+*.zip               binary
+*.bin               binary

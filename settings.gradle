@@ -1,3 +1,0 @@
-include ':server'
-include ':companion'
-project(':companion').projectDir = new File('companion_app/app')
