@@ -7,6 +7,8 @@
 #include <gs/exthost/InProcess.h>
 #include <gs/platform/TrayNotice.h>
 
+#include <nlohmann/json.hpp>
+
 #include <QMetaObject>
 #include <QStringList>
 #include <QVariantMap>
@@ -78,6 +80,28 @@ script::NodeValue nodeValueOf(const exthost::Value& value)
     return made;
 }
 
+nlohmann::json partOf(const nlohmann::json& parsed, const char* name)
+{
+    return parsed.is_object() && parsed.contains(name) && parsed.at(name).is_object() ? parsed.at(name)
+                                                                                      : nlohmann::json::object();
+}
+
+}
+
+std::string nativeTouchOptions(std::string_view snapshot, std::string_view phone, std::string_view device)
+{
+    const nlohmann::json parsed = nlohmann::json::parse(snapshot, nullptr, false);
+    const nlohmann::json devices = partOf(parsed, "devices");
+    const std::string id(phone);
+    nlohmann::json chosen = device.empty() ? nlohmann::json(nullptr) : nlohmann::json::parse(device, nullptr, false);
+    if (chosen.is_discarded()) {
+        chosen = nullptr;
+    }
+    return nlohmann::json{{"settings", partOf(parsed, "global")},
+                          {"deviceSettings", partOf(devices, id.c_str())},
+                          {"phone", id},
+                          {"device", std::move(chosen)}}
+        .dump();
 }
 
 struct NativeExtensions::Shared {
@@ -306,8 +330,13 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
     std::string problem;
     if (wanted.official) {
         auto services = std::make_shared<EntryServices>(wanted.id, wanted.name, m_shared);
-        std::unique_ptr<exthost::InProcessModule> module = exthost::InProcessModule::load(
-            {.dll = dll, .store = store, .granted = wanted.granted, .services = services.get()}, problem);
+        std::unique_ptr<exthost::InProcessModule> module =
+            exthost::InProcessModule::load({.dll = dll,
+                                            .store = store,
+                                            .granted = wanted.granted,
+                                            .services = services.get(),
+                                            .settings = wanted.settings},
+                                           problem);
         if (module != nullptr) {
             entry->module = std::shared_ptr<exthost::Module>(module.release(),
                                                              [services](exthost::Module* done) { delete done; });
@@ -321,6 +350,7 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
         options.dll = dll;
         options.store = store;
         options.granted = wanted.granted;
+        options.settings = wanted.settings;
         options.clock = m_options.clock;
         options.log = [id](int level, const std::string& text) { writeLog(id, level, text); };
         options.notify = [shared, name](const std::string& title, const std::string& text) {
@@ -440,7 +470,11 @@ void NativeExtensions::apply(std::vector<NativeWanted> wanted)
         });
         if (same != previous.end() && ((*same)->module == nullptr || (*same)->module->working())) {
             auto kept = std::make_shared<Entry>(**same);
+            const bool resettle = kept->module != nullptr && kept->wanted.settings != item.settings;
             kept->wanted = std::move(item);
+            if (resettle) {
+                kept->module->setSettings(kept->wanted.settings);
+            }
             next.push_back(std::move(kept));
             continue;
         }
@@ -458,6 +492,23 @@ void NativeExtensions::apply(std::vector<NativeWanted> wanted)
     if (nodes() != nodesBefore || touchMethods() != methodsBefore || attachmentList() != attachmentsBefore ||
         behaviorList() != behaviorsBefore || moduleKeys() != modulesBefore) {
         emit changed();
+    }
+}
+
+void NativeExtensions::setSettings(const std::string& id, const std::string& json)
+{
+    std::shared_ptr<exthost::Module> module;
+    {
+        const std::scoped_lock lock(m_mutex);
+        for (const std::shared_ptr<Entry>& entry : m_entries) {
+            if (entry->wanted.id == id && entry->wanted.settings != json) {
+                entry->wanted.settings = json;
+                module = entry->module;
+            }
+        }
+    }
+    if (module != nullptr) {
+        module->setSettings(json);
     }
 }
 

@@ -283,6 +283,35 @@ private:
     std::thread m_flusher;
 };
 
+nlohmann::json settingsOf(std::string_view text)
+{
+    nlohmann::json parsed = nlohmann::json::parse(text, nullptr, false);
+    if (!parsed.is_object()) {
+        parsed = nlohmann::json::object();
+    }
+    for (const char* part : {"global", "devices"}) {
+        if (!parsed.contains(part) || !parsed[part].is_object()) {
+            parsed[part] = nlohmann::json::object();
+        }
+    }
+    return parsed;
+}
+
+void collectChanged(const nlohmann::json& from, const nlohmann::json& to, std::set<std::string>& changed)
+{
+    for (const auto& [device, values] : from.items()) {
+        if (!values.is_object()) {
+            continue;
+        }
+        const auto other = to.find(device);
+        for (const auto& [key, value] : values.items()) {
+            if (other == to.end() || !other->is_object() || !other->contains(key) || other->at(key) != value) {
+                changed.insert(key);
+            }
+        }
+    }
+}
+
 }
 
 struct InProcessModule::Impl {
@@ -297,6 +326,7 @@ struct InProcessModule::Impl {
                 target->emitted(topic, json);
             }
         }))
+        , settings(settingsOf(options.settings))
     {
     }
 
@@ -404,6 +434,8 @@ struct InProcessModule::Impl {
     HostServices* services = nullptr;
     std::chrono::microseconds budget;
     std::unique_ptr<EventGate> gate;
+    nlohmann::json settings;
+    std::mutex settingsMutex;
     std::mutex nodeMutex;
     std::mutex touchMutex;
     std::map<std::uint64_t, std::pair<std::size_t, void*>> sessions;
@@ -542,7 +574,40 @@ int32_t hostSupports(void*, const char* feature)
         return 0;
     }
     const std::string_view name(feature, strnlen(feature, kMostNameBytes));
-    return name == "jobs" || name == "events" ? 1 : 0;
+    return name == "jobs" || name == "events" || name == "settings" ? 1 : 0;
+}
+
+int32_t hostSettingGet(void* context, const char* key, size_t keySize, const char* phone, size_t phoneSize,
+                       gs_ext_result* value)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if (key == nullptr || keySize == 0 || (phone == nullptr && phoneSize > 0) || value == nullptr) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    const std::string name(key, keySize);
+    const std::string device = phoneSize == 0 ? std::string() : std::string(phone, phoneSize);
+    std::string text;
+    {
+        const std::scoped_lock lock(impl.settingsMutex);
+        const nlohmann::json& global = impl.settings.at("global");
+        if (!global.contains(name)) {
+            return GS_EXT_BAD_ARGUMENT;
+        }
+        const nlohmann::json* found = &global.at(name);
+        const nlohmann::json& devices = impl.settings.at("devices");
+        if (!device.empty() && devices.contains(device) && devices.at(device).is_object() &&
+            devices.at(device).contains(name)) {
+            found = &devices.at(device).at(name);
+        }
+        text = found->dump();
+    }
+    thread_local std::string held;
+    held = std::move(text);
+    value->value = {};
+    value->value.type = GS_EXT_TYPE_JSON;
+    value->value.text = held.data();
+    value->value.size = held.size();
+    return GS_EXT_OK;
 }
 
 int32_t hostEmitEvent(void* context, const char* topic, size_t topicSize, const char* json, size_t jsonSize)
@@ -940,6 +1005,7 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
     impl->host.job_finish = &hostJobFinish;
     impl->host.job_fail = &hostJobFail;
     impl->host.emit_event = &hostEmitEvent;
+    impl->host.setting_get = &hostSettingGet;
     const gs_ext_plugin* plugin = nullptr;
     const int32_t status = entry(&impl->host, &plugin);
     impl->entered = status == GS_EXT_OK;
@@ -1309,6 +1375,29 @@ void InProcessModule::cancelJob(std::uint64_t job)
         index = found->second.index;
     }
     d.nativeJobs[index].cancel(d.nativeJobs[index].context, job);
+}
+
+void InProcessModule::setSettings(std::string_view json)
+{
+    Impl& d = *m_impl;
+    nlohmann::json next = settingsOf(json);
+    std::set<std::string> changed;
+    {
+        const std::scoped_lock lock(d.settingsMutex);
+        const nlohmann::json& global = d.settings.at("global");
+        for (const auto& [key, value] : next.at("global").items()) {
+            if (!global.contains(key) || global.at(key) != value) {
+                changed.insert(key);
+            }
+        }
+        collectChanged(next.at("devices"), d.settings.at("devices"), changed);
+        collectChanged(d.settings.at("devices"), next.at("devices"), changed);
+        d.settings = std::move(next);
+    }
+    if (!changed.empty() && d.described.settings_changed != nullptr) {
+        const std::string keys = nlohmann::json(changed).dump();
+        d.described.settings_changed(d.described.context, keys.data(), keys.size());
+    }
 }
 
 }

@@ -260,7 +260,7 @@ struct gs_ext_touch_open {
     uint32_t size;
     /* The phone's serial number, UTF-8 ended by a zero byte. */
     const char* device;
-    /* The touch method's options for this phone as a UTF-8 JSON object, not ended by a zero byte; GameScrcpy fills it for its official extensions (such as the ESP32's serial port) and gives others {}. */
+    /* The touch method's options for this phone as a UTF-8 JSON object, not ended by a zero byte: settings holds the extension's settings for all phones, deviceSettings this phone's own values of per-phone settings, phone the id to pass to setting_get, and device the USB, serial or Bluetooth device the user chose for a method that asks for one ({ kind, path, name }, otherwise null). */
     const char* options;
     /* How many bytes options has. */
     size_t options_size;
@@ -508,6 +508,8 @@ struct gs_ext_host {
     int32_t (*job_fail)(void* context, uint64_t job, const char* text, size_t size);
     /* Sends an event to this extension's scripts and panels, which hear it with events.on(topic, handler). topic is 1 to 64 lowercase letters, digits, dots and dashes; json is UTF-8 JSON of at most 64 KiB (empty for null). Each topic passes on the first 100 events in a second; the ones after that in the same second are merged, so only the last of them arrives, when the second is over. GS_EXT_BAD_ARGUMENT for a bad topic or JSON. */
     int32_t (*emit_event)(void* context, const char* topic, size_t topic_size, const char* json, size_t json_size);
+    /* Puts the value of one of the extension's settings into value as json; its text stays valid until the same thread calls setting_get again. With an empty phone it is the value for all phones; with the phone of a touch method's options it is that phone's own value of a per-phone setting, or the value for all phones when it has none. GS_EXT_BAD_ARGUMENT for a key the manifest does not declare. */
+    int32_t (*setting_get)(void* context, const char* key, size_t key_size, const char* phone, size_t phone_size, gs_ext_result* value);
 };
 
 /* One thing a DLL offers. */
@@ -536,6 +538,8 @@ struct gs_ext_plugin {
     const gs_ext_contribution* contributions;
     /* Called once before the DLL is unloaded; may be NULL. */
     void (*unload)(void* context);
+    /* Called on a GameScrcpy thread after the user changed settings of the extension, with the changed keys as a UTF-8 JSON array; read the new values with setting_get. May be NULL. */
+    void (*settings_changed)(void* context, const char* keys, size_t size);
 };
 
 /* The function a native extension DLL exports. GameScrcpy calls it once after loading the DLL: set *plugin to the DLL's own description and return GS_EXT_OK, or GS_EXT_UNSUPPORTED when host->abi_version is not one the DLL supports. The description, and everything it points to, has to stay valid until unload is called; GameScrcpy never writes to it. */

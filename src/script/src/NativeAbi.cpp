@@ -166,8 +166,10 @@ constexpr Field kTouchOpenFields[] = {
     {"uint32_t size", "sizeof(gs_ext_touch_open) in GameScrcpy."},
     {"const char* device", "The phone's serial number, UTF-8 ended by a zero byte."},
     {"const char* options",
-     "The touch method's options for this phone as a UTF-8 JSON object, not ended by a zero byte; GameScrcpy fills "
-     "it for its official extensions (such as the ESP32's serial port) and gives others {}."},
+     "The touch method's options for this phone as a UTF-8 JSON object, not ended by a zero byte: settings holds the "
+     "extension's settings for all phones, deviceSettings this phone's own values of per-phone settings, phone the "
+     "id to pass to setting_get, and device the USB, serial or Bluetooth device the user chose for a method that asks "
+     "for one ({ kind, path, name }, otherwise null)."},
     {"size_t options_size", "How many bytes options has."},
 };
 
@@ -380,6 +382,12 @@ constexpr Field kHostFields[] = {
      "1 to 64 lowercase letters, digits, dots and dashes; json is UTF-8 JSON of at most 64 KiB (empty for null). "
      "Each topic passes on the first 100 events in a second; the ones after that in the same second are merged, so "
      "only the last of them arrives, when the second is over. GS_EXT_BAD_ARGUMENT for a bad topic or JSON."},
+    {"int32_t (*setting_get)(void* context, const char* key, size_t key_size, const char* phone, size_t phone_size, "
+     "gs_ext_result* value)",
+     "Puts the value of one of the extension's settings into value as json; its text stays valid until the same "
+     "thread calls setting_get again. With an empty phone it is the value for all phones; with the phone of a touch "
+     "method's options it is that phone's own value of a per-phone setting, or the value for all phones when it has "
+     "none. GS_EXT_BAD_ARGUMENT for a key the manifest does not declare."},
 };
 
 constexpr Field kContributionFields[] = {
@@ -398,6 +406,9 @@ constexpr Field kPluginFields[] = {
      "How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments, 32 behaviors and 32 jobs."},
     {"const gs_ext_contribution* contributions", "What the DLL offers."},
     {"void (*unload)(void* context)", "Called once before the DLL is unloaded; may be NULL."},
+    {"void (*settings_changed)(void* context, const char* keys, size_t size)",
+     "Called on a GameScrcpy thread after the user changed settings of the extension, with the changed keys as a "
+     "UTF-8 JSON array; read the new values with setting_get. May be NULL."},
 };
 
 constexpr Structure kStructures[] = {

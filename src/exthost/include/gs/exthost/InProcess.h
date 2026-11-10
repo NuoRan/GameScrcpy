@@ -18,6 +18,7 @@ struct InProcessOptions {
     std::vector<std::string> granted;
     HostServices* services = nullptr;
     std::chrono::microseconds budget = kNodeBudget;
+    std::string settings;
 };
 
 class InProcessModule final : public Module
@@ -46,6 +47,7 @@ public:
     void closeInstance(std::uint64_t instance) override;
     [[nodiscard]] std::uint64_t startJob(std::size_t job, std::string_view args, JobEvents events) override;
     void cancelJob(std::uint64_t job) override;
+    void setSettings(std::string_view json) override;
 
     struct Impl;
 

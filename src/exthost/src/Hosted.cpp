@@ -66,6 +66,7 @@ std::optional<Instance> launch(const HostedOptions& options, std::string& proble
     for (const std::string& permission : options.granted) {
         start.text(permission);
     }
+    start.text(options.settings.size() <= kMostSettingsBytes ? std::string_view(options.settings) : std::string_view());
     if (!channel->toHost().write(detail::Kind::Start, 0, start.bytes())) {
         problem = "the start of gs-exthost.exe could not be written";
         return std::nullopt;
@@ -502,7 +503,12 @@ struct HostedModule::Impl {
     void relaunch()
     {
         std::string why;
-        std::optional<Instance> instance = launch(options, why);
+        HostedOptions current;
+        {
+            const std::scoped_lock lock(mutex);
+            current = options;
+        }
+        std::optional<Instance> instance = launch(current, why);
         bool failed = false;
         {
             const std::scoped_lock lock(mutex);
@@ -950,6 +956,21 @@ void HostedModule::cancelJob(std::uint64_t job)
     Impl& d = *m_impl;
     const std::scoped_lock lock(d.mutex);
     if (d.jobs.contains(job) && d.channel && d.channel->toHost().write(detail::Kind::JobCancel, job, {})) {
+        SetEvent(d.channel->toHostEvent());
+    }
+}
+
+void HostedModule::setSettings(std::string_view json)
+{
+    if (json.size() > kMostSettingsBytes) {
+        return;
+    }
+    Impl& d = *m_impl;
+    detail::WireWriter payload;
+    payload.text(json);
+    const std::scoped_lock lock(d.mutex);
+    d.options.settings = std::string(json);
+    if (d.channel && d.channel->toHost().write(detail::Kind::Settings, 0, payload.bytes())) {
         SetEvent(d.channel->toHostEvent());
     }
 }

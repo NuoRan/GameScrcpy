@@ -21,6 +21,7 @@ std::string g_touches;
 std::string g_device;
 std::string g_options = "null";
 bool g_breakTouch = false;
+std::string g_changed = "[]";
 
 void appendNumber(std::string& out, double value)
 {
@@ -206,6 +207,33 @@ int32_t sayMany(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result
     return GS_EXT_OK;
 }
 
+int32_t settingNode(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    gs_ext_result value{};
+    const int32_t said =
+        g_host->setting_get(g_host->context, args[0].text, args[0].size, args[1].text, args[1].size, &value);
+    if (said != GS_EXT_OK) {
+        return giveText(result, GS_EXT_TYPE_STRING, "error " + std::to_string(said));
+    }
+    return giveText(result, GS_EXT_TYPE_STRING, std::string(value.value.text, value.value.size));
+}
+
+int32_t changedKeys(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    std::string keys;
+    {
+        const std::scoped_lock lock(g_mutex);
+        keys = std::exchange(g_changed, "[]");
+    }
+    return giveText(result, GS_EXT_TYPE_JSON, keys);
+}
+
+void settingsChanged(void*, const char* keys, size_t size)
+{
+    const std::scoped_lock lock(g_mutex);
+    g_changed.assign(keys, size);
+}
+
 int32_t openTouch(void*, const gs_ext_touch_open* info, void** session)
 {
     const std::scoped_lock lock(g_mutex);
@@ -305,6 +333,8 @@ const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "wrongType", nullptr, 0, GS_EXT_TYPE_STRING, nullptr, &wrongType},
     {sizeof(gs_ext_node), "say", kTwoStrings, 2, GS_EXT_TYPE_NUMBER, nullptr, &say},
     {sizeof(gs_ext_node), "sayMany", kStringAndNumber, 2, GS_EXT_TYPE_NUMBER, nullptr, &sayMany},
+    {sizeof(gs_ext_node), "setting", kTwoStrings, 2, GS_EXT_TYPE_STRING, nullptr, &settingNode},
+    {sizeof(gs_ext_node), "changedKeys", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &changedKeys},
 };
 
 const gs_ext_touch_method kRecorder = {
@@ -569,6 +599,8 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "wrongType", &kNodes[12]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "say", &kNodes[13]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "sayMany", &kNodes[14]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "setting", &kNodes[15]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "changedKeys", &kNodes[16]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_ATTACHMENT, "shift", &kShift},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_BEHAVIOR, "tap", &kTap},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_JOB, "count", &kCount},
@@ -582,6 +614,7 @@ const gs_ext_plugin kPlugin = {
     static_cast<uint32_t>(sizeof(kContributions) / sizeof(kContributions[0])),
     kContributions,
     &unloadAll,
+    &settingsChanged,
 };
 
 }

@@ -42,6 +42,7 @@ enum class Kind : std::uint32_t {
     JobUpdate,
     JobDone,
     Event,
+    Settings,
 };
 
 struct Message {

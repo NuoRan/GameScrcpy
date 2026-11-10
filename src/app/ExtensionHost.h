@@ -112,6 +112,7 @@ public:
     [[nodiscard]] std::vector<const ext::Manifest*> settingsManifests() const;
     [[nodiscard]] QVariantMap values() const;
     [[nodiscard]] QVariantMap overrides() const;
+    [[nodiscard]] std::string nativeSettings(std::string_view id) const;
     [[nodiscard]] QString modeName() const;
     [[nodiscard]] QVariantList entries() const;
     [[nodiscard]] QVariantList themes() const;
@@ -238,6 +239,8 @@ private:
     [[nodiscard]] QString nameOf(std::string_view id) const;
     [[nodiscard]] const ext::SettingDeclaration* declarationOf(std::string_view id, std::string_view key) const;
     [[nodiscard]] NativeWanted nativeWanted(const Extension& extension) const;
+    [[nodiscard]] std::string settingsSnapshot(const ext::Manifest& manifest) const;
+    void settleNative();
     void pushGlobals();
     [[nodiscard]] const ext::NativeAttachment* declaredAttachment(std::string_view id, std::string_view name) const;
 

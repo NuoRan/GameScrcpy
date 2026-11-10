@@ -265,6 +265,7 @@ struct Start {
     std::string dll;
     std::string store;
     std::vector<std::string> granted;
+    std::string settings;
 };
 
 std::optional<Start> startOf(const detail::Message& message)
@@ -284,6 +285,9 @@ std::optional<Start> startOf(const detail::Message& message)
             return std::nullopt;
         }
         start.granted.push_back(std::move(permission));
+    }
+    if (!in.text(start.settings, kMostSettingsBytes)) {
+        return std::nullopt;
     }
     return in.done() ? std::optional<Start>(std::move(start)) : std::nullopt;
 }
@@ -489,9 +493,12 @@ int serve(int argc, wchar_t** argv)
     }
     Link link(*channel);
     std::string problem;
-    std::unique_ptr<InProcessModule> module = InProcessModule::load(
-        {.dll = pathOf(start->dll), .store = pathOf(start->store), .granted = start->granted, .services = &link},
-        problem);
+    std::unique_ptr<InProcessModule> module = InProcessModule::load({.dll = pathOf(start->dll),
+                                                                     .store = pathOf(start->store),
+                                                                     .granted = start->granted,
+                                                                     .services = &link,
+                                                                     .settings = start->settings},
+                                                                    problem);
     if (!module) {
         detail::WireWriter out;
         out.text(problem);
@@ -527,6 +534,12 @@ int serve(int argc, wchar_t** argv)
                 worker.push(std::move(message));
             } else if (message.kind == detail::Kind::Stop) {
                 running = false;
+            } else if (message.kind == detail::Kind::Settings) {
+                detail::WireReader in(message.payload);
+                std::string json;
+                if (in.text(json, kMostSettingsBytes) && in.done()) {
+                    module->setSettings(json);
+                }
             } else if (jobs.handle(message)) {
                 continue;
             } else if (!instanced(*module, link, instances, message)) {

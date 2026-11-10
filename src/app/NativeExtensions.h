@@ -54,7 +54,11 @@ struct NativeWanted {
     std::vector<QString> nodeDescriptions;
     std::vector<NativeTexts> attachmentTexts;
     std::vector<NativeTexts> behaviorTexts;
+    std::string settings;
 };
+
+[[nodiscard]] std::string nativeTouchOptions(std::string_view snapshot, std::string_view phone,
+                                             std::string_view device = {});
 
 struct DeclaredModule {
     std::string module;
@@ -102,6 +106,7 @@ public:
 
     void apply(std::vector<NativeWanted> wanted);
     void setGlobals(GlobalChoices globals);
+    void setSettings(const std::string& id, const std::string& json);
     void setTouchOptions(TouchOptions options) { m_touchOptions = std::move(options); }
     [[nodiscard]] std::vector<script::NodeInfo> nodes() const;
     [[nodiscard]] script::NodeAnswer call(std::string_view extension, std::string_view node,

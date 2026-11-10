@@ -8592,41 +8592,40 @@ std::string DeviceManager::touchOptionsFor(std::string_view key, std::string_vie
 std::string DeviceManager::touchDeviceOptions(std::string_view key, std::string_view device) const
 {
     const NativeExtensions* native = m_extensions != nullptr ? m_extensions->native() : nullptr;
-    const HardwareAccess* hardware = HardwareAccess::instance();
-    if (native == nullptr || hardware == nullptr) {
+    if (native == nullptr) {
         return {};
     }
     const QString method = QString::fromUtf8(key.data(), static_cast<qsizetype>(key.size()));
+    const QString serial = QString::fromUtf8(device.data(), static_cast<qsizetype>(device.size()));
+    const int index = indexOf(serial);
+    const QString deviceId = index >= 0 ? m_rows[static_cast<std::size_t>(index)].deviceId : serial;
+    const std::string_view extension = key.substr(0, key.rfind('/'));
+    std::string chosenDevice;
     const QVariantList methods = native->touchMethods();
     const bool wanted = std::ranges::any_of(methods, [&method](const QVariant& entry) {
         const QVariantMap fields = entry.toMap();
         return fields.value(QStringLiteral("key")).toString() == method &&
                fields.value(QStringLiteral("wantsDevice")).toBool();
     });
-    if (!wanted) {
-        return {};
-    }
-    const QString serial = QString::fromUtf8(device.data(), static_cast<qsizetype>(device.size()));
-    const int index = indexOf(serial);
-    const QString deviceId = index >= 0 ? m_rows[static_cast<std::size_t>(index)].deviceId : serial;
+    const HardwareAccess* hardware = HardwareAccess::instance();
     const QString chosen = QString::fromStdString(m_settings.effective(deviceId.toStdString()).touch.device);
-    if (chosen.isEmpty()) {
+    if (wanted && hardware != nullptr && chosen.isEmpty()) {
         qInfo("touch method %s on %s: no device is chosen for it", qUtf8Printable(method), qUtf8Printable(serial));
-        return {};
+    } else if (wanted && hardware != nullptr) {
+        const std::optional<gs::hardware::DeviceInfo> found = hardware->device(chosen);
+        if (found) {
+            const std::string_view kind = gs::hardware::kindName(found->kind);
+            const QJsonObject made{
+                {QStringLiteral("kind"), QString::fromUtf8(kind.data(), static_cast<qsizetype>(kind.size()))},
+                {QStringLiteral("path"), QString::fromStdString(found->path)},
+                {QStringLiteral("name"), QString::fromStdString(found->name)}};
+            chosenDevice = QJsonDocument(made).toJson(QJsonDocument::Compact).toStdString();
+        } else {
+            qWarning("touch method %s on %s: the chosen device %s is not connected", qUtf8Printable(method),
+                     qUtf8Printable(serial), qUtf8Printable(hardware->deviceTitle(chosen)));
+        }
     }
-    const std::optional<gs::hardware::DeviceInfo> found = hardware->device(chosen);
-    if (!found) {
-        qWarning("touch method %s on %s: the chosen device %s is not connected", qUtf8Printable(method),
-                 qUtf8Printable(serial), qUtf8Printable(hardware->deviceTitle(chosen)));
-        return {};
-    }
-    const std::string_view kind = gs::hardware::kindName(found->kind);
-    const QJsonObject options{
-        {QStringLiteral("device"),
-         QJsonObject{{QStringLiteral("kind"), QString::fromUtf8(kind.data(), static_cast<qsizetype>(kind.size()))},
-                     {QStringLiteral("path"), QString::fromStdString(found->path)},
-                     {QStringLiteral("name"), QString::fromStdString(found->name)}}}};
-    return QJsonDocument(options).toJson(QJsonDocument::Compact).toStdString();
+    return nativeTouchOptions(m_extensions->nativeSettings(extension), deviceId.toStdString(), chosenDevice);
 }
 
 void DeviceManager::feedInput(const QString& serial, const input::DeviceEvent& event)

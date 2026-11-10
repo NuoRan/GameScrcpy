@@ -111,6 +111,7 @@ inline constexpr std::size_t kMostTopicBytes = 64;
 inline constexpr std::size_t kMostEventBytes = 64 * 1024;
 inline constexpr std::size_t kMostEventsPerSecond = 100;
 inline constexpr std::size_t kMostTopics = 1024;
+inline constexpr std::size_t kMostSettingsBytes = 192 * 1024;
 
 [[nodiscard]] bool validTopic(std::string_view topic) noexcept;
 
@@ -267,6 +268,7 @@ public:
     [[nodiscard]] virtual std::uint64_t skippedSteps() const noexcept { return 0; }
     [[nodiscard]] virtual std::uint64_t startJob(std::size_t, std::string_view, JobEvents) { return 0; }
     virtual void cancelJob(std::uint64_t) {}
+    virtual void setSettings(std::string_view) {}
 };
 
 }

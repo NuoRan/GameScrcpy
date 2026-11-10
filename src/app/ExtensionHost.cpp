@@ -99,6 +99,19 @@ ext::SettingValue settingValueOf(const settings::Scalar& scalar)
     return std::visit([](const auto& value) { return ext::SettingValue(value); }, scalar);
 }
 
+nlohmann::json settingJson(const ext::SettingValue& value)
+{
+    return std::visit(
+        [](const auto& held) -> nlohmann::json {
+            if constexpr (std::is_same_v<std::decay_t<decltype(held)>, std::monostate>) {
+                return nullptr;
+            } else {
+                return held;
+            }
+        },
+        value);
+}
+
 bool storable(const ext::SettingDeclaration& setting, const settings::Scalar& value)
 {
     const auto* text = std::get_if<std::string>(&value);
@@ -642,6 +655,7 @@ ExtensionHost::ExtensionHost(AppSettings& settings, ExtensionRoots roots, QObjec
                       .storeRoot = m_roots.user.empty() ? fs::path() : m_roots.user / ".store",
                       .clock = nullptr});
     connect(m_native.get(), &NativeExtensions::changed, this, &ExtensionHost::nativeChanged);
+    connect(this, &ExtensionHost::valuesChanged, this, &ExtensionHost::settleNative);
     connect(m_native.get(), &NativeExtensions::globalsChanged, this, [this] {
         ++m_addOnsRevision;
         emit addOnsChanged();
@@ -685,6 +699,7 @@ NativeWanted ExtensionHost::nativeWanted(const Extension& extension) const
     wanted.directory = extension.directory;
     wanted.official = extension.builtin && manifest.id.starts_with(ext::kReservedIdPrefix);
     wanted.native = *manifest.contributes.native;
+    wanted.settings = settingsSnapshot(manifest);
     const settings::ExtensionStates& states = m_settings.extensions();
     if (const auto state = states.find(manifest.id); state != states.end()) {
         wanted.granted = state->second.granted;
@@ -929,6 +944,57 @@ QVariantMap ExtensionHost::overrides() const
         }
     }
     return byDevice;
+}
+
+std::string ExtensionHost::settingsSnapshot(const ext::Manifest& manifest) const
+{
+    const settings::ExtensionStates& states = m_settings.extensions();
+    const auto state = states.find(manifest.id);
+    nlohmann::json global = nlohmann::json::object();
+    for (const ext::SettingDeclaration& setting : manifest.settings) {
+        const settings::Scalar* stored = state != states.end() ? scalarOf(state->second.values, setting.key) : nullptr;
+        const bool valid = stored != nullptr && ext::settingAccepts(setting, settingValueOf(*stored));
+        global[setting.key] = settingJson(valid ? settingValueOf(*stored) : setting.defaultValue);
+    }
+    nlohmann::json devices = nlohmann::json::object();
+    for (const auto& [deviceId, device] : m_settings.devices()) {
+        const auto found = device.extensions.find(manifest.id);
+        if (found == device.extensions.end()) {
+            continue;
+        }
+        nlohmann::json own = nlohmann::json::object();
+        for (const auto& [key, stored] : found->second.values) {
+            const auto setting = std::ranges::find(manifest.settings, key, &ext::SettingDeclaration::key);
+            if (setting != manifest.settings.end() && setting->scope == ext::SettingScope::Device &&
+                ext::settingAccepts(*setting, settingValueOf(stored))) {
+                own[key] = settingJson(settingValueOf(stored));
+            }
+        }
+        if (!own.empty()) {
+            devices[deviceId] = std::move(own);
+        }
+    }
+    std::string made = nlohmann::json{{"global", global}, {"devices", devices}}.dump();
+    if (made.size() > exthost::kMostSettingsBytes) {
+        log::warning("extensions", "{}: the per-phone settings are too large to hand to its DLL", manifest.id);
+        made = nlohmann::json{{"global", global}, {"devices", nlohmann::json::object()}}.dump();
+    }
+    return made;
+}
+
+std::string ExtensionHost::nativeSettings(std::string_view id) const
+{
+    const ext::Manifest* manifest = manifestOf(id);
+    return manifest != nullptr ? settingsSnapshot(*manifest) : std::string();
+}
+
+void ExtensionHost::settleNative()
+{
+    for (const Extension& extension : m_extensions) {
+        if (extension.active && extension.usable() && extension.manifest->contributes.native) {
+            m_native->setSettings(extension.manifest->id, settingsSnapshot(*extension.manifest));
+        }
+    }
 }
 
 QString ExtensionHost::modeName() const

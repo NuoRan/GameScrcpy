@@ -531,6 +531,159 @@ TEST_CASE("ADR-0112: a DLL sends events with checked topics and JSON; of a topic
     CHECK(outside.seen().back() == std::pair<std::string, std::string>{"count", "120"});
 }
 
+TEST_CASE("ADR-0112: a DLL reads its settings for all phones or for one phone and hears which keys changed, in "
+          "GameScrcpy and in gs-exthost.exe")
+{
+    const auto text = [](std::string value) { return textValue(exthost::ValueType::String, std::move(value)); };
+    const std::string first =
+        R"({"global":{"port":"COM3","speed":2,"fast":true},"devices":{"phone-1":{"port":"COM9"}}})";
+    const std::string second = R"({"global":{"port":"COM4","speed":2,"fast":true},"devices":{}})";
+    Scratch scratch;
+    std::string problem;
+    const std::unique_ptr<exthost::InProcessModule> inside = exthost::InProcessModule::load(
+        {.dll = kTestDll, .store = scratch / "inside.json", .granted = {}, .services = nullptr, .settings = first},
+        problem);
+    REQUIRE_MESSAGE(inside != nullptr, problem);
+    exthost::HostedOptions options = hostedOptions(scratch);
+    options.settings = first;
+    const std::unique_ptr<exthost::HostedModule> hosted = exthost::HostedModule::start(std::move(options), problem);
+    REQUIRE_MESSAGE(hosted != nullptr, problem);
+    for (exthost::Module* module :
+         {static_cast<exthost::Module*>(inside.get()), static_cast<exthost::Module*>(hosted.get())}) {
+        CHECK(callNode(*module, "setting", {text("port"), text("")}).value.text == "\"COM3\"");
+        CHECK(callNode(*module, "setting", {text("port"), text("phone-1")}).value.text == "\"COM9\"");
+        CHECK(callNode(*module, "setting", {text("speed"), text("phone-1")}).value.text == "2");
+        CHECK(callNode(*module, "setting", {text("fast"), text("phone-2")}).value.text == "true");
+        CHECK(callNode(*module, "setting", {text("nope"), text("")}).value.text ==
+              "error " + std::to_string(GS_EXT_BAD_ARGUMENT));
+        CHECK(callNode(*module, "changedKeys").value.text == "[]");
+        module->setSettings(second);
+        std::string keys;
+        REQUIRE(eventually([&] {
+            keys = callNode(*module, "changedKeys").value.text;
+            return keys != "[]";
+        }));
+        CHECK(keys == R"(["port"])");
+        CHECK(callNode(*module, "setting", {text("port"), text("phone-1")}).value.text == "\"COM4\"");
+        module->setSettings(second);
+        CHECK(callNode(*module, "changedKeys").value.text == "[]");
+    }
+}
+
+TEST_CASE("ADR-0112: a touch method's options hold the extension's settings, this phone's own values, the phone and "
+          "the device the user chose")
+{
+    const std::string snapshot = R"({"global":{"port":"COM3","speed":2},"devices":{"phone-1":{"port":"COM9"}}})";
+    const nlohmann::json all = {{"port", "COM3"}, {"speed", 2}};
+    CHECK(nlohmann::json::parse(app::nativeTouchOptions(snapshot, "phone-1",
+                                                        R"({"kind":"serial","path":"COM9","name":"Board"})")) ==
+          nlohmann::json{{"settings", all},
+                         {"deviceSettings", {{"port", "COM9"}}},
+                         {"phone", "phone-1"},
+                         {"device", {{"kind", "serial"}, {"path", "COM9"}, {"name", "Board"}}}});
+    CHECK(nlohmann::json::parse(app::nativeTouchOptions(snapshot, "phone-2")) ==
+          nlohmann::json{{"settings", all},
+                         {"deviceSettings", nlohmann::json::object()},
+                         {"phone", "phone-2"},
+                         {"device", nullptr}});
+    CHECK(nlohmann::json::parse(app::nativeTouchOptions("", "phone-2", "{oops")) ==
+          nlohmann::json{{"settings", nlohmann::json::object()},
+                         {"deviceSettings", nlohmann::json::object()},
+                         {"phone", "phone-2"},
+                         {"device", nullptr}});
+}
+
+TEST_CASE("ADR-0112: the registry hands a DLL its settings when it loads and again when they change, without "
+          "loading it again")
+{
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.native/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    app::NativeWanted wanted = testWanted(folder);
+    wanted.native.nodes = {{.name = "setting",
+                            .params = {{"key", "string"}, {"phone", "string"}},
+                            .returns = "string",
+                            .description = {},
+                            .permissions = {}},
+                           {.name = "changedKeys", .params = {}, .returns = "json", .description = {}, .permissions = {}}};
+    wanted.settings = R"({"global":{"port":"COM3"},"devices":{}})";
+    registry.apply({wanted});
+    REQUIRE(registry.loaded("gstest.native"));
+    const auto text = [](const char* value) {
+        return script::NodeValue{.type = script::NodeType::String, .text = value};
+    };
+    const auto read = [&](const char* key, const char* phone) {
+        return registry.call("gstest.native", "setting", {text(key), text(phone)}).value.text;
+    };
+    const auto changed = [&] { return registry.call("gstest.native", "changedKeys", {}).value.text; };
+    CHECK(read("port", "") == "\"COM3\"");
+    registry.setSettings("gstest.native", R"({"global":{"port":"COM4"},"devices":{}})");
+    CHECK(read("port", "") == "\"COM4\"");
+    CHECK(changed() == R"(["port"])");
+    wanted.settings = R"({"global":{"port":"COM4"},"devices":{"phone-1":{"port":"COM6"}}})";
+    registry.apply({wanted});
+    CHECK(read("port", "phone-1") == "\"COM6\"");
+    CHECK(changed() == R"(["port"])");
+    registry.apply({wanted});
+    CHECK(changed() == "[]");
+}
+
+TEST_CASE("ADR-0112: the extension host gives a native extension its settings and tells it when the user changes one")
+{
+    Scratch scratch;
+    const fs::path builtin = scratch / "builtin";
+    const fs::path folder = builtin / "gamescrcpy.settings-probe/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    writeFile(folder / "manifest.json", R"({
+  "schemaVersion": 1,
+  "id": "gamescrcpy.settings-probe",
+  "version": "1.0.0",
+  "name": "Settings probe",
+  "description": "Reads its settings.",
+  "authors": ["GameScrcpy"],
+  "license": "Apache-2.0",
+  "requires": {"native": "^1.0"},
+  "settings": [
+    {"key": "port", "type": "text", "title": "Port", "default": "COM3", "scope": "device"},
+    {"key": "speed", "type": "integer", "title": "Speed", "default": 2, "min": 1, "max": 9}
+  ],
+  "contributes": {"native": {"dll": "native.dll", "nodes": [
+    {"name": "setting", "params": [{"name": "key", "type": "string"}, {"name": "phone", "type": "string"}],
+     "returns": "string"},
+    {"name": "changedKeys", "returns": "json"}
+  ]}}
+})");
+    app::AppSettings settings(scratch / "data");
+    app::ExtensionHost host(settings, {.user = scratch / "user", .builtin = builtin, .hostProgram = kProgram});
+    host.start(false);
+    REQUIRE(host.extensions().size() == 1);
+    INFO(listed(host.extensions()[0].diagnostics));
+    REQUIRE(host.setEnabled("gamescrcpy.settings-probe", true));
+    const auto text = [](const char* value) {
+        return script::NodeValue{.type = script::NodeType::String, .text = value};
+    };
+    const auto read = [&](const char* key, const char* phone) {
+        return host.native()->call("gamescrcpy.settings-probe", "setting", {text(key), text(phone)}).value.text;
+    };
+    const auto changed = [&] { return host.native()->call("gamescrcpy.settings-probe", "changedKeys", {}).value.text; };
+    CHECK(read("port", "") == "\"COM3\"");
+    CHECK(read("speed", "") == "2");
+
+    REQUIRE(host.setValue("gamescrcpy.settings-probe", "speed", app::settings::Scalar{std::int64_t{5}}));
+    CHECK(read("speed", "") == "5");
+    CHECK(changed() == R"(["speed"])");
+    REQUIRE(host.setDeviceValue("phone-1", "gamescrcpy.settings-probe", "port",
+                                app::settings::Scalar{std::string("COM9")}));
+    CHECK(read("port", "phone-1") == "\"COM9\"");
+    CHECK(read("port", "") == "\"COM3\"");
+    CHECK(changed() == R"(["port"])");
+    CHECK(nlohmann::json::parse(host.nativeSettings("gamescrcpy.settings-probe")) ==
+          nlohmann::json{{"global", {{"port", "COM3"}, {"speed", 5}}}, {"devices", {{"phone-1", {{"port", "COM9"}}}}}});
+}
+
 TEST_CASE("ADR-0112: an extension's events reach that extension's own logic and no other")
 {
     ApplicationScope application;
