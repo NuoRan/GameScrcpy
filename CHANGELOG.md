@@ -2,6 +2,24 @@
 
 本文件记录每个版本的主要变化，格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [未发布]
+
+### AI
+
+- 设置里的“模型”一栏改成下拉框加“获取”按钮；选好模型后，下面只列出这个模型支持的深度思考、思考强度和长上下文（100 万 token）选项。每个模型服务各自记住这些选项。
+- 小助手输入框左下角可以给当前这段对话换模型、开关深度思考、调强度和长上下文，跟着对话一起保存；“设为默认”写回设置，新对话用设置里的默认值。
+- 所有对话都保留在电脑上。“最近对话”菜单列出最新 20 段，“查看全部…”在单独的窗口里列出全部。
+- 气泡和小助手卡片打开、收起时有动画；开启“减少动态效果”时只淡入淡出。
+
+### 修复
+
+- 没有打开投屏窗口时，从方案页“编辑逻辑…”打开较大的方案会卡死并占满内存（Qt 6.10.1 的问题，已绕开）。
+- ESP32 触控盒闲置几分钟后会话断开、第一下触控失败：盒子不出声时会重新询问，必要时切回握手波特率再升回高速。
+
+### English summary
+
+AI settings now pick the model from a drop-down with a Get button and show only the thinking options the chosen model supports: deep thinking, reasoning effort and a one-million-token context. Each conversation can switch its own model and options from the composer and make them the default. Every conversation is kept; the Recent menu lists the newest 20 and Show all opens the rest. The bubble and the card animate. Fixed: the logic editor no longer hangs on larger profiles when no mirror window is open, and the ESP32 touch box no longer drops the session after a few idle minutes.
+
 ## [2.0.0] - 2026-11-10
 
 GameScrcpy 2.0 是一次完全重写：电脑端程序、手机端服务、通信协议和伴侣应用都是新的。
