@@ -224,6 +224,11 @@ public:
             pumps = m_pumps;
         }
         for (const std::shared_ptr<Pump>& pump : pumps) {
+            if (const std::shared_ptr<TransportStream> carried = pump->stream.lock()) {
+                carried->closed(reason);
+            }
+        }
+        for (const std::shared_ptr<Pump>& pump : pumps) {
             pump->drop(reason);
         }
     }
@@ -481,6 +486,7 @@ TEST_CASE("ADR-0112: when the transport closes its streams the session reconnect
     const std::optional<SessionState> reconnecting = rig.listener.first(SessionPhase::Reconnecting);
     REQUIRE(reconnecting.has_value());
     REQUIRE(reconnecting->failure.has_value());
+    INFO(reconnecting->failure->detail);
     CHECK(reconnecting->failure->kind == FailureKind::ConnectionLost);
     CHECK(reconnecting->failure->detail.find("the relay went away") != std::string::npos);
 

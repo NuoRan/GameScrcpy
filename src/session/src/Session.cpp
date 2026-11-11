@@ -695,7 +695,11 @@ private:
             batch.clear();
             if (!written) {
                 if (!m_closing.load(std::memory_order_acquire)) {
-                    reportLost(failure(FailureKind::ConnectionLost, "the control connection broke while sending"));
+                    std::string text = "the control connection broke while sending";
+                    if (const std::string why = channel.closedReason(); !why.empty()) {
+                        text += ": " + why;
+                    }
+                    reportLost(failure(FailureKind::ConnectionLost, std::move(text)));
                 }
                 break;
             }

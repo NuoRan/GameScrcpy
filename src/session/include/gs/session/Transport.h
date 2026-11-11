@@ -31,6 +31,7 @@ public:
     virtual void setSendTimeout(std::chrono::milliseconds timeout) = 0;
     virtual void drain(std::chrono::steady_clock::time_point deadline) = 0;
     virtual void interrupt() noexcept = 0;
+    [[nodiscard]] virtual std::string closedReason() { return {}; }
 };
 
 class MediaChannel

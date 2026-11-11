@@ -97,6 +97,8 @@ public:
 
     void interrupt() noexcept override { streamOf(m_stream).interrupt(); }
 
+    [[nodiscard]] std::string closedReason() override { return closedFailure(streamOf(m_stream)).detail; }
+
 private:
     Stream m_stream;
     protocol::FrameContext m_context;
