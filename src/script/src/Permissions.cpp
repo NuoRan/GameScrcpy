@@ -1,8 +1,10 @@
 #include "gs/script/Permissions.h"
 
 #include <algorithm>
+#include <array>
 #include <format>
 #include <iterator>
+#include <utility>
 
 namespace gs::script {
 
@@ -162,6 +164,25 @@ std::string phoneProblem()
 {
     return "GS-API-073 this logic has no phone: it is an app script of an extension, so act on phones from a "
            "session script";
+}
+
+std::string_view servicePermission(std::string_view service) noexcept
+{
+    constexpr std::array<std::pair<std::string_view, std::string_view>, 3> kPrefixes{
+        {{"hardware.", "hardware"}, {"net.", "network.listen"}, {"speech.listen", "speech.listen"}}};
+    for (const auto& [prefix, permission] : kPrefixes) {
+        if (service.starts_with(prefix)) {
+            return permission;
+        }
+    }
+    return {};
+}
+
+std::string serviceLimitProblem(std::string_view permission)
+{
+    return std::format("GS-API-072 this answers a service call of another extension and needs the permission \"{}\", "
+                       "which that extension has not been allowed",
+                       permission);
 }
 
 }

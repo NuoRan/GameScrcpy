@@ -945,6 +945,65 @@ Item {
             }
 
             ColumnLayout {
+                objectName: "extensionServiceList"
+                Layout.fillWidth: true
+                visible: (detailsDialog.entry.services ?? []).length > 0
+                spacing: Theme.space.xs
+
+                Text {
+                    textFormat: Text.PlainText
+                    text: qsTr("Services it offers to other extensions")
+                    color: Theme.colors.textTertiary
+                    font.pixelSize: Theme.type.caption.size
+                    font.weight: Font.DemiBold
+                }
+
+                Repeater {
+                    model: detailsDialog.entry.services ?? []
+
+                    delegate: ColumnLayout {
+                        id: serviceRow
+
+                        required property var modelData
+
+                        objectName: "extensionServiceItem"
+                        Layout.fillWidth: true
+                        spacing: Theme.space.xxs
+
+                        Text {
+                            Layout.fillWidth: true
+                            textFormat: Text.PlainText
+                            text: serviceRow.modelData.title
+                            color: Theme.colors.textPrimary
+                            font.pixelSize: Theme.type.caption.size
+                            font.weight: Font.DemiBold
+                            wrapMode: Text.Wrap
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            visible: text !== ""
+                            textFormat: Text.PlainText
+                            text: serviceRow.modelData.description ?? ""
+                            color: Theme.colors.textSecondary
+                            font.pixelSize: Theme.type.caption.size
+                            wrapMode: Text.Wrap
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            textFormat: Text.PlainText
+                            text: serviceRow.modelData.call
+                            color: Theme.colors.textTertiary
+                            font.family: Theme.type.monoFamily
+                            font.pixelSize: Theme.type.caption.size
+                            wrapMode: Text.WrapAnywhere
+                        }
+                    }
+                }
+            }
+
+            ColumnLayout {
                 Layout.fillWidth: true
                 visible: (detailsDialog.entry.problems ?? []).length > 0
                 spacing: Theme.space.sm

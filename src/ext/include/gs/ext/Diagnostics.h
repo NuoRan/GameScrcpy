@@ -101,6 +101,8 @@ enum class Code : std::uint8_t {
     TourTargetInvalid,
     SpeechEngineInvalid,
     InputNameInvalid,
+    ServiceSchemaInvalid,
+    ServiceTargetInvalid,
 };
 
 struct Diagnostic {

@@ -605,6 +605,32 @@ struct TourContribution {
     friend bool operator==(const TourContribution&, const TourContribution&) = default;
 };
 
+inline constexpr std::size_t kMaxServices = 32;
+
+struct ServiceContribution {
+    std::string name;
+    std::string title;
+    std::string description;
+    std::string input;
+    std::string output;
+    std::string script;
+    std::string node;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+        v.text("title", m.title, {.maxLength = 40});
+        v.text("description", m.description, {.required = true, .maxLength = 500});
+        v.rawJson("input", m.input);
+        v.rawJson("output", m.output);
+        v.text("script", m.script, {.maxLength = kMaxScriptNameLength, .format = TextFormat::ScriptName});
+        v.text("node", m.node, {.maxLength = 64, .format = TextFormat::NativeName});
+    }
+
+    friend bool operator==(const ServiceContribution&, const ServiceContribution&) = default;
+};
+
 struct Contributions {
     std::vector<FilterContribution> filters;
     std::vector<ThemeContribution> themes;
@@ -619,6 +645,7 @@ struct Contributions {
     std::vector<PanelContribution> panels;
     std::vector<HelpContribution> help;
     std::vector<TourContribution> tours;
+    std::vector<ServiceContribution> services;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -636,6 +663,7 @@ struct Contributions {
         v.objectList("panels", m.panels, kMaxPanels);
         v.objectList("help", m.help, kMaxHelpTopics);
         v.objectList("tours", m.tours, kMaxTours);
+        v.objectList("services", m.services, kMaxServices);
     }
 
     friend bool operator==(const Contributions&, const Contributions&) = default;

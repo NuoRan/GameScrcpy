@@ -20,5 +20,7 @@ struct ServiceRule {
 [[nodiscard]] bool permits(const std::vector<std::string>& granted, std::string_view permission);
 [[nodiscard]] std::string permissionProblem(std::string_view permission);
 [[nodiscard]] std::string phoneProblem();
+[[nodiscard]] std::string_view servicePermission(std::string_view service) noexcept;
+[[nodiscard]] std::string serviceLimitProblem(std::string_view permission);
 
 }

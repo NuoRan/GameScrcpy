@@ -361,6 +361,83 @@ int32_t sendInputs(void*, const gs_ext_value* args, uint32_t, gs_ext_result* res
     return GS_EXT_OK;
 }
 
+struct ServiceCalls {
+    std::mutex mutex;
+    std::vector<std::thread> threads;
+    std::string result = "null";
+};
+
+ServiceCalls& serviceCalls()
+{
+    static ServiceCalls calls;
+    return calls;
+}
+
+int32_t serve(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    std::string out = "{\"seen\":";
+    out.append(args[0].text, args[0].size);
+    out += '}';
+    return giveText(result, GS_EXT_TYPE_JSON, out);
+}
+
+int32_t callServiceLater(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    std::string target(args[0].text, args[0].size);
+    std::string json(args[1].text, args[1].size);
+    ServiceCalls& calls = serviceCalls();
+    {
+        const std::scoped_lock lock(calls.mutex);
+        calls.result = "null";
+        calls.threads.emplace_back([target = std::move(target), json = std::move(json)] {
+            gs_ext_result value{};
+            const int32_t status =
+                g_host->call_service(g_host->context, target.data(), target.size(), json.data(), json.size(), &value);
+            std::string out = "{\"status\":" + std::to_string(status) + ",\"text\":";
+            appendText(out, value.value.text, value.value.size);
+            out += '}';
+            const std::scoped_lock done(serviceCalls().mutex);
+            serviceCalls().result = out;
+        });
+    }
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number = 0;
+    return GS_EXT_OK;
+}
+
+int32_t callServiceNow(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    gs_ext_result value{};
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number =
+        g_host->call_service(g_host->context, args[0].text, args[0].size, args[1].text, args[1].size, &value);
+    return GS_EXT_OK;
+}
+
+int32_t serviceResult(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    std::string out;
+    {
+        const std::scoped_lock lock(serviceCalls().mutex);
+        out = serviceCalls().result;
+    }
+    return giveText(result, GS_EXT_TYPE_JSON, out);
+}
+
+void joinServiceCalls()
+{
+    std::vector<std::thread> threads;
+    {
+        const std::scoped_lock lock(serviceCalls().mutex);
+        threads = std::move(serviceCalls().threads);
+    }
+    for (std::thread& thread : threads) {
+        if (thread.joinable()) {
+            thread.join();
+        }
+    }
+}
+
 int32_t claimWanted(void*, const char* resource, size_t size, const char* by, size_t bySize)
 {
     bool yields = false;
@@ -537,6 +614,10 @@ const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "heard", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &heardNode},
     {sizeof(gs_ext_node), "sendInput", kInputEvent, 5, GS_EXT_TYPE_NUMBER, nullptr, &sendInput},
     {sizeof(gs_ext_node), "sendInputs", kInputBurst, 3, GS_EXT_TYPE_NUMBER, nullptr, &sendInputs},
+    {sizeof(gs_ext_node), "serve", kOneJson, 1, GS_EXT_TYPE_JSON, nullptr, &serve},
+    {sizeof(gs_ext_node), "callService", kStringAndJson, 2, GS_EXT_TYPE_NUMBER, nullptr, &callServiceLater},
+    {sizeof(gs_ext_node), "callServiceNow", kStringAndJson, 2, GS_EXT_TYPE_NUMBER, nullptr, &callServiceNow},
+    {sizeof(gs_ext_node), "serviceResult", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &serviceResult},
 };
 
 const gs_ext_device_provider kBoxes = {sizeof(gs_ext_device_provider), "boxes", nullptr, &listBoxes, &actOnBox};
@@ -868,6 +949,7 @@ void unloadAll(void*)
             thread.join();
         }
     }
+    joinServiceCalls();
 }
 
 const gs_ext_job kCount = {sizeof(gs_ext_job), "count", nullptr, &countStart, &countCancel};
@@ -915,6 +997,10 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "lastWanted", &kNodes[23]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "subscribe", &kNodes[26]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "heard", &kNodes[27]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "serve", &kNodes[30]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "callService", &kNodes[31]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "callServiceNow", &kNodes[32]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "serviceResult", &kNodes[33]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_DEVICE_PROVIDER, "boxes", &kBoxes},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_ATTACHMENT, "shift", &kShift},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_BEHAVIOR, "tap", &kTap},

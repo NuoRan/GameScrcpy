@@ -259,6 +259,8 @@ qt_add_qml_module(GameScrcpy
         ExtensionPanels.cpp
         ExtensionPanels.h
         ExtensionProfile.h
+        ExtensionServices.cpp
+        ExtensionServices.h
         ExtensionTouchSink.cpp
         ExtensionTouchSink.h
         FailureAdvice.cpp

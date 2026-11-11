@@ -9,6 +9,7 @@ add_library(gs_ext STATIC
     include/gs/ext/Manifest.h
     include/gs/ext/Package.h
     include/gs/ext/Resolution.h
+    include/gs/ext/Schema.h
     include/gs/ext/Version.h
     src/Archive.cpp
     src/Bundle.cpp
@@ -17,6 +18,7 @@ add_library(gs_ext STATIC
     src/Manifest.cpp
     src/Package.cpp
     src/Resolution.cpp
+    src/Schema.cpp
     src/Version.cpp
     include/gs/ext/Minisign.h
     include/gs/ext/NativeCheck.h

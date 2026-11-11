@@ -28,6 +28,10 @@ namespace {
 constexpr DWORD kStartWaitMs = 10'000;
 constexpr auto kClaimAnswerWait = std::chrono::seconds(2);
 constexpr auto kClaimWaitedWait = std::chrono::seconds(6);
+constexpr auto kServiceWait = std::chrono::seconds(12);
+constexpr std::string_view kServiceThread =
+    "call_service works only on a thread of the DLL's own, not inside a call from GameScrcpy";
+thread_local bool t_hostThread = false;
 constexpr std::size_t kMostPathBytes = 4096;
 constexpr std::size_t kMostPermissionBytes = 64;
 enum Exit : int { kDone = 0, kUsage = 2, kBroken = 3, kNoStart = 4, kNotLoaded = 5 };
@@ -83,6 +87,56 @@ public:
         detail::WireWriter out;
         out.text(resource);
         send(detail::Kind::Release, 0, out.bytes());
+    }
+
+    ServiceResult callService(std::string_view service, std::string_view json) override
+    {
+        if (t_hostThread || std::this_thread::get_id() == m_main) {
+            return {ServiceStatus::Unsupported, std::string(kServiceThread)};
+        }
+        detail::WireWriter out;
+        out.text(service);
+        out.text(json);
+        std::uint64_t id = 0;
+        {
+            const std::scoped_lock lock(m_claimMutex);
+            if (m_closed) {
+                return {ServiceStatus::Failed, "GS-API-149 the extension is stopping"};
+            }
+            id = ++m_lastService;
+            m_services.emplace(id, std::nullopt);
+        }
+        send(detail::Kind::ServiceCall, id, out.bytes());
+        std::unique_lock lock(m_claimMutex);
+        m_answered.wait_for(lock, kServiceWait, [this, id] { return m_closed || m_services[id].has_value(); });
+        std::optional<ServiceResult> result = std::move(m_services[id]);
+        m_services.erase(id);
+        if (!result) {
+            return {ServiceStatus::Failed, m_closed ? std::string("GS-API-149 the extension is stopping")
+                                                    : std::string("GS-API-149 the service did not answer in time")};
+        }
+        return std::move(*result);
+    }
+
+    void serviceAnswered(const detail::Message& message)
+    {
+        detail::WireReader in(message.payload);
+        std::uint32_t status = 0;
+        std::string text;
+        ServiceResult result{ServiceStatus::Failed, "GS-API-149 the answer of the service was damaged"};
+        if (in.u32(status) && in.text(text, kMostServiceBytes) && in.done() &&
+            status <= static_cast<std::uint32_t>(ServiceStatus::BadArgument)) {
+            result = {static_cast<ServiceStatus>(status), std::move(text)};
+        }
+        {
+            const std::scoped_lock lock(m_claimMutex);
+            const auto found = m_services.find(message.id);
+            if (found == m_services.end()) {
+                return;
+            }
+            found->second = std::move(result);
+        }
+        m_answered.notify_all();
     }
 
     void answered(const detail::Message& message)
@@ -233,6 +287,8 @@ private:
     std::uint64_t m_lastClaim = 0;
     bool m_closed = false;
     std::deque<detail::Message> m_deferred;
+    std::map<std::uint64_t, std::optional<ServiceResult>> m_services;
+    std::uint64_t m_lastService = 0;
 };
 
 class Worker
@@ -269,6 +325,7 @@ public:
 private:
     void run()
     {
+        t_hostThread = true;
         for (;;) {
             detail::Message message;
             {
@@ -753,6 +810,8 @@ int serve(int argc, wchar_t** argv)
             }
             if (message.kind == detail::Kind::ClaimAnswer) {
                 link.answered(message);
+            } else if (message.kind == detail::Kind::ServiceAnswer) {
+                link.serviceAnswered(message);
             } else if (message.kind == detail::Kind::ClaimWanted) {
                 claims.push(std::move(message));
             } else if (message.kind == detail::Kind::Call || message.kind == detail::Kind::DeviceList ||

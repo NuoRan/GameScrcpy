@@ -28,7 +28,7 @@ Positions are ratios of the phone picture: (0, 0) is the top left corner and (1,
 - [`param`](param.md): Settings a task declares in static params; the Tasks page shows them and passes the values to the task.
 - [`prop`](prop.md): Properties a component made in logic declares in static props.
 - [`mcp`](mcp.md): Tools that the app script of an extension offers to AI clients over the local MCP connection.
-- [`events`](events.md): Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends to the extension's own logic and panels.
+- [`events`](events.md): Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends to the extension's own logic and panels and to the logic of the extensions that depend on it.
 - [`ai`](ai.md): Questions from logic to the AI service set up in Settings, AI; they work only while Let logic call AI is on there.
 
 ## Objects
@@ -645,6 +645,11 @@ The color names of the profile's res/resources.json; the members come from types
 
 The system nodes of the installed native extensions, by extension; GameScrcpy writes the members into types/extensions.d.ts.
 
+| Member | Description |
+|---|---|
+| `call<T = StoreValue>(service: string, args?: StoreValue): Promise<T>` | Calls a service of an extension, named "<extension id>/<service>" as its manifest declares it in contributes.services, with arguments that its input schema accepts, and gives the result, which its output schema checks. The logic of an extension may call the services of the extensions it lists in dependencies, optional ones too, and its own; your own logic may call any service of an extension that is on. Cancelling the task cancels the call. Throws GS-API-146 when no extension that is on offers the service or its app script has not provided it within 10 seconds, GS-API-147 when this extension does not depend on the one that offers it, GS-API-148 when the arguments or the result do not match the schemas or are not JSON of at most 252 KiB, and GS-API-149 with the service's own message when it fails, or when it takes longer than 10 seconds. |
+| `provide<A = any>(name: string, handler: (args: A, context: ServiceContext) => StoreValue \| void \| Promise<StoreValue \| void>): Subscription` | Answers the calls of a service that the extension declares in contributes.services with this app script as its script. Each call runs as a task of its own with the permissions that both the calling extension and this one have; what the handler returns is the result (nothing gives null), and when it throws the call fails with its message. Providing the same name again replaces the handler; dispose() stops answering. Throws GS-API-145 when the extension does not declare the service for this script, and GS-API-008 when the handler is not a function. |
+
 ### HardwareDevice
 
 A device opened with hardware.open(). Every kind below has these members too.
@@ -899,6 +904,14 @@ A job that a native extension runs, such as writing firmware. result settles whe
 
 ```ts
 type ExtensionJob<T> = { readonly result: Promise<T>; onProgress(listener: (fraction: number, text: string) => void): ExtensionJob<T>; onLog(listener: (level: number, text: string) => void): ExtensionJob<T>; onOutput(listener: (value: StoreValue) => void): ExtensionJob<T>; follow(progress?: (fraction: number, text: string) => void | Promise<void>, done?: (result: T) => void | Promise<void>, failed?: (error: Error) => void | Promise<void>): Promise<void>; cancel(): void };
+```
+
+### ServiceContext
+
+What the handler of a service gets besides the arguments: the id of the extension that calls it ("" for the user's own logic), the permissions the call runs with, which are those that both extensions have, and the signal that aborts when the caller cancels or the call takes longer than 10 seconds.
+
+```ts
+type ServiceContext = TaskContext & { readonly caller: string; readonly permissions: readonly string[] };
 ```
 
 ### ListenOptions

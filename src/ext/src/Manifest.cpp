@@ -2,6 +2,7 @@
 
 #include "gs/ext/Archive.h"
 #include "gs/ext/Minisign.h"
+#include "gs/ext/Schema.h"
 
 #include <nlohmann/json.hpp>
 
@@ -468,6 +469,11 @@ std::pair<std::string_view, std::string_view> identity(const TourContribution& e
     return {"id", entry.id};
 }
 
+std::pair<std::string_view, std::string_view> identity(const ServiceContribution& entry)
+{
+    return {"name", entry.name};
+}
+
 std::pair<std::string_view, std::string_view> identity(const SettingDeclaration& entry)
 {
     return {"key", entry.key};
@@ -774,6 +780,24 @@ void checkEntry(const TourContribution& tour, const std::string& path, Context& 
 {
     if (tour.steps.size() < kMinTourSteps) {
         context.report(Severity::Error, Code::OutOfRange, path + ".steps", "a tour has 2 to 12 steps");
+    }
+}
+
+void checkEntry(const ServiceContribution& service, const std::string& path, Context& context)
+{
+    if (service.script.empty() == service.node.empty()) {
+        context.report(Severity::Error, Code::ServiceTargetInvalid, path + ".script",
+                       service.script.empty() ? "give script or node" : "give script or node, not both");
+    }
+    const std::pair<const char*, const std::string*> schemas[] = {{"input", &service.input},
+                                                                  {"output", &service.output}};
+    for (const auto& [name, schema] : schemas) {
+        if (schema->empty()) {
+            continue;
+        }
+        if (const std::string problem = schemaProblem(*schema); !problem.empty()) {
+            context.report(Severity::Error, Code::ServiceSchemaInvalid, path + "." + name, problem);
+        }
     }
 }
 
@@ -2004,6 +2028,38 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
             std::ranges::find(manifest.permissions, kInputPermission, &Permission::name) == manifest.permissions.end()) {
             context.report(Severity::Error, Code::NativePermissionUndeclared, "$.contributes.native.inputSources",
                            std::string(kInputPermission));
+        }
+    }
+    for (std::size_t index = 0; index < contributes.services.size(); ++index) {
+        const ServiceContribution& service = contributes.services[index];
+        const std::string at = indexed("$.contributes.services", index);
+        if (!service.script.empty()) {
+            const auto script = std::ranges::find(contributes.scripts, service.script, &ScriptContribution::name);
+            if (!manifest.declares(ExtensionPoint::Script)) {
+                context.report(Severity::Error, Code::ContributionUndeclared, at + ".script",
+                               std::string(nameOf(ExtensionPoint::Script)));
+            } else if (script == contributes.scripts.end()) {
+                context.report(Severity::Error, Code::ServiceTargetInvalid, at + ".script",
+                               "no script is named " + service.script);
+            } else if (script->run != ScriptRun::App) {
+                context.report(Severity::Error, Code::ServiceTargetInvalid, at + ".script",
+                               "the script " + service.script + " runs for each phone, not once for the app");
+            }
+        }
+        if (!service.node.empty()) {
+            const std::vector<NativeNode> none;
+            const std::vector<NativeNode>& nodes = contributes.native ? contributes.native->nodes : none;
+            const auto node = std::ranges::find(nodes, service.node, &NativeNode::name);
+            if (!manifest.declares(ExtensionPoint::Native)) {
+                context.report(Severity::Error, Code::ContributionUndeclared, at + ".node",
+                               std::string(nameOf(ExtensionPoint::Native)));
+            } else if (node == nodes.end()) {
+                context.report(Severity::Error, Code::ServiceTargetInvalid, at + ".node",
+                               "no native node is named " + service.node);
+            } else if (node->params.size() != 1 || node->params[0].type != "json" || node->returns != "json") {
+                context.report(Severity::Error, Code::ServiceTargetInvalid, at + ".node",
+                               "the node " + service.node + " does not take one json value and return json");
+            }
         }
     }
     if (!manifest.id.empty() && manifest.dependencies.contains(manifest.id)) {

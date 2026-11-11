@@ -88,6 +88,9 @@ public:
     [[nodiscard]] const LoadedResources& resources(JSContext* ctx);
     [[nodiscard]] bool gated(JSContext* ctx) const;
     [[nodiscard]] std::optional<std::string> refusal(JSContext* ctx, const ServiceRule& rule) const;
+    [[nodiscard]] std::optional<std::string> limited(std::string_view permission) const;
+    [[nodiscard]] std::optional<std::vector<std::string>> limits() const;
+    void limit(std::vector<std::string> permissions);
     [[nodiscard]] api::Stores& stores() noexcept { return m_stores; }
     [[nodiscard]] double randomNumber();
     [[nodiscard]] double wallMilliseconds() const;
@@ -132,6 +135,7 @@ private:
         std::size_t waits = 0;
         bool aborted = false;
         bool ended = false;
+        std::optional<std::vector<std::string>> limit;
     };
 
     struct PendingStart {

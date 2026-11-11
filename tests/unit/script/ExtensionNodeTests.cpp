@@ -515,6 +515,6 @@ TEST_CASE("ADR-0097: installed nodes are typed in types/extensions.d.ts under in
     const auto declarations = std::ranges::find(files, std::string("types/gamescrcpy.d.ts"), &gs::script::ApiFile::path);
     REQUIRE(declarations != files.end());
     CHECK(declarations->contents.find("declare const ext: Extensions;") != std::string::npos);
-    CHECK(declarations->contents.find("interface Extensions {}") != std::string::npos);
+    CHECK(declarations->contents.find("interface Extensions {\n") != std::string::npos);
     CHECK(declarations->contents.find("export import ext = globalThis.ext;") != std::string::npos);
 }

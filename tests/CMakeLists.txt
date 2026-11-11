@@ -127,6 +127,7 @@ gs_add_unit_test(gs_ext_tests
         unit/ext/MinisignTests.cpp
         unit/ext/NativeCheckTests.cpp
         unit/ext/PeImage.h
+        unit/ext/SchemaTests.cpp
     LIBRARIES
         gs::ext
         gs::miniz
@@ -190,6 +191,7 @@ gs_add_unit_test(gs_script_tests
     SOURCES
         unit/script/AiAskTests.cpp
         unit/script/ExtensionNodeTests.cpp
+        unit/script/ExtensionServiceTests.cpp
         unit/script/HardwareApiTests.cpp
         unit/script/InputReadTests.cpp
         unit/script/LoadMeterTests.cpp
@@ -423,6 +425,7 @@ if(GS_BUILD_APP)
             unit/app/ExtensionIconsTests.cpp
             unit/app/ExtensionLogicTests.cpp
             unit/app/ExtensionPanelsTests.cpp
+            unit/app/ExtensionServicesTests.cpp
             unit/app/FailureAdviceTests.cpp
             unit/app/FilterBudgetTests.cpp
             unit/app/GamepadPassthroughTests.cpp
@@ -584,6 +587,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionModules.h"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionPanels.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionPanels.h"
+            "${PROJECT_SOURCE_DIR}/src/app/ExtensionServices.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/ExtensionServices.h"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionTouchSink.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionTouchSink.h"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionHealth.cpp"

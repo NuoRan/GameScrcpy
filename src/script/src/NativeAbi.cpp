@@ -450,6 +450,21 @@ constexpr Field kHostFields[] = {
      "the rest are dropped with GS_EXT_FAILED and one line in the log, except a slot going back to 0, which always "
      "passes. Call it from any thread; it returns at once. When the extension stops, its buttons come up and its "
      "axes go back to 0. supports(\"input-sources\") is 1 when GameScrcpy has it."},
+    {"int32_t (*call_service)(void* context, const char* service, size_t service_size, const char* json, "
+     "size_t json_size, gs_ext_result* result)",
+     "Calls a service that another extension offers in its manifest's contributes.services, named \"<extension "
+     "id>/<service>\", with its arguments as UTF-8 JSON of at most 252 KiB (empty for null), and waits for the "
+     "answer, at most 10 seconds. GS_EXT_OK puts the result into result as json; anything else puts the reason "
+     "there as a string: GS_EXT_UNSUPPORTED (GS-API-146) when no extension that is on offers the service, and also "
+     "when it is called on a thread of GameScrcpy's own; GS_EXT_DENIED (GS-API-147) when this extension does not "
+     "list the other one in its dependencies; GS_EXT_BAD_ARGUMENT (GS-API-148) when the arguments or the result do "
+     "not match the service's schemas; GS_EXT_FAILED (GS-API-149) when the service failed or took too long. The text "
+     "stays valid until the same thread calls call_service again. Call it only from a thread of the DLL's own: never "
+     "from a node, an action, a touch method, an attachment, a behavior, a job's start or a callback such as "
+     "settings_changed. Ask supports(\"services\") first. A service that the DLL answers itself is a node with one "
+     "json parameter that returns json; it gets { caller, permissions, input }: the id of the extension that calls "
+     "(\"\" for the user's own logic), the permissions that both extensions have, and the arguments. allowed() "
+     "answers for this extension only, so decide yourself what to do for the caller."},
 };
 
 constexpr Field kContributionFields[] = {

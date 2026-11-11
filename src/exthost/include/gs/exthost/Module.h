@@ -36,6 +36,16 @@ enum class ClaimResult : std::int32_t { Claimed = 0, Unsupported = 2, BadArgumen
 
 [[nodiscard]] bool validResource(std::string_view resource) noexcept;
 
+inline constexpr std::size_t kMostServiceTargetBytes = 160;
+inline constexpr std::size_t kMostServiceBytes = kMostTextBytes;
+
+enum class ServiceStatus : std::int32_t { Ok = 0, Failed = 1, Unsupported = 2, Denied = 3, BadArgument = 4 };
+
+struct ServiceResult {
+    ServiceStatus status = ServiceStatus::Unsupported;
+    std::string text;
+};
+
 struct Value {
     ValueType type = ValueType::None;
     bool flag = false;
@@ -311,6 +321,7 @@ public:
     virtual void release(std::string_view) {}
     virtual void listening(std::string_view, bool) {}
     virtual void inputEvent(std::string_view, std::string_view, double, double, std::uint64_t) {}
+    [[nodiscard]] virtual ServiceResult callService(std::string_view, std::string_view) { return {}; }
 };
 
 class Module

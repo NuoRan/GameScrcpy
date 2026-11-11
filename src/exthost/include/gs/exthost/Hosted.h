@@ -32,6 +32,8 @@ struct HostedOptions {
     std::function<void(const std::string& provider)> devicesChanged;
     std::function<void(const std::string& resource, bool wait, std::function<void(ClaimResult)> answer)> claim;
     std::function<void(const std::string& resource)> release;
+    std::function<void(const std::string& service, const std::string& json, std::function<void(ServiceResult)> answer)>
+        callService;
     std::filesystem::path crashes;
     std::filesystem::path logFile;
     std::function<void(std::uint32_t code)> crashed;

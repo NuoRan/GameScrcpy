@@ -1,6 +1,7 @@
 #include "NativeExtensions.h"
 
 #include "ExtensionIcons.h"
+#include "ExtensionServices.h"
 #include "ExtensionTouchSink.h"
 #include "HardwareClaims.h"
 
@@ -354,6 +355,11 @@ public:
         }
     }
 
+    exthost::ServiceResult callService(std::string_view service, std::string_view json) override
+    {
+        return ExtensionServices::callFromNativeAndWait(m_id, service, json);
+    }
+
     void log(int level, std::string_view text) override { writeLog(m_id, level, text); }
 
     bool notify(std::string_view title, std::string_view text) override
@@ -628,6 +634,10 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
             if (HardwareClaims* claims = HardwareClaims::instance()) {
                 claims->release(resource, holder);
             }
+        };
+        options.callService = [id](const std::string& service, const std::string& json,
+                                   std::function<void(exthost::ServiceResult)> answer) {
+            ExtensionServices::callFromNative(id, service, json, std::move(answer));
         };
         if (!m_options.crashRoot.empty()) {
             options.crashes = m_options.crashRoot / pathOf(id);

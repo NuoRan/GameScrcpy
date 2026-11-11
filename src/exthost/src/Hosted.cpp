@@ -505,8 +505,47 @@ struct HostedModule::Impl {
             }
             return;
         }
+        case detail::Kind::ServiceCall: {
+            std::string service;
+            std::string json;
+            std::uint64_t launch = 0;
+            {
+                const std::scoped_lock lock(mutex);
+                launch = launches;
+            }
+            if (!in.text(service, kMostServiceTargetBytes) || !in.text(json, kMostServiceBytes) || !in.done()) {
+                answerService(message.id, {ServiceStatus::BadArgument, "the call to the service was damaged"}, launch);
+                return;
+            }
+            if (!options.callService) {
+                answerService(message.id, {}, launch);
+                return;
+            }
+            options.callService(service, json, [link = claimLink, id = message.id, launch](ServiceResult result) {
+                const std::scoped_lock lock(link->mutex);
+                if (link->impl != nullptr) {
+                    link->impl->answerService(id, result, launch);
+                }
+            });
+            return;
+        }
         default:
             return;
+        }
+    }
+
+    void answerService(std::uint64_t id, const ServiceResult& result, std::uint64_t launch)
+    {
+        const std::scoped_lock lock(mutex);
+        if (launch != launches || !channel) {
+            return;
+        }
+        const bool fits = result.text.size() <= kMostServiceBytes;
+        detail::WireWriter out;
+        out.u32(static_cast<std::uint32_t>(fits ? result.status : ServiceStatus::Failed));
+        out.text(fits ? std::string_view(result.text) : std::string_view("GS-API-148 the answer is larger than 252 KiB"));
+        if (channel->toHost().write(detail::Kind::ServiceAnswer, id, out.bytes())) {
+            SetEvent(channel->toHostEvent());
         }
     }
 

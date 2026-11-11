@@ -572,3 +572,44 @@ TEST_CASE("ADR-0112: the help of an extension that is on is read from its own fo
     CHECK(topics[1].texts.size() == 1);
     CHECK(gs::app::extensionHelp(host, QStringLiteral("en"))[0].extensionName == "Helpful");
 }
+
+TEST_CASE("ADR-0112: the extension list names the services an extension offers, with their titles and descriptions "
+          "in the interface language and the name to call them by")
+{
+    const Fixture fixture;
+    const fs::path folder = fixture.user / "alice.tools/1.0.0";
+    writeFile(folder / "manifest.json", R"({"schemaVersion": 1, "id": "alice.tools", "version": "1.0.0",
+        "name": "Tools", "license": "MIT", "requires": {"script": "^1.0"},
+        "contributes": {
+            "scripts": [{"name": "app", "entry": "app.js", "run": "app"}],
+            "services": [
+                {"name": "add", "title": "Add", "description": "Adds two numbers.", "script": "app",
+                 "input": {"type": "object", "required": ["a", "b"]}, "output": {"type": "number"}},
+                {"name": "clear", "description": "Clears the list.", "script": "app"}]},
+        "l10n": {"zh_CN": {"services.add.title": "加法", "services.add.description": "把两个数加起来。"}}})");
+    writeFile(folder / "app.js", "export {};\n");
+    AppSettings settings(fixture.data);
+    REQUIRE(settings.setValue(QStringLiteral("general.language"), QVariant(QStringLiteral("en"))));
+    ExtensionHost host(settings, {fixture.user, {}});
+    host.start(false);
+
+    const QVariantMap entry = entryOf(host, QStringLiteral("alice.tools"));
+    REQUIRE(entry.value(QStringLiteral("usable")).toBool());
+    const QVariantList services = entry.value(QStringLiteral("services")).toList();
+    REQUIRE(services.size() == 2);
+    const QVariantMap add = services[0].toMap();
+    CHECK(add.value(QStringLiteral("name")).toString() == "add");
+    CHECK(add.value(QStringLiteral("title")).toString() == "Add");
+    CHECK(add.value(QStringLiteral("description")).toString() == "Adds two numbers.");
+    CHECK(add.value(QStringLiteral("call")).toString() == "alice.tools/add");
+    CHECK(services[1].toMap().value(QStringLiteral("title")).toString() == "clear");
+
+    REQUIRE(settings.setValue(QStringLiteral("general.language"), QVariant(QStringLiteral("zh_CN"))));
+    const QVariantMap translated =
+        entryOf(host, QStringLiteral("alice.tools")).value(QStringLiteral("services")).toList()[0].toMap();
+    CHECK(translated.value(QStringLiteral("title")).toString() == QStringLiteral("加法"));
+    CHECK(translated.value(QStringLiteral("description")).toString() == QStringLiteral("把两个数加起来。"));
+    CHECK(entryOf(host, QStringLiteral("alice.tools")).value(QStringLiteral("services")).toList()[1].toMap()
+              .value(QStringLiteral("description"))
+              .toString() == "Clears the list.");
+}

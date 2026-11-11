@@ -716,6 +716,11 @@ std::string extensionTypes(const std::vector<NodeInfo>& nodes)
         }
         level->nodes.push_back(&node);
     }
+    for (const char* taken : {"call", "provide"}) {
+        if (const auto found = root.children.find(taken); found != root.children.end()) {
+            root.children.erase(found);
+        }
+    }
     if (root.children.empty()) {
         return "interface Extensions {}\n";
     }

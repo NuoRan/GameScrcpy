@@ -6577,6 +6577,10 @@
         <translation>%1 · %2</translation>
     </message>
     <message>
+        <source>Services it offers to other extensions</source>
+        <translation>提供给其他扩展的服务</translation>
+    </message>
+    <message>
         <source>Accept connections from programs on this computer</source>
         <translation>接受本机程序的连接</translation>
     </message>
@@ -13174,6 +13178,10 @@
         <translation>扩展的 app 脚本经本地 MCP 连接提供给 AI 客户端的工具。</translation>
     </message>
     <message>
+        <source>Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends to the extension&apos;s own logic and panels and to the logic of the extensions that depend on it.</source>
+        <translation>GameScrcpy 自己的事件（例如手机连上），以及扩展的原生 DLL 发给本扩展的逻辑与面板、以及依赖它的扩展的逻辑的事件。</translation>
+    </message>
+    <message>
         <source>Questions from logic to the AI service set up in Settings, AI; they work only while Let logic call AI is on there.</source>
         <translation>逻辑向“设置 &gt; AI”里配好的 AI 服务提问；只有那里的“允许逻辑调用 AI”打开时才能用。</translation>
     </message>
@@ -14058,6 +14066,14 @@
         <translation>已安装的原生扩展提供的系统节点，按扩展取用；GameScrcpy 会把成员写进 types/extensions.d.ts。</translation>
     </message>
     <message>
+        <source>Calls a service of an extension, named &quot;&lt;extension id&gt;/&lt;service&gt;&quot; as its manifest declares it in contributes.services, with arguments that its input schema accepts, and gives the result, which its output schema checks. The logic of an extension may call the services of the extensions it lists in dependencies, optional ones too, and its own; your own logic may call any service of an extension that is on. Cancelling the task cancels the call. Throws GS-API-146 when no extension that is on offers the service or its app script has not provided it within 10 seconds, GS-API-147 when this extension does not depend on the one that offers it, GS-API-148 when the arguments or the result do not match the schemas or are not JSON of at most 252 KiB, and GS-API-149 with the service&apos;s own message when it fails, or when it takes longer than 10 seconds.</source>
+        <translation>调用某个扩展的服务，名字写成 &quot;&lt;扩展 id&gt;/&lt;服务&gt;&quot;，即它在清单 contributes.services 里声明的名字；参数要符合它的输入 Schema，结果按输出 Schema 检查。扩展的逻辑可以调用它在 dependencies 里列出的扩展（可选的也算）的服务，以及自己的服务；你自己的逻辑可以调用任何已开启扩展的服务。取消任务即取消这次调用。没有已开启的扩展提供这项服务、或提供方的 app 脚本 10 秒内没有提供时抛出 GS-API-146；本扩展不依赖提供方时抛出 GS-API-147；参数或结果不符合 Schema、或不是至多 252 KiB 的 JSON 时抛出 GS-API-148；服务失败（带上它自己的消息）或超过 10 秒时抛出 GS-API-149。</translation>
+    </message>
+    <message>
+        <source>Answers the calls of a service that the extension declares in contributes.services with this app script as its script. Each call runs as a task of its own with the permissions that both the calling extension and this one have; what the handler returns is the result (nothing gives null), and when it throws the call fails with its message. Providing the same name again replaces the handler; dispose() stops answering. Throws GS-API-145 when the extension does not declare the service for this script, and GS-API-008 when the handler is not a function.</source>
+        <translation>应答本扩展在 contributes.services 里声明、并以这个 app 脚本为 script 的服务。每次调用各作为一个任务运行，用调用方扩展与本扩展都有的权限；处理函数返回的值就是结果（不返回时为 null），抛错时这次调用失败并带上它的消息。用同一个名字再次提供会替换处理函数；dispose() 停止应答。本扩展没有为这个脚本声明这项服务时抛出 GS-API-145，处理函数不是函数时抛出 GS-API-008。</translation>
+    </message>
+    <message>
         <source>A device opened with hardware.open(). Every kind below has these members too.</source>
         <translation>用 hardware.open() 打开的设备。下面每一种设备也都有这些成员。</translation>
     </message>
@@ -14264,6 +14280,10 @@
     <message>
         <source>A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; onOutput hears the parts of its result that it hands over while it runs, such as each device a scan finds; follow hears the progress, waits for the job and then runs done with the result or failed with the error, and without failed a failure throws as result does; cancel asks it to stop. It is cancelled when the script stops.</source>
         <translation>原生扩展运行的一项任务，比如写入固件。result 在任务结束时兑现，任务失败时抛出 GS-API-065，被取消时抛出 GS-API-066；onProgress 收听任务的进度，fraction 从 0 到 1，说不准时为 -1，每秒最多 20 次；onLog 收听任务的日志行，level 0 为信息、1 为警告、2 为错误；onOutput 收听任务在运行中交出的部分结果，比如扫描时找到的每一台设备；follow 收听进度并等任务结束，然后带着结果运行 done，或带着错误运行 failed，没给 failed 时失败会像 result 一样抛出；cancel 请任务停下。脚本停止时任务会被取消。</translation>
+    </message>
+    <message>
+        <source>What the handler of a service gets besides the arguments: the id of the extension that calls it (&quot;&quot; for the user&apos;s own logic), the permissions the call runs with, which are those that both extensions have, and the signal that aborts when the caller cancels or the call takes longer than 10 seconds.</source>
+        <translation>服务的处理函数除参数外收到的内容：调用它的扩展的 id（用户自己的逻辑为 &quot;&quot;），这次调用使用的权限（即两个扩展都有的权限），以及在调用方取消或调用超过 10 秒时中止的 signal。</translation>
     </message>
     <message>
         <source>The options of a control&apos;s key events: again as for other events, and consume. With consume true (the default), the profile&apos;s logic takes the key of a tap, hold, long press, turbo, swipe or multi-press control it listens to: pressing the key no longer touches the phone, and the control touches only when the logic calls it, such as with press() or tap(), a few milliseconds later than its own touch would. consume: false keeps the control&apos;s own touch, which comes before the handler runs. Only the profile&apos;s own logic takes keys: tasks, extension scripts and scripts an AI client runs only listen, the event methods a component class overrides keep the built-in touch, and other controls always keep working.</source>
@@ -14770,12 +14790,8 @@
         <translation>第一次要执行的内容。</translation>
     </message>
     <message>
-        <source>Starts a task each time an event of the topic comes. GameScrcpy&apos;s own topics and their values: device.connected and device.disconnected { phone, name }, session.started { phone, name }, session.ended { phone, name, failed }, profile.applied { phone, name, profile, profileName }, app.foreground { phone, name, package, game }, orientation.changed { phone, name, rotation } in quarter turns, recording.started { phone, name, path }, recording.ended { phone, name, path, durationMs }, window.focused { phone, name, window: &quot;mirror&quot; or &quot;grid&quot;, focused }, extension.enabled and extension.disabled { id, name, version }, and settings.changed { keys, values, extension, device }; phone is the phone&apos;s serial and name the name it shows, and values holds the new language and look settings among keys. Your own logic hears all of them. The logic of an extension hears extension.enabled, extension.disabled and settings.changed, which then tells only of its own settings and the language and look settings, and a session script also hears its own phone; the other phones, and app and task scripts, need the permission events.app. Any other topic is one the native DLL of this extension sends, which only the extension&apos;s own logic and panels hear. Of each topic a listener gets the first 100 events in a second at once and the rest of that second merged into the last one.</source>
-        <translation>每来一个该主题的事件就启动一个任务。GameScrcpy 自己的主题及其值：device.connected 与 device.disconnected { phone, name }，session.started { phone, name }，session.ended { phone, name, failed }，profile.applied { phone, name, profile, profileName }，app.foreground { phone, name, package, game }，orientation.changed { phone, name, rotation }（以四分之一圈计），recording.started { phone, name, path }，recording.ended { phone, name, path, durationMs }，window.focused { phone, name, window: &quot;mirror&quot; 或 &quot;grid&quot;, focused }，extension.enabled 与 extension.disabled { id, name, version }，以及 settings.changed { keys, values, extension, device }；phone 是手机的序列号，name 是它显示的名字，values 里是 keys 中语言与外观设置的新值。你自己的逻辑全都能收到。扩展的逻辑能收到 extension.enabled、extension.disabled 与 settings.changed（这时只说它自己的设置和语言、外观设置），会话脚本还能收到它自己那台手机的；别的手机，以及 app 脚本和任务脚本，要有权限 events.app。其它主题是本扩展的原生 DLL 发出的，只有本扩展自己的逻辑与面板收得到。每个主题，每个收听者一秒内的前 100 个事件立刻送到，这一秒里其余的合并成最后一个。</translation>
-    </message>
-    <message>
-        <source>One of GameScrcpy&apos;s own topics, such as &quot;device.connected&quot;, or a topic the extension&apos;s DLL sends: 1 to 64 lowercase letters, digits, dots and dashes.</source>
-        <translation>GameScrcpy 自己的主题之一（例如 &quot;device.connected&quot;），或扩展的 DLL 发出的主题：1～64 个小写字母、数字、点和短横线。</translation>
+        <source>the topic is not 1 to 64 lowercase letters, digits, dots and dashes, after an extension id and a colon or alone</source>
+        <translation>主题不是 1～64 个小写字母、数字、点和短横线（单独写，或写在扩展 id 和冒号之后）</translation>
     </message>
     <message>
         <source>What to run for each event; value is what came with it.</source>
@@ -15030,12 +15046,16 @@
         <translation>这份逻辑不是扩展的 app 脚本，名字或说明不合要求，输入的 Schema 不是 type 为 object 的对象或超过 16 KiB，或这个扩展已经提供了 32 个工具</translation>
     </message>
     <message>
-        <source>What happens when another event comes while the last task is running.</source>
-        <translation>上一个任务还在执行时又来了事件怎么办。</translation>
+        <source>Starts a task each time an event of the topic comes. GameScrcpy&apos;s own topics and their values: device.connected and device.disconnected { phone, name }, session.started { phone, name }, session.ended { phone, name, failed }, profile.applied { phone, name, profile, profileName }, app.foreground { phone, name, package, game }, orientation.changed { phone, name, rotation } in quarter turns, recording.started { phone, name, path }, recording.ended { phone, name, path, durationMs }, window.focused { phone, name, window: &quot;mirror&quot; or &quot;grid&quot;, focused }, extension.enabled and extension.disabled { id, name, version }, and settings.changed { keys, values, extension, device }; phone is the phone&apos;s serial and name the name it shows, and values holds the new language and look settings among keys. Your own logic hears all of them. The logic of an extension hears extension.enabled, extension.disabled and settings.changed, which then tells only of its own settings and the language and look settings, and a session script also hears its own phone; the other phones, and app and task scripts, need the permission events.app. Any other topic is one the native DLL of this extension sends, which only the extension&apos;s own logic and panels and the logic of the extensions that depend on it hear; written &quot;&lt;extension id&gt;:&lt;topic&gt;&quot;, it is one the DLL of an extension that this one lists in its dependencies sends. Of each topic a listener gets the first 100 events in a second at once and the rest of that second merged into the last one.</source>
+        <translation>每来一个该主题的事件就启动一个任务。GameScrcpy 自己的主题及其值：device.connected 与 device.disconnected { phone, name }，session.started { phone, name }，session.ended { phone, name, failed }，profile.applied { phone, name, profile, profileName }，app.foreground { phone, name, package, game }，orientation.changed { phone, name, rotation }（以四分之一圈计），recording.started { phone, name, path }，recording.ended { phone, name, path, durationMs }，window.focused { phone, name, window: &quot;mirror&quot; 或 &quot;grid&quot;, focused }，extension.enabled 与 extension.disabled { id, name, version }，以及 settings.changed { keys, values, extension, device }；phone 是手机的序列号，name 是它显示的名字，values 里是 keys 中语言与外观设置的新值。你自己的逻辑全都能收到。扩展的逻辑能收到 extension.enabled、extension.disabled 与 settings.changed（这时只说它自己的设置和语言、外观设置），会话脚本还能收到它自己那台手机的；别的手机，以及 app 脚本和任务脚本，要有权限 events.app。其它主题是本扩展的原生 DLL 发出的，只有本扩展自己的逻辑与面板、以及依赖它的扩展的逻辑收得到；写成 &quot;&lt;扩展 id&gt;:&lt;主题&gt;&quot; 时，是本扩展在 dependencies 里列出的扩展的 DLL 发出的主题。每个主题，每个收听者一秒内的前 100 个事件立刻送到，这一秒里其余的合并成最后一个。</translation>
     </message>
     <message>
-        <source>the topic is not 1 to 64 lowercase letters, digits, dots and dashes</source>
-        <translation>主题不是 1 到 64 个小写字母、数字、点和短横线</translation>
+        <source>One of GameScrcpy&apos;s own topics, such as &quot;device.connected&quot;, or a topic the extension&apos;s DLL sends: 1 to 64 lowercase letters, digits, dots and dashes; for an extension this one depends on, its id, a colon and the topic, as in &quot;alice.boards:board.added&quot;.</source>
+        <translation>GameScrcpy 自己的主题之一（例如 &quot;device.connected&quot;），或扩展的 DLL 发出的主题：1～64 个小写字母、数字、点和短横线；若是本扩展依赖的扩展，写它的 id、冒号和主题，例如 &quot;alice.boards:board.added&quot;。</translation>
+    </message>
+    <message>
+        <source>What happens when another event comes while the last task is running.</source>
+        <translation>上一个任务还在执行时又来了事件怎么办。</translation>
     </message>
     <message>
         <source>Asks the AI service set up in Settings, AI, the one the assistant in the editor uses, and resolves with the text of its answer; null when it answers without text, when a picture is asked for and the phone has shown none yet, and in replays, which ask nothing. With picture, the phone&apos;s picture or a part of it goes along, made smaller so its long side is at most 1024 pixels. It works only while Let logic call AI is on there: each question spends your quota, and each logic may ask at most 10 times a minute. Cancelling the task stops waiting.</source>
@@ -15108,6 +15128,10 @@
     <message>
         <source>Types text into the box that has the focus on the phone.</source>
         <translation>在手机上有焦点的输入框里打字。</translation>
+    </message>
+    <message>
+        <source>The system nodes that native extensions add: ext.&lt;extension&gt;.&lt;node&gt;(...) runs a node at once and gives its result. &lt;extension&gt; is the extension id with each part in lowerCamelCase, so the nodes of gamescrcpy.pc-clock are ext.gamescrcpy.pcClock. Throws GS-API-060 when the extension is not on, GS-API-061 for values of the wrong type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when the node takes longer than 100 ms. A job the extension offers, ext.&lt;extension&gt;.&lt;job&gt;({ ... }), starts at once with its arguments by name and gives an ExtensionJob; starting throws GS-API-060, GS-API-061 and GS-API-063 as a node does, and GS-API-067 when the extension runs as many of its jobs as it may. ext.call() and ext.provide() call and answer the services that extensions offer each other.</source>
+        <translation>原生扩展添加的系统节点：ext.&lt;extension&gt;.&lt;node&gt;(...) 立即运行一个节点并给出结果。&lt;extension&gt; 是扩展 id，每一段写成小驼峰，所以 gamescrcpy.pc-clock 的节点是 ext.gamescrcpy.pcClock。扩展没有打开时抛出 GS-API-060，值的类型不对时抛出 GS-API-061，节点出错时抛出 GS-API-062，扩展缺少某项权限时抛出 GS-API-063 并指出那项权限，节点运行超过 100 毫秒时抛出 GS-API-064。扩展提供的任务写作 ext.&lt;extension&gt;.&lt;job&gt;({ ... })，按名字传入参数后立即开始，并给出一个 ExtensionJob；开始时会像节点一样抛出 GS-API-060、GS-API-061 和 GS-API-063，扩展同时运行的这项任务已达上限时抛出 GS-API-067。ext.call() 与 ext.provide() 用来调用和应答扩展之间互相提供的服务。</translation>
     </message>
     <message>
         <source>The text to type into the focused box on the phone.</source>
@@ -15794,10 +15818,6 @@
         <translation>文字：拼接、填入、查找、拆分与大小写转换。</translation>
     </message>
     <message>
-        <source>Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends to the extension&apos;s own logic and panels.</source>
-        <translation>GameScrcpy 自己的事件（例如手机连上），以及扩展的原生 DLL 发给本扩展逻辑与面板的事件。</translation>
-    </message>
-    <message>
         <source>Where the component sits on the picture, as ratios, for the phone&apos;s picture when the logic started; it follows moveTo(). null for a component made in logic with new.</source>
         <translation>组件在画面上的位置（比例），按逻辑开始时手机的画面算；moveTo() 之后跟着变。逻辑里 new 出来的组件为 null。</translation>
     </message>
@@ -15892,10 +15912,6 @@
     <message>
         <source>The variables of the profile in use, by id; empty without a phone. In a task they follow the phone&apos;s profile, as controls do.</source>
         <translation>当前方案的变量，按 id 取用；没有手机时为空。在任务里和 controls 一样跟着手机的方案走。</translation>
-    </message>
-    <message>
-        <source>The system nodes that native extensions add: ext.&lt;extension&gt;.&lt;node&gt;(...) runs a node at once and gives its result. &lt;extension&gt; is the extension id with each part in lowerCamelCase, so the nodes of gamescrcpy.pc-clock are ext.gamescrcpy.pcClock. Throws GS-API-060 when the extension is not on, GS-API-061 for values of the wrong type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when the node takes longer than 100 ms. A job the extension offers, ext.&lt;extension&gt;.&lt;job&gt;({ ... }), starts at once with its arguments by name and gives an ExtensionJob; starting throws GS-API-060, GS-API-061 and GS-API-063 as a node does, and GS-API-067 when the extension runs as many of its jobs as it may.</source>
-        <translation>原生扩展添加的系统节点：ext.&lt;extension&gt;.&lt;node&gt;(...) 立即运行一个节点并给出结果。&lt;extension&gt; 是扩展 id，每一段写成小驼峰，所以 gamescrcpy.pc-clock 的节点是 ext.gamescrcpy.pcClock。扩展没有打开时抛出 GS-API-060，值的类型不对时抛出 GS-API-061，节点出错时抛出 GS-API-062，扩展缺少某项权限时抛出 GS-API-063 并指出那项权限，节点运行超过 100 毫秒时抛出 GS-API-064。扩展提供的任务写作 ext.&lt;extension&gt;.&lt;job&gt;({ ... })，按名字传入参数后立即开始，并给出一个 ExtensionJob；开始时会像节点一样抛出 GS-API-060、GS-API-061 和 GS-API-063，扩展同时运行的这项任务已达上限时抛出 GS-API-067。</translation>
     </message>
     <message>
         <source>Pulls down the phone&apos;s notification shade, as the More menu of the mirror window&apos;s toolbar does; true once the phone is asked, false when it cannot be asked now, such as while GameScrcpy reconnects to it. When the phone does not allow it, its mirror window says so. The shade stays down when the logic stops.</source>

@@ -189,6 +189,10 @@ std::string_view codeName(Code code) noexcept
         return "speech-engine-invalid";
     case Code::InputNameInvalid:
         return "input-name-invalid";
+    case Code::ServiceSchemaInvalid:
+        return "service-schema-invalid";
+    case Code::ServiceTargetInvalid:
+        return "service-target-invalid";
     }
     return "unknown";
 }
@@ -419,6 +423,12 @@ std::string_view fixHint(Code code) noexcept
         return "Name an input source with a lowercase letter followed by lowercase letters and digits, and its slots "
                "with letters, digits, _ and -, 32 characters each at most; profiles bind a slot as "
                "Ext.<extension id>.<source>.<slot>.";
+    case Code::ServiceSchemaInvalid:
+        return "Write input and output as JSON Schema objects of at most 16 KiB and 16 levels, using only type, "
+               "properties, required, items, enum, minimum, maximum, maxLength, title and description.";
+    case Code::ServiceTargetInvalid:
+        return "Give each service either script, naming one of the extension's scripts with run \"app\" that calls "
+               "ext.provide, or node, naming one of its native nodes that takes one json value and returns json.";
     }
     return "";
 }

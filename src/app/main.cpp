@@ -16,6 +16,7 @@
 #include "ExtensionHost.h"
 #include "ExtensionLogic.h"
 #include "ExtensionPanels.h"
+#include "ExtensionServices.h"
 #include "GridWindow.h"
 #include "HardwareAccess.h"
 #include "HardwareClaims.h"
@@ -458,6 +459,9 @@ int main(int argc, char* argv[])
     speechEngines.offerServices();
     gs::app::NativeEvents nativeEvents(*extensions.native());
     gs::app::AppEvents appEvents;
+    gs::app::ExtensionServices extensionServices(nullptr);
+    extensionServices.follow(extensions);
+    extensionServices.offerServices();
 
     const auto graphics =
         gs::render::GraphicsDevice::create(false, qEnvironmentVariableIntValue("GS_FORCE_WARP") == 1);

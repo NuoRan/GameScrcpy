@@ -64,6 +64,9 @@ type StoreValue = null | boolean | number | string | StoreValue[] | { [key: stri
 /** A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; onOutput hears the parts of its result that it hands over while it runs, such as each device a scan finds; follow hears the progress, waits for the job and then runs done with the result or failed with the error, and without failed a failure throws as result does; cancel asks it to stop. It is cancelled when the script stops. */
 type ExtensionJob<T> = { readonly result: Promise<T>; onProgress(listener: (fraction: number, text: string) => void): ExtensionJob<T>; onLog(listener: (level: number, text: string) => void): ExtensionJob<T>; onOutput(listener: (value: StoreValue) => void): ExtensionJob<T>; follow(progress?: (fraction: number, text: string) => void | Promise<void>, done?: (result: T) => void | Promise<void>, failed?: (error: Error) => void | Promise<void>): Promise<void>; cancel(): void };
 
+/** What the handler of a service gets besides the arguments: the id of the extension that calls it ("" for the user's own logic), the permissions the call runs with, which are those that both extensions have, and the signal that aborts when the caller cancels or the call takes longer than 10 seconds. */
+type ServiceContext = TaskContext & { readonly caller: string; readonly permissions: readonly string[] };
+
 /** What happens when the event comes again while the last task it started is still running: ignore it (default), restart (cancel the running task first), stop (only cancel the running task), queue (run after it) or parallel (run both). */
 type ListenOptions = { readonly again?: "ignore" | "restart" | "stop" | "queue" | "parallel" };
 
@@ -2035,7 +2038,19 @@ interface PathNames {}
 interface ColorNames {}
 
 /** The system nodes of the installed native extensions, by extension; GameScrcpy writes the members into types/extensions.d.ts. */
-interface Extensions {}
+interface Extensions {
+    /**
+     * Calls a service of an extension, named "<extension id>/<service>" as its manifest declares it in contributes.services, with arguments that its input schema accepts, and gives the result, which its output schema checks. The logic of an extension may call the services of the extensions it lists in dependencies, optional ones too, and its own; your own logic may call any service of an extension that is on. Cancelling the task cancels the call. Throws GS-API-146 when no extension that is on offers the service or its app script has not provided it within 10 seconds, GS-API-147 when this extension does not depend on the one that offers it, GS-API-148 when the arguments or the result do not match the schemas or are not JSON of at most 252 KiB, and GS-API-149 with the service's own message when it fails, or when it takes longer than 10 seconds.
+     * @example const sum = await ext.call<number>("alice.tools/add", { a: 1, b: 2 });
+     */
+    call<T = StoreValue>(service: string, args?: StoreValue): Promise<T>;
+
+    /**
+     * Answers the calls of a service that the extension declares in contributes.services with this app script as its script. Each call runs as a task of its own with the permissions that both the calling extension and this one have; what the handler returns is the result (nothing gives null), and when it throws the call fails with its message. Providing the same name again replaces the handler; dispose() stops answering. Throws GS-API-145 when the extension does not declare the service for this script, and GS-API-008 when the handler is not a function.
+     * @example ext.provide("add", ({ a, b }) => a + b);
+     */
+    provide<A = any>(name: string, handler: (args: A, context: ServiceContext) => StoreValue | void | Promise<StoreValue | void>): Subscription;
+}
 
 /** A device opened with hardware.open(). Every kind below has these members too. */
 interface HardwareDevice {
@@ -2591,7 +2606,7 @@ declare const globals: Globals;
 declare const machine: <S extends string>(states: { readonly [K in S]: (to: MachineTo<S>) => MachineStep | void | Promise<MachineStep | void> }, options?: MachineOptions<S>) => Promise<void>;
 
 /**
- * The system nodes that native extensions add: ext.<extension>.<node>(...) runs a node at once and gives its result. <extension> is the extension id with each part in lowerCamelCase, so the nodes of gamescrcpy.pc-clock are ext.gamescrcpy.pcClock. Throws GS-API-060 when the extension is not on, GS-API-061 for values of the wrong type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when the node takes longer than 100 ms. A job the extension offers, ext.<extension>.<job>({ ... }), starts at once with its arguments by name and gives an ExtensionJob; starting throws GS-API-060, GS-API-061 and GS-API-063 as a node does, and GS-API-067 when the extension runs as many of its jobs as it may.
+ * The system nodes that native extensions add: ext.<extension>.<node>(...) runs a node at once and gives its result. <extension> is the extension id with each part in lowerCamelCase, so the nodes of gamescrcpy.pc-clock are ext.gamescrcpy.pcClock. Throws GS-API-060 when the extension is not on, GS-API-061 for values of the wrong type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when the node takes longer than 100 ms. A job the extension offers, ext.<extension>.<job>({ ... }), starts at once with its arguments by name and gives an ExtensionJob; starting throws GS-API-060, GS-API-061 and GS-API-063 as a node does, and GS-API-067 when the extension runs as many of its jobs as it may. ext.call() and ext.provide() call and answer the services that extensions offer each other.
  * @example log.info(ext.gamescrcpy.pcClock.now());
  */
 declare const ext: Extensions;
@@ -4515,14 +4530,14 @@ declare namespace mcp {
     function tool(name: string, spec: McpToolSpec, handler: (input: any, event: TaskContext) => unknown): Subscription;
 }
 
-/** Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends to the extension's own logic and panels. */
+/** Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends to the extension's own logic and panels and to the logic of the extensions that depend on it. */
 declare namespace events {
     /**
-     * Starts a task each time an event of the topic comes. GameScrcpy's own topics and their values: device.connected and device.disconnected { phone, name }, session.started { phone, name }, session.ended { phone, name, failed }, profile.applied { phone, name, profile, profileName }, app.foreground { phone, name, package, game }, orientation.changed { phone, name, rotation } in quarter turns, recording.started { phone, name, path }, recording.ended { phone, name, path, durationMs }, window.focused { phone, name, window: "mirror" or "grid", focused }, extension.enabled and extension.disabled { id, name, version }, and settings.changed { keys, values, extension, device }; phone is the phone's serial and name the name it shows, and values holds the new language and look settings among keys. Your own logic hears all of them. The logic of an extension hears extension.enabled, extension.disabled and settings.changed, which then tells only of its own settings and the language and look settings, and a session script also hears its own phone; the other phones, and app and task scripts, need the permission events.app. Any other topic is one the native DLL of this extension sends, which only the extension's own logic and panels hear. Of each topic a listener gets the first 100 events in a second at once and the rest of that second merged into the last one.
-     * @param topic One of GameScrcpy's own topics, such as "device.connected", or a topic the extension's DLL sends: 1 to 64 lowercase letters, digits, dots and dashes.
+     * Starts a task each time an event of the topic comes. GameScrcpy's own topics and their values: device.connected and device.disconnected { phone, name }, session.started { phone, name }, session.ended { phone, name, failed }, profile.applied { phone, name, profile, profileName }, app.foreground { phone, name, package, game }, orientation.changed { phone, name, rotation } in quarter turns, recording.started { phone, name, path }, recording.ended { phone, name, path, durationMs }, window.focused { phone, name, window: "mirror" or "grid", focused }, extension.enabled and extension.disabled { id, name, version }, and settings.changed { keys, values, extension, device }; phone is the phone's serial and name the name it shows, and values holds the new language and look settings among keys. Your own logic hears all of them. The logic of an extension hears extension.enabled, extension.disabled and settings.changed, which then tells only of its own settings and the language and look settings, and a session script also hears its own phone; the other phones, and app and task scripts, need the permission events.app. Any other topic is one the native DLL of this extension sends, which only the extension's own logic and panels and the logic of the extensions that depend on it hear; written "<extension id>:<topic>", it is one the DLL of an extension that this one lists in its dependencies sends. Of each topic a listener gets the first 100 events in a second at once and the rest of that second merged into the last one.
+     * @param topic One of GameScrcpy's own topics, such as "device.connected", or a topic the extension's DLL sends: 1 to 64 lowercase letters, digits, dots and dashes; for an extension this one depends on, its id, a colon and the topic, as in "alice.boards:board.added".
      * @param handler What to run for each event; value is what came with it.
      * @param options What happens when another event comes while the last task is running.
-     * @throws GS-API-068 when the topic is not 1 to 64 lowercase letters, digits, dots and dashes. Use one of GameScrcpy's own topics or the topic that the extension's DLL sends.
+     * @throws GS-API-068 when the topic is not 1 to 64 lowercase letters, digits, dots and dashes, after an extension id and a colon or alone. Use one of GameScrcpy's own topics or the topic that the extension's DLL sends.
      * @throws GS-API-008 when the handler is not a function. Pass a function.
      * @throws GS-API-009 when again is not one of ignore, restart, stop, queue or parallel. Use one of the five rules.
      * @since 1 (stable)

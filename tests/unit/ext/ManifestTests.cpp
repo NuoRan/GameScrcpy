@@ -1441,3 +1441,119 @@ TEST_CASE("ADR-0112: an extension adds tours whose steps point at its card, its 
     CHECK_FALSE(loaded.usable);
     CHECK(undeclared(loaded, "$.contributes.tours", "tour"));
 }
+
+TEST_CASE("ADR-0112: services load with their schemas and the app script or node that answers them, and survive a "
+          "save and a load")
+{
+    Json json = nativeBase();
+    json["id"] = "alice.tools";
+    json["requires"] = {{"native", "^1.0"}, {"script", "^1.0"}};
+    json["contributes"]["scripts"] = Json::array({{{"name", "app"}, {"entry", "app.ts"}, {"run", "app"}},
+                                                 {{"name", "phone"}, {"entry", "phone.ts"}, {"run", "session"}}});
+    json["contributes"]["native"]["nodes"].push_back(
+        {{"name", "sum"}, {"params", Json::array({{{"name", "args"}, {"type", "json"}}})}, {"returns", "json"}});
+    json["contributes"]["services"] = Json::array(
+        {{{"name", "add"},
+          {"title", "Add"},
+          {"description", "Adds two numbers."},
+          {"input",
+           {{"type", "object"},
+            {"properties", {{"a", {{"type", "number"}}}, {"b", {{"type", "number"}}}}},
+            {"required", {"a", "b"}}}},
+          {"output", {{"type", "number"}}},
+          {"script", "app"}},
+         {{"name", "sum"}, {"description", "Adds up a list."}, {"node", "sum"}}});
+    const LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    const std::vector<ServiceContribution>& services = loaded.manifest.contributes.services;
+    REQUIRE(services.size() == 2);
+    CHECK(services[0].name == "add");
+    CHECK(services[0].title == "Add");
+    CHECK(services[0].description == "Adds two numbers.");
+    CHECK(services[0].script == "app");
+    CHECK(services[0].node.empty());
+    CHECK(Json::parse(services[0].input)["required"] == Json::array({"a", "b"}));
+    CHECK(services[0].output == R"({"type":"number"})");
+    CHECK(services[1].node == "sum");
+    CHECK(services[1].title.empty());
+    CHECK(services[1].input.empty());
+    CHECK(services[1].output.empty());
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+    const Json saved = Json::parse(saveManifest(loaded.manifest))["contributes"]["services"];
+    CHECK(saved[0]["input"]["properties"]["b"]["type"] == "number");
+    CHECK_FALSE(saved[1].contains("input"));
+    CHECK_FALSE(saved[1].contains("script"));
+
+    const Json schema = Json::parse(manifestJsonSchema())["properties"]["contributes"]["properties"]["services"];
+    CHECK(schema["maxItems"] == kMaxServices);
+    CHECK(schema["items"]["required"] == Json::array({"name", "description"}));
+}
+
+TEST_CASE("ADR-0112: a service is checked for its name, its schemas, and an app script or a json node that answers it, "
+          "under the script or native point")
+{
+    Json json = nativeBase();
+    json["id"] = "alice.tools";
+    json["requires"] = {{"native", "^1.0"}, {"script", "^1.0"}};
+    json["contributes"]["scripts"] = Json::array({{{"name", "app"}, {"entry", "app.ts"}, {"run", "app"}},
+                                                 {{"name", "phone"}, {"entry", "phone.ts"}, {"run", "session"}}});
+    json["contributes"]["native"]["nodes"].push_back(
+        {{"name", "sum"}, {"params", Json::array({{{"name", "args"}, {"type", "json"}}})}, {"returns", "json"}});
+    json["contributes"]["services"] = Json::array(
+        {{{"name", "add"},
+          {"description", "Adds."},
+          {"input", {{"type", "object"}, {"pattern", "x"}}},
+          {"output", "number"},
+          {"script", "phone"}},
+         {{"name", "clock"}, {"description", "The time."}, {"node", "now"}},
+         {{"name", "both"}, {"description", "Both."}, {"script", "app"}, {"node", "sum"}},
+         {{"name", "neither"}, {"description", "Neither."}},
+         {{"name", "lost"}, {"description", "Lost."}, {"script", "gone"}},
+         {{"name", "add"}, {"description", "Again."}, {"node", "sum"}},
+         {{"name", "Bad"}, {"description", "Bad."}, {"node", "sum"}},
+         {{"name", "quiet"}, {"node", "missing"}},
+         {{"name", "wide"}, {"description", "Wide."}, {"node", "sum"}, {"output", {{"minimum", 2}, {"maximum", 1}}}}});
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::ServiceTargetInvalid, "$.contributes.services[0].script"));
+    CHECK(reports(loaded, Code::ServiceSchemaInvalid, "$.contributes.services[0].input"));
+    CHECK(reports(loaded, Code::WrongType, "$.contributes.services[0].output"));
+    CHECK(reports(loaded, Code::ServiceTargetInvalid, "$.contributes.services[1].node"));
+    CHECK(reports(loaded, Code::ServiceTargetInvalid, "$.contributes.services[2].script"));
+    CHECK(reports(loaded, Code::ServiceTargetInvalid, "$.contributes.services[3].script"));
+    CHECK(reports(loaded, Code::ServiceTargetInvalid, "$.contributes.services[4].script"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.services[5].name"));
+    CHECK(reports(loaded, Code::NativeNameInvalid, "$.contributes.services[6].name"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.services[7].description"));
+    CHECK(reports(loaded, Code::ServiceTargetInvalid, "$.contributes.services[7].node"));
+    CHECK(reports(loaded, Code::ServiceSchemaInvalid, "$.contributes.services[8].output"));
+    const auto detail = std::ranges::find_if(loaded.diagnostics, [](const Diagnostic& each) {
+        return each.path == "$.contributes.services[0].input";
+    });
+    REQUIRE(detail != loaded.diagnostics.end());
+    CHECK(detail->detail.find("$.pattern") == 0);
+    CHECK(codeName(Code::ServiceSchemaInvalid) == "service-schema-invalid");
+    CHECK(codeName(Code::ServiceTargetInvalid) == "service-target-invalid");
+    CHECK_FALSE(fixHint(Code::ServiceTargetInvalid).empty());
+
+    json["contributes"]["services"] = Json::array();
+    for (std::size_t index = 0; index <= kMaxServices; ++index) {
+        json["contributes"]["services"].push_back(
+            {{"name", "sum" + std::to_string(index)}, {"description", "Sums."}, {"node", "sum"}});
+    }
+    loaded = load(json);
+    CHECK(reports(loaded, Code::TooMany, "$.contributes.services"));
+
+    json = base();
+    json["contributes"]["services"] = Json::array({{{"name", "add"}, {"description", "Adds."}, {"script", "app"}},
+                                                  {{"name", "sum"}, {"description", "Sums."}, {"node", "sum"}}});
+    loaded = load(json);
+    CHECK_FALSE(loaded.usable);
+    CHECK(undeclared(loaded, "$.contributes.services[0].script", "script"));
+    CHECK(undeclared(loaded, "$.contributes.services[1].node", "native"));
+}

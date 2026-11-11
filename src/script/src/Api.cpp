@@ -430,6 +430,53 @@ JSValue currentTaskNative(JSContext* ctx, JSValueConst, int, JSValueConst*, int)
     return JS_NewInt64(ctx, static_cast<std::int64_t>(Engine::of(ctx).currentTask()));
 }
 
+JSValue limitNative(JSContext* ctx, JSValueConst, int argc, JSValueConst* argv, int) noexcept
+{
+    try {
+        std::string json;
+        if (!text(ctx, argument(argc, argv, 0), json)) {
+            return JS_ThrowTypeError(ctx, "%s", "limit(json) needs the permissions as JSON text");
+        }
+        const nlohmann::json parsed = nlohmann::json::parse(json, nullptr, false);
+        std::vector<std::string> permissions;
+        if (parsed.is_array()) {
+            for (const nlohmann::json& each : parsed) {
+                if (each.is_string()) {
+                    permissions.push_back(each.get<std::string>());
+                }
+            }
+        }
+        Engine::of(ctx).limit(std::move(permissions));
+        return JS_UNDEFINED;
+    } catch (...) {
+        return JS_ThrowOutOfMemory(ctx);
+    }
+}
+
+JSValue limitsNative(JSContext* ctx, JSValueConst, int, JSValueConst*, int) noexcept
+{
+    try {
+        const std::optional<std::vector<std::string>> limits = Engine::of(ctx).limits();
+        if (!limits) {
+            return JS_NULL;
+        }
+        JSValue list = JS_NewArray(ctx);
+        if (JS_IsException(list)) {
+            return list;
+        }
+        std::uint32_t index = 0;
+        for (const std::string& permission : *limits) {
+            if (JS_SetPropertyUint32(ctx, list, index++, JS_NewStringLen(ctx, permission.data(), permission.size())) < 0) {
+                JS_FreeValue(ctx, list);
+                return JS_EXCEPTION;
+            }
+        }
+        return list;
+    } catch (...) {
+        return JS_ThrowOutOfMemory(ctx);
+    }
+}
+
 JSValue wallNowNative(JSContext* ctx, JSValueConst, int, JSValueConst*, int) noexcept
 {
     try {
@@ -2129,6 +2176,11 @@ JSValue callNodeNative(JSContext* ctx, JSValueConst, int argc, JSValueConst* arg
             return throwNodeError(ctx, "GS-API-061", path,
                                   std::format("it takes {} values, not {}", found->params.size(), length));
         }
+        for (const std::string& permission : found->permissions) {
+            if (const std::optional<std::string> refused = Engine::of(ctx).limited(permission)) {
+                return JS_ThrowTypeError(ctx, "%s", refused->c_str());
+            }
+        }
         std::vector<NodeValue> arguments;
         arguments.reserve(found->params.size());
         for (std::uint32_t index = 0; index < found->params.size(); ++index) {
@@ -2159,6 +2211,32 @@ JSValue callNodeNative(JSContext* ctx, JSValueConst, int argc, JSValueConst* arg
     }
 }
 
+std::optional<std::string> jobLimit(JSContext* ctx, ScriptServices& services, const std::string& json)
+{
+    Engine& engine = Engine::of(ctx);
+    if (!engine.limits()) {
+        return std::nullopt;
+    }
+    const nlohmann::json body = nlohmann::json::parse(json, nullptr, false);
+    const auto extension = body.is_object() ? body.find("extension") : body.end();
+    const auto job = body.is_object() ? body.find("job") : body.end();
+    if (extension == body.end() || job == body.end() || !extension->is_string() || !job->is_string()) {
+        return std::nullopt;
+    }
+    for (const NodeInfo& node : services.nodes()) {
+        if (!node.job || node.extension != extension->get_ref<const std::string&>() ||
+            node.name != job->get_ref<const std::string&>()) {
+            continue;
+        }
+        for (const std::string& permission : node.permissions) {
+            if (std::optional<std::string> refused = engine.limited(permission)) {
+                return refused;
+            }
+        }
+    }
+    return std::nullopt;
+}
+
 ScriptServices* serviceArguments(JSContext* ctx, int argc, JSValueConst* argv, std::string& service, std::string& json)
 {
     if (!text(ctx, argument(argc, argv, 0), service) || !text(ctx, argument(argc, argv, 1), json)
@@ -2174,10 +2252,20 @@ ScriptServices* serviceArguments(JSContext* ctx, int argc, JSValueConst* argv, s
         JS_ThrowTypeError(ctx, "%s", refused->c_str());
         return nullptr;
     }
+    if (const std::optional<std::string> refused = Engine::of(ctx).limited(servicePermission(service))) {
+        JS_ThrowTypeError(ctx, "%s", refused->c_str());
+        return nullptr;
+    }
     ScriptServices* services = servicesOf(ctx);
     if (services != nullptr && !services->offersService(service)) {
         throwCoded(ctx, "GS-API-070", "no part of GameScrcpy offers the service " + service, false);
         return nullptr;
+    }
+    if (services != nullptr && service == "native.jobStart") {
+        if (const std::optional<std::string> refused = jobLimit(ctx, *services, json)) {
+            JS_ThrowTypeError(ctx, "%s", refused->c_str());
+            return nullptr;
+        }
     }
     return services;
 }
@@ -3913,13 +4001,16 @@ constexpr Function kAi[] = {
 constexpr Param kEventsOnParams[] = {
     {"topic", "string",
      "One of GameScrcpy's own topics, such as \"device.connected\", or a topic the extension's DLL sends: 1 to 64 "
-     "lowercase letters, digits, dots and dashes."},
+     "lowercase letters, digits, dots and dashes; for an extension this one depends on, its id, a colon and the "
+     "topic, as in \"alice.boards:board.added\"."},
     {"handler", "(event: TaskContext & { readonly topic: string; readonly value: StoreValue }) => void | Promise<void>",
      "What to run for each event; value is what came with it."},
     {"options", "ListenOptions", "What happens when another event comes while the last task is running.", true},
 };
 constexpr Failure kEventsOnFailures[] = {
-    {"GS-API-068", "the topic is not 1 to 64 lowercase letters, digits, dots and dashes",
+    {"GS-API-068",
+     "the topic is not 1 to 64 lowercase letters, digits, dots and dashes, after an extension id and a colon or "
+     "alone",
      "Use one of GameScrcpy's own topics or the topic that the extension's DLL sends."},
     {"GS-API-008", "the handler is not a function", "Pass a function."},
     {"GS-API-009", "again is not one of ignore, restart, stop, queue or parallel", "Use one of the five rules."},
@@ -3937,8 +4028,10 @@ constexpr Function kEvents[] = {
      "an extension hears extension.enabled, extension.disabled and settings.changed, which then tells only of its "
      "own settings and the language and look settings, and a session script also hears its own phone; the other "
      "phones, and app and task scripts, need the permission events.app. Any other topic is one the native DLL of "
-     "this extension sends, which only the extension's own logic and panels hear. Of each topic a listener gets the "
-     "first 100 events in a second at once and the rest of that second merged into the last one.",
+     "this extension sends, which only the extension's own logic and panels and the logic of the extensions that "
+     "depend on it hear; written \"<extension id>:<topic>\", it is one the DLL of an extension that this one lists in "
+     "its dependencies sends. Of each topic a listener gets the first 100 events in a second at once and the rest of "
+     "that second merged into the last one.",
      "events.on(\"app.foreground\", ({ value }) => log.info(\"another app is in front\", value));", nullptr, 0,
      kEventsOnFailures},
 };
@@ -3987,7 +4080,7 @@ constexpr Namespace kNamespaces[] = {
     {"mcp", "Tools that the app script of an extension offers to AI clients over the local MCP connection.", kMcp},
     {"events",
      "Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends "
-     "to the extension's own logic and panels.",
+     "to the extension's own logic and panels and to the logic of the extensions that depend on it.",
      kEvents},
     {"ai",
      "Questions from logic to the AI service set up in Settings, AI; they work only while Let logic call AI "
@@ -4075,6 +4168,10 @@ constexpr Type kTypes[] = {
      "a scan finds; follow hears the progress, waits for the job and then runs done with the result or failed with "
      "the error, and without failed a failure throws as result does; cancel asks it to stop. It is cancelled when "
      "the script stops."},
+    {"ServiceContext", "TaskContext & { readonly caller: string; readonly permissions: readonly string[] }",
+     "What the handler of a service gets besides the arguments: the id of the extension that calls it (\"\" for the "
+     "user's own logic), the permissions the call runs with, which are those that both extensions have, and the "
+     "signal that aborts when the caller cancels or the call takes longer than 10 seconds."},
     {"ListenOptions", "{ readonly again?: \"ignore\" | \"restart\" | \"stop\" | \"queue\" | \"parallel\" }",
      "What happens when the event comes again while the last task it started is still running: ignore it "
      "(default), restart (cancel the running task first), stop (only cancel the running task), queue (run after "
@@ -5225,6 +5322,29 @@ constexpr Member kSpeechListenerMembers[] = {
      "listener.close();"},
 };
 
+constexpr Member kExtensionsMembers[] = {
+    {"call", "call<T = StoreValue>(service: string, args?: StoreValue): Promise<T>",
+     "Calls a service of an extension, named \"<extension id>/<service>\" as its manifest declares it in "
+     "contributes.services, with arguments that its input schema accepts, and gives the result, which its output "
+     "schema checks. The logic of an extension may call the services of the extensions it lists in dependencies, "
+     "optional ones too, and its own; your own logic may call any service of an extension that is on. Cancelling "
+     "the task cancels the call. Throws GS-API-146 when no extension that is on offers the service or its app script "
+     "has not provided it within 10 seconds, GS-API-147 when this extension does not depend on the one that offers "
+     "it, GS-API-148 when the arguments or the result do not match the schemas or are not JSON of at most 252 KiB, "
+     "and GS-API-149 with the service's own message when it fails, or when it takes longer than 10 seconds.",
+     "const sum = await ext.call<number>(\"alice.tools/add\", { a: 1, b: 2 });"},
+    {"provide",
+     "provide<A = any>(name: string, handler: (args: A, context: ServiceContext) => StoreValue | void | "
+     "Promise<StoreValue | void>): Subscription",
+     "Answers the calls of a service that the extension declares in contributes.services with this app script as "
+     "its script. Each call runs as a task of its own with the permissions that both the calling extension and this "
+     "one have; what the handler returns is the result (nothing gives null), and when it throws the call fails with "
+     "its message. Providing the same name again replaces the handler; dispose() stops answering. Throws GS-API-145 "
+     "when the extension does not declare the service for this script, and GS-API-008 when the handler is not a "
+     "function.",
+     "ext.provide(\"add\", ({ a, b }) => a + b);"},
+};
+
 constexpr Interface kInterfaces[] = {
     {"Component", "A component of the profile in use. Every type below has these members too.", kComponentMembers},
     {"Hint", "The key hint of a component on the picture; changes last until the script stops.", kHintMembers},
@@ -5320,7 +5440,7 @@ constexpr Interface kInterfaces[] = {
     {"Extensions",
      "The system nodes of the installed native extensions, by extension; GameScrcpy writes the members into "
      "types/extensions.d.ts.",
-     {}},
+     kExtensionsMembers},
     {"HardwareDevice", "A device opened with hardware.open(). Every kind below has these members too.",
      kHardwareDeviceMembers},
     {"SerialDevice", "An open serial port.", kSerialDeviceMembers, "HardwareDevice"},
@@ -5416,7 +5536,8 @@ constexpr Value kValues[] = {
      "type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when "
      "the node takes longer than 100 ms. A job the extension offers, ext.<extension>.<job>({ ... }), starts at once "
      "with its arguments by name and gives an ExtensionJob; starting throws GS-API-060, GS-API-061 and GS-API-063 "
-     "as a node does, and GS-API-067 when the extension runs as many of its jobs as it may.",
+     "as a node does, and GS-API-067 when the extension runs as many of its jobs as it may. ext.call() and "
+     "ext.provide() call and answer the services that extensions offer each other.",
      "log.info(ext.gamescrcpy.pcClock.now());"},
 };
 
@@ -5590,6 +5711,8 @@ JSValue host(JSContext* ctx)
         {"callNode", &callNodeNative, 0, 3},
         {"call", &serviceCallNative, 0, 2},
         {"request", &serviceRequestNative, 0, 2},
+        {"limit", &limitNative, 0, 1},
+        {"limits", &limitsNative, 0, 0},
     };
     JSValue object = JS_NewObject(ctx);
     if (JS_IsException(object)) {

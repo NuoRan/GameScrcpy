@@ -16,6 +16,7 @@ class NativeExtensions;
 struct EventRoutes {
     std::function<std::vector<LogicCaller>()> callers;
     std::function<void(std::uint64_t logic, const QString& kind, const QString& id, const QString& json)> tell;
+    std::function<bool(const QString& listener, const QString& emitter)> hears;
 };
 
 class NativeEvents final : public QObject

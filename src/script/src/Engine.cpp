@@ -1245,7 +1245,38 @@ std::optional<std::string> Engine::refusal(JSContext* ctx, const ServiceRule& ru
     if (script->permissions && !permits(*script->permissions, rule.permission)) {
         return permissionProblem(rule.permission);
     }
-    return std::nullopt;
+    return limited(rule.permission);
+}
+
+std::optional<std::string> Engine::limited(std::string_view permission) const
+{
+    const auto found = m_tasks.find(m_owner.task);
+    if (permission.empty() || found == m_tasks.end() || !found->second.limit ||
+        permits(*found->second.limit, permission)) {
+        return std::nullopt;
+    }
+    return serviceLimitProblem(permission);
+}
+
+std::optional<std::vector<std::string>> Engine::limits() const
+{
+    const auto found = m_tasks.find(m_owner.task);
+    return found != m_tasks.end() ? found->second.limit : std::nullopt;
+}
+
+void Engine::limit(std::vector<std::string> permissions)
+{
+    const auto found = m_tasks.find(m_owner.task);
+    if (found == m_tasks.end()) {
+        return;
+    }
+    std::optional<std::vector<std::string>>& held = found->second.limit;
+    if (held) {
+        std::erase_if(permissions, [&held](const std::string& permission) {
+            return std::ranges::find(*held, permission) == held->end();
+        });
+    }
+    held = std::move(permissions);
 }
 
 const LoadedResources& Engine::resources(JSContext* ctx)
@@ -1646,7 +1677,11 @@ JSValue Engine::spawn(JSContext* ctx, JSValueConst function, const std::string& 
         return JS_NewInt32(ctx, 0);
     }
     const TaskId id = m_taskIds.fetch_add(1, std::memory_order_relaxed) + 1;
-    m_tasks.try_emplace(id, Task{.id = id, .script = script->id, .handler = label});
+    Task made{.id = id, .script = script->id, .handler = label};
+    if (const auto parent = m_tasks.find(m_owner.task); parent != m_tasks.end()) {
+        made.limit = parent->second.limit;
+    }
+    m_tasks.try_emplace(id, std::move(made));
     const Owner previous = m_owner;
     std::string previousHandler = std::exchange(m_ownerHandler, label);
     m_owner = Owner{script->id, id};

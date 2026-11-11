@@ -46,6 +46,11 @@ static_assert(static_cast<int>(CommandKind::Up) == GS_EXT_COMMAND_UP);
 static_assert(static_cast<int>(SlotKind::Axis2) == GS_EXT_SLOT_AXIS2);
 static_assert(static_cast<int>(SlotKind::Axis1) == GS_EXT_SLOT_AXIS1);
 static_assert(kMostFingers == static_cast<std::size_t>(GS_EXT_MOST_FINGERS));
+static_assert(static_cast<int>(ServiceStatus::Ok) == GS_EXT_OK);
+static_assert(static_cast<int>(ServiceStatus::Failed) == GS_EXT_FAILED);
+static_assert(static_cast<int>(ServiceStatus::Unsupported) == GS_EXT_UNSUPPORTED);
+static_assert(static_cast<int>(ServiceStatus::Denied) == GS_EXT_DENIED);
+static_assert(static_cast<int>(ServiceStatus::BadArgument) == GS_EXT_BAD_ARGUMENT);
 
 namespace {
 
@@ -749,7 +754,7 @@ int32_t hostSupports(void*, const char* feature)
         return 0;
     }
     const std::string_view name(feature, strnlen(feature, kMostNameBytes));
-    if (name == "input-sources") {
+    if (name == "input-sources" || name == "services") {
         return 1;
     }
     return name == "jobs" || name == "events" || name == "settings" || name == "claims" || name == "job-output" ||
@@ -908,6 +913,29 @@ int32_t hostInputEvent(void* context, const char* source, size_t sourceSize, con
         impl.services->inputEvent(name, key, x, y, timeUs != 0 ? timeUs : hostNow(context));
     }
     return GS_EXT_OK;
+}
+
+int32_t hostCallService(void* context, const char* service, size_t serviceSize, const char* json, size_t jsonSize,
+                        gs_ext_result* result)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if (service == nullptr || serviceSize == 0 || serviceSize > kMostServiceTargetBytes ||
+        (json == nullptr && jsonSize > 0) || jsonSize > kMostServiceBytes || result == nullptr) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    const std::string_view target(service, serviceSize);
+    const std::string_view value = jsonSize == 0 ? std::string_view("null") : std::string_view(json, jsonSize);
+    if (!validUtf8(target) || !validUtf8(value) || !nlohmann::json::accept(value)) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    ServiceResult answer = impl.services != nullptr ? impl.services->callService(target, value) : ServiceResult{};
+    thread_local std::string held;
+    held = std::move(answer.text);
+    result->value = {};
+    result->value.type = answer.status == ServiceStatus::Ok ? GS_EXT_TYPE_JSON : GS_EXT_TYPE_STRING;
+    result->value.text = held.data();
+    result->value.size = held.size();
+    return static_cast<int32_t>(answer.status);
 }
 
 std::string lineOf(const char* text, size_t size, std::size_t most)
@@ -1375,6 +1403,7 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
     impl->host.job_output = &hostJobOutput;
     impl->host.events_subscribe = &hostEventsSubscribe;
     impl->host.input_event = &hostInputEvent;
+    impl->host.call_service = &hostCallService;
     const gs_ext_plugin* plugin = nullptr;
     const int32_t status = entry(&impl->host, &plugin);
     impl->entered = status == GS_EXT_OK;

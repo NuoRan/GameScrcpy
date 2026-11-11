@@ -477,6 +477,21 @@ QVariantList panelList(const ext::Manifest& manifest, const QString& language)
     return panels;
 }
 
+QVariantList serviceList(const ext::Manifest& manifest, const QString& language)
+{
+    QVariantList services;
+    for (const ext::ServiceContribution& service : manifest.contributes.services) {
+        const std::string base = "services." + service.name;
+        services.append(QVariantMap{
+            {QStringLiteral("name"), QString::fromStdString(service.name)},
+            {QStringLiteral("title"),
+             extensionText(manifest, base + ".title", service.title.empty() ? service.name : service.title, language)},
+            {QStringLiteral("description"), extensionText(manifest, base + ".description", service.description, language)},
+            {QStringLiteral("call"), QString::fromStdString(manifest.id + "/" + service.name)}});
+    }
+    return services;
+}
+
 QVariantMap describe(const std::optional<ext::Manifest>& found, const QString& language)
 {
     static const ext::Manifest blank{};
@@ -514,7 +529,8 @@ QVariantMap describe(const std::optional<ext::Manifest>& found, const QString& l
             {QStringLiteral("hasSettings"),
              !manifest.settings.empty() ||
                  (manifest.contributes.native && !manifest.contributes.native->attachments.empty())},
-            {QStringLiteral("panels"), panelList(manifest, language)}};
+            {QStringLiteral("panels"), panelList(manifest, language)},
+            {QStringLiteral("services"), serviceList(manifest, language)}};
 }
 
 QVariantMap installResult(const ext::InstalledExtension& outcome)

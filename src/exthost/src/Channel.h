@@ -53,6 +53,8 @@ enum class Kind : std::uint32_t {
     Subscribe,
     AppEvent,
     InputEvent,
+    ServiceCall,
+    ServiceAnswer,
 };
 
 struct Message {

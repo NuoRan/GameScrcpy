@@ -325,7 +325,7 @@
     "label": "ext",
     "kind": "variable",
     "detail": "ext: Extensions",
-    "documentation": "The system nodes that native extensions add: ext.<extension>.<node>(...) runs a node at once and gives its result. <extension> is the extension id with each part in lowerCamelCase, so the nodes of gamescrcpy.pc-clock are ext.gamescrcpy.pcClock. Throws GS-API-060 when the extension is not on, GS-API-061 for values of the wrong type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when the node takes longer than 100 ms. A job the extension offers, ext.<extension>.<job>({ ... }), starts at once with its arguments by name and gives an ExtensionJob; starting throws GS-API-060, GS-API-061 and GS-API-063 as a node does, and GS-API-067 when the extension runs as many of its jobs as it may.",
+    "documentation": "The system nodes that native extensions add: ext.<extension>.<node>(...) runs a node at once and gives its result. <extension> is the extension id with each part in lowerCamelCase, so the nodes of gamescrcpy.pc-clock are ext.gamescrcpy.pcClock. Throws GS-API-060 when the extension is not on, GS-API-061 for values of the wrong type, GS-API-062 when the node fails, GS-API-063 naming a permission the extension lacks and GS-API-064 when the node takes longer than 100 ms. A job the extension offers, ext.<extension>.<job>({ ... }), starts at once with its arguments by name and gives an ExtensionJob; starting throws GS-API-060, GS-API-061 and GS-API-063 as a node does, and GS-API-067 when the extension runs as many of its jobs as it may. ext.call() and ext.provide() call and answer the services that extensions offer each other.",
     "insertText": "ext"
   },
   {
@@ -1732,14 +1732,14 @@
     "label": "events",
     "kind": "namespace",
     "detail": "events",
-    "documentation": "Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends to the extension's own logic and panels.",
+    "documentation": "Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends to the extension's own logic and panels and to the logic of the extensions that depend on it.",
     "insertText": "events"
   },
   {
     "label": "events.on",
     "kind": "function",
     "detail": "events.on(topic: string, handler: (event: TaskContext & { readonly topic: string; readonly value: StoreValue }) => void | Promise<void>, options?: ListenOptions): Subscription",
-    "documentation": "Starts a task each time an event of the topic comes. GameScrcpy's own topics and their values: device.connected and device.disconnected { phone, name }, session.started { phone, name }, session.ended { phone, name, failed }, profile.applied { phone, name, profile, profileName }, app.foreground { phone, name, package, game }, orientation.changed { phone, name, rotation } in quarter turns, recording.started { phone, name, path }, recording.ended { phone, name, path, durationMs }, window.focused { phone, name, window: \"mirror\" or \"grid\", focused }, extension.enabled and extension.disabled { id, name, version }, and settings.changed { keys, values, extension, device }; phone is the phone's serial and name the name it shows, and values holds the new language and look settings among keys. Your own logic hears all of them. The logic of an extension hears extension.enabled, extension.disabled and settings.changed, which then tells only of its own settings and the language and look settings, and a session script also hears its own phone; the other phones, and app and task scripts, need the permission events.app. Any other topic is one the native DLL of this extension sends, which only the extension's own logic and panels hear. Of each topic a listener gets the first 100 events in a second at once and the rest of that second merged into the last one.",
+    "documentation": "Starts a task each time an event of the topic comes. GameScrcpy's own topics and their values: device.connected and device.disconnected { phone, name }, session.started { phone, name }, session.ended { phone, name, failed }, profile.applied { phone, name, profile, profileName }, app.foreground { phone, name, package, game }, orientation.changed { phone, name, rotation } in quarter turns, recording.started { phone, name, path }, recording.ended { phone, name, path, durationMs }, window.focused { phone, name, window: \"mirror\" or \"grid\", focused }, extension.enabled and extension.disabled { id, name, version }, and settings.changed { keys, values, extension, device }; phone is the phone's serial and name the name it shows, and values holds the new language and look settings among keys. Your own logic hears all of them. The logic of an extension hears extension.enabled, extension.disabled and settings.changed, which then tells only of its own settings and the language and look settings, and a session script also hears its own phone; the other phones, and app and task scripts, need the permission events.app. Any other topic is one the native DLL of this extension sends, which only the extension's own logic and panels and the logic of the extensions that depend on it hear; written \"<extension id>:<topic>\", it is one the DLL of an extension that this one lists in its dependencies sends. Of each topic a listener gets the first 100 events in a second at once and the rest of that second merged into the last one.",
     "insertText": "events.on(${1:topic}, ${2:handler})"
   },
   {
@@ -3465,6 +3465,20 @@
     "insertText": "on(${1})"
   },
   {
+    "label": "Extensions.call",
+    "kind": "method",
+    "detail": "call<T = StoreValue>(service: string, args?: StoreValue): Promise<T>",
+    "documentation": "Calls a service of an extension, named \"<extension id>/<service>\" as its manifest declares it in contributes.services, with arguments that its input schema accepts, and gives the result, which its output schema checks. The logic of an extension may call the services of the extensions it lists in dependencies, optional ones too, and its own; your own logic may call any service of an extension that is on. Cancelling the task cancels the call. Throws GS-API-146 when no extension that is on offers the service or its app script has not provided it within 10 seconds, GS-API-147 when this extension does not depend on the one that offers it, GS-API-148 when the arguments or the result do not match the schemas or are not JSON of at most 252 KiB, and GS-API-149 with the service's own message when it fails, or when it takes longer than 10 seconds.",
+    "insertText": "call(${1})"
+  },
+  {
+    "label": "Extensions.provide",
+    "kind": "method",
+    "detail": "provide<A = any>(name: string, handler: (args: A, context: ServiceContext) => StoreValue | void | Promise<StoreValue | void>): Subscription",
+    "documentation": "Answers the calls of a service that the extension declares in contributes.services with this app script as its script. Each call runs as a task of its own with the permissions that both the calling extension and this one have; what the handler returns is the result (nothing gives null), and when it throws the call fails with its message. Providing the same name again replaces the handler; dispose() stops answering. Throws GS-API-145 when the extension does not declare the service for this script, and GS-API-008 when the handler is not a function.",
+    "insertText": "provide(${1})"
+  },
+  {
     "label": "HardwareDevice.id",
     "kind": "property",
     "detail": "readonly id: string",
@@ -3820,6 +3834,13 @@
     "detail": "type ExtensionJob<T>",
     "documentation": "A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; onOutput hears the parts of its result that it hands over while it runs, such as each device a scan finds; follow hears the progress, waits for the job and then runs done with the result or failed with the error, and without failed a failure throws as result does; cancel asks it to stop. It is cancelled when the script stops.",
     "insertText": "ExtensionJob<T>"
+  },
+  {
+    "label": "ServiceContext",
+    "kind": "type",
+    "detail": "type ServiceContext",
+    "documentation": "What the handler of a service gets besides the arguments: the id of the extension that calls it (\"\" for the user's own logic), the permissions the call runs with, which are those that both extensions have, and the signal that aborts when the caller cancels or the call takes longer than 10 seconds.",
+    "insertText": "ServiceContext"
   },
   {
     "label": "ListenOptions",

@@ -8,7 +8,7 @@ namespace gs::script::detail {
 
 inline constexpr std::string_view kPreludeName = "<gs>";
 
-inline constexpr std::array<std::string_view, 15> kPreludeParts{
+inline constexpr std::array<std::string_view, 16> kPreludeParts{
     R"js(((host) => {
     "use strict";
     const defineProperty = Object.defineProperty;
@@ -2175,6 +2175,8 @@ inline constexpr std::array<std::string_view, 15> kPreludeParts{
     serviceEvents.set("extEvent", (topic, value) => reactAll("extEvent:" + topic, { topic, value }));
     const extensionsOf = () => {
         const root = Object.create(null);
+        defineProperty(root, "call", { value: serviceCall });
+        defineProperty(root, "provide", { value: serviceProvide });
         for (const node of host.nodes()) {
             let level = root;
             let blocked = false;
@@ -3127,10 +3129,121 @@ inline constexpr std::array<std::string_view, 15> kPreludeParts{
         },
     };
 )js",
+    R"js(    const serviceIdPattern = /^[a-z0-9]+(-[a-z0-9]+)*(\.[a-z0-9]+(-[a-z0-9]+)*)+$/;
+    const serviceNamePattern = /^[a-z][A-Za-z0-9]{0,63}$/;
+    const serviceHandlers = new Map();
+    const serviceTasks = new Map();
+    const serviceJson = (value, what) => {
+        let json;
+        try {
+            json = JSON.stringify(value === undefined ? null : value);
+        } catch (error) {
+            throw new TypeError("GS-API-148 " + what + " must be JSON values: " + (error?.message ?? String(error)));
+        }
+        if (json === undefined) {
+            throw new TypeError("GS-API-148 " + what + " must be JSON values (no functions or undefined)");
+        }
+        return json;
+    };
+    function serviceCall(service, args) {
+        const slash = typeof service === "string" ? service.lastIndexOf("/") : -1;
+        if (slash < 1 || slash > 64 || !serviceIdPattern.test(service.slice(0, slash)) ||
+            !serviceNamePattern.test(service.slice(slash + 1))) {
+            throw new TypeError("GS-API-146 the service is named \"<extension id>/<service>\", such as " +
+                "\"alice.tools/add\"");
+        }
+        return host.request("ext.call", JSON.stringify({ service, args: serviceJson(args, "the arguments"),
+            limit: host.limits() }));
+    }
+    function serviceProvide(name, handler) {
+        if (typeof name !== "string" || !serviceNamePattern.test(name)) {
+            throw new TypeError("GS-API-145 the name of a service is 1 to 64 letters and digits that start with a " +
+                "lowercase letter, as in contributes.services");
+        }
+        if (typeof handler !== "function") {
+            throw new TypeError("GS-API-008 the handler must be a function");
+        }
+        host.call("ext.provide", JSON.stringify({ name }));
+        const previous = serviceHandlers.get(name);
+        if (previous !== undefined) {
+            previous.active = false;
+        }
+        const entry = { handler, active: true };
+        serviceHandlers.set(name, entry);
+        const dispose = () => {
+            if (!entry.active) {
+                return;
+            }
+            entry.active = false;
+            serviceHandlers.delete(name);
+            host.call("ext.withdraw", JSON.stringify({ name }));
+        };
+        own(dispose);
+        return disposable(dispose);
+    }
+    defineProperty(serviceCall, "name", { value: "call" });
+    defineProperty(serviceProvide, "name", { value: "provide" });
+    const serviceSettle = (id, failed, text, output) => host.call(failed ? "ext.fail" : "ext.answer",
+        JSON.stringify(failed ? { call: id, message: String(text).slice(0, 1000), output } : { call: id, result: text }));
+    serviceEvents.set("extService", (id, value) => {
+        if (value === null || typeof value !== "object") {
+            return;
+        }
+        if (value.type === "cancel") {
+            const task = serviceTasks.get(id);
+            serviceTasks.delete(id);
+            if (task !== undefined) {
+                host.cancel(task);
+            }
+            return;
+        }
+        if (value.type !== "call") {
+            return;
+        }
+        const entry = serviceHandlers.get(value.name);
+        if (entry === undefined) {
+            serviceSettle(id, true, "GS-API-146 " + String(value.name) + " is not provided now", false);
+            return;
+        }
+        const permissions = freeze(Array.isArray(value.permissions)
+            ? value.permissions.filter((each) => typeof each === "string") : []);
+        const caller = typeof value.caller === "string" ? value.caller : "";
+        let settled = false;
+        const task = host.spawn(async ({ signal }) => {
+            host.limit(JSON.stringify(permissions));
+            let result;
+            try {
+                result = await entry.handler(value.args, freeze({ caller, permissions, signal }));
+            } catch (error) {
+                settled = true;
+                serviceTasks.delete(id);
+                serviceSettle(id, true, error?.message ?? String(error), false);
+                throw error;
+            }
+            settled = true;
+            serviceTasks.delete(id);
+            let json;
+            try {
+                json = serviceJson(result, "the result");
+            } catch (error) {
+                serviceSettle(id, true, error.message, true);
+                throw error;
+            }
+            serviceSettle(id, false, json, false);
+        }, "ext.provide(" + String(value.name) + ")", {});
+        if (task === 0) {
+            serviceSettle(id, true, "GS-API-149 the logic that answers it is stopping", false);
+        } else if (!settled) {
+            serviceTasks.set(id, task);
+        }
+    });
+    const servicesLibrary = {};
+)js",
     R"js(    const library = {
         ...hardwareLibrary,
         ...netLibrary,
         ...speechLibrary,
+        ...servicesLibrary,
         every(intervalMs, handler, options) {
             return timed(intervalOf(intervalMs), handler, options, "every(" + intervalMs + ")", true);
         },
@@ -3587,8 +3700,12 @@ inline constexpr std::array<std::string_view, 15> kPreludeParts{
             if (typeof topic !== "string") {
                 throw new TypeError("GS-API-068 the topic must be text");
             }
-            if (!/^[a-z0-9.-]{1,64}$/.test(topic)) {
-                throw new RangeError("GS-API-068 the topic must be 1 to 64 lowercase letters, digits, dots and dashes");
+            const colon = topic.indexOf(":");
+            const from = colon < 0 ? "" : topic.slice(0, colon);
+            if (!/^[a-z0-9.-]{1,64}$/.test(colon < 0 ? topic : topic.slice(colon + 1)) ||
+                (colon >= 0 && (from.length > 64 || !serviceIdPattern.test(from)))) {
+                throw new RangeError("GS-API-068 the topic must be 1 to 64 lowercase letters, digits, dots and dashes, " +
+                    "alone or after the id of an extension this one depends on and a colon");
             }
             return listen("extEvent", topic, handler, options, "events.on(" + topic + ")");
         },

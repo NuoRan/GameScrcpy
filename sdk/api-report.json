@@ -2907,7 +2907,10 @@
     },
     {
       "name": "Extensions",
-      "members": []
+      "members": [
+        "call<T = StoreValue>(service: string, args?: StoreValue): Promise<T>",
+        "provide<A = any>(name: string, handler: (args: A, context: ServiceContext) => StoreValue | void | Promise<StoreValue | void>): Subscription"
+      ]
     },
     {
       "name": "HardwareDevice",
@@ -3062,6 +3065,10 @@
     {
       "name": "ExtensionJob<T>",
       "definition": "{ readonly result: Promise<T>; onProgress(listener: (fraction: number, text: string) => void): ExtensionJob<T>; onLog(listener: (level: number, text: string) => void): ExtensionJob<T>; onOutput(listener: (value: StoreValue) => void): ExtensionJob<T>; follow(progress?: (fraction: number, text: string) => void | Promise<void>, done?: (result: T) => void | Promise<void>, failed?: (error: Error) => void | Promise<void>): Promise<void>; cancel(): void }"
+    },
+    {
+      "name": "ServiceContext",
+      "definition": "TaskContext & { readonly caller: string; readonly permissions: readonly string[] }"
     },
     {
       "name": "ListenOptions",
