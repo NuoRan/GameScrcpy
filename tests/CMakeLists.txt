@@ -510,6 +510,7 @@ if(GS_BUILD_APP)
             unit/app/ExtensionExportTests.cpp
             unit/app/ExtensionSecurityTests.cpp
             unit/app/ExtensionLinksTests.cpp
+            unit/app/ConvertersTests.cpp
             unit/ext/PeImage.h
             "${PROJECT_SOURCE_DIR}/src/app/AiAssistant.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/AiAssistant.h"
@@ -766,6 +767,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/VisionWorkbench.h"
             "${PROJECT_SOURCE_DIR}/src/app/WindowFit.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/WindowFit.h"
+            "${PROJECT_SOURCE_DIR}/src/app/Converters.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/Converters.h"
         LIBRARIES
             gs::adb
             gs::blueprint

@@ -514,6 +514,11 @@ std::pair<std::string_view, std::string_view> identity(const CliContribution& en
     return {"name", entry.name};
 }
 
+std::pair<std::string_view, std::string_view> identity(const ConverterContribution& entry)
+{
+    return {"name", entry.name};
+}
+
 std::pair<std::string_view, std::string_view> identity(const SettingDeclaration& entry)
 {
     return {"key", entry.key};
@@ -930,6 +935,35 @@ bool fitsNativeType(std::string_view type, const Json& value)
         return value.is_object() && numeric("x") && numeric("y") && numeric("width") && numeric("height");
     }
     return true;
+}
+
+void checkEntry(const ConverterContribution& converter, const std::string& path, Context& context)
+{
+    const std::pair<const char*, const std::string*> sides[] = {{"from", &converter.from}, {"to", &converter.to}};
+    for (const auto& [name, side] : sides) {
+        if (!side->empty() && !appFormat(*side) && !fileFormat(*side)) {
+            context.report(Severity::Error, Code::ConverterInvalid, path + "." + name, *side);
+        }
+    }
+    if (!converter.from.empty() && !converter.to.empty() && appFormat(converter.from) == appFormat(converter.to)) {
+        context.report(Severity::Error, Code::ConverterInvalid, path,
+                       "exactly one of from and to is profile, task or recording");
+    }
+    for (std::size_t index = 0; index < converter.extensions.size(); ++index) {
+        const std::string& extension = converter.extensions[index];
+        const auto before = converter.extensions.begin() + static_cast<std::ptrdiff_t>(index);
+        if (!fileFormat(extension)) {
+            context.report(Severity::Error, Code::ConverterInvalid, indexed(path + ".extensions", index), extension);
+        } else if (std::ranges::find(converter.extensions.begin(), before, extension) != before) {
+            context.report(Severity::Error, Code::Duplicate, indexed(path + ".extensions", index), extension);
+        }
+    }
+    std::string lower = converter.script;
+    std::ranges::transform(lower, lower.begin(), [](char c) { return c >= 'A' && c <= 'Z' ? char(c - 'A' + 'a') : c; });
+    const bool code = (lower.ends_with(".ts") && !lower.ends_with(".d.ts")) || lower.ends_with(".js");
+    if (!converter.script.empty() && !code) {
+        context.report(Severity::Error, Code::ScriptEntryInvalid, path + ".script", converter.script);
+    }
 }
 
 bool within(const SettingDeclaration& setting, double value)
@@ -2092,6 +2126,7 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
         {"panels", ExtensionPoint::Panel, !contributes.panels.empty()},
         {"help", ExtensionPoint::Help, !contributes.help.empty()},
         {"tours", ExtensionPoint::Tour, !contributes.tours.empty()},
+        {"converters", ExtensionPoint::Script, !contributes.converters.empty()},
     };
     for (const Contributed& entry : contributed) {
         if (entry.present && !manifest.declares(entry.point)) {
@@ -2357,6 +2392,17 @@ std::string nativeDllField(std::string_view architecture)
 {
     const std::string base = "$.contributes.native.dll";
     return architecture.empty() ? base : base + "[\"" + std::string(architecture) + "\"]";
+}
+
+bool appFormat(std::string_view format) noexcept
+{
+    return std::ranges::find(kConvertFormatNames, format) != kConvertFormatNames.end();
+}
+
+bool fileFormat(std::string_view format) noexcept
+{
+    return !format.empty() && format.size() <= kMaxConvertFormatLength && !appFormat(format) &&
+           std::ranges::all_of(format, lowerOrDigit);
 }
 
 LoadedManifest loadManifest(std::string_view json, const LoadOptions& options)

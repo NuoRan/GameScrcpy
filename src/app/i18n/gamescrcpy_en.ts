@@ -469,6 +469,13 @@
         </translation>
     </message>
     <message numerus="yes">
+        <source>Converting %n file(s)…</source>
+        <translation>
+            <numerusform>Converting %n file…</numerusform>
+            <numerusform>Converting %n files…</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
         <source>Imported %n profile(s)</source>
         <translation>
             <numerusform>Imported %n profile</numerusform>
@@ -519,6 +526,13 @@
 </context>
 <context>
     <name>ProfilesPage</name>
+    <message numerus="yes">
+        <source>Converting %n file(s)…</source>
+        <translation>
+            <numerusform>Converting %n file…</numerusform>
+            <numerusform>Converting %n files…</numerusform>
+        </translation>
+    </message>
     <message numerus="yes">
         <source>Imported %n profile(s)</source>
         <translation>
@@ -848,6 +862,16 @@
         <translation>
             <numerusform>%n app failed. %1: %2</numerusform>
             <numerusform>%n apps failed. %1: %2</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>gs::app::Converters</name>
+    <message numerus="yes">
+        <source>it took longer than %n second(s)</source>
+        <translation>
+            <numerusform>it took longer than %n second</numerusform>
+            <numerusform>it took longer than %n seconds</numerusform>
         </translation>
     </message>
 </context>

@@ -598,6 +598,31 @@ QVariantMap ProfileLibrary::importFiles(const QList<QUrl>& files, bool allowLogi
             {QStringLiteral("logic"), logic}};
 }
 
+QByteArray ProfileLibrary::contents(const QString& id) const
+{
+    const auto found = m_contents.find(id);
+    return found != m_contents.end() ? found->second : QByteArray();
+}
+
+QString ProfileLibrary::importConverted(const QString& file, const QByteArray& bytes, QString& name, QString& reason)
+{
+    m_busy = false;
+    const input::LoadResult loaded = input::loadProfile(bytesOf(bytes));
+    if (!loaded.ok()) {
+        reason = problemText(loaded);
+        return {};
+    }
+    const QString stem = QFileInfo(file).completeBaseName();
+    const QString id = freeId(fileStem(stem));
+    if (!write(m_directory / toPath(id + QStringLiteral(".json")), bytesOf(bytes))) {
+        reason = tr("The profile could not be saved.");
+        return {};
+    }
+    name = loaded.profile.meta.name.empty() ? stem : toQString(loaded.profile.meta.name);
+    reload();
+    return id;
+}
+
 QVariantList ProfileLibrary::templates() const
 {
     QVariantList list;

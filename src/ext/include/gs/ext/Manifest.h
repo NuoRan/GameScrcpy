@@ -828,6 +828,35 @@ struct CliContribution {
     friend bool operator==(const CliContribution&, const CliContribution&) = default;
 };
 
+inline constexpr std::size_t kMaxConverters = 16;
+inline constexpr std::size_t kMaxConvertFormatLength = 16;
+inline constexpr std::array<std::string_view, 3> kConvertFormatNames{"profile", "task", "recording"};
+
+struct ConverterContribution {
+    std::string name;
+    std::string title;
+    std::string from;
+    std::string to;
+    std::string script;
+    std::vector<std::string> extensions;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = kMaxPanelNameLength, .format = TextFormat::PanelName});
+        v.text("title", m.title, {.required = true, .maxLength = 40});
+        v.text("from", m.from, {.required = true, .maxLength = kMaxConvertFormatLength});
+        v.text("to", m.to, {.required = true, .maxLength = kMaxConvertFormatLength});
+        v.text("script", m.script, {.required = true, .maxLength = 260, .format = TextFormat::PackagePath});
+        v.textList("extensions", m.extensions, {.maxItems = 8, .maxLength = kMaxConvertFormatLength});
+    }
+
+    friend bool operator==(const ConverterContribution&, const ConverterContribution&) = default;
+};
+
+[[nodiscard]] bool appFormat(std::string_view format) noexcept;
+[[nodiscard]] bool fileFormat(std::string_view format) noexcept;
+
 struct Contributions {
     std::vector<FilterContribution> filters;
     std::vector<ThemeContribution> themes;
@@ -844,6 +873,7 @@ struct Contributions {
     std::vector<TourContribution> tours;
     std::vector<ServiceContribution> services;
     std::vector<CliContribution> cli;
+    std::vector<ConverterContribution> converters;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -863,6 +893,7 @@ struct Contributions {
         v.objectList("tours", m.tours, kMaxTours);
         v.objectList("services", m.services, kMaxServices);
         v.objectList("cli", m.cli, kMaxCliCommands);
+        v.objectList("converters", m.converters, kMaxConverters);
     }
 
     friend bool operator==(const Contributions&, const Contributions&) = default;

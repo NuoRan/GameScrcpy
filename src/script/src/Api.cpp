@@ -4572,6 +4572,24 @@ constexpr Type kTypes[] = {
      "How media.frames() takes frames: at most fps a second, from 0.1 to 10 (2 by default); the long side at most size "
      "pixels, a whole number from 64 to 1920 (640 by default); only region, a part of the picture in ratios, when it "
      "is given."},
+    {"ConvertInput",
+     "{ readonly name: string; readonly from: string; readonly to: string; readonly bytes: Uint8Array; "
+     "readonly text: string; json<T = unknown>(): T; readonly signal: AbortSignal }",
+     "What a converter of an extension receives: the name of the file, the formats it converts from and to, and the "
+     "contents as bytes, as text read as UTF-8, or parsed by json(). A converter is the export named convert, or the "
+     "default export, of the script that contributes.converters names; it runs in the logic sandbox without a phone "
+     "and returns a ConvertOutput. A profile comes as its JSON file, a task as its task.ts and a recording as its "
+     "session.json. At most 32 MiB go in and at most 32 MiB come out, and a conversion may take 30 seconds; the "
+     "message of what it throws is what the user sees. The conversion fails with GS-API-165 when the script exports "
+     "no such function, GS-API-166 when the result is not something GameScrcpy can write, and GS-API-167 when the "
+     "result is larger than 32 MiB."},
+    {"ConvertOutput",
+     "{ readonly name?: string; readonly bytes?: Uint8Array | ArrayBuffer | readonly number[]; "
+     "readonly text?: string; readonly json?: unknown }",
+     "What a converter returns: the new file as bytes, as a text written as UTF-8 or as a JSON value written as JSON "
+     "text, and for an import the name of the file, which names the new profile. A converter may also return the "
+     "text, the bytes or the JSON value itself, such as the object of a profile; an object counts as a ConvertOutput "
+     "when it has bytes, text or json. GameScrcpy checks what it imports as it checks any file it imports."},
 };
 
 constexpr std::string_view kTouchStartDoc = "Starts a task each time it puts a finger on the screen.";

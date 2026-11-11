@@ -12,6 +12,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace gs::script {
@@ -49,6 +50,8 @@ struct ScriptSource {
 };
 
 [[nodiscard]] std::vector<std::string> controlModules(const std::filesystem::path& folder);
+
+inline constexpr std::string_view kConvertHandler = "@convert";
 
 class LogicHost
 {

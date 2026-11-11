@@ -795,7 +795,7 @@ Window {
         function profilesIn(urls: list<url>): list<url> {
             const found = []
             for (let i = 0; i < urls.length; ++i) {
-                if (ProfileLibrary.isProfileFile(urls[i]))
+                if (ProfileLibrary.isProfileFile(urls[i]) || Converters.accepts("profile", urls[i]))
                     found.push(urls[i])
             }
             return found

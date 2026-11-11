@@ -146,6 +146,8 @@ qt_add_qml_module(GameScrcpy
         qml/extui/UiTable.qml
         qml/extui/UiToolbarButton.qml
         qml/extui/UiToolbarPanel.qml
+        qml/ConvertExportDialog.qml
+        qml/ConvertMenuItems.qml
     SOURCES
         AiAssistant.cpp
         AiAssistant.h
@@ -452,6 +454,8 @@ qt_add_qml_module(GameScrcpy
         ExtensionContent.h
         ExtensionExport.cpp
         ExtensionExport.h
+        Converters.cpp
+        Converters.h
 )
 
 add_library(gs_profile_templates OBJECT)

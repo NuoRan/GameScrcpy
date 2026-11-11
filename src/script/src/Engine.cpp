@@ -748,6 +748,7 @@ void Engine::freeRuntime()
         JS_FreeValueRT(m_runtime, script.release);
         JS_FreeValueRT(m_runtime, script.startTask);
         JS_FreeValueRT(m_runtime, script.mount);
+        JS_FreeValueRT(m_runtime, script.startConvert);
         if (script.context != nullptr) {
             JS_SetContextOpaque(script.context, nullptr);
             JS_FreeContext(script.context);
@@ -855,6 +856,7 @@ bool Engine::prepare(Script& script)
     script.release = JS_GetPropertyStr(ctx, hooks, "release");
     script.startTask = JS_GetPropertyStr(ctx, hooks, "startTask");
     script.mount = JS_GetPropertyStr(ctx, hooks, "mount");
+    script.startConvert = JS_GetPropertyStr(ctx, hooks, "startConvert");
     JSValue action = JS_GetPropertyStr(ctx, hooks, "action");
     JSValue library = JS_GetPropertyStr(ctx, hooks, "library");
     JS_FreeValue(ctx, hooks);
@@ -862,7 +864,7 @@ bool Engine::prepare(Script& script)
         !JS_IsFunction(ctx, script.cancelled) || !JS_IsFunction(ctx, script.dispatch) ||
         !JS_IsFunction(ctx, script.ended) || !JS_IsFunction(ctx, script.drawn) || !JS_IsFunction(ctx, script.release) ||
         !JS_IsFunction(ctx, script.startTask) || !JS_IsFunction(ctx, script.mount) ||
-        !JS_IsFunction(ctx, action) || !JS_IsObject(library)) {
+        !JS_IsFunction(ctx, script.startConvert) || !JS_IsFunction(ctx, action) || !JS_IsObject(library)) {
         JS_FreeValue(ctx, action);
         JS_FreeValue(ctx, library);
         return false;
@@ -1607,6 +1609,18 @@ void Engine::run(Script& script, TaskId id, const std::string& handler)
     m_tasks.try_emplace(id, Task{.id = id, .script = script.id, .handler = handler});
     slice(Owner{script.id, id}, [this, &script, id, &handler] {
         JSContext* ctx = script.context;
+        if (handler == kConvertHandler) {
+            JSValue extra = JS_NewObject(ctx);
+            if (JS_IsException(extra) ||
+                JS_SetPropertyStr(ctx, extra, "module", JS_DupValue(ctx, script.exports)) < 0) {
+                JS_FreeValue(ctx, extra);
+                uncaught(ctx, JS_GetException(ctx));
+                return;
+            }
+            invoke(script, id, script.startConvert, extra);
+            JS_FreeValue(ctx, extra);
+            return;
+        }
         JSValue function = JS_GetPropertyStr(ctx, script.exports, handler.c_str());
         if (JS_IsException(function)) {
             uncaught(ctx, JS_GetException(ctx));
@@ -2179,6 +2193,7 @@ void Engine::releaseScript(ScriptId id)
         JS_FreeValueRT(m_runtime, script.release);
         JS_FreeValueRT(m_runtime, script.startTask);
         JS_FreeValueRT(m_runtime, script.mount);
+        JS_FreeValueRT(m_runtime, script.startConvert);
     }
     JSContext* ctx = script.context;
     m_scripts.erase(found);

@@ -524,6 +524,26 @@ QVariantList serviceList(const ext::Manifest& manifest, const QString& language)
     return services;
 }
 
+QVariantList converterList(const ext::Manifest& manifest, const QString& language)
+{
+    QVariantList converters;
+    for (const ext::ConverterContribution& converter : manifest.contributes.converters) {
+        QStringList extensions;
+        for (const std::string& extension : converter.extensions) {
+            extensions.append(QString::fromStdString(extension));
+        }
+        converters.append(QVariantMap{
+            {QStringLiteral("name"), QString::fromStdString(converter.name)},
+            {QStringLiteral("title"),
+             extensionText(manifest, "converters." + converter.name + ".title", converter.title, language)},
+            {QStringLiteral("from"), QString::fromStdString(converter.from)},
+            {QStringLiteral("to"), QString::fromStdString(converter.to)},
+            {QStringLiteral("extensions"), extensions},
+            {QStringLiteral("imports"), ext::appFormat(converter.to)}});
+    }
+    return converters;
+}
+
 QVariantMap describe(const std::optional<ext::Manifest>& found, const QString& language)
 {
     static const ext::Manifest blank{};
@@ -562,7 +582,8 @@ QVariantMap describe(const std::optional<ext::Manifest>& found, const QString& l
              !manifest.settings.empty() ||
                  (manifest.contributes.native && !manifest.contributes.native->attachments.empty())},
             {QStringLiteral("panels"), panelList(manifest, language)},
-            {QStringLiteral("services"), serviceList(manifest, language)}};
+            {QStringLiteral("services"), serviceList(manifest, language)},
+            {QStringLiteral("converters"), converterList(manifest, language)}};
 }
 
 QVariantMap installResult(const ext::InstalledExtension& outcome)
@@ -2709,6 +2730,15 @@ void ExtensionHost::load(const Extension& extension)
             continue;
         }
         m_scriptSources.push_back({manifest.id, contribution, extension.directory});
+    }
+    for (std::size_t index = 0; index < manifest.contributes.converters.size(); ++index) {
+        const ext::ConverterContribution& contribution = manifest.contributes.converters[index];
+        std::error_code error;
+        if (!fs::is_regular_file(extension.directory / pathOf(contribution.script), error)) {
+            report(ext::Code::FileMissing,
+                   memberPath(manifest.id) + ".contributes.converters[" + std::to_string(index) + "].script",
+                   contribution.script);
+        }
     }
 }
 

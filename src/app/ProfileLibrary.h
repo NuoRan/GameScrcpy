@@ -103,6 +103,8 @@ public:
     Q_INVOKABLE bool lastWriteBusy() const { return m_busy; }
     void setExtensionProfiles(std::vector<ExtensionProfile> profiles);
     void reload();
+    [[nodiscard]] QByteArray contents(const QString& id) const;
+    QString importConverted(const QString& file, const QByteArray& bytes, QString& name, QString& reason);
 
 signals:
     void entriesChanged();

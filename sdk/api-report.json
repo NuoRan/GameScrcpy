@@ -3557,6 +3557,14 @@
     {
       "name": "MediaFrameOptions",
       "definition": "{ readonly fps?: number; readonly size?: number; readonly region?: Region }"
+    },
+    {
+      "name": "ConvertInput",
+      "definition": "{ readonly name: string; readonly from: string; readonly to: string; readonly bytes: Uint8Array; readonly text: string; json<T = unknown>(): T; readonly signal: AbortSignal }"
+    },
+    {
+      "name": "ConvertOutput",
+      "definition": "{ readonly name?: string; readonly bytes?: Uint8Array | ArrayBuffer | readonly number[]; readonly text?: string; readonly json?: unknown }"
     }
   ]
 }

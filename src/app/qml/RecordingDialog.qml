@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Dialogs
 import QtQuick.Templates as T
 import GameScrcpy.Theme
 import GameScrcpy.Controls
@@ -38,6 +39,12 @@ Dialog {
 
     function exportVideo() {
         Recordings.exportVideo(dialog.info.folder ?? "", dialog.info.serial ?? "")
+    }
+
+    function exportWith(exporter: var) {
+        dialog.close()
+        exportPicker.exporter = exporter
+        exportPicker.open()
     }
 
     function testLogic() {
@@ -171,6 +178,34 @@ Dialog {
                         text: qsTr("Save as test…")
                         onTriggered: dialog.chooseTestProfile()
                     }
+
+                    Instantiator {
+                        model: Recordings.exporters
+
+                        delegate: MenuItem {
+                            id: exportItem
+
+                            required property var modelData
+
+                            objectName: "recordingExport"
+                            iconName: "share"
+                            text: qsTr("Export as %1…").arg(exportItem.modelData.title ?? "")
+                            shortcut: exportItem.modelData.extensionName ?? ""
+                            onTriggered: dialog.exportWith(exportItem.modelData)
+                        }
+
+                        onObjectAdded: (index, object) => moreMenu.insertItem(2 + index, object)
+                        onObjectRemoved: (index, object) => moreMenu.removeItem(object)
+                    }
+
+                    ConvertMenuItems {
+                        menu: moreMenu
+                        format: "recording"
+                        onPicked: converter => {
+                            dialog.close()
+                            convertExport.start(converter, dialog.info.folder ?? "", dialog.info.name ?? "")
+                        }
+                    }
                 }
             }
 
@@ -269,6 +304,29 @@ Dialog {
             if (notice.visible)
                 notice.close()
             dialog.notified(text, "triangle-alert")
+        }
+    }
+
+    ConvertExportDialog {
+        id: convertExport
+
+        onFinished: (ok, message) => dialog.notified(message, ok ? "check" : "triangle-alert")
+    }
+
+    FileDialog {
+        id: exportPicker
+
+        property var exporter: ({})
+
+        objectName: "recordingExportPicker"
+        title: qsTr("Export the recording as %1").arg(exportPicker.exporter.title ?? "")
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: exportPicker.exporter.suffix ?? ""
+        nameFilters: [qsTr("%1 files (*.%2)").arg(exportPicker.exporter.title ?? "").arg(exportPicker.exporter.suffix ?? "")]
+        onAccepted: {
+            Recordings.exportWith(dialog.info.folder ?? "", dialog.info.serial ?? "", exportPicker.exporter.key ?? "",
+                                  exportPicker.selectedFile)
+            dialog.notified(qsTr("Exporting the recording as %1…").arg(exportPicker.exporter.title ?? ""), "share")
         }
     }
 

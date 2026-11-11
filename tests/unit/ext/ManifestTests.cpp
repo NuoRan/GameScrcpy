@@ -1912,3 +1912,126 @@ TEST_CASE("ADR-0112: command-line commands name one of the native jobs and its p
     CHECK(cli["maxItems"] == kMaxCliCommands);
     CHECK(cli["items"]["required"] == Json::array({"name", "job"}));
 }
+
+namespace {
+
+Json converterOf(const char* name, const char* from, const char* to)
+{
+    return Json{{"name", name}, {"title", "Convert"}, {"from", from}, {"to", to}, {"script", "convert.ts"}};
+}
+
+}
+
+TEST_CASE("ADR-0112: converters name their formats, the file extensions they read and their script, load under the "
+          "script point and survive a save and a load")
+{
+    Json json = base();
+    json["id"] = "alice.formats";
+    json["requires"] = {{"script", "^1.0"}};
+    json["contributes"] = {
+        {"converters", Json::array({{{"name", "xyz-in"},
+                                     {"title", "XYZ profiles"},
+                                     {"from", "xyz"},
+                                     {"to", "profile"},
+                                     {"script", "convert/xyz.ts"},
+                                     {"extensions", Json::array({"xyz", "xyzz"})}},
+                                    {{"name", "xyz-out"},
+                                     {"title", "XYZ profile"},
+                                     {"from", "profile"},
+                                     {"to", "xyz"},
+                                     {"script", "convert/xyz.js"}},
+                                    {{"name", "macro"},
+                                     {"title", "Macro"},
+                                     {"from", "recording"},
+                                     {"to", "ahk"},
+                                     {"script", "convert/macro.ts"}}})}};
+    const LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    const std::vector<ConverterContribution>& converters = loaded.manifest.contributes.converters;
+    REQUIRE(converters.size() == 3);
+    CHECK(converters[0].name == "xyz-in");
+    CHECK(converters[0].title == "XYZ profiles");
+    CHECK(converters[0].from == "xyz");
+    CHECK(converters[0].to == "profile");
+    CHECK(converters[0].script == "convert/xyz.ts");
+    CHECK(converters[0].extensions == std::vector<std::string>{"xyz", "xyzz"});
+    CHECK(converters[1].extensions.empty());
+    CHECK(converters[2].from == "recording");
+    CHECK(converters[2].to == "ahk");
+    CHECK(appFormat("profile"));
+    CHECK(appFormat("task"));
+    CHECK(appFormat("recording"));
+    CHECK_FALSE(appFormat("xyz"));
+    CHECK(fileFormat("xyz"));
+    CHECK(fileFormat("mp4"));
+    CHECK_FALSE(fileFormat("profile"));
+    CHECK_FALSE(fileFormat(".xyz"));
+    CHECK_FALSE(fileFormat("XYZ"));
+    CHECK_FALSE(fileFormat(""));
+    CHECK_FALSE(fileFormat("abcdefghijklmnopq"));
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+    const Json saved = Json::parse(saveManifest(loaded.manifest))["contributes"]["converters"];
+    CHECK(saved[0]["extensions"] == Json::array({"xyz", "xyzz"}));
+    CHECK_FALSE(saved[1].contains("extensions"));
+    const Json schema = Json::parse(manifestJsonSchema())["properties"]["contributes"]["properties"]["converters"];
+    CHECK(schema["maxItems"] == kMaxConverters);
+    CHECK(schema["items"]["required"] == Json::array({"name", "title", "from", "to", "script"}));
+}
+
+TEST_CASE("ADR-0112: a converter is checked for its formats, the file extensions it reads and its script, sixteen at "
+          "most and only under the script point")
+{
+    Json json = base();
+    json["id"] = "alice.formats";
+    json["requires"] = {{"script", "^1.0"}};
+    Json list = Json::array({converterOf("both", "profile", "task"), converterOf("neither", "xyz", "abc"),
+                             converterOf("upper", "XYZ", "profile"), converterOf("dotted", "profile", ".xyz"),
+                             converterOf("long", "abcdefghijklmnopq", "profile"), converterOf("both", "xyz", "profile")});
+    list.push_back(converterOf("reads", "xyz", "profile"));
+    list.back()["extensions"] = Json::array({"xyz", ".abc", "xyz", "A b"});
+    list.push_back(converterOf("styled", "profile", "css"));
+    list.back()["script"] = "convert/style.css";
+    list.push_back(converterOf("typed", "profile", "xyz"));
+    list.back()["script"] = "convert/types.d.ts";
+    list.push_back(converterOf("Bad Name", "profile", "xyz"));
+    list.push_back(Json{{"name", "bare"}, {"from", "xyz"}, {"to", "profile"}});
+    json["contributes"] = {{"converters", list}};
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::ConverterInvalid, "$.contributes.converters[0]"));
+    CHECK(reports(loaded, Code::ConverterInvalid, "$.contributes.converters[1]"));
+    CHECK(reports(loaded, Code::ConverterInvalid, "$.contributes.converters[2].from"));
+    CHECK_FALSE(reports(loaded, Code::ConverterInvalid, "$.contributes.converters[2]"));
+    CHECK(reports(loaded, Code::ConverterInvalid, "$.contributes.converters[3].to"));
+    CHECK(reports(loaded, Code::TooLong, "$.contributes.converters[4].from"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.converters[5].name"));
+    CHECK_FALSE(reports(loaded, Code::ConverterInvalid, "$.contributes.converters[6].extensions[0]"));
+    CHECK(reports(loaded, Code::ConverterInvalid, "$.contributes.converters[6].extensions[1]"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.converters[6].extensions[2]"));
+    CHECK(reports(loaded, Code::ConverterInvalid, "$.contributes.converters[6].extensions[3]"));
+    CHECK(reports(loaded, Code::ScriptEntryInvalid, "$.contributes.converters[7].script"));
+    CHECK(reports(loaded, Code::ScriptEntryInvalid, "$.contributes.converters[8].script"));
+    CHECK(reports(loaded, Code::PanelNameInvalid, "$.contributes.converters[9].name"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.converters[10].title"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.converters[10].script"));
+    CHECK(codeName(Code::ConverterInvalid) == "converter-invalid");
+    CHECK_FALSE(fixHint(Code::ConverterInvalid).empty());
+
+    json["contributes"]["converters"] = Json::array();
+    for (std::size_t index = 0; index <= kMaxConverters; ++index) {
+        json["contributes"]["converters"].push_back(converterOf(("xyz" + std::to_string(index)).c_str(), "xyz", "profile"));
+    }
+    loaded = load(json);
+    CHECK(reports(loaded, Code::TooMany, "$.contributes.converters"));
+
+    json = base();
+    json["contributes"]["converters"] = Json::array({converterOf("xyz-in", "xyz", "profile")});
+    loaded = load(json);
+    CHECK_FALSE(loaded.usable);
+    CHECK(undeclared(loaded, "$.contributes.converters", "script"));
+}

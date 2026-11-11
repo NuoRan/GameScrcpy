@@ -8,7 +8,7 @@ namespace gs::script::detail {
 
 inline constexpr std::string_view kPreludeName = "<gs>";
 
-inline constexpr std::array<std::string_view, 17> kPreludeParts{
+inline constexpr std::array<std::string_view, 18> kPreludeParts{
     R"js(((host) => {
     "use strict";
     const defineProperty = Object.defineProperty;
@@ -3342,12 +3342,155 @@ inline constexpr std::array<std::string_view, 17> kPreludeParts{
         },
     };
 )js",
+    R"js(    const convertPart = 524288;
+    const convertMost = 33554432;
+    const convertCall = (name, value) => host.call("convert." + name, JSON.stringify(value));
+    const convertUnread = () => new RangeError("GS-API-168 the file to convert could not be read");
+    const convertRead = (size) => {
+        const bytes = new Uint8Array(size);
+        let at = 0;
+        while (at < size) {
+            const part = convertCall("read", { at });
+            const chunk = typeof part?.data === "string" ? Uint8Array.fromBase64(part.data) : new Uint8Array(0);
+            if (chunk.length === 0 || chunk.length > size - at) {
+                throw convertUnread();
+            }
+            bytes.set(chunk, at);
+            at += chunk.length;
+        }
+        return bytes;
+    };
+    const convertText = (state) => {
+        if (state.text === undefined) {
+            const parts = [];
+            let at = 0;
+            for (;;) {
+                const part = convertCall("read", { at, text: true });
+                if (typeof part?.text !== "string" || (part.text === "" && part.end !== true)) {
+                    throw convertUnread();
+                }
+                parts.push(part.text);
+                at += part.text.length;
+                if (part.end === true) {
+                    break;
+                }
+            }
+            state.text = parts.join("");
+        }
+        return state.text;
+    };
+    const convertBytes = (value) => {
+        if (value instanceof Uint8Array) {
+            return value;
+        }
+        if (value instanceof ArrayBuffer) {
+            return new Uint8Array(value);
+        }
+        if (ArrayBuffer.isView(value)) {
+            return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+        }
+        if (Array.isArray(value) && value.every((each) => Number.isInteger(each) && each >= 0 && each <= 255)) {
+            return Uint8Array.from(value);
+        }
+        throw new TypeError("GS-API-166 bytes must be a Uint8Array, an ArrayBuffer or a list of numbers from 0 to 255");
+    };
+    const convertJson = (value) => {
+        let text;
+        try {
+            text = JSON.stringify(value, null, 2);
+        } catch (error) {
+            throw new TypeError("GS-API-166 the result is not JSON: " + (error?.message ?? String(error)));
+        }
+        if (typeof text !== "string") {
+            throw new TypeError("GS-API-166 the converter returned nothing that GameScrcpy can write");
+        }
+        return text;
+    };
+    const convertOutput = (result) => {
+        if (typeof result === "string") {
+            return { name: "", text: result };
+        }
+        if (result instanceof ArrayBuffer || ArrayBuffer.isView(result)) {
+            return { name: "", bytes: convertBytes(result) };
+        }
+        const shaped = result !== null && typeof result === "object" && !Array.isArray(result) &&
+            (result.json !== undefined || result.bytes !== undefined || result.text !== undefined);
+        if (!shaped) {
+            return { name: "", text: convertJson(result) };
+        }
+        if (result.name !== undefined && typeof result.name !== "string") {
+            throw new TypeError("GS-API-166 the name of the result must be a string");
+        }
+        const name = result.name ?? "";
+        if (result.json !== undefined) {
+            return { name, text: convertJson(result.json) };
+        }
+        if (result.bytes !== undefined) {
+            return { name, bytes: convertBytes(result.bytes) };
+        }
+        if (typeof result.text !== "string") {
+            throw new TypeError("GS-API-166 the text of the result must be a string");
+        }
+        return { name, text: result.text };
+    };
+    const convertWrite = (output) => {
+        if (output.bytes !== undefined) {
+            if (output.bytes.length > convertMost) {
+                throw new RangeError("GS-API-167 the result is larger than 32 MiB");
+            }
+            for (let at = 0; at < output.bytes.length; at += convertPart) {
+                convertCall("write", { data: output.bytes.subarray(at, at + convertPart).toBase64() });
+            }
+        } else {
+            const text = output.text;
+            let at = 0;
+            while (at < text.length) {
+                let end = Math.min(text.length, at + convertPart / 4);
+                const last = text.charCodeAt(end - 1);
+                if (end < text.length && end - at > 1 && last >= 0xD800 && last <= 0xDBFF) {
+                    end -= 1;
+                }
+                convertCall("write", { text: text.slice(at, end) });
+                at = end;
+            }
+        }
+        convertCall("done", { name: output.name });
+    };
+    const convertRun = async (context) => {
+        const module = context.module;
+        const handler = typeof module?.convert === "function" ? module.convert
+            : typeof module?.default === "function" ? module.default : null;
+        if (handler === null) {
+            throw new TypeError("GS-API-165 the converter's script exports no function named convert and no default "
+                + "function");
+        }
+        const given = convertCall("input", {});
+        const state = { text: undefined };
+        const bytes = convertRead(Number(given?.size ?? 0));
+        const input = freeze({
+            name: String(given?.name ?? ""),
+            from: String(given?.from ?? ""),
+            to: String(given?.to ?? ""),
+            bytes,
+            get text() {
+                return convertText(state);
+            },
+            json() {
+                return JSON.parse(convertText(state));
+            },
+            signal: context.signal,
+        });
+        convertWrite(convertOutput(await handler(input)));
+    };
+    const convertLibrary = {};
+)js",
     R"js(    const library = {
         ...hardwareLibrary,
         ...netLibrary,
         ...speechLibrary,
         ...servicesLibrary,
         ...mediaLibrary,
+        ...convertLibrary,
         every(intervalMs, handler, options) {
             return timed(intervalOf(intervalMs), handler, options, "every(" + intervalMs + ")", true);
         },
@@ -4340,6 +4483,7 @@ inline constexpr std::array<std::string_view, 17> kPreludeParts{
         startTask: async (context) => {
             await new context.taskClass().run(freeze({ signal: context.signal }));
         },
+        startConvert: convertRun,
         release: (id) => {
             const binding = bindings.get(id);
             if (binding !== undefined) {

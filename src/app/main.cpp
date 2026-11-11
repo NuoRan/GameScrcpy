@@ -8,6 +8,7 @@
 #include "Commands.h"
 #include "ComponentDefaults.h"
 #include "ComponentLibrary.h"
+#include "Converters.h"
 #include "CrashReport.h"
 #include "DemoFeed.h"
 #include "DeviceManager.h"
@@ -485,6 +486,8 @@ int main(int argc, char* argv[])
     gs::app::ExtensionServices extensionServices(nullptr);
     extensionServices.follow(extensions);
     extensionServices.offerServices();
+    gs::app::Converters converters(nullptr);
+    converters.follow(extensions);
 
     const auto graphics =
         gs::render::GraphicsDevice::create(false, qEnvironmentVariableIntValue("GS_FORCE_WARP") == 1);

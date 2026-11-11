@@ -105,6 +105,16 @@ Item {
         }
     }
 
+    function convertText(converter: var): string {
+        const formats = { profile: qsTr("profiles"), task: qsTr("tasks"), recording: qsTr("recordings") }
+        if (converter.imports) {
+            const read = (converter.extensions.length > 0 ? converter.extensions : [converter.from])
+                .map(each => "." + each).join(qsTr(", ", "list separator"))
+            return qsTr("Imports %1 files as %2").arg(read).arg(formats[converter.to] ?? converter.to)
+        }
+        return qsTr("Exports %1 as .%2 files").arg(formats[converter.from] ?? converter.from).arg(converter.to)
+    }
+
     function nativeText(dll: var): string {
         if (dll === undefined || dll === null)
             return ""
@@ -1143,6 +1153,54 @@ Item {
                             font.family: Theme.type.monoFamily
                             font.pixelSize: Theme.type.caption.size
                             wrapMode: Text.WrapAnywhere
+                        }
+                    }
+                }
+            }
+
+            ColumnLayout {
+                objectName: "extensionConverterList"
+                Layout.fillWidth: true
+                visible: (detailsDialog.entry.converters ?? []).length > 0
+                spacing: Theme.space.xs
+
+                Text {
+                    textFormat: Text.PlainText
+                    text: qsTr("File types it converts")
+                    color: Theme.colors.textTertiary
+                    font.pixelSize: Theme.type.caption.size
+                    font.weight: Font.DemiBold
+                }
+
+                Repeater {
+                    model: detailsDialog.entry.converters ?? []
+
+                    delegate: ColumnLayout {
+                        id: converterRow
+
+                        required property var modelData
+
+                        objectName: "extensionConverterItem"
+                        Layout.fillWidth: true
+                        spacing: Theme.space.xxs
+
+                        Text {
+                            Layout.fillWidth: true
+                            textFormat: Text.PlainText
+                            text: converterRow.modelData.title
+                            color: Theme.colors.textPrimary
+                            font.pixelSize: Theme.type.caption.size
+                            font.weight: Font.DemiBold
+                            wrapMode: Text.Wrap
+                        }
+
+                        Text {
+                            Layout.fillWidth: true
+                            textFormat: Text.PlainText
+                            text: page.convertText(converterRow.modelData)
+                            color: Theme.colors.textSecondary
+                            font.pixelSize: Theme.type.caption.size
+                            wrapMode: Text.Wrap
                         }
                     }
                 }

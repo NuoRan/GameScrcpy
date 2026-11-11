@@ -5480,6 +5480,20 @@
     </message>
 </context>
 <context>
+    <name>ConvertExportDialog</name>
+    <message>
+        <source>Export %1 as %2</source>
+        <translation>把 %1 导出为 %2</translation>
+    </message>
+</context>
+<context>
+    <name>ConvertMenuItems</name>
+    <message>
+        <source>Export as %1…</source>
+        <translation>导出为 %1…</translation>
+    </message>
+</context>
+<context>
     <name>CopyToMineDialog</name>
     <message>
         <source>Copy %1 to yours?</source>
@@ -6418,6 +6432,22 @@
         <translation>托盘菜单</translation>
     </message>
     <message>
+        <source>profiles</source>
+        <translation>方案</translation>
+    </message>
+    <message>
+        <source>recordings</source>
+        <translation>录像</translation>
+    </message>
+    <message>
+        <source>Imports %1 files as %2</source>
+        <translation>把 %1 文件导入为%2</translation>
+    </message>
+    <message>
+        <source>Exports %1 as .%2 files</source>
+        <translation>把%1导出为 .%2 文件</translation>
+    </message>
+    <message>
         <source>Touch methods: %1</source>
         <translation>触控方式：%1</translation>
     </message>
@@ -6630,6 +6660,10 @@
     <message>
         <source>Services it offers to other extensions</source>
         <translation>提供给其他扩展的服务</translation>
+    </message>
+    <message>
+        <source>File types it converts</source>
+        <translation>它转换的文件类型</translation>
     </message>
     <message>
         <source>Accept connections from programs on this computer</source>
@@ -10898,6 +10932,12 @@
         <source>How the phone is held</source>
         <translation>手机怎么拿</translation>
     </message>
+    <message numerus="yes">
+        <source>Converting %n file(s)…</source>
+        <translation>
+            <numerusform>正在转换 %n 个文件…</numerusform>
+        </translation>
+    </message>
     <message>
         <source>%1 — %2&apos;s draft</source>
         <translation>%1 — %2 的草稿</translation>
@@ -12272,6 +12312,12 @@
         <source>Not saved: another program is using the file</source>
         <translation>没保存上：文件被别的程序占用</translation>
     </message>
+    <message numerus="yes">
+        <source>Converting %n file(s)…</source>
+        <translation>
+            <numerusform>正在转换 %n 个文件…</numerusform>
+        </translation>
+    </message>
     <message>
         <source>Created %1</source>
         <translation>已创建 %1</translation>
@@ -12667,6 +12713,10 @@
         <translation>存为测试…</translation>
     </message>
     <message>
+        <source>Export as %1…</source>
+        <translation>导出为 %1…</translation>
+    </message>
+    <message>
         <source>Close</source>
         <translation>关闭</translation>
     </message>
@@ -12689,6 +12739,18 @@
     <message>
         <source>No profile was in use while recording, so there is no logic to run on it.</source>
         <translation>录制时没有使用方案，所以没有可以在上面运行的逻辑。</translation>
+    </message>
+    <message>
+        <source>Export the recording as %1</source>
+        <translation>把录像导出为 %1</translation>
+    </message>
+    <message>
+        <source>%1 files (*.%2)</source>
+        <translation>%1 文件 (*.%2)</translation>
+    </message>
+    <message>
+        <source>Exporting the recording as %1…</source>
+        <translation>正在把录像导出为 %1…</translation>
     </message>
     <message>
         <source>Save as test</source>
@@ -14739,6 +14801,14 @@
     <message>
         <source>How media.frames() takes frames: at most fps a second, from 0.1 to 10 (2 by default); the long side at most size pixels, a whole number from 64 to 1920 (640 by default); only region, a part of the picture in ratios, when it is given.</source>
         <translation>media.frames() 怎样取帧：每秒最多 fps 帧，0.1～10（默认 2）；长边最多 size 像素，64～1920 的整数（默认 640）；给了 region（按比例表示的一块画面）时只取这一块。</translation>
+    </message>
+    <message>
+        <source>What a converter of an extension receives: the name of the file, the formats it converts from and to, and the contents as bytes, as text read as UTF-8, or parsed by json(). A converter is the export named convert, or the default export, of the script that contributes.converters names; it runs in the logic sandbox without a phone and returns a ConvertOutput. A profile comes as its JSON file, a task as its task.ts and a recording as its session.json. At most 32 MiB go in and at most 32 MiB come out, and a conversion may take 30 seconds; the message of what it throws is what the user sees. The conversion fails with GS-API-165 when the script exports no such function, GS-API-166 when the result is not something GameScrcpy can write, and GS-API-167 when the result is larger than 32 MiB.</source>
+        <translation>扩展的转换器收到的内容：文件名、转换的源格式与目标格式，以及文件内容（可取字节、按 UTF-8 读成的文字，或用 json() 解析）。转换器是 contributes.converters 所指脚本里名为 convert 的导出（或默认导出）；它在不连手机的逻辑沙箱里运行，返回一个 ConvertOutput。方案以它的 JSON 文件传入，任务以它的 task.ts 传入，录像以它的 session.json 传入。传入与传出各至多 32 MiB，一次转换至多 30 秒；它抛出的错误的消息就是用户看到的内容。脚本没有导出这样的函数时转换失败并给出 GS-API-165，结果不是 GameScrcpy 能写入的内容时给出 GS-API-166，结果大于 32 MiB 时给出 GS-API-167。</translation>
+    </message>
+    <message>
+        <source>What a converter returns: the new file as bytes, as a text written as UTF-8 or as a JSON value written as JSON text, and for an import the name of the file, which names the new profile. A converter may also return the text, the bytes or the JSON value itself, such as the object of a profile; an object counts as a ConvertOutput when it has bytes, text or json. GameScrcpy checks what it imports as it checks any file it imports.</source>
+        <translation>转换器返回的内容：新文件，可以是字节、按 UTF-8 写出的文字，或写成 JSON 文本的 JSON 值；导入时还有文件名，用来给新方案命名。转换器也可以直接返回文字、字节或 JSON 值本身，例如方案的对象；对象带有 bytes、text 或 json 时才算 ConvertOutput。GameScrcpy 像检查任何导入的文件一样检查导入的内容。</translation>
     </message>
     <message>
         <source>Runs a handler again and again, waiting intervalMs before each run.</source>
@@ -20745,6 +20815,95 @@
     <message>
         <source>Key</source>
         <translation>按键</translation>
+    </message>
+</context>
+<context>
+    <name>gs::app::Converters</name>
+    <message>
+        <source>it used too much memory</source>
+        <translation>它占用的内存太多</translation>
+    </message>
+    <message>
+        <source>it ran too long without waiting</source>
+        <translation>它运行太久没有等待</translation>
+    </message>
+    <message>
+        <source>its logic stopped unexpectedly</source>
+        <translation>它的逻辑意外停止了</translation>
+    </message>
+    <message>
+        <source>it failed without saying why</source>
+        <translation>它失败了，但没有说明原因</translation>
+    </message>
+    <message>
+        <source>it is larger than 32 MiB</source>
+        <translation>它大于 32 MiB</translation>
+    </message>
+    <message>
+        <source>it cannot be read</source>
+        <translation>无法读取它</translation>
+    </message>
+    <message>
+        <source>it ended without a result</source>
+        <translation>它结束了，但没有给出结果</translation>
+    </message>
+    <message>
+        <source>All files that can be imported (%1)</source>
+        <translation>所有能导入的文件 (%1)</translation>
+    </message>
+    <message>
+        <source>no converter reads this file</source>
+        <translation>没有转换器能读这个文件</translation>
+    </message>
+    <message>
+        <source>profiles cannot be saved now</source>
+        <translation>现在无法保存方案</translation>
+    </message>
+    <message>
+        <source>the profile cannot be used</source>
+        <translation>这个方案无法使用</translation>
+    </message>
+    <message>
+        <source>the task is not there</source>
+        <translation>任务已经不在了</translation>
+    </message>
+    <message>
+        <source>the recording is not there</source>
+        <translation>录像已经不在了</translation>
+    </message>
+    <message>
+        <source>Its extension was turned off, so the converter is no longer there.</source>
+        <translation>它所属的扩展已关闭，这个转换器已经不在了。</translation>
+    </message>
+    <message>
+        <source>Choose a file on this computer to export to.</source>
+        <translation>请选择这台电脑上的文件作为导出位置。</translation>
+    </message>
+    <message>
+        <source>Could not export as %1: %2</source>
+        <translation>无法导出为 %1：%2</translation>
+    </message>
+    <message>
+        <source>Could not save %1.</source>
+        <translation>无法保存 %1。</translation>
+    </message>
+    <message>
+        <source>Exported as %1: %2</source>
+        <translation>已导出为 %1：%2</translation>
+    </message>
+    <message>
+        <source>its extension was turned off</source>
+        <translation>它所属的扩展已关闭</translation>
+    </message>
+    <message>
+        <source>it was stopped</source>
+        <translation>它被停止了</translation>
+    </message>
+    <message numerus="yes">
+        <source>it took longer than %n second(s)</source>
+        <translation>
+            <numerusform>它用了超过 %n 秒</numerusform>
+        </translation>
     </message>
 </context>
 <context>

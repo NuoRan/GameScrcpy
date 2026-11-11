@@ -209,6 +209,38 @@ TEST_CASE("an extension's scripts need their entry files in the folder and in th
     CHECK(folder.manifest->contributes.scripts.size() == 2);
 }
 
+TEST_CASE("ADR-0112: an extension's converters need their script files in the folder and in the package")
+{
+    const std::string manifest = R"({
+        "schemaVersion": 1,
+        "id": "alice.formats",
+        "version": "1.0.0",
+        "name": "Formats",
+        "license": "MIT",
+        "requires": {"script": "^1.0"},
+        "contributes": {"converters": [{"name": "xyz-in", "title": "XYZ", "from": "xyz", "to": "profile",
+                                        "script": "convert/xyz.ts"},
+                                       {"name": "xyz-out", "title": "XYZ", "from": "profile", "to": "xyz",
+                                        "script": "out.js"}]}
+    })";
+    Scratch scratch;
+    writeFile(scratch / "folder/manifest.json", manifest);
+    writeFile(scratch / "folder/out.js", "export default (input) => input.text;");
+    PackageCheck folder = checkDirectory(scratch / "folder");
+    INFO(listed(folder.diagnostics));
+    CHECK_FALSE(folder.ok());
+    CHECK(reports(folder.diagnostics, Code::FileMissing, "$.contributes.converters[0].script"));
+    CHECK_FALSE(reports(folder.diagnostics, Code::FileMissing, "$.contributes.converters[1].script"));
+    REQUIRE(packDirectory(scratch / "folder", scratch / "missing.gsext").empty());
+    CHECK(checkPackage(scratch / "missing.gsext").diagnostics == folder.diagnostics);
+
+    writeFile(scratch / "folder/convert/xyz.ts", "export function convert(input) { return input.text; }");
+    folder = checkDirectory(scratch / "folder");
+    CHECK(folder.ok());
+    REQUIRE(folder.manifest.has_value());
+    CHECK(folder.manifest->contributes.converters.size() == 2);
+}
+
 TEST_CASE("a package without a manifest is reported at the manifest file")
 {
     Scratch scratch;

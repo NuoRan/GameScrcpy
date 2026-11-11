@@ -482,7 +482,17 @@ Item {
                     onTriggered: exportPackage.start("task", settings.task.id, settings.task.name)
                 }
 
+                ConvertMenuItems {
+                    menu: moreMenu
+                    format: "task"
+                    before: packageSeparator
+                    shown: settings.task !== null && settings.task.readOnly !== true
+                    onPicked: converter => convertExport.start(converter, settings.task.id, settings.task.name)
+                }
+
                 MenuSeparator {
+                    id: packageSeparator
+
                     visible: settings.task !== null && settings.task.readOnly !== true
                     height: visible ? implicitHeight : 0
                 }
@@ -524,6 +534,12 @@ Item {
 
     ExportPackageDialog {
         id: exportPackage
+
+        onFinished: (ok, message) => settings.notify(message, ok ? "ok" : "bad")
+    }
+
+    ConvertExportDialog {
+        id: convertExport
 
         onFinished: (ok, message) => settings.notify(message, ok ? "ok" : "bad")
     }

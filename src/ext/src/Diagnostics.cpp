@@ -211,6 +211,8 @@ std::string_view codeName(Code code) noexcept
         return "signing-key-mismatch";
     case Code::CliCommandInvalid:
         return "cli-command-invalid";
+    case Code::ConverterInvalid:
+        return "converter-invalid";
     }
     return "unknown";
 }
@@ -474,6 +476,10 @@ std::string_view fixHint(Code code) noexcept
                "let job name one of the extension's native jobs and params only that job's parameters, with defaults "
                "of their type; json, hosted and help are options of gs itself. It runs as gs ext <extension> <name> "
                "--<parameter> <value>.";
+    case Code::ConverterInvalid:
+        return "Write from and to as profile, task, recording or a file extension of 1 to 16 lowercase letters and "
+               "digits without the dot, exactly one of them a GameScrcpy format, and list in extensions the file "
+               "extensions an importing converter reads, written the same way.";
     }
     return "";
 }

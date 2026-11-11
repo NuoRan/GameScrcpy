@@ -47,6 +47,10 @@ Dialog {
         exportPicker.open()
     }
 
+    function convertAs(entry: var, converter: var) {
+        convertExport.start(converter, entry.folder ?? "", entry.name ?? "")
+    }
+
     function trash() {
         const entry = dialog.trashing
         const problem = Recordings.moveToTrash(entry.folder ?? "")
@@ -130,6 +134,12 @@ Dialog {
                                   exportPicker.exporter.key ?? "", exportPicker.selectedFile)
             dialog.notified(qsTr("Exporting the recording as %1…").arg(exportPicker.exporter.title ?? ""), "share")
         }
+    }
+
+    ConvertExportDialog {
+        id: convertExport
+
+        onFinished: (ok, message) => dialog.notified(message, ok ? "check" : "triangle-alert")
     }
 
     Dialog {
@@ -298,7 +308,17 @@ Dialog {
                         onObjectRemoved: (index, object) => rowMenu.removeItem(object)
                     }
 
+                    ConvertMenuItems {
+                        menu: rowMenu
+                        format: "recording"
+                        before: trashItem
+                        usable: !row.broken
+                        onPicked: converter => dialog.convertAs(row.modelData, converter)
+                    }
+
                     MenuItem {
+                        id: trashItem
+
                         objectName: "recordingRowTrash"
                         iconName: "trash-2"
                         text: qsTr("Move to the Recycle Bin…")

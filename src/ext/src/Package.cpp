@@ -176,6 +176,13 @@ PackageCheck checkFiles(const ArchiveListing& listing, const Reader& reader, con
                 script.entry);
         }
     }
+    for (std::size_t index = 0; index < loaded.manifest.contributes.converters.size(); ++index) {
+        const ConverterContribution& converter = loaded.manifest.contributes.converters[index];
+        if (entryOf(listing, converter.script) == nullptr) {
+            add(check.diagnostics, Code::FileMissing,
+                "$.contributes.converters[" + std::to_string(index) + "].script", converter.script);
+        }
+    }
     check.manifest = std::move(loaded.manifest);
     return check;
 }

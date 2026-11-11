@@ -160,6 +160,7 @@ private:
         JSValue release = JS_UNDEFINED;
         JSValue startTask = JS_UNDEFINED;
         JSValue mount = JS_UNDEFINED;
+        JSValue startConvert = JS_UNDEFINED;
         std::vector<ComponentModule> components;
         std::vector<std::string> modules;
         SourceTransform transform;

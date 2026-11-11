@@ -15,6 +15,7 @@ Item {
     property string filter: "all"
     property string fresh
     property int tourBaseProfiles: 0
+    property var converting: []
     readonly property var profiles: ProfileLibrary.entries
     readonly property var mirrors: DeviceManager.mirrors
     readonly property var running: runningApps("")
@@ -56,8 +57,33 @@ Item {
     }
 
     function importChecked(urls: var, allowLogic: bool) {
+        page.importRouted(urls, allowLogic, "")
+    }
+
+    function openImport() {
+        importDialog.nameFilters = Converters.importFilters("profile", qsTr("Key mapping profiles (*.json *.gsprofile)"))
+        importDialog.open()
+    }
+
+    function importRouted(urls: var, allowLogic: bool, chosen: string) {
         page.failure = ""
-        const result = ProfileLibrary.importFiles(urls, allowLogic)
+        const own = []
+        const converted = []
+        for (let i = 0; i < urls.length; ++i) {
+            if (Converters.importerFor("profile", urls[i], chosen) === "")
+                own.push(urls[i])
+            else
+                converted.push(urls[i])
+        }
+        if (converted.length > 0) {
+            page.converting = page.converting.concat([Converters.importProfiles(converted, chosen)])
+            page.notify(qsTr("Converting %n file(s)…", "", converted.length), "info")
+        }
+        if (own.length > 0)
+            page.showImport(ProfileLibrary.importFiles(own, allowLogic))
+    }
+
+    function showImport(result: var) {
         if (result.failed.length > 0) {
             const first = result.failed[0]
             page.failure = qsTr("Could not import %1: %2").arg(first.file).arg(first.reason)
@@ -66,7 +92,7 @@ Item {
             page.notify(qsTr("Imported %1").arg(result.imported[0]), "ok")
         else if (result.imported.length > 1)
             page.notify(qsTr("Imported %n profile(s)", "", result.imported.length), "ok")
-        if (result.logic.length > 0)
+        if ((result.logic ?? []).length > 0)
             logicImport.ask(result.logic)
     }
 
@@ -281,7 +307,7 @@ Item {
             objectName: "importProfile"
             iconName: "import"
             text: qsTr("Import…")
-            onClicked: importDialog.open()
+            onClicked: page.openImport()
         }
 
         Button {
@@ -433,7 +459,7 @@ Item {
                 Button {
                     iconName: "import"
                     text: qsTr("Import…")
-                    onClicked: importDialog.open()
+                    onClicked: page.openImport()
                 }
 
                 Button {
@@ -911,7 +937,17 @@ Item {
                                                         onTriggered: page.startExport(card.modelData)
                                                     }
 
+                                                    ConvertMenuItems {
+                                                        menu: moreMenu
+                                                        format: "profile"
+                                                        before: exportPackageItem
+                                                        onPicked: converter => convertExport.start(converter, card.modelData.id,
+                                                                                                   card.modelData.name)
+                                                    }
+
                                                     MenuItem {
+                                                        id: exportPackageItem
+
                                                         objectName: "exportProfilePackage"
                                                         visible: !card.readOnly
                                                         height: visible ? implicitHeight : 0
@@ -991,7 +1027,8 @@ Item {
         title: qsTr("Import profiles")
         fileMode: FileDialog.OpenFiles
         nameFilters: [qsTr("Key mapping profiles (*.json *.gsprofile)")]
-        onAccepted: page.importUrls(importDialog.selectedFiles)
+        onAccepted: page.importRouted(importDialog.selectedFiles, false,
+                                      Converters.filterConverter("profile", importDialog.selectedNameFilter.index))
     }
 
     FileDialog {
@@ -1021,6 +1058,28 @@ Item {
                 page.notify(message, "ok")
             else
                 page.failed(message)
+        }
+    }
+
+    ConvertExportDialog {
+        id: convertExport
+
+        onFinished: (ok, message) => {
+            if (ok)
+                page.notify(message, "ok")
+            else
+                page.failure = message
+        }
+    }
+
+    Connections {
+        target: Converters
+
+        function onImported(ticket: int, result: var) {
+            if (!page.converting.includes(ticket))
+                return
+            page.converting = page.converting.filter(each => each !== ticket)
+            page.showImport(result)
         }
     }
 
@@ -1077,7 +1136,7 @@ Item {
 
         objectName: "newProfileDialog"
         importable: true
-        onImportRequested: importDialog.open()
+        onImportRequested: page.openImport()
         onCreated: (id, editing) => page.showCreated(id, editing)
     }
 
@@ -1110,7 +1169,7 @@ Item {
             }
             onImportRequested: {
                 startDialog.close()
-                importDialog.open()
+                page.openImport()
             }
             onCreated: (id, editing) => {
                 startDialog.close()

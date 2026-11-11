@@ -129,7 +129,13 @@ Item {
         internal.startOpened = false
     }
 
-    function importForStart(game: string, files: var) {
+    function importForStart(game: string, files: var, chosen: string) {
+        if (files.length === 1 && Converters.importerFor("profile", files[0], chosen) !== "") {
+            internal.convertGame = game
+            internal.convertTicket = Converters.importProfiles(files, chosen)
+            overlay.toast(qsTr("Converting %n file(s)…", "", files.length), "import")
+            return
+        }
         overlay.importStart(game, files, false)
     }
 
@@ -319,6 +325,8 @@ Item {
         property real compactToolbarWidth: 0
         property bool startOpened: false
         property bool focusStart: false
+        property int convertTicket: 0
+        property string convertGame
 
         function hintFirstRun() {
             if (!overlay.firstRun || hinted || overlay.Window.visibility === Window.Hidden
@@ -1798,7 +1806,11 @@ Item {
             DeviceManager.useProfile(overlay.serial, id)
             internal.startOpened = false
         }
-        onImportRequested: startImport.open()
+        onImportRequested: {
+            startImport.nameFilters = Converters.importFilters("profile",
+                                                               qsTr("Key mapping profiles (*.json *.gsprofile)"))
+            startImport.open()
+        }
         onCreated: internal.startOpened = false
         onCloseRequested: overlay.closeStart()
         onFocusReleased: overlay.pictureFocusWanted()
@@ -1810,7 +1822,32 @@ Item {
         title: qsTr("Import a profile")
         fileMode: FileDialog.OpenFile
         nameFilters: [qsTr("Key mapping profiles (*.json *.gsprofile)")]
-        onAccepted: overlay.importForStart(startPanel.game, [startImport.selectedFile])
+        onAccepted: overlay.importForStart(startPanel.game, [startImport.selectedFile],
+                                           Converters.filterConverter("profile",
+                                                                      startImport.selectedNameFilter.index))
+    }
+
+    Connections {
+        target: Converters
+
+        function onImported(ticket: int, result: var) {
+            if (ticket !== internal.convertTicket)
+                return
+            internal.convertTicket = 0
+            if (result.failed.length > 0) {
+                overlay.toast(qsTr("Could not import %1: %2").arg(result.failed[0].file).arg(result.failed[0].reason),
+                              "triangle-alert")
+                return
+            }
+            if (result.ids.length !== 1)
+                return
+            const id = result.ids[0]
+            const entry = ProfileLibrary.entries.find(each => each.id === id)
+            if (entry !== undefined && entry.app === "" && internal.convertGame !== "")
+                ProfileLibrary.setApp(id, internal.convertGame)
+            DeviceManager.useProfile(overlay.serial, id)
+            internal.startOpened = false
+        }
     }
 
     ScriptPrompt {

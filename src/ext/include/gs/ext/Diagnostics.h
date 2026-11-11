@@ -112,6 +112,7 @@ enum class Code : std::uint8_t {
     PublisherChanged,
     SigningKeyMismatch,
     CliCommandInvalid,
+    ConverterInvalid,
 };
 
 struct Diagnostic {
