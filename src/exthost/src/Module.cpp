@@ -38,6 +38,23 @@ bool validTopic(std::string_view topic) noexcept
            });
 }
 
+bool appTopic(std::string_view topic) noexcept
+{
+    return std::ranges::find(kAppTopics, topic) != kAppTopics.end();
+}
+
+bool phoneTopic(std::string_view topic) noexcept
+{
+    return appTopic(topic) && std::ranges::find(kAppWideTopics, topic) == kAppWideTopics.end();
+}
+
+bool reservedTopic(std::string_view topic) noexcept
+{
+    return std::ranges::any_of(kAppTopics, [topic](std::string_view known) {
+        return topic.starts_with(known.substr(0, known.find('.') + 1));
+    });
+}
+
 bool validResource(std::string_view resource) noexcept
 {
     constexpr std::array<std::string_view, 4> kKinds{"serial:", "ble:", "hid:", "usb:"};

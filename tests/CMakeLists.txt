@@ -392,6 +392,7 @@ if(GS_BUILD_APP)
             unit/app/AppInfoTests.cpp
             unit/app/AppActionsTests.cpp
             unit/app/AppCatalogTests.cpp
+            unit/app/AppEventsTests.cpp
             unit/app/AppSettingsPaletteTests.cpp
             unit/app/AppSettingsTests.cpp
             unit/app/BlueprintModelTests.cpp
@@ -511,6 +512,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/AppActions.h"
             "${PROJECT_SOURCE_DIR}/src/app/AppCatalog.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/AppCatalog.h"
+            "${PROJECT_SOURCE_DIR}/src/app/AppEvents.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/AppEvents.h"
             "${PROJECT_SOURCE_DIR}/src/app/AppSettings.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/AppSettings.h"
             "${PROJECT_SOURCE_DIR}/src/app/BlueprintLabels.cpp"

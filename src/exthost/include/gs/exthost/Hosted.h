@@ -76,6 +76,8 @@ public:
     [[nodiscard]] CallResult actOnDevice(std::size_t provider, std::string_view device,
                                          std::string_view action) override;
     [[nodiscard]] bool claimWanted(std::string_view resource, std::string_view by) override;
+    [[nodiscard]] bool hears(std::string_view topic) const override;
+    void appEvent(std::string_view topic, std::string_view json) override;
 
     [[nodiscard]] int crashes() const;
     [[nodiscard]] bool waitReady(std::chrono::milliseconds limit) const;

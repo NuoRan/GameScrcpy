@@ -1,5 +1,6 @@
 #include "Recordings.h"
 
+#include "AppEvents.h"
 #include "AppSettings.h"
 #include "ProfileLibrary.h"
 #include "RecordingConvert.h"
@@ -561,10 +562,13 @@ Expected<std::shared_ptr<record::Recorder>, QString> Recordings::start(Recording
     run->start = std::move(begin);
     qInfo("recording %s into %s", qUtf8Printable(run->start.phone), qUtf8Printable(QDir::toNativeSeparators(folder)));
     const QString serial = run->start.serial;
+    const QString phone = run->start.phone;
     m_runs.insert_or_assign(serial, std::move(run));
     if (!m_clock.isActive()) {
         m_clock.start();
     }
+    publishPhoneEvent(AppTopic::RecordingStarted, serial, phone,
+                      {{QStringLiteral("path"), QDir::toNativeSeparators(folder)}});
     return *recorder;
 }
 
@@ -603,6 +607,9 @@ QVariantMap Recordings::stop(const QString& serial)
     const QVariantList thumbnails = run->thumbnails.shown();
     saveThumbnails(run->folder, thumbnails);
     const QImage first = thumbnails.isEmpty() ? QImage() : thumbnails.front().value<QImage>();
+    publishPhoneEvent(AppTopic::RecordingEnded, serial, run->start.phone,
+                      {{QStringLiteral("path"), QDir::toNativeSeparators(run->folder)},
+                       {QStringLiteral("durationMs"), static_cast<qint64>(summary.durationMs)}});
     return {{QStringLiteral("serial"), serial},
             {QStringLiteral("folder"), QDir::toNativeSeparators(run->folder)},
             {QStringLiteral("name"), QFileInfo(run->folder).fileName()},

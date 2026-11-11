@@ -83,6 +83,12 @@ struct NativeJobTarget {
     std::string problem;
 };
 
+struct NativeEventTarget {
+    std::string extension;
+    bool everything = false;
+    std::shared_ptr<exthost::Module> module;
+};
+
 struct NativeOptions {
     std::filesystem::path program;
     std::filesystem::path storeRoot;
@@ -122,6 +128,7 @@ public:
     void refreshProviders(std::string_view extension = {});
     [[nodiscard]] exthost::CallResult actOnDevice(std::string_view extension, std::string_view provider,
                                                   std::string_view device, std::string_view action) const;
+    [[nodiscard]] std::vector<NativeEventTarget> eventTargets() const;
 
     [[nodiscard]] std::unique_ptr<ExtensionTouch> openTouch(std::string_view key, std::string_view device,
                                                              ControlSink& injection,

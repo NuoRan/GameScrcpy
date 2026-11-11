@@ -799,6 +799,21 @@ exthost::CallResult NativeExtensions::actOnDevice(std::string_view extension, st
     return {exthost::CallStatus::Unavailable, {}, "the extension that adds the device is off"};
 }
 
+std::vector<NativeEventTarget> NativeExtensions::eventTargets() const
+{
+    std::vector<NativeEventTarget> targets;
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        if (entry->module == nullptr || entry->pending || !entry->module->working()) {
+            continue;
+        }
+        const std::vector<std::string>& granted = entry->wanted.granted;
+        targets.push_back({.extension = entry->wanted.id,
+                           .everything = std::ranges::find(granted, exthost::kAppEventsPermission) != granted.end(),
+                           .module = entry->module});
+    }
+    return targets;
+}
+
 void NativeExtensions::setGlobals(GlobalChoices globals)
 {
     {

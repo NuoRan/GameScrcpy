@@ -1732,14 +1732,14 @@
     "label": "events",
     "kind": "namespace",
     "detail": "events",
-    "documentation": "Events that the native DLL of an extension sends to the extension's own logic and panels.",
+    "documentation": "Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends to the extension's own logic and panels.",
     "insertText": "events"
   },
   {
     "label": "events.on",
     "kind": "function",
     "detail": "events.on(topic: string, handler: (event: TaskContext & { readonly topic: string; readonly value: StoreValue }) => void | Promise<void>, options?: ListenOptions): Subscription",
-    "documentation": "Starts a task each time the native DLL of this extension sends an event on the topic. Only the extension's own logic and panels hear its events; for each topic the DLL passes on the first 100 in a second and merges the rest of that second into the last one.",
+    "documentation": "Starts a task each time an event of the topic comes. GameScrcpy's own topics and their values: device.connected and device.disconnected { phone, name }, session.started { phone, name }, session.ended { phone, name, failed }, profile.applied { phone, name, profile, profileName }, app.foreground { phone, name, package, game }, orientation.changed { phone, name, rotation } in quarter turns, recording.started { phone, name, path }, recording.ended { phone, name, path, durationMs }, window.focused { phone, name, window: \"mirror\" or \"grid\", focused }, extension.enabled and extension.disabled { id, name, version }, and settings.changed { keys, values, extension, device }; phone is the phone's serial and name the name it shows, and values holds the new language and look settings among keys. Your own logic hears all of them. The logic of an extension hears extension.enabled, extension.disabled and settings.changed, which then tells only of its own settings and the language and look settings, and a session script also hears its own phone; the other phones, and app and task scripts, need the permission events.app. Any other topic is one the native DLL of this extension sends, which only the extension's own logic and panels hear. Of each topic a listener gets the first 100 events in a second at once and the rest of that second merged into the last one.",
     "insertText": "events.on(${1:topic}, ${2:handler})"
   },
   {

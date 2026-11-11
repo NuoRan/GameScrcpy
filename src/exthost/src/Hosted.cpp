@@ -379,8 +379,23 @@ struct HostedModule::Impl {
         case detail::Kind::Event: {
             std::string topic;
             std::string json;
-            if (in.text(topic, kMostTopicBytes) && in.text(json, kMostEventBytes) && validTopic(topic) && options.event) {
+            if (in.text(topic, kMostTopicBytes) && in.text(json, kMostEventBytes) && validTopic(topic) &&
+                !reservedTopic(topic) && options.event) {
                 options.event(topic, json);
+            }
+            return;
+        }
+        case detail::Kind::Subscribe: {
+            std::string topic;
+            std::uint32_t on = 0;
+            if (!in.text(topic, kMostTopicBytes) || !in.u32(on) || !in.done() || !appTopic(topic)) {
+                return;
+            }
+            const std::scoped_lock lock(mutex);
+            if (on != 0) {
+                heard.insert(std::move(topic));
+            } else {
+                heard.erase(topic);
             }
             return;
         }
@@ -538,6 +553,7 @@ struct HostedModule::Impl {
             }
             channel.reset();
             dropped.swap(held);
+            heard.clear();
             if (closing || state == State::Stopped) {
                 return;
             }
@@ -724,6 +740,7 @@ struct HostedModule::Impl {
     std::shared_ptr<ClaimLink> claimLink = std::make_shared<ClaimLink>();
     std::set<std::string> held;
     std::uint64_t launches = 0;
+    std::set<std::string, std::less<>> heard;
     std::jthread reader;
 };
 
@@ -1167,6 +1184,30 @@ bool HostedModule::ready() const
 {
     const std::scoped_lock lock(m_impl->mutex);
     return m_impl->state == Impl::State::Ready;
+}
+
+bool HostedModule::hears(std::string_view topic) const
+{
+    const std::scoped_lock lock(m_impl->mutex);
+    return m_impl->heard.contains(topic);
+}
+
+void HostedModule::appEvent(std::string_view topic, std::string_view json)
+{
+    if (topic.size() > kMostTopicBytes || json.size() > kMostEventBytes) {
+        return;
+    }
+    Impl& d = *m_impl;
+    detail::WireWriter payload;
+    payload.text(topic);
+    payload.text(json);
+    const std::scoped_lock lock(d.mutex);
+    if (d.state != Impl::State::Ready || !d.channel || !d.heard.contains(topic)) {
+        return;
+    }
+    if (d.channel->toHost().write(detail::Kind::AppEvent, 0, payload.bytes())) {
+        SetEvent(d.channel->toHostEvent());
+    }
 }
 
 }

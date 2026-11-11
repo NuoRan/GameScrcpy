@@ -3,6 +3,7 @@
 #include "AiScripts.h"
 #include "AppCatalog.h"
 #include "AppCommandHost.h"
+#include "AppEvents.h"
 #include "AppSettings.h"
 #include "Commands.h"
 #include "ComponentDefaults.h"
@@ -455,6 +456,7 @@ int main(int argc, char* argv[])
     speechEngines.follow(extensions, nativeJobs);
     speechEngines.offerServices();
     gs::app::NativeEvents nativeEvents(*extensions.native());
+    gs::app::AppEvents appEvents;
 
     const auto graphics =
         gs::render::GraphicsDevice::create(false, qEnvironmentVariableIntValue("GS_FORCE_WARP") == 1);

@@ -171,6 +171,8 @@ qt_add_qml_module(GameScrcpy
         AppCatalog.h
         AppCommandHost.cpp
         AppCommandHost.h
+        AppEvents.cpp
+        AppEvents.h
         AppInfo.cpp
         AppInfo.h
         AppSettings.cpp

@@ -1,6 +1,7 @@
 #include "ExtensionHost.h"
 
 #include "AmsiScan.h"
+#include "AppEvents.h"
 #include "AppSettings.h"
 #include "ExtensionHealth.h"
 #include "ExtensionIcons.h"
@@ -429,6 +430,9 @@ QString permissionTitle(std::string_view name)
     }
     if (name == "speech.listen") {
         return ExtensionHost::tr("Listen for voice commands you say");
+    }
+    if (name == "events.app") {
+        return ExtensionHost::tr("Know what happens on every phone and window");
     }
     return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
 }
@@ -2113,10 +2117,15 @@ bool ExtensionHost::setValue(const std::string& id, const std::string& key, cons
         return false;
     }
     settings::ExtensionStates states = m_settings.extensions();
+    const settings::Scalar* before = scalarOf(states[id].values, key);
+    const bool changed = before == nullptr || *before != value;
     states[id].values.insert_or_assign(key, value);
     m_settings.setExtensions(states);
     emit filtersChanged();
     emit valuesChanged();
+    if (changed) {
+        publishSettingsChanged({QString::fromStdString(key)}, {}, QString::fromStdString(id));
+    }
     return true;
 }
 
@@ -2129,12 +2138,18 @@ bool ExtensionHost::setDeviceValue(const std::string& deviceId, const std::strin
         return false;
     }
     settings::DeviceSettings device = m_settings.device(deviceId);
+    const settings::Scalar* before = scalarOf(device.extensions[id].values, key);
+    const bool changed = before == nullptr || *before != value;
     device.extensions[id].values.insert_or_assign(key, value);
     if (!m_settings.setDevice(deviceId, device)) {
         return false;
     }
     emit filtersChanged();
     emit valuesChanged();
+    if (changed) {
+        publishSettingsChanged({QString::fromStdString(key)}, {}, QString::fromStdString(id),
+                               QString::fromStdString(deviceId));
+    }
     return true;
 }
 
@@ -2151,6 +2166,8 @@ bool ExtensionHost::resetDeviceValue(const std::string& deviceId, const std::str
     m_settings.setDevice(deviceId, device);
     emit filtersChanged();
     emit valuesChanged();
+    publishSettingsChanged({QString::fromStdString(key)}, {}, QString::fromStdString(id),
+                           QString::fromStdString(deviceId));
     return true;
 }
 
@@ -2328,6 +2345,25 @@ void ExtensionHost::resolve()
     composeProfiles();
     composeLibraries();
     markRun();
+    std::map<std::string, Announced, std::less<>> announced;
+    for (const Extension& extension : m_extensions) {
+        if (extension.active && extension.manifest) {
+            announced.insert_or_assign(extension.manifest->id,
+                                       Announced{.version = extension.manifest->version.text(),
+                                                 .name = nameOf(extension.manifest->id)});
+        }
+    }
+    for (const auto& [id, was] : m_announced) {
+        if (const auto now = announced.find(id); now == announced.end() || now->second.version != was.version) {
+            publishExtensionTurned(false, QString::fromStdString(id), was.name, QString::fromStdString(was.version));
+        }
+    }
+    for (const auto& [id, now] : announced) {
+        if (const auto was = m_announced.find(id); was == m_announced.end() || was->second.version != now.version) {
+            publishExtensionTurned(true, QString::fromStdString(id), now.name, QString::fromStdString(now.version));
+        }
+    }
+    m_announced = std::move(announced);
 }
 
 void ExtensionHost::load(const Extension& extension)

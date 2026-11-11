@@ -3,6 +3,7 @@
 #include "AoaSession.h"
 #include "AppActions.h"
 #include "AppCatalog.h"
+#include "AppEvents.h"
 #include "AppSettings.h"
 #include "CaptureCards.h"
 #include "CaptureDemo.h"
@@ -1785,6 +1786,8 @@ bool DeviceManager::addDemoDevice(const QString& recording, const QString& game)
     openDemoMirror(added);
     updateStatsTimer();
     emit countsChanged();
+    publishPhoneEvent(AppTopic::DeviceConnected, added.serial, added.name());
+    publishPhoneEvent(AppTopic::SessionStarted, added.serial, added.name());
     qInfo("%s: playing %s", demoLogName(added.demoNumber).constData(), qUtf8Printable(recording));
     if (!game.isEmpty()) {
         foregroundApp(serial, game, true);
@@ -1833,6 +1836,7 @@ void DeviceManager::connectDevice(const QString& serial)
         openDemoMirror(row);
         updateStatsTimer();
         rowChanged(index);
+        publishPhoneEvent(AppTopic::SessionStarted, row.serial, row.name());
         qInfo("demo device: playing again");
         return;
     }
@@ -1922,9 +1926,14 @@ void DeviceManager::connectDevice(const QString& serial)
                     const int at = indexOf(serial);
                     if (at >= 0) {
                         Row& described = m_rows[static_cast<std::size_t>(at)];
+                        const bool turned = described.rotation != rotation;
                         described.screen = size;
                         described.refreshHz = refreshHz;
                         described.rotation = rotation;
+                        if (turned) {
+                            publishPhoneEvent(AppTopic::OrientationChanged, described.serial, described.name(),
+                                              {{QStringLiteral("rotation"), rotation}});
+                        }
                         rememberScreen(described);
                         if (described.picture == settings::PictureSource::None) {
                             showNoPicture(described);
@@ -2064,9 +2073,13 @@ void DeviceManager::disconnectDevice(const QString& serial)
         returnCapture(row);
         row.picture.reset();
         row.demo->stop();
+        const bool wasPlaying = active(row.session.phase);
         row.session = {session::SessionPhase::Stopped, std::nullopt};
         updateStatsTimer();
         rowChanged(index);
+        if (wasPlaying) {
+            publishPhoneEvent(AppTopic::SessionEnded, row.serial, row.name(), {{QStringLiteral("failed"), false}});
+        }
         qInfo("demo device: stopped");
     } else if (row.aoaOnly) {
         if (!row.pictureCard.isEmpty()) {
@@ -2626,6 +2639,9 @@ void DeviceManager::devicesChanged(const adb::TrackerUpdate& update)
             continue;
         }
         if (row.listed && row.state == adb::DeviceState::Device) {
+            if (!row.wasOnline) {
+                publishPhoneEvent(AppTopic::DeviceConnected, row.serial, row.name());
+            }
             row.wasOnline = true;
             row.graceUntil = {};
             continue;
@@ -2640,6 +2656,9 @@ void DeviceManager::devicesChanged(const adb::TrackerUpdate& update)
                 graced = true;
                 continue;
             }
+        }
+        if (row.wasOnline) {
+            publishPhoneEvent(AppTopic::DeviceDisconnected, row.serial, row.name());
         }
         row.wasOnline = false;
         row.graceUntil = {};
@@ -2763,6 +2782,10 @@ void DeviceManager::sessionChanged(const QString& serial, const session::Session
         }
         forSessionScripts(row.serial, [streaming](ScriptRuntime& runtime) { runtime.setConnected(streaming); });
     }
+    if ((wasStreaming || wasReconnecting) && !active(state.phase)) {
+        publishPhoneEvent(AppTopic::SessionEnded, row.serial, row.name(),
+                          {{QStringLiteral("failed"), state.phase == session::SessionPhase::Failed}});
+    }
     if (streaming && !wasStreaming && row.controller != nullptr) {
         restartMeasures(row);
         identify(row);
@@ -2804,6 +2827,9 @@ void DeviceManager::sessionChanged(const QString& serial, const session::Session
     updateStatsTimer();
     syncCompanion(row);
     syncPhoneStatus(row);
+    if (streaming && !wasStreaming && !wasReconnecting) {
+        publishPhoneEvent(AppTopic::SessionStarted, row.serial, row.name());
+    }
     if (state.phase == session::SessionPhase::Stopped && !row.listed) {
         removeRow(index);
         emit countsChanged();
@@ -4162,6 +4188,9 @@ void DeviceManager::foregroundApp(const QString& serial, const QString& package,
         row.logic->setForeground(package, game);
     }
     forSessionScripts(row.serial, [&package, game](ScriptRuntime& runtime) { runtime.setForeground(package, game); });
+    publishPhoneEvent(AppTopic::AppForeground, row.serial, row.name(),
+                      {{QStringLiteral("package"), package.isEmpty() ? QJsonValue() : QJsonValue(package)},
+                       {QStringLiteral("game"), game}});
     followApp(row);
     offerStart(row);
     emit mirrorsChanged();
@@ -4315,6 +4344,10 @@ void DeviceManager::applyProfile(Row& row)
     m_moduleTroubles.clear();
     showModuleNotice(row);
     syncLogic(row);
+    const auto [appliedId, appliedName] = profileInfoOf(row);
+    publishPhoneEvent(AppTopic::ProfileApplied, row.serial, row.name(),
+                      {{QStringLiteral("profile"), appliedId.isEmpty() ? QJsonValue() : QJsonValue(appliedId)},
+                       {QStringLiteral("profileName"), appliedName.isEmpty() ? QJsonValue() : QJsonValue(appliedName)}});
 }
 
 void DeviceManager::syncLogic(Row& row)
@@ -6291,6 +6324,7 @@ void DeviceManager::setControlOrientation(const QString& serial, int orientation
     }
     const auto turn = static_cast<ControlTurn>(orientation);
     const QSize canvas = controlCanvasOf(row, orientation);
+    const int heldBefore = row.rotation;
     if (row.aoa != nullptr && active(row.session.phase)) {
         row.aoa->setOrientation(rotationOf(turn), canvas);
         row.rotation = rotationOf(turn);
@@ -6313,6 +6347,10 @@ void DeviceManager::setControlOrientation(const QString& serial, int orientation
         if (row.logic != nullptr) {
             row.logic->setDevice(deviceInfoOf(row));
         }
+    }
+    if (row.rotation != heldBefore) {
+        publishPhoneEvent(AppTopic::OrientationChanged, row.serial, row.name(),
+                          {{QStringLiteral("rotation"), row.rotation}});
     }
     qInfo("%s is held %s", qUtf8Printable(row.name()),
           turn == ControlTurn::Portrait        ? "upright"
@@ -6621,6 +6659,10 @@ void DeviceManager::followFocus(Row& row, bool focused)
         }
     }
     forSessionScripts(row.serial, [focused](ScriptRuntime& runtime) { runtime.setFocused(focused); });
+    const bool inGrid = m_grid != nullptr && m_grid->holds(row.serial);
+    publishPhoneEvent(AppTopic::WindowFocused, row.serial, row.name(),
+                      {{QStringLiteral("window"), inGrid ? QStringLiteral("grid") : QStringLiteral("mirror")},
+                       {QStringLiteral("focused"), focused}});
 }
 
 void DeviceManager::showActionWheel(const QString& control, bool open, int cell)

@@ -386,9 +386,8 @@ constexpr Field kHostFields[] = {
     {"int32_t (*set_error)(gs_ext_result* result, const char* text, size_t size)",
      "Says why a node failed; the script that called it gets the text in its error."},
     {"int32_t (*supports)(void* context, const char* feature)",
-     "1 when this GameScrcpy has the feature, such as \"jobs\", \"events\", \"settings\", \"claims\" or "
-     "\"job-output\", otherwise 0; "
-     "ask before using a function that a later version added."},
+     "1 when this GameScrcpy has the feature, such as \"jobs\", \"events\", \"settings\", \"claims\", "
+     "\"job-output\" or \"app-events\", otherwise 0; ask before using a function that a later version added."},
     {"int32_t (*job_progress)(void* context, uint64_t job, double fraction, const char* text, size_t size)",
      "Tells how far a job got: fraction from 0 to 1, or -1 when it cannot tell, and a short UTF-8 line about the step "
      "it is on. GameScrcpy passes on at most 20 a second and drops the others in between."},
@@ -402,7 +401,9 @@ constexpr Field kHostFields[] = {
      "Sends an event to this extension's scripts and panels, which hear it with events.on(topic, handler). topic is "
      "1 to 64 lowercase letters, digits, dots and dashes; json is UTF-8 JSON of at most 64 KiB (empty for null). "
      "Each topic passes on the first 100 events in a second; the ones after that in the same second are merged, so "
-     "only the last of them arrives, when the second is over. GS_EXT_BAD_ARGUMENT for a bad topic or JSON."},
+     "only the last of them arrives, when the second is over. GS_EXT_BAD_ARGUMENT for a bad topic or JSON, and for "
+     "a topic that begins as GameScrcpy's own do (device., session., profile., app., orientation., recording., "
+     "window., extension. or settings.), so that no extension speaks for GameScrcpy."},
     {"int32_t (*setting_get)(void* context, const char* key, size_t key_size, const char* phone, size_t phone_size, "
      "gs_ext_result* value)",
      "Puts the value of one of the extension's settings into value as json; its text stays valid until the same "
@@ -425,6 +426,16 @@ constexpr Field kHostFields[] = {
      "each device a scan finds or each command a speech engine hears; the logic that started the job gets it through "
      "job.onOutput. Up to 100 a second: GS_EXT_BUSY for the ones after that in the same second, GS_EXT_BAD_ARGUMENT "
      "for text that is not JSON. Ask supports(\"job-output\") first."},
+    {"int32_t (*events_subscribe)(void* context, const char* topic, size_t size, uint32_t on)",
+     "Asks for one of GameScrcpy's own events with on 1, or stops it with on 0; the DLL hears it in on_event. The "
+     "topics are device.connected, device.disconnected, session.started, session.ended, profile.applied, "
+     "app.foreground, orientation.changed, recording.started, recording.ended and window.focused, which tell what "
+     "the phones and their windows do and need the permission events.app, and extension.enabled, "
+     "extension.disabled and settings.changed, which every extension hears; settings.changed tells only of the "
+     "extension's own settings and of GameScrcpy's language and look. events.on in the script documentation gives "
+     "the JSON of each. For each topic the first 100 events in a second come at once and the rest of that second "
+     "are merged into its last one. GS_EXT_BAD_ARGUMENT for a topic that is not written as one, GS_EXT_UNSUPPORTED "
+     "for one this GameScrcpy does not send, GS_EXT_DENIED without the permission."},
 };
 
 constexpr Field kContributionFields[] = {
@@ -451,6 +462,10 @@ constexpr Field kPluginFields[] = {
      "Called on a GameScrcpy thread when someone else wants hardware the DLL claimed: resource names it as the DLL "
      "did and by says who, in UTF-8. Answer within a second: return GS_EXT_OK and call release within 3 seconds to "
      "let it go, or anything else to keep it. May be NULL, which keeps it."},
+    {"void (*on_event)(void* context, const char* topic, size_t topic_size, const char* json, size_t json_size)",
+     "Called with each event the DLL asked for with events_subscribe: its topic and its value as UTF-8 JSON, neither "
+     "ended by a zero byte. It comes on a thread of GameScrcpy that never draws the interface, one event at a time "
+     "and in order; return quickly, since the next events wait and more than 256 waiting are dropped. May be NULL."},
 };
 
 constexpr Structure kStructures[] = {

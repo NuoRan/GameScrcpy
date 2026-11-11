@@ -284,6 +284,11 @@ private:
     std::unique_ptr<NativeExtensions> m_native;
     std::unique_ptr<ExtensionHealth> m_health;
     int m_addOnsRevision = 0;
+    struct Announced {
+        std::string version;
+        QString name;
+    };
+    std::map<std::string, Announced, std::less<>> m_announced;
     std::jthread m_installer;
 };
 

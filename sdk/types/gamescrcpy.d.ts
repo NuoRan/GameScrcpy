@@ -4515,18 +4515,18 @@ declare namespace mcp {
     function tool(name: string, spec: McpToolSpec, handler: (input: any, event: TaskContext) => unknown): Subscription;
 }
 
-/** Events that the native DLL of an extension sends to the extension's own logic and panels. */
+/** Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends to the extension's own logic and panels. */
 declare namespace events {
     /**
-     * Starts a task each time the native DLL of this extension sends an event on the topic. Only the extension's own logic and panels hear its events; for each topic the DLL passes on the first 100 in a second and merges the rest of that second into the last one.
-     * @param topic The topic the extension's DLL sends: 1 to 64 lowercase letters, digits, dots and dashes.
-     * @param handler What to run for each event; value is what the DLL sent with it.
+     * Starts a task each time an event of the topic comes. GameScrcpy's own topics and their values: device.connected and device.disconnected { phone, name }, session.started { phone, name }, session.ended { phone, name, failed }, profile.applied { phone, name, profile, profileName }, app.foreground { phone, name, package, game }, orientation.changed { phone, name, rotation } in quarter turns, recording.started { phone, name, path }, recording.ended { phone, name, path, durationMs }, window.focused { phone, name, window: "mirror" or "grid", focused }, extension.enabled and extension.disabled { id, name, version }, and settings.changed { keys, values, extension, device }; phone is the phone's serial and name the name it shows, and values holds the new language and look settings among keys. Your own logic hears all of them. The logic of an extension hears extension.enabled, extension.disabled and settings.changed, which then tells only of its own settings and the language and look settings, and a session script also hears its own phone; the other phones, and app and task scripts, need the permission events.app. Any other topic is one the native DLL of this extension sends, which only the extension's own logic and panels hear. Of each topic a listener gets the first 100 events in a second at once and the rest of that second merged into the last one.
+     * @param topic One of GameScrcpy's own topics, such as "device.connected", or a topic the extension's DLL sends: 1 to 64 lowercase letters, digits, dots and dashes.
+     * @param handler What to run for each event; value is what came with it.
      * @param options What happens when another event comes while the last task is running.
-     * @throws GS-API-068 when the topic is not 1 to 64 lowercase letters, digits, dots and dashes. Use the topic that the extension's DLL sends.
+     * @throws GS-API-068 when the topic is not 1 to 64 lowercase letters, digits, dots and dashes. Use one of GameScrcpy's own topics or the topic that the extension's DLL sends.
      * @throws GS-API-008 when the handler is not a function. Pass a function.
      * @throws GS-API-009 when again is not one of ignore, restart, stop, queue or parallel. Use one of the five rules.
      * @since 1 (stable)
-     * @example events.on("board.added", ({ value }) => log.info("a board came", value));
+     * @example events.on("app.foreground", ({ value }) => log.info("another app is in front", value));
      */
     function on(topic: string, handler: (event: TaskContext & { readonly topic: string; readonly value: StoreValue }) => void | Promise<void>, options?: ListenOptions): Subscription;
 }

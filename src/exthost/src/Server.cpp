@@ -166,6 +166,14 @@ public:
         send(detail::Kind::DevicesChanged, 0, out.bytes());
     }
 
+    void listening(std::string_view topic, bool on) override
+    {
+        detail::WireWriter out;
+        out.text(topic);
+        out.u32(on ? 1U : 0U);
+        send(detail::Kind::Subscribe, 0, out.bytes());
+    }
+
 private:
     void pump(std::uint64_t id, std::chrono::steady_clock::time_point deadline)
     {
@@ -741,6 +749,13 @@ int serve(int argc, wchar_t** argv)
                 std::string json;
                 if (in.text(json, kMostSettingsBytes) && in.done()) {
                     module->setSettings(json);
+                }
+            } else if (message.kind == detail::Kind::AppEvent) {
+                detail::WireReader in(message.payload);
+                std::string topic;
+                std::string json;
+                if (in.text(topic, kMostTopicBytes) && in.text(json, kMostEventBytes) && in.done()) {
+                    module->appEvent(topic, json);
                 }
             } else if (jobs.handle(message)) {
                 continue;

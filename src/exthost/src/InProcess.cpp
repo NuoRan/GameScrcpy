@@ -14,6 +14,7 @@
 #include <condition_variable>
 #include <cstddef>
 #include <cstring>
+#include <deque>
 #include <functional>
 #include <map>
 #include <mutex>
@@ -282,6 +283,72 @@ private:
     std::thread m_flusher;
 };
 
+constexpr std::size_t kMostQueuedEvents = 256;
+
+class EventPump
+{
+public:
+    using Deliver = std::function<void(const std::string& topic, const std::string& json)>;
+
+    explicit EventPump(Deliver deliver)
+        : m_deliver(std::move(deliver))
+        , m_thread([this] { run(); })
+    {
+    }
+
+    ~EventPump()
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_stopping = true;
+        }
+        m_wake.notify_all();
+        if (m_thread.joinable()) {
+            m_thread.join();
+        }
+    }
+
+    EventPump(const EventPump&) = delete;
+    EventPump& operator=(const EventPump&) = delete;
+
+    [[nodiscard]] bool push(std::string topic, std::string json)
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_stopping || m_queue.size() >= kMostQueuedEvents) {
+                return false;
+            }
+            m_queue.emplace_back(std::move(topic), std::move(json));
+        }
+        m_wake.notify_one();
+        return true;
+    }
+
+private:
+    void run()
+    {
+        std::unique_lock lock(m_mutex);
+        for (;;) {
+            m_wake.wait(lock, [this] { return m_stopping || !m_queue.empty(); });
+            if (m_stopping) {
+                return;
+            }
+            const std::pair<std::string, std::string> next = std::move(m_queue.front());
+            m_queue.pop_front();
+            lock.unlock();
+            m_deliver(next.first, next.second);
+            lock.lock();
+        }
+    }
+
+    Deliver m_deliver;
+    std::mutex m_mutex;
+    std::condition_variable m_wake;
+    std::deque<std::pair<std::string, std::string>> m_queue;
+    bool m_stopping = false;
+    std::thread m_thread;
+};
+
 nlohmann::json settingsOf(std::string_view text)
 {
     nlohmann::json parsed = nlohmann::json::parse(text, nullptr, false);
@@ -334,6 +401,7 @@ struct InProcessModule::Impl {
         if (library == nullptr) {
             return;
         }
+        pump.reset();
         endJobs();
         {
             const std::scoped_lock lock(touchMutex);
@@ -445,6 +513,9 @@ struct InProcessModule::Impl {
     std::mutex instanceMutex;
     std::map<std::uint64_t, Instance> instances;
     std::uint64_t nextInstance = 0;
+    std::mutex heardMutex;
+    std::set<std::string, std::less<>> heard;
+    std::unique_ptr<EventPump> pump;
 };
 
 namespace {
@@ -576,7 +647,10 @@ int32_t hostSupports(void*, const char* feature)
         return 0;
     }
     const std::string_view name(feature, strnlen(feature, kMostNameBytes));
-    return name == "jobs" || name == "events" || name == "settings" || name == "claims" || name == "job-output" ? 1 : 0;
+    return name == "jobs" || name == "events" || name == "settings" || name == "claims" || name == "job-output" ||
+                   name == "app-events"
+               ? 1
+               : 0;
 }
 
 int32_t hostSettingGet(void* context, const char* key, size_t keySize, const char* phone, size_t phoneSize,
@@ -662,10 +736,37 @@ int32_t hostEmitEvent(void* context, const char* topic, size_t topicSize, const 
     }
     const std::string_view name = topicSize == 0 ? std::string_view() : std::string_view(topic, topicSize);
     const std::string_view value = jsonSize == 0 ? std::string_view("null") : std::string_view(json, jsonSize);
-    if (!validTopic(name) || !validUtf8(value) || !nlohmann::json::accept(value)) {
+    if (!validTopic(name) || reservedTopic(name) || !validUtf8(value) || !nlohmann::json::accept(value)) {
         return GS_EXT_BAD_ARGUMENT;
     }
     return impl.gate->emit(std::string(name), std::string(value)) ? GS_EXT_OK : GS_EXT_FAILED;
+}
+
+int32_t hostEventsSubscribe(void* context, const char* topic, size_t size, uint32_t on)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if (topic == nullptr || size == 0 || on > 1) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    const std::string_view name(topic, size);
+    if (!validTopic(name)) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (!appTopic(name)) {
+        return GS_EXT_UNSUPPORTED;
+    }
+    if (on != 0 && phoneTopic(name) && !impl.allows(kAppEventsPermission)) {
+        return GS_EXT_DENIED;
+    }
+    bool changed = false;
+    {
+        const std::scoped_lock lock(impl.heardMutex);
+        changed = on != 0 ? impl.heard.emplace(name).second : impl.heard.erase(std::string(name)) > 0;
+    }
+    if (changed && impl.services != nullptr) {
+        impl.services->listening(name, on != 0);
+    }
+    return GS_EXT_OK;
 }
 
 std::string lineOf(const char* text, size_t size, std::size_t most)
@@ -1110,6 +1211,7 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
     impl->host.claim = &hostClaim;
     impl->host.release = &hostRelease;
     impl->host.job_output = &hostJobOutput;
+    impl->host.events_subscribe = &hostEventsSubscribe;
     const gs_ext_plugin* plugin = nullptr;
     const int32_t status = entry(&impl->host, &plugin);
     impl->entered = status == GS_EXT_OK;
@@ -1569,6 +1671,31 @@ bool InProcessModule::claimWanted(std::string_view resource, std::string_view by
     }
     return d.described.claim_wanted(d.described.context, resource.data(), resource.size(), by.data(), by.size()) ==
            GS_EXT_OK;
+}
+
+bool InProcessModule::hears(std::string_view topic) const
+{
+    const Impl& d = *m_impl;
+    const std::scoped_lock lock(m_impl->heardMutex);
+    return d.described.on_event != nullptr && d.heard.contains(topic);
+}
+
+void InProcessModule::appEvent(std::string_view topic, std::string_view json)
+{
+    Impl& d = *m_impl;
+    if (d.described.on_event == nullptr || topic.size() > kMostTopicBytes || json.size() > kMostEventBytes) {
+        return;
+    }
+    const std::scoped_lock lock(d.heardMutex);
+    if (!d.heard.contains(topic)) {
+        return;
+    }
+    if (d.pump == nullptr) {
+        d.pump = std::make_unique<EventPump>([&d](const std::string& name, const std::string& value) {
+            d.described.on_event(d.described.context, name.data(), name.size(), value.data(), value.size());
+        });
+    }
+    static_cast<void>(d.pump->push(std::string(topic), std::string(json)));
 }
 
 }

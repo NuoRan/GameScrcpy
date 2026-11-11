@@ -138,6 +138,19 @@ inline constexpr std::size_t kMostSettingsBytes = 192 * 1024;
 
 [[nodiscard]] bool validTopic(std::string_view topic) noexcept;
 
+inline constexpr std::array<std::string_view, 13> kAppTopics{
+    "device.connected",  "device.disconnected", "session.started",     "session.ended",
+    "profile.applied",   "app.foreground",      "orientation.changed", "recording.started",
+    "recording.ended",   "window.focused",      "extension.enabled",   "extension.disabled",
+    "settings.changed"};
+inline constexpr std::array<std::string_view, 3> kAppWideTopics{"extension.enabled", "extension.disabled",
+                                                                "settings.changed"};
+inline constexpr std::string_view kAppEventsPermission = "events.app";
+
+[[nodiscard]] bool appTopic(std::string_view topic) noexcept;
+[[nodiscard]] bool phoneTopic(std::string_view topic) noexcept;
+[[nodiscard]] bool reservedTopic(std::string_view topic) noexcept;
+
 struct ModuleInfo {
     std::vector<TouchMethodInfo> touchMethods;
     std::vector<NodeInfo> nodes;
@@ -267,6 +280,7 @@ public:
     virtual void devicesChanged(std::string_view) {}
     [[nodiscard]] virtual ClaimResult claim(std::string_view, bool) { return ClaimResult::Unsupported; }
     virtual void release(std::string_view) {}
+    virtual void listening(std::string_view, bool) {}
 };
 
 class Module
@@ -299,6 +313,8 @@ public:
     [[nodiscard]] virtual CallResult listDevices(std::size_t) { return {}; }
     [[nodiscard]] virtual CallResult actOnDevice(std::size_t, std::string_view, std::string_view) { return {}; }
     [[nodiscard]] virtual bool claimWanted(std::string_view, std::string_view) { return false; }
+    [[nodiscard]] virtual bool hears(std::string_view) const { return false; }
+    virtual void appEvent(std::string_view, std::string_view) {}
 };
 
 }

@@ -1,5 +1,6 @@
 #include "AppSettings.h"
 
+#include "AppEvents.h"
 #include "QtConversions.h"
 #include "SettingVariant.h"
 #include "SponsorPrompt.h"
@@ -10,6 +11,8 @@
 #include <QGuiApplication>
 #include <QFileInfo>
 #include <QJSEngine>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QList>
 #include <QLocale>
 #include <QMetaObject>
@@ -52,6 +55,38 @@ bool usableTourKey(const QString& key)
 {
     const std::string text = key.toStdString();
     return !text.empty() && text.size() <= settings::Hints::kMaxTourNameLength && key.trimmed() == key;
+}
+
+QJsonValue settingJson(const settings::Value& value)
+{
+    if (const auto* flag = std::get_if<bool>(&value)) {
+        return *flag;
+    }
+    if (const auto* whole = std::get_if<std::int64_t>(&value)) {
+        return static_cast<qint64>(*whole);
+    }
+    return QString::fromStdString(std::get<std::string>(value));
+}
+
+std::pair<QStringList, QJsonObject> changesOf(const settings::Settings& before, const settings::Settings& after)
+{
+    std::pair<QStringList, QJsonObject> changes;
+    if (AppEvents::instance() == nullptr) {
+        return changes;
+    }
+    for (const settings::Entry& entry : settings::catalog()) {
+        const std::optional<settings::Value> was = settings::valueOf(before, entry.path);
+        const std::optional<settings::Value> now = settings::valueOf(after, entry.path);
+        if (was == now) {
+            continue;
+        }
+        const QString key = QString::fromStdString(entry.path);
+        changes.first.append(key);
+        if (now && publicSetting(key)) {
+            changes.second.insert(key, settingJson(*now));
+        }
+    }
+    return changes;
 }
 
 }
@@ -250,7 +285,14 @@ bool AppSettings::setDeviceValue(const QString& id, const QString& path, const Q
     if (!converted || !settings::setOverride(next, entry->path, *converted)) {
         return false;
     }
-    return setDevice(id.toStdString(), next);
+    const bool changed = next != device(id.toStdString());
+    if (!setDevice(id.toStdString(), next)) {
+        return false;
+    }
+    if (changed) {
+        publishSettingsChanged({QString::fromStdString(entry->path)}, {}, {}, id);
+    }
+    return true;
 }
 
 void AppSettings::resetDeviceValue(const QString& id, const QString& path)
@@ -258,6 +300,7 @@ void AppSettings::resetDeviceValue(const QString& id, const QString& path)
     settings::DeviceSettings next = device(id.toStdString());
     if (settings::clearOverride(next, path.toStdString())) {
         setDevice(id.toStdString(), next);
+        publishSettingsChanged({path}, {}, {}, id);
     }
 }
 
@@ -268,6 +311,7 @@ void AppSettings::change(const settings::Settings& next)
     }
     const bool appearance = next.appearance != m_file.document().appearance;
     const bool language = next.general.language != m_file.document().general.language;
+    const std::pair<QStringList, QJsonObject> changes = changesOf(m_file.document(), next);
     m_file.update(next);
     if (appearance) {
         emit appearanceChanged();
@@ -276,6 +320,7 @@ void AppSettings::change(const settings::Settings& next)
         emit languageChanged();
     }
     emit valuesChanged();
+    publishSettingsChanged(changes.first, changes.second);
 }
 
 QString AppSettings::language() const

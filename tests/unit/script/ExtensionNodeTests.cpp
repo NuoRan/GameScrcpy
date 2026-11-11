@@ -454,6 +454,31 @@ export function wrong() {
     CHECK(fixture.recorder.count(logged("GS-API-068 GS-API-068 GS-API-068 GS-API-068")) == 1);
 }
 
+TEST_CASE("ADR-0112: events.on hears GameScrcpy's own events, such as a phone connecting, with their value in the "
+          "same way as a DLL's")
+{
+    Fixture fixture;
+    const ScriptId script = fixture.load(R"js(
+const heard = [];
+events.on("device.connected", ({ topic, value }) => {
+    heard.push(topic + " " + value.phone + " " + value.name);
+});
+events.on("settings.changed", ({ value }) => {
+    heard.push("settings " + value.keys.join("+") + " " + value.values["general.language"]);
+});
+export function report() {
+    log.info("heard", heard.join(","));
+}
+)js");
+    fixture.host->event("extEvent", "device.connected", R"({"phone":"R58M","name":"Pixel 8"})");
+    fixture.host->event("extEvent", "device.disconnected", R"({"phone":"R58M","name":"Pixel 8"})");
+    fixture.host->event("extEvent", "settings.changed",
+                        R"({"keys":["general.language"],"values":{"general.language":"zh_CN"},"extension":null,)"
+                        R"("device":null})");
+    CHECK(fixture.run(script, "report").kind == ReportKind::TaskFinished);
+    CHECK(fixture.recorder.count(logged("heard device.connected R58M Pixel 8,settings general.language zh_CN")) == 1);
+}
+
 TEST_CASE("ADR-0097: installed nodes are typed in types/extensions.d.ts under interface Extensions")
 {
     CHECK(gs::script::nodePath("gamescrcpy.pc-clock", "now") == "ext.gamescrcpy.pcClock.now");

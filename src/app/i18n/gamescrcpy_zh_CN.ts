@@ -13170,10 +13170,6 @@
         <translation>扩展的 app 脚本经本地 MCP 连接提供给 AI 客户端的工具。</translation>
     </message>
     <message>
-        <source>Events that the native DLL of an extension sends to the extension&apos;s own logic and panels.</source>
-        <translation>扩展的原生 DLL 发给本扩展的逻辑与面板的事件。</translation>
-    </message>
-    <message>
         <source>Questions from logic to the AI service set up in Settings, AI; they work only while Let logic call AI is on there.</source>
         <translation>逻辑向“设置 &gt; AI”里配好的 AI 服务提问；只有那里的“允许逻辑调用 AI”打开时才能用。</translation>
     </message>
@@ -14770,6 +14766,22 @@
         <translation>第一次要执行的内容。</translation>
     </message>
     <message>
+        <source>Starts a task each time an event of the topic comes. GameScrcpy&apos;s own topics and their values: device.connected and device.disconnected { phone, name }, session.started { phone, name }, session.ended { phone, name, failed }, profile.applied { phone, name, profile, profileName }, app.foreground { phone, name, package, game }, orientation.changed { phone, name, rotation } in quarter turns, recording.started { phone, name, path }, recording.ended { phone, name, path, durationMs }, window.focused { phone, name, window: &quot;mirror&quot; or &quot;grid&quot;, focused }, extension.enabled and extension.disabled { id, name, version }, and settings.changed { keys, values, extension, device }; phone is the phone&apos;s serial and name the name it shows, and values holds the new language and look settings among keys. Your own logic hears all of them. The logic of an extension hears extension.enabled, extension.disabled and settings.changed, which then tells only of its own settings and the language and look settings, and a session script also hears its own phone; the other phones, and app and task scripts, need the permission events.app. Any other topic is one the native DLL of this extension sends, which only the extension&apos;s own logic and panels hear. Of each topic a listener gets the first 100 events in a second at once and the rest of that second merged into the last one.</source>
+        <translation>每来一个该主题的事件就启动一个任务。GameScrcpy 自己的主题及其值：device.connected 与 device.disconnected { phone, name }，session.started { phone, name }，session.ended { phone, name, failed }，profile.applied { phone, name, profile, profileName }，app.foreground { phone, name, package, game }，orientation.changed { phone, name, rotation }（以四分之一圈计），recording.started { phone, name, path }，recording.ended { phone, name, path, durationMs }，window.focused { phone, name, window: &quot;mirror&quot; 或 &quot;grid&quot;, focused }，extension.enabled 与 extension.disabled { id, name, version }，以及 settings.changed { keys, values, extension, device }；phone 是手机的序列号，name 是它显示的名字，values 里是 keys 中语言与外观设置的新值。你自己的逻辑全都能收到。扩展的逻辑能收到 extension.enabled、extension.disabled 与 settings.changed（这时只说它自己的设置和语言、外观设置），会话脚本还能收到它自己那台手机的；别的手机，以及 app 脚本和任务脚本，要有权限 events.app。其它主题是本扩展的原生 DLL 发出的，只有本扩展自己的逻辑与面板收得到。每个主题，每个收听者一秒内的前 100 个事件立刻送到，这一秒里其余的合并成最后一个。</translation>
+    </message>
+    <message>
+        <source>One of GameScrcpy&apos;s own topics, such as &quot;device.connected&quot;, or a topic the extension&apos;s DLL sends: 1 to 64 lowercase letters, digits, dots and dashes.</source>
+        <translation>GameScrcpy 自己的主题之一（例如 &quot;device.connected&quot;），或扩展的 DLL 发出的主题：1～64 个小写字母、数字、点和短横线。</translation>
+    </message>
+    <message>
+        <source>What to run for each event; value is what came with it.</source>
+        <translation>每个事件要运行的内容；value 是随事件来的值。</translation>
+    </message>
+    <message>
+        <source>Use one of GameScrcpy&apos;s own topics or the topic that the extension&apos;s DLL sends.</source>
+        <translation>用 GameScrcpy 自己的主题，或扩展的 DLL 发出的主题。</translation>
+    </message>
+    <message>
         <source>Pass a name.</source>
         <translation>传入一个名字。</translation>
     </message>
@@ -15014,24 +15026,8 @@
         <translation>这份逻辑不是扩展的 app 脚本，名字或说明不合要求，输入的 Schema 不是 type 为 object 的对象或超过 16 KiB，或这个扩展已经提供了 32 个工具</translation>
     </message>
     <message>
-        <source>Starts a task each time the native DLL of this extension sends an event on the topic. Only the extension&apos;s own logic and panels hear its events; for each topic the DLL passes on the first 100 in a second and merges the rest of that second into the last one.</source>
-        <translation>本扩展的原生 DLL 每在这个主题上发出一个事件，就启动一个任务。只有本扩展自己的逻辑与面板收得到它的事件；每个主题每秒先送出前 100 个，这一秒里其余的合并成最后一个。</translation>
-    </message>
-    <message>
-        <source>The topic the extension&apos;s DLL sends: 1 to 64 lowercase letters, digits, dots and dashes.</source>
-        <translation>扩展的 DLL 发出的主题：1 到 64 个小写字母、数字、点和短横线。</translation>
-    </message>
-    <message>
-        <source>What to run for each event; value is what the DLL sent with it.</source>
-        <translation>每个事件要执行的内容；value 是 DLL 随事件发来的值。</translation>
-    </message>
-    <message>
         <source>What happens when another event comes while the last task is running.</source>
         <translation>上一个任务还在执行时又来了事件怎么办。</translation>
-    </message>
-    <message>
-        <source>Use the topic that the extension&apos;s DLL sends.</source>
-        <translation>用扩展的 DLL 发出的主题。</translation>
     </message>
     <message>
         <source>the topic is not 1 to 64 lowercase letters, digits, dots and dashes</source>
@@ -15792,6 +15788,10 @@
     <message>
         <source>Text: joining, filling in, finding, cutting and changing case.</source>
         <translation>文字：拼接、填入、查找、拆分与大小写转换。</translation>
+    </message>
+    <message>
+        <source>Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends to the extension&apos;s own logic and panels.</source>
+        <translation>GameScrcpy 自己的事件（例如手机连上），以及扩展的原生 DLL 发给本扩展逻辑与面板的事件。</translation>
     </message>
     <message>
         <source>Where the component sits on the picture, as ratios, for the phone&apos;s picture when the logic started; it follows moveTo(). null for a component made in logic with new.</source>
@@ -21891,6 +21891,10 @@
     <message>
         <source>Listen for voice commands you say</source>
         <translation>听你说的语音命令</translation>
+    </message>
+    <message>
+        <source>Know what happens on every phone and window</source>
+        <translation>知道所有手机与窗口的动静</translation>
     </message>
     <message>
         <source>Its script %1 is not in the extension</source>

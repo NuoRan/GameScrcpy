@@ -29,6 +29,7 @@ std::string g_acted;
 bool g_yield = false;
 std::string g_wanted;
 std::string g_spoken = "null";
+std::string g_heard;
 
 void appendNumber(std::string& out, double value)
 {
@@ -352,6 +353,38 @@ int32_t claimWanted(void*, const char* resource, size_t size, const char* by, si
     return GS_EXT_OK;
 }
 
+int32_t subscribeNode(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number =
+        g_host->events_subscribe(g_host->context, args[0].text, args[0].size, args[1].flag != 0 ? 1u : 0u);
+    return GS_EXT_OK;
+}
+
+int32_t heardNode(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    std::string heard;
+    {
+        const std::scoped_lock lock(g_mutex);
+        heard = "[" + std::exchange(g_heard, std::string()) + "]";
+    }
+    return giveText(result, GS_EXT_TYPE_JSON, heard);
+}
+
+void onEvent(void*, const char* topic, size_t topicSize, const char* json, size_t jsonSize)
+{
+    std::string entry = "[";
+    appendText(entry, topic, topicSize);
+    entry += ',';
+    entry.append(json, jsonSize);
+    entry += ',' + std::to_string(GetCurrentThreadId()) + ']';
+    const std::scoped_lock lock(g_mutex);
+    if (!g_heard.empty()) {
+        g_heard += ',';
+    }
+    g_heard += entry;
+}
+
 int32_t openTouch(void*, const gs_ext_touch_open* info, void** session)
 {
     constexpr char kClaim[] = "{\"claim\":\"";
@@ -474,6 +507,8 @@ const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "lastWanted", nullptr, 0, GS_EXT_TYPE_STRING, nullptr, &lastWanted},
     {sizeof(gs_ext_node), "voices", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &voicesNode},
     {sizeof(gs_ext_node), "lastSpoken", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &lastSpoken},
+    {sizeof(gs_ext_node), "subscribe", kStringAndFlag, 2, GS_EXT_TYPE_NUMBER, nullptr, &subscribeNode},
+    {sizeof(gs_ext_node), "heard", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &heardNode},
 };
 
 const gs_ext_device_provider kBoxes = {sizeof(gs_ext_device_provider), "boxes", nullptr, &listBoxes, &actOnBox};
@@ -848,6 +883,8 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "supports", &kNodes[21]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "yieldClaims", &kNodes[22]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "lastWanted", &kNodes[23]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "subscribe", &kNodes[26]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "heard", &kNodes[27]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_DEVICE_PROVIDER, "boxes", &kBoxes},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_ATTACHMENT, "shift", &kShift},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_BEHAVIOR, "tap", &kTap},
@@ -868,6 +905,7 @@ const gs_ext_plugin kPlugin = {
     &unloadAll,
     &settingsChanged,
     &claimWanted,
+    &onEvent,
 };
 
 }
