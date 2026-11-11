@@ -81,6 +81,7 @@ public:
     void setMouseButtons(int buttons);
     void setAudioMuted(bool muted);
     void setAudioVolume(float volume);
+    void setAudioTap(media::AudioTap tap);
     void setScreenOff(bool off);
     void setOrientation(protocol::OrientationMode mode);
     void setStatusReports(bool on);

@@ -1,12 +1,15 @@
 add_library(gs_exthost STATIC
     include/gs/exthost/Hosted.h
     include/gs/exthost/InProcess.h
+    include/gs/exthost/Media.h
     include/gs/exthost/Module.h
     include/gs/exthost/Server.h
     src/Channel.cpp
     src/Channel.h
     src/Hosted.cpp
     src/InProcess.cpp
+    src/MediaRing.cpp
+    src/MediaRing.h
     src/Module.cpp
     src/Server.cpp
     src/Store.cpp

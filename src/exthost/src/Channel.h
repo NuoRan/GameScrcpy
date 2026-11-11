@@ -65,6 +65,15 @@ enum class Kind : std::uint32_t {
     StreamTaken,
     StreamClose,
     StreamClosed,
+    SourceList,
+    SourceOpen,
+    SourceClose,
+    MediaRing,
+    StreamEnded,
+    SourcesChanged,
+    SinkOpen,
+    SinkClose,
+    ExportStart,
 };
 
 struct Message {

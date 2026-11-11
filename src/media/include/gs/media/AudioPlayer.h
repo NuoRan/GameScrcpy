@@ -5,11 +5,15 @@
 
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <span>
 #include <string>
 
 namespace gs::media {
+
+using AudioTap =
+    std::function<void(std::span<const float> interleaved, int channels, int sampleRate, std::int64_t ptsUs)>;
 
 struct AudioStats {
     std::uint32_t bufferedFrames = 0;
@@ -37,6 +41,7 @@ public:
     void setVolume(float volume) noexcept;
     void setMuted(bool muted) noexcept;
     [[nodiscard]] AudioStats stats() const;
+    void setTap(AudioTap tap);
 
 private:
     struct State;

@@ -50,6 +50,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <span>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -125,6 +126,7 @@ struct Esp32Found;
 class KeymapBackgrounds;
 struct StoredBackground;
 struct DevicePresentation;
+struct MediaSourceDevice;
 
 class DeviceManager : public QAbstractListModel
 {
@@ -364,6 +366,8 @@ public:
 
     [[nodiscard]] std::optional<script::DeviceInfo> deviceInfo(const QString& serial) const;
     [[nodiscard]] std::shared_ptr<media::FrameSnapshots> snapshotsOf(const QString& serial) const;
+    bool setAudioTap(const QString& serial,
+                     std::function<void(std::span<const float>, int, int, std::int64_t)> tap);
     bool requestScreenshot(const QString& serial, std::function<void(const QImage&)> done);
     [[nodiscard]] QString startScriptJob(const QString& serial, ScriptJob job, quint64& number);
     void stopScriptJob(quint64 number);
@@ -771,6 +775,8 @@ private:
     [[nodiscard]] static bool isBoxRow(const Row& row) noexcept;
     [[nodiscard]] static bool noPictureOf(const Row& row) noexcept;
     void syncProvided();
+    void syncSources();
+    void addSourceRow(const QString& serial, const MediaSourceDevice& source);
     void connectProvided(Row& row);
     void startProvidedJob(Row& row, const QString& job, const QString& title);
     void showProvidedJob(const QString& serial, QVariantMap shown);

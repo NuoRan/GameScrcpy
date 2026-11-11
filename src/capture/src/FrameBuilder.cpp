@@ -381,7 +381,45 @@ struct FrameBuilder::State {
     std::unique_ptr<H264Worker> h264;
     mutable std::mutex mutex;
     std::string problem;
+    std::vector<std::uint8_t> scratch;
 };
+
+void bgraToNv12(const std::uint8_t* pixels, std::ptrdiff_t pitch, int width, int height, std::uint8_t* luma,
+                std::ptrdiff_t lumaPitch, std::uint8_t* chroma, std::ptrdiff_t chromaPitch) noexcept
+{
+    for (int y = 0; y < height; ++y) {
+        const std::uint8_t* row = pixels + y * pitch;
+        std::uint8_t* out = luma + y * lumaPitch;
+        for (int x = 0; x < width; ++x) {
+            const int blue = row[4 * x];
+            const int green = row[4 * x + 1];
+            const int red = row[4 * x + 2];
+            out[x] = static_cast<std::uint8_t>(((47 * red + 157 * green + 16 * blue + 128) >> 8) + 16);
+        }
+    }
+    for (int y = 0; y < (height + 1) / 2; ++y) {
+        const std::uint8_t* top = pixels + (2 * y) * pitch;
+        const std::uint8_t* bottom = pixels + std::min(2 * y + 1, height - 1) * pitch;
+        std::uint8_t* out = chroma + y * chromaPitch;
+        for (int x = 0; x < (width + 1) / 2; ++x) {
+            int blue = 0;
+            int green = 0;
+            int red = 0;
+            for (const std::uint8_t* row : {top, bottom}) {
+                for (const int column : {2 * x, std::min(2 * x + 1, width - 1)}) {
+                    blue += row[4 * column];
+                    green += row[4 * column + 1];
+                    red += row[4 * column + 2];
+                }
+            }
+            blue = (blue + 2) / 4;
+            green = (green + 2) / 4;
+            red = (red + 2) / 4;
+            out[2 * x] = static_cast<std::uint8_t>(((-26 * red - 86 * green + 112 * blue + 128) >> 8) + 128);
+            out[2 * x + 1] = static_cast<std::uint8_t>(((112 * red - 102 * green - 10 * blue + 128) >> 8) + 128);
+        }
+    }
+}
 
 FrameBuilder::FrameBuilder(ID3D11Device* device, Deliver deliver)
     : m_state(std::make_unique<State>(device, std::move(deliver)))
@@ -462,6 +500,22 @@ void FrameBuilder::build(const CaptureSample& sample)
         }
         state.h264->push(sample, state.session);
         return;
+    case SampleKind::Bgra: {
+        const auto rowBytes = static_cast<std::size_t>(sample.width) * 4;
+        if (sample.pitch < static_cast<std::ptrdiff_t>(rowBytes) ||
+            sample.bytes.size() <
+                static_cast<std::size_t>(sample.pitch) * static_cast<std::size_t>(sample.height - 1) + rowBytes) {
+            return;
+        }
+        const int lumaPitch = (sample.width + 1) / 2 * 2;
+        const int rows = (sample.height + 1) / 2 * 2;
+        state.scratch.resize(static_cast<std::size_t>(lumaPitch) * static_cast<std::size_t>(rows) * 3 / 2);
+        std::uint8_t* luma = state.scratch.data();
+        std::uint8_t* chroma = luma + static_cast<std::ptrdiff_t>(lumaPitch) * rows;
+        bgraToNv12(sample.bytes.data(), sample.pitch, sample.width, sample.height, luma, lumaPitch, chroma, lumaPitch);
+        state.hand(state.uploader.nv12({luma, lumaPitch, chroma, lumaPitch}, sample.width, sample.height, stamp));
+        return;
+    }
     }
 }
 

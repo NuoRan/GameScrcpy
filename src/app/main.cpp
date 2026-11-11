@@ -30,10 +30,12 @@
 #include "McpDrafts.h"
 #include "McpServer.h"
 #include "McpTools.h"
+#include "MediaSinks.h"
 #include "MirrorWindow.h"
 #include "NativeEvents.h"
 #include "NativeExtensions.h"
 #include "NativeJobs.h"
+#include "Recordings.h"
 #include "OfflineNetwork.h"
 #include "ProfileLibrary.h"
 #include "TaskLibrary.h"
@@ -49,6 +51,7 @@
 #include <gs/hardware/FakeBackend.h>
 #include <gs/input/Profile.h>
 #include <gs/media/FfmpegLog.h>
+#include <gs/media/FrameSnapshot.h>
 #include <gs/platform/CrashHandler.h>
 #include <gs/platform/RunningMarker.h>
 #include <gs/platform/Speech.h>
@@ -492,6 +495,24 @@ int main(int argc, char* argv[])
                                 (QCoreApplication::applicationDirPath() + u"/gs-companion.json"_s).toStdWString());
     devices.setExtensions(&extensions);
     devices.setNativeJobs(&nativeJobs);
+    gs::app::MediaSinks mediaSinks(
+        *extensions.native(),
+        {.windows = [&devices] { return devices.mirrors(); },
+         .camera = [&devices](const QString& serial) -> gs::app::MediaSinks::Camera {
+             std::shared_ptr<gs::media::FrameSnapshots> shots = devices.snapshotsOf(serial);
+             if (shots == nullptr) {
+                 return {};
+             }
+             return [shots] { return shots->capture(true); };
+         },
+         .listen = [&devices](const QString& serial, gs::media::AudioTap tap) {
+             return devices.setAudioTap(serial, std::move(tap));
+         }});
+    QObject::connect(&devices, &gs::app::DeviceManager::mirrorsChanged, &mediaSinks,
+                     &gs::app::MediaSinks::windowsChanged);
+    if (gs::app::Recordings* recordings = gs::app::Recordings::instance()) {
+        recordings->watchExtensions(*extensions.native());
+    }
     devices.setScriptStore(data / "script-store");
     devices.setProfileLibrary(&profiles);
     devices.setTaskLibrary(&tasks);

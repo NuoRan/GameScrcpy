@@ -2,6 +2,7 @@
 
 #include "ExtensionModules.h"
 #include "KeyLabels.h"
+#include "MediaOffers.h"
 #include "ProvidedDevice.h"
 #include "TouchMethods.h"
 #include "TransportPhones.h"
@@ -60,6 +61,10 @@ struct NativeWanted {
     std::string settings;
     std::vector<NativeTexts> inputTexts;
     std::vector<QString> transportTitles;
+    std::vector<QString> videoSourceTitles;
+    std::vector<QString> audioSourceTitles;
+    std::vector<QString> sinkTitles;
+    std::vector<QString> exporterTitles;
 };
 
 [[nodiscard]] std::string nativeTouchOptions(std::string_view snapshot, std::string_view phone,
@@ -151,6 +156,17 @@ public:
     [[nodiscard]] input::ModuleCatalog moduleCatalog() const;
     [[nodiscard]] ExtensionInputTitles inputTitles() const;
 
+    [[nodiscard]] std::vector<MediaSourceDevice> mediaSources() const;
+    void refreshSources(std::string_view extension = {});
+    [[nodiscard]] std::unique_ptr<SourceLease> openSource(const MediaSourceDevice& source,
+                                                          std::string_view params) const;
+    [[nodiscard]] std::vector<MediaSinkOffer> mediaSinks() const;
+    [[nodiscard]] std::unique_ptr<SinkLease> openSink(std::string_view extension, std::string_view sink,
+                                                      const exthost::SinkStart& start) const;
+    [[nodiscard]] std::vector<ExporterOffer> exporters() const;
+    [[nodiscard]] bool startExport(std::string_view extension, std::string_view exporter, std::string_view input,
+                                   std::string_view output, exthost::JobEvents events) const;
+
     struct Entry;
     struct Shared;
 
@@ -166,6 +182,8 @@ signals:
     void inputEvent(const QString& extension, const QString& name, bool button, double x, double y);
     void inputsEnded(const QString& extension);
     void transportPhonesChanged();
+    void sourcesChanged();
+    void mediaChanged();
 
 private:
     [[nodiscard]] std::shared_ptr<Entry> load(const NativeWanted& wanted) const;
@@ -194,6 +212,7 @@ private:
     std::vector<ProvidedDevice> m_provided;
     std::shared_ptr<TransportChanges> m_changes = std::make_shared<TransportChanges>();
     std::vector<TransportPhone> m_phones;
+    std::vector<MediaSourceDevice> m_sources;
 };
 
 }

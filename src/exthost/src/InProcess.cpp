@@ -1,5 +1,6 @@
 #include "gs/exthost/InProcess.h"
 
+#include "MediaRing.h"
 #include "Store.h"
 
 #include <gamescrcpy_ext.h>
@@ -22,6 +23,7 @@
 #include <set>
 #include <string>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -51,6 +53,11 @@ static_assert(static_cast<int>(ServiceStatus::Failed) == GS_EXT_FAILED);
 static_assert(static_cast<int>(ServiceStatus::Unsupported) == GS_EXT_UNSUPPORTED);
 static_assert(static_cast<int>(ServiceStatus::Denied) == GS_EXT_DENIED);
 static_assert(static_cast<int>(ServiceStatus::BadArgument) == GS_EXT_BAD_ARGUMENT);
+static_assert(static_cast<int>(PixelFormat::Bgra) == GS_EXT_PIXEL_BGRA);
+static_assert(static_cast<int>(PixelFormat::Nv12) == GS_EXT_PIXEL_NV12);
+static_assert(static_cast<int>(SampleFormat::S16) == GS_EXT_SAMPLE_S16);
+static_assert(static_cast<int>(SampleFormat::F32) == GS_EXT_SAMPLE_F32);
+static_assert(kSoundRate == static_cast<std::uint32_t>(GS_EXT_SOUND_RATE));
 
 namespace {
 
@@ -525,6 +532,7 @@ struct InProcessModule::Impl {
             }
             instances.clear();
         }
+        endMedia();
         if (entered && described.unload != nullptr) {
             described.unload(described.context);
         }
@@ -546,6 +554,7 @@ struct InProcessModule::Impl {
         std::chrono::steady_clock::time_point told{};
         std::chrono::steady_clock::time_point outputSecond{};
         std::size_t outputs = 0;
+        bool exporter = false;
     };
 
     struct OpenStream {
@@ -577,18 +586,74 @@ struct InProcessModule::Impl {
         }
     }
 
+    struct SourceCalls {
+        void* context = nullptr;
+        int32_t (*list)(void* context, gs_ext_result* out) = nullptr;
+        int32_t (*open)(void* context, const char* id, size_t idSize, const char* params, size_t paramsSize,
+                        uint64_t stream) = nullptr;
+        void (*close)(void* context, uint64_t stream) = nullptr;
+    };
+
+    struct Stream {
+        MediaKind kind = MediaKind::Video;
+        std::size_t index = 0;
+        std::shared_ptr<detail::StreamBox> box;
+    };
+
+    struct Sink {
+        std::size_t index = 0;
+        void* state = nullptr;
+        std::shared_ptr<detail::SinkBox> box;
+        std::unique_ptr<detail::SinkPump> pump;
+    };
+
+    void endMedia()
+    {
+        std::map<std::uint64_t, Stream> open;
+        {
+            const std::scoped_lock lock(mediaMutex);
+            open.swap(mediaStreams);
+        }
+        for (auto& [id, stream] : open) {
+            const SourceCalls& calls = stream.kind == MediaKind::Video ? videoSources[stream.index]
+                                                                       : audioSources[stream.index];
+            {
+                const std::scoped_lock lock(nodeMutex);
+                calls.close(calls.context, id);
+            }
+            stream.box->end("the extension stopped");
+        }
+        std::map<std::uint64_t, Sink> sending;
+        {
+            const std::scoped_lock lock(sinkMutex);
+            sending.swap(sinkStates);
+        }
+        for (auto& [id, sink] : sending) {
+            sink.pump.reset();
+            {
+                const std::scoped_lock lock(nodeMutex);
+                mediaSinks[sink.index].close(sink.state);
+            }
+            sink.box->end("the extension stopped");
+        }
+    }
+
     void endJobs()
     {
-        std::vector<std::pair<std::uint64_t, std::size_t>> running;
+        std::vector<std::tuple<std::uint64_t, std::size_t, bool>> running;
         {
             const std::scoped_lock lock(jobMutex);
             stopping = true;
             for (const auto& [id, job] : jobs) {
-                running.emplace_back(id, job.index);
+                running.emplace_back(id, job.index, job.exporter);
             }
         }
-        for (const auto& [id, index] : running) {
-            nativeJobs[index].cancel(nativeJobs[index].context, id);
+        for (const auto& [id, index, exporter] : running) {
+            if (exporter) {
+                exporters[index].cancel(exporters[index].context, id);
+            } else {
+                nativeJobs[index].cancel(nativeJobs[index].context, id);
+            }
         }
         std::unique_lock lock(jobMutex);
         jobsEnded.wait_for(lock, kJobGrace, [this] { return jobs.empty(); });
@@ -658,6 +723,16 @@ struct InProcessModule::Impl {
     std::set<std::string, std::less<>> heard;
     std::unique_ptr<EventPump> pump;
     InputGate inputGate;
+    std::vector<SourceCalls> videoSources;
+    std::vector<SourceCalls> audioSources;
+    std::vector<gs_ext_media_sink> mediaSinks;
+    std::vector<gs_ext_recording_exporter> exporters;
+    std::mutex mediaMutex;
+    std::map<std::uint64_t, Stream> mediaStreams;
+    std::uint64_t nextStream = 0;
+    std::mutex sinkMutex;
+    std::map<std::uint64_t, Sink> sinkStates;
+    std::uint64_t nextSink = 0;
 };
 
 namespace {
@@ -789,7 +864,7 @@ int32_t hostSupports(void*, const char* feature)
         return 0;
     }
     const std::string_view name(feature, strnlen(feature, kMostNameBytes));
-    if (name == "input-sources" || name == "services" || name == "transports") {
+    if (name == "input-sources" || name == "services" || name == "transports" || name == "media") {
         return 1;
     }
     return name == "jobs" || name == "events" || name == "settings" || name == "claims" || name == "job-output" ||
@@ -1231,6 +1306,110 @@ bool copied(const void* data, Native& out)
     return true;
 }
 
+std::shared_ptr<detail::StreamBox> streamOf(InProcessModule::Impl& impl, std::uint64_t stream,
+                                            std::optional<MediaKind> kind)
+{
+    const std::scoped_lock lock(impl.mediaMutex);
+    const auto found = impl.mediaStreams.find(stream);
+    if (found == impl.mediaStreams.end() || (kind && found->second.kind != *kind)) {
+        return nullptr;
+    }
+    return found->second.box;
+}
+
+int32_t statusOf(detail::Written written) noexcept
+{
+    switch (written) {
+    case detail::Written::Yes:
+        return GS_EXT_OK;
+    case detail::Written::Refused:
+        return GS_EXT_BAD_ARGUMENT;
+    case detail::Written::Closed:
+        break;
+    }
+    return GS_EXT_FAILED;
+}
+
+int32_t hostVideoFrame(void* context, uint64_t stream, const gs_ext_video_frame* frame)
+{
+    gs_ext_video_frame given{};
+    if (!copied(frame, given)) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (given.format != GS_EXT_PIXEL_BGRA && given.format != GS_EXT_PIXEL_NV12) {
+        return GS_EXT_UNSUPPORTED;
+    }
+    const FrameView view{.format = static_cast<PixelFormat>(given.format),
+                         .width = given.width,
+                         .height = given.height,
+                         .stride = given.stride,
+                         .chromaStride = given.chroma_stride,
+                         .data = given.data,
+                         .chroma = given.chroma,
+                         .timeUs = given.time_us};
+    if (!checkFrame(view).empty()) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    const std::shared_ptr<detail::StreamBox> box = streamOf(implOf(context), stream, MediaKind::Video);
+    return box != nullptr ? statusOf(box->writeFrame(view)) : GS_EXT_BAD_ARGUMENT;
+}
+
+int32_t hostAudioSamples(void* context, uint64_t stream, const gs_ext_audio* audio)
+{
+    gs_ext_audio given{};
+    if (!copied(audio, given)) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (given.format != GS_EXT_SAMPLE_S16 && given.format != GS_EXT_SAMPLE_F32) {
+        return GS_EXT_UNSUPPORTED;
+    }
+    const SoundView view{.format = static_cast<SampleFormat>(given.format),
+                         .channels = given.channels,
+                         .rate = given.rate,
+                         .frames = given.frames,
+                         .data = given.data,
+                         .timeUs = given.time_us};
+    if (!checkSound(view).empty()) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    const std::shared_ptr<detail::StreamBox> box = streamOf(implOf(context), stream, MediaKind::Audio);
+    return box != nullptr ? statusOf(box->writeSound(view)) : GS_EXT_BAD_ARGUMENT;
+}
+
+int32_t hostStreamEnded(void* context, uint64_t stream, const char* text, size_t size)
+{
+    if (text == nullptr && size > 0) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    const std::shared_ptr<detail::StreamBox> box = streamOf(implOf(context), stream, std::nullopt);
+    if (box == nullptr) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    const std::string why = lineOf(text, size, kMostErrorBytes);
+    box->end(why.empty() ? std::string("the source has nothing more to show") : why);
+    return GS_EXT_OK;
+}
+
+int32_t hostSourcesChanged(void* context, const char* source, size_t size)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if (source == nullptr || size == 0 || size > kMostNameBytes) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    const std::string_view name(source, size);
+    const std::vector<MediaInfo>& pictures = impl.info.videoSources;
+    const std::vector<MediaInfo>& sounds = impl.info.audioSources;
+    const bool known = std::ranges::find(pictures, name, &MediaInfo::name) != pictures.end() ||
+                       std::ranges::find(sounds, name, &MediaInfo::name) != sounds.end();
+    if (!known) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (impl.services != nullptr) {
+        impl.services->sourcesChanged(name);
+    }
+    return GS_EXT_OK;
+}
+
 std::string named(const char* kind, const char* own, const gs_ext_contribution& entry,
                   std::set<std::string, std::less<>>& names, std::string& name)
 {
@@ -1428,6 +1607,72 @@ std::string addTransport(InProcessModule::Impl& impl, const gs_ext_contribution&
     return {};
 }
 
+template <typename Native>
+std::string addSource(InProcessModule::Impl& impl, const gs_ext_contribution& entry,
+                      std::set<std::string, std::less<>>& names, MediaKind kind)
+{
+    const char* const what = kind == MediaKind::Video ? "video source" : "audio source";
+    Native source{};
+    std::string name;
+    if (!copied(entry.data, source)) {
+        return std::string("a ") + what + " has no data";
+    }
+    if (std::string problem = named(what, source.name, entry, names, name); !problem.empty()) {
+        return problem;
+    }
+    if (source.list == nullptr || source.open == nullptr || source.close == nullptr) {
+        return std::string("the ") + what + " " + name + " lacks list, open or close";
+    }
+    const InProcessModule::Impl::SourceCalls calls{
+        .context = source.context, .list = source.list, .open = source.open, .close = source.close};
+    if (kind == MediaKind::Video) {
+        impl.videoSources.push_back(calls);
+        impl.info.videoSources.push_back({.name = name});
+    } else {
+        impl.audioSources.push_back(calls);
+        impl.info.audioSources.push_back({.name = name});
+    }
+    return {};
+}
+
+std::string addSink(InProcessModule::Impl& impl, const gs_ext_contribution& entry,
+                    std::set<std::string, std::less<>>& names)
+{
+    gs_ext_media_sink sink{};
+    std::string name;
+    if (!copied(entry.data, sink)) {
+        return "a media sink has no data";
+    }
+    if (std::string problem = named("media sink", sink.name, entry, names, name); !problem.empty()) {
+        return problem;
+    }
+    if (sink.open == nullptr || sink.close == nullptr || (sink.frame == nullptr && sink.audio == nullptr)) {
+        return "the media sink " + name + " lacks open or close, or takes neither pictures nor sound";
+    }
+    impl.mediaSinks.push_back(sink);
+    impl.info.sinks.push_back({.name = name, .video = sink.frame != nullptr, .audio = sink.audio != nullptr});
+    return {};
+}
+
+std::string addExporter(InProcessModule::Impl& impl, const gs_ext_contribution& entry,
+                        std::set<std::string, std::less<>>& names)
+{
+    gs_ext_recording_exporter exporter{};
+    std::string name;
+    if (!copied(entry.data, exporter)) {
+        return "a recording exporter has no data";
+    }
+    if (std::string problem = named("recording exporter", exporter.name, entry, names, name); !problem.empty()) {
+        return problem;
+    }
+    if (exporter.start == nullptr || exporter.cancel == nullptr) {
+        return "the recording exporter " + name + " lacks start or cancel";
+    }
+    impl.exporters.push_back(exporter);
+    impl.info.exporters.push_back({.name = name});
+    return {};
+}
+
 std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
 {
     if (!copied(plugin, impl.described)) {
@@ -1473,6 +1718,14 @@ std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
             problem = addInputSource(impl, entry, names);
         } else if (kind == GS_EXT_KIND_TRANSPORT) {
             problem = addTransport(impl, entry, names);
+        } else if (kind == GS_EXT_KIND_VIDEO_SOURCE) {
+            problem = addSource<gs_ext_video_source>(impl, entry, names, MediaKind::Video);
+        } else if (kind == GS_EXT_KIND_AUDIO_SOURCE) {
+            problem = addSource<gs_ext_audio_source>(impl, entry, names, MediaKind::Audio);
+        } else if (kind == GS_EXT_KIND_MEDIA_SINK) {
+            problem = addSink(impl, entry, names);
+        } else if (kind == GS_EXT_KIND_RECORDING_EXPORTER) {
+            problem = addExporter(impl, entry, names);
         } else if (kind.empty()) {
             problem = "contribution " + std::to_string(index + 1) + " has no kind";
         } else if (impl.services != nullptr) {
@@ -1494,6 +1747,10 @@ std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
     }
     if (impl.transports.size() > kMostTransports) {
         return "the DLL offers more than 8 transports";
+    }
+    if (impl.videoSources.size() > kMostMediaSources || impl.audioSources.size() > kMostMediaSources ||
+        impl.mediaSinks.size() > kMostSinks || impl.exporters.size() > kMostExporters) {
+        return "the DLL offers more than 8 video sources, 8 audio sources, 8 media sinks or 8 recording exporters";
     }
     return {};
 }
@@ -1560,6 +1817,10 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
     impl->host.stream_data = &hostStreamData;
     impl->host.stream_writable = &hostStreamWritable;
     impl->host.stream_closed = &hostStreamClosed;
+    impl->host.sources_changed = &hostSourcesChanged;
+    impl->host.video_frame = &hostVideoFrame;
+    impl->host.audio_samples = &hostAudioSamples;
+    impl->host.stream_ended = &hostStreamEnded;
     const gs_ext_plugin* plugin = nullptr;
     const int32_t status = entry(&impl->host, &plugin);
     impl->entered = status == GS_EXT_OK;
@@ -1920,6 +2181,7 @@ void InProcessModule::cancelJob(std::uint64_t job)
 {
     Impl& d = *m_impl;
     std::size_t index = 0;
+    bool exporter = false;
     {
         const std::scoped_lock lock(d.jobMutex);
         const auto found = d.jobs.find(job);
@@ -1927,6 +2189,11 @@ void InProcessModule::cancelJob(std::uint64_t job)
             return;
         }
         index = found->second.index;
+        exporter = found->second.exporter;
+    }
+    if (exporter) {
+        d.exporters[index].cancel(d.exporters[index].context, job);
+        return;
     }
     d.nativeJobs[index].cancel(d.nativeJobs[index].context, job);
 }
@@ -2161,6 +2428,256 @@ void InProcessModule::closeStream(std::uint64_t stream)
     const std::scoped_lock lock(d.transportMutex);
     const gs_ext_transport& entry = d.transports[transport];
     entry.close(entry.context, stream);
+}
+
+CallResult InProcessModule::listSources(MediaKind kind, std::size_t source)
+{
+    Impl& d = *m_impl;
+    const std::vector<Impl::SourceCalls>& sources = kind == MediaKind::Video ? d.videoSources : d.audioSources;
+    if (source >= sources.size()) {
+        return {CallStatus::Unavailable, {}, "the DLL has no such source"};
+    }
+    ResultBox box;
+    gs_ext_result result{};
+    result.host = &box;
+    const Impl::SourceCalls& calls = sources[source];
+    int32_t status = GS_EXT_FAILED;
+    {
+        const std::scoped_lock lock(d.nodeMutex);
+        status = calls.list(calls.context, &result);
+    }
+    if (status != GS_EXT_OK) {
+        return {CallStatus::Failed, {},
+                box.error.empty() ? "the source failed with status " + std::to_string(status) : box.error};
+    }
+    std::string text = result.value.type != GS_EXT_TYPE_JSON || result.value.size == 0
+                           ? std::string()
+                           : std::string(result.value.text, result.value.size);
+    if (!nlohmann::json::parse(text, nullptr, false).is_array()) {
+        return {CallStatus::Failed, {}, "the source did not give a JSON array"};
+    }
+    return {CallStatus::Ok, Value{.type = ValueType::Json, .text = std::move(text)}, {}};
+}
+
+std::shared_ptr<MediaStream> InProcessModule::openSource(MediaKind kind, std::size_t source, std::string_view id,
+                                                         std::string_view params)
+{
+    return openSourceWith(kind, source, id, params, {});
+}
+
+std::shared_ptr<MediaStream> InProcessModule::openSourceWith(MediaKind kind, std::size_t source, std::string_view id,
+                                                             std::string_view params, SourceHooks hooks)
+{
+    Impl& d = *m_impl;
+    const std::vector<Impl::SourceCalls>& sources = kind == MediaKind::Video ? d.videoSources : d.audioSources;
+    const std::string chosen = params.empty() ? std::string("{}") : std::string(params);
+    std::uint64_t stream = 0;
+    std::shared_ptr<detail::StreamBox> box;
+    {
+        const std::scoped_lock lock(d.mediaMutex);
+        if (source < sources.size() && validSourceId(id) && chosen.size() <= kMostParamBytes && validUtf8(chosen) &&
+            d.mediaStreams.size() < kMostStreams) {
+            stream = ++d.nextStream;
+            box = std::make_shared<detail::StreamBox>(
+                stream, static_cast<HANDLE>(hooks.wake),
+                detail::StreamBox::Hooks{.made = std::move(hooks.made), .ended = std::move(hooks.ended)});
+            d.mediaStreams.emplace(stream, Impl::Stream{.kind = kind, .index = source, .box = box});
+        }
+    }
+    if (box == nullptr) {
+        if (hooks.wake != nullptr) {
+            CloseHandle(static_cast<HANDLE>(hooks.wake));
+        }
+        return nullptr;
+    }
+    const std::string name(id);
+    const Impl::SourceCalls& calls = sources[source];
+    int32_t status = GS_EXT_FAILED;
+    {
+        const std::scoped_lock lock(d.nodeMutex);
+        status = calls.open(calls.context, name.data(), name.size(), chosen.data(), chosen.size(), stream);
+    }
+    if (status != GS_EXT_OK) {
+        {
+            const std::scoped_lock lock(d.mediaMutex);
+            d.mediaStreams.erase(stream);
+        }
+        box->close();
+        return nullptr;
+    }
+    return box;
+}
+
+void InProcessModule::closeSource(std::uint64_t stream)
+{
+    Impl& d = *m_impl;
+    Impl::Stream found;
+    {
+        const std::scoped_lock lock(d.mediaMutex);
+        const auto at = d.mediaStreams.find(stream);
+        if (at == d.mediaStreams.end()) {
+            return;
+        }
+        found = std::move(at->second);
+        d.mediaStreams.erase(at);
+    }
+    const Impl::SourceCalls& calls =
+        found.kind == MediaKind::Video ? d.videoSources[found.index] : d.audioSources[found.index];
+    {
+        const std::scoped_lock lock(d.nodeMutex);
+        calls.close(calls.context, stream);
+    }
+    found.box->close();
+}
+
+std::shared_ptr<SinkPort> InProcessModule::openSink(std::size_t sink, const SinkStart& start)
+{
+    Impl& d = *m_impl;
+    std::uint64_t id = 0;
+    {
+        const std::scoped_lock lock(d.sinkMutex);
+        id = ++d.nextSink;
+    }
+    std::shared_ptr<detail::SinkBox> box = detail::SinkBox::make(id, start);
+    if (box == nullptr || attachSink(sink, box) == 0) {
+        return nullptr;
+    }
+    return box;
+}
+
+std::uint64_t InProcessModule::attachSink(std::size_t sink, std::shared_ptr<detail::SinkBox> box)
+{
+    Impl& d = *m_impl;
+    if (box == nullptr || sink >= d.mediaSinks.size()) {
+        return 0;
+    }
+    const SinkStart& start = box->start();
+    const bool pictured = start.width > 0 && start.height > 0;
+    if ((start.width == 0) != (start.height == 0) || start.width > kMostFrameSide || start.height > kMostFrameSide ||
+        (pictured && (start.fps < 1 || start.fps > kMostSinkFps)) || (!pictured && !start.audio) ||
+        start.device.size() > kMostDeviceBytes || start.name.size() > kMostDeviceBytes) {
+        return 0;
+    }
+    const gs_ext_media_sink& entry = d.mediaSinks[sink];
+    gs_ext_sink_info info{};
+    info.size = sizeof(gs_ext_sink_info);
+    info.device = start.device.c_str();
+    info.name = start.name.c_str();
+    info.width = start.width;
+    info.height = start.height;
+    info.fps = pictured ? start.fps : 0U;
+    info.format = pictured ? static_cast<uint32_t>(GS_EXT_PIXEL_BGRA) : 0U;
+    info.channels = start.audio ? 2U : 0U;
+    info.rate = start.audio ? static_cast<uint32_t>(GS_EXT_SOUND_RATE) : 0U;
+    info.sample_format = start.audio ? static_cast<uint32_t>(GS_EXT_SAMPLE_F32) : 0U;
+    void* state = nullptr;
+    int32_t status = GS_EXT_FAILED;
+    {
+        const std::scoped_lock lock(d.nodeMutex);
+        status = entry.open(entry.context, &info, &state);
+    }
+    if (status != GS_EXT_OK) {
+        return 0;
+    }
+    const auto frame = entry.frame;
+    const auto audio = entry.audio;
+    detail::SinkPump::Frame takeFrame;
+    if (frame != nullptr && pictured) {
+        takeFrame = [frame, state](const FrameView& view) {
+            gs_ext_video_frame native{};
+            native.size = sizeof(gs_ext_video_frame);
+            native.format = static_cast<uint32_t>(view.format);
+            native.width = view.width;
+            native.height = view.height;
+            native.data = view.data;
+            native.stride = view.stride;
+            native.chroma = view.chroma;
+            native.chroma_stride = view.chromaStride;
+            native.time_us = view.timeUs;
+            return frame(state, &native) == GS_EXT_OK;
+        };
+    }
+    detail::SinkPump::Sound takeSound;
+    if (audio != nullptr && start.audio) {
+        takeSound = [audio, state](const SoundView& view) {
+            gs_ext_audio native{};
+            native.size = sizeof(gs_ext_audio);
+            native.format = static_cast<uint32_t>(view.format);
+            native.channels = view.channels;
+            native.rate = view.rate;
+            native.data = view.data;
+            native.frames = view.frames;
+            native.time_us = view.timeUs;
+            return audio(state, &native) == GS_EXT_OK;
+        };
+    }
+    const std::uint64_t id = box->id();
+    Impl::Sink made{.index = sink,
+                    .state = state,
+                    .box = box,
+                    .pump = std::make_unique<detail::SinkPump>(box, std::move(takeFrame), std::move(takeSound))};
+    bool kept = false;
+    {
+        const std::scoped_lock lock(d.sinkMutex);
+        kept = d.sinkStates.try_emplace(id, std::move(made)).second;
+    }
+    if (!kept) {
+        made.pump.reset();
+        const std::scoped_lock lock(d.nodeMutex);
+        entry.close(state);
+        return 0;
+    }
+    return id;
+}
+
+void InProcessModule::closeSink(std::uint64_t sink)
+{
+    Impl& d = *m_impl;
+    Impl::Sink found;
+    {
+        const std::scoped_lock lock(d.sinkMutex);
+        const auto at = d.sinkStates.find(sink);
+        if (at == d.sinkStates.end()) {
+            return;
+        }
+        found = std::move(at->second);
+        d.sinkStates.erase(at);
+    }
+    found.pump.reset();
+    {
+        const std::scoped_lock lock(d.nodeMutex);
+        d.mediaSinks[found.index].close(found.state);
+    }
+    found.box->end("the sending stopped");
+}
+
+std::uint64_t InProcessModule::startExport(std::size_t exporter, std::string_view input, std::string_view output,
+                                           JobEvents events)
+{
+    Impl& d = *m_impl;
+    if (exporter >= d.exporters.size() || input.empty() || output.empty() || input.size() > kMostExportPathBytes ||
+        output.size() > kMostExportPathBytes || !validUtf8(input) || !validUtf8(output)) {
+        return 0;
+    }
+    std::uint64_t id = 0;
+    {
+        const std::scoped_lock lock(d.jobMutex);
+        if (d.stopping || d.jobs.size() >= kMostRunningJobs) {
+            return 0;
+        }
+        id = ++d.nextJob;
+        d.jobs.emplace(id, Impl::Job{.index = exporter, .events = std::move(events), .told = {}, .exporter = true});
+    }
+    const gs_ext_recording_exporter& entry = d.exporters[exporter];
+    const std::string from(input);
+    const std::string to(output);
+    if (entry.start(entry.context, id, from.data(), from.size(), to.data(), to.size()) != GS_EXT_OK) {
+        std::optional<EndedJob> gone = endedJob(d, id);
+        if (gone && gone->events.done) {
+            gone->events.done(false, "the export did not start");
+        }
+    }
+    return id;
 }
 
 }

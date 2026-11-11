@@ -931,6 +931,13 @@
             <numerusform>Saved %n videos: the picture changed size while recording, so each part is a video of its own</numerusform>
         </translation>
     </message>
+    <message numerus="yes">
+        <source>Saved %n file(s) as %1: the picture changed size while recording, so each part is a file of its own</source>
+        <translation>
+            <numerusform>Saved %n file as %1: the picture changed size while recording, so each part is a file of its own</numerusform>
+            <numerusform>Saved %n files as %1: the picture changed size while recording, so each part is a file of its own</numerusform>
+        </translation>
+    </message>
 </context>
 <context>
     <name>gs::app::VisionWorkbench</name>

@@ -325,6 +325,11 @@ struct NativeExtensions::Shared {
         post([id](NativeExtensions& owner) { owner.refreshTransports(id); });
     }
 
+    void sourcesChanged(const std::string& id)
+    {
+        post([id](NativeExtensions& owner) { owner.refreshSources(id); });
+    }
+
     void lose(const std::string& id, std::uint64_t session)
     {
         std::shared_ptr<ModuleTouchPort> port;
@@ -451,6 +456,13 @@ public:
         }
     }
 
+    void sourcesChanged(std::string_view) override
+    {
+        if (const std::shared_ptr<NativeExtensions::Shared> shared = m_shared.lock()) {
+            shared->sourcesChanged(m_id);
+        }
+    }
+
 private:
     std::string m_id;
     QString m_name;
@@ -475,9 +487,30 @@ struct NativeExtensions::Entry {
     std::uint64_t loadNumber = 0;
     std::vector<std::optional<std::size_t>> inputIndex;
     std::vector<std::optional<std::size_t>> transportIndex;
+    std::vector<std::optional<std::size_t>> videoIndex;
+    std::vector<std::optional<std::size_t>> audioIndex;
+    std::vector<std::optional<std::size_t>> sinkIndex;
+    std::vector<std::optional<std::size_t>> exporterIndex;
 };
 
 namespace {
+
+template <typename Declared, typename Offered>
+void matchNames(NativeExtensions::Entry& entry, const std::vector<Declared>& declared,
+                const std::vector<Offered>& offered, std::vector<std::optional<std::size_t>>& index,
+                const std::string& where)
+{
+    for (std::size_t at = 0; at < declared.size(); ++at) {
+        const auto found = std::ranges::find(offered, declared[at].name, &Offered::name);
+        const bool fits = found != offered.end();
+        index.push_back(fits ? std::optional<std::size_t>(static_cast<std::size_t>(found - offered.begin()))
+                             : std::nullopt);
+        if (!fits) {
+            entry.problems.push_back({ext::Severity::Warning, ext::Code::NativeMismatch,
+                                      where + "[" + std::to_string(at) + "]", declared[at].name});
+        }
+    }
+}
 
 void matchEntry(NativeExtensions::Entry& entry)
 {
@@ -583,6 +616,11 @@ void matchEntry(NativeExtensions::Entry& entry)
                                       where + ".inputSources[" + std::to_string(index) + "]", source.name});
         }
     }
+    matchNames(entry, wanted.native.videoSources, info.videoSources, entry.videoIndex, where + ".videoSources");
+    matchNames(entry, wanted.native.audioSources, info.audioSources, entry.audioIndex, where + ".audioSources");
+    matchNames(entry, wanted.native.mediaSinks, info.sinks, entry.sinkIndex, where + ".mediaSinks");
+    matchNames(entry, wanted.native.recordingExporters, info.exporters, entry.exporterIndex,
+               where + ".recordingExporters");
     log::info(kCategory, "{}: the DLL is loaded {}", wanted.id,
               wanted.official ? "inside GameScrcpy" : "in its own process");
 }
@@ -701,6 +739,11 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
                 alive->transportChanged(id, transport);
             }
         };
+        options.sourcesChanged = [shared, id](const std::string&) {
+            if (const std::shared_ptr<Shared> alive = shared.lock()) {
+                alive->sourcesChanged(id);
+            }
+        };
         options.claim = [claimer](const std::string& resource, bool wait,
                                   std::function<void(exthost::ClaimResult)> answer) {
             HardwareClaims* claims = HardwareClaims::instance();
@@ -814,6 +857,8 @@ void NativeExtensions::matchLate(const exthost::Module* module)
     emit changed();
     refreshProviders();
     refreshTransports();
+    refreshSources();
+    emit mediaChanged();
 }
 
 void NativeExtensions::failLate(const exthost::Module* module, const std::string& why)
@@ -833,6 +878,7 @@ void NativeExtensions::failLate(const exthost::Module* module, const std::string
         *found = std::move(next);
     }
     emit changed();
+    emit mediaChanged();
 }
 
 void NativeExtensions::apply(std::vector<NativeWanted> wanted)
@@ -899,6 +945,8 @@ void NativeExtensions::apply(std::vector<NativeWanted> wanted)
         }
     }
     refreshTransports();
+    refreshSources();
+    emit mediaChanged();
 }
 
 void NativeExtensions::setSettings(const std::string& id, const std::string& json)
@@ -1683,6 +1731,222 @@ ExtensionInputTitles NativeExtensions::inputTitles() const
         }
     }
     return titles;
+}
+
+namespace {
+
+constexpr std::size_t kMostListedSources = 16;
+
+bool grants(const NativeWanted& wanted, std::string_view permission)
+{
+    return std::ranges::find(wanted.granted, permission) != wanted.granted.end();
+}
+
+QString titleAt(const std::vector<QString>& titles, std::size_t index, const std::string& fallback)
+{
+    return index < titles.size() && !titles[index].isEmpty() ? titles[index] : QString::fromStdString(fallback);
+}
+
+template <typename Declared>
+std::optional<std::size_t> matchedIndex(const std::vector<Declared>& declared, std::string_view name,
+                                        const std::vector<std::optional<std::size_t>>& matched)
+{
+    const auto found = std::ranges::find(declared, name, &Declared::name);
+    const auto at = static_cast<std::size_t>(found - declared.begin());
+    if (found == declared.end() || at >= matched.size()) {
+        return std::nullopt;
+    }
+    return matched[at];
+}
+
+bool usable(const NativeExtensions::Entry& entry)
+{
+    return entry.module != nullptr && !entry.pending && entry.module->working();
+}
+
+}
+
+std::vector<MediaSourceDevice> NativeExtensions::mediaSources() const
+{
+    return m_sources;
+}
+
+void NativeExtensions::refreshSources(std::string_view extension)
+{
+    std::vector<MediaSourceDevice> next;
+    if (!extension.empty()) {
+        std::ranges::copy_if(m_sources, std::back_inserter(next),
+                             [extension](const MediaSourceDevice& source) { return source.extension != extension; });
+    }
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        const NativeWanted& wanted = entry->wanted;
+        if ((!extension.empty() && wanted.id != extension) || !usable(*entry) ||
+            !grants(wanted, ext::kMediaCapturePermission)) {
+            continue;
+        }
+        for (const exthost::MediaKind kind : {exthost::MediaKind::Video, exthost::MediaKind::Audio}) {
+            const bool video = kind == exthost::MediaKind::Video;
+            const std::size_t declared = video ? wanted.native.videoSources.size() : wanted.native.audioSources.size();
+            const std::vector<std::optional<std::size_t>>& matched = video ? entry->videoIndex : entry->audioIndex;
+            for (std::size_t index = 0; index < declared; ++index) {
+                if (index >= matched.size() || !matched[index]) {
+                    continue;
+                }
+                const std::string& name =
+                    video ? wanted.native.videoSources[index].name : wanted.native.audioSources[index].name;
+                const exthost::CallResult listed = entry->module->listSources(kind, *matched[index]);
+                if (!listed.ok()) {
+                    log::warning(kCategory, "{}: the source {} failed: {}", wanted.id, name, listed.problem);
+                    continue;
+                }
+                const nlohmann::json found = nlohmann::json::parse(listed.value.text, nullptr, false);
+                std::size_t taken = 0;
+                for (const nlohmann::json& item : found.is_array() ? found : nlohmann::json::array()) {
+                    const std::optional<std::string> id =
+                        item.is_object() ? textIn(item, "id", exthost::kMostSourceIdBytes) : std::nullopt;
+                    const std::optional<std::string> shown =
+                        item.is_object() ? textIn(item, "name", 64) : std::nullopt;
+                    if (!id || !exthost::validSourceId(*id) || !shown) {
+                        log::warning(kCategory, "{}: an entry of the source {} has no valid id or name", wanted.id,
+                                     name);
+                        continue;
+                    }
+                    if (taken++ >= kMostListedSources) {
+                        break;
+                    }
+                    next.push_back({.extension = wanted.id,
+                                    .extensionName = wanted.name,
+                                    .kind = kind,
+                                    .source = name,
+                                    .sourceTitle = video ? titleAt(wanted.videoSourceTitles, index,
+                                                                   wanted.native.videoSources[index].title)
+                                                         : titleAt(wanted.audioSourceTitles, index,
+                                                                   wanted.native.audioSources[index].title),
+                                    .id = *id,
+                                    .name = QString::fromStdString(shown->empty() ? *id : *shown),
+                                    .kinds = video ? wanted.native.videoSources[index].kinds
+                                                   : std::vector<std::string>{}});
+                }
+            }
+        }
+    }
+    if (next != m_sources) {
+        m_sources = std::move(next);
+        emit sourcesChanged();
+    }
+}
+
+std::unique_ptr<SourceLease> NativeExtensions::openSource(const MediaSourceDevice& source,
+                                                          std::string_view params) const
+{
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        const NativeWanted& wanted = entry->wanted;
+        if (wanted.id != source.extension || !usable(*entry) || !grants(wanted, ext::kMediaCapturePermission)) {
+            continue;
+        }
+        const std::optional<std::size_t> index =
+            source.kind == exthost::MediaKind::Video
+                ? matchedIndex(wanted.native.videoSources, source.source, entry->videoIndex)
+                : matchedIndex(wanted.native.audioSources, source.source, entry->audioIndex);
+        if (!index) {
+            return nullptr;
+        }
+        std::shared_ptr<exthost::MediaStream> stream =
+            entry->module->openSource(source.kind, *index, source.id, params);
+        if (stream == nullptr) {
+            log::warning(kCategory, "{}: the source {} did not open {}", wanted.id, source.source, source.id);
+            return nullptr;
+        }
+        return std::make_unique<SourceLease>(entry->module, std::move(stream));
+    }
+    return nullptr;
+}
+
+std::vector<MediaSinkOffer> NativeExtensions::mediaSinks() const
+{
+    std::vector<MediaSinkOffer> list;
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        const NativeWanted& wanted = entry->wanted;
+        if (!usable(*entry) || !grants(wanted, ext::kMediaOutputPermission)) {
+            continue;
+        }
+        for (std::size_t index = 0; index < wanted.native.mediaSinks.size(); ++index) {
+            if (index >= entry->sinkIndex.size() || !entry->sinkIndex[index]) {
+                continue;
+            }
+            const ext::NativeMediaSink& sink = wanted.native.mediaSinks[index];
+            const ext::SinkVideo video = sink.video.value_or(ext::SinkVideo{});
+            list.push_back({.extension = wanted.id,
+                            .extensionName = wanted.name,
+                            .name = sink.name,
+                            .title = titleAt(wanted.sinkTitles, index, sink.title),
+                            .width = static_cast<std::uint32_t>(video.width.value_or(0)),
+                            .height = static_cast<std::uint32_t>(video.height.value_or(0)),
+                            .fps = static_cast<std::uint32_t>(video.fps.value_or(0)),
+                            .audio = sink.audio});
+        }
+    }
+    return list;
+}
+
+std::unique_ptr<SinkLease> NativeExtensions::openSink(std::string_view extension, std::string_view sink,
+                                                      const exthost::SinkStart& start) const
+{
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        const NativeWanted& wanted = entry->wanted;
+        if (wanted.id != extension || !usable(*entry) || !grants(wanted, ext::kMediaOutputPermission)) {
+            continue;
+        }
+        const std::optional<std::size_t> index = matchedIndex(wanted.native.mediaSinks, sink, entry->sinkIndex);
+        if (!index) {
+            return nullptr;
+        }
+        std::shared_ptr<exthost::SinkPort> port = entry->module->openSink(*index, start);
+        if (port == nullptr) {
+            log::warning(kCategory, "{}: the sink {} did not start", wanted.id, sink);
+            return nullptr;
+        }
+        return std::make_unique<SinkLease>(entry->module, std::move(port));
+    }
+    return nullptr;
+}
+
+std::vector<ExporterOffer> NativeExtensions::exporters() const
+{
+    std::vector<ExporterOffer> list;
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        const NativeWanted& wanted = entry->wanted;
+        if (!usable(*entry) || !grants(wanted, ext::kMediaOutputPermission)) {
+            continue;
+        }
+        for (std::size_t index = 0; index < wanted.native.recordingExporters.size(); ++index) {
+            if (index >= entry->exporterIndex.size() || !entry->exporterIndex[index]) {
+                continue;
+            }
+            const ext::NativeRecordingExporter& exporter = wanted.native.recordingExporters[index];
+            list.push_back({.extension = wanted.id,
+                            .extensionName = wanted.name,
+                            .name = exporter.name,
+                            .title = titleAt(wanted.exporterTitles, index, exporter.title),
+                            .fileExtension = exporter.extension});
+        }
+    }
+    return list;
+}
+
+bool NativeExtensions::startExport(std::string_view extension, std::string_view exporter, std::string_view input,
+                                   std::string_view output, exthost::JobEvents events) const
+{
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        const NativeWanted& wanted = entry->wanted;
+        if (wanted.id != extension || !usable(*entry) || !grants(wanted, ext::kMediaOutputPermission)) {
+            continue;
+        }
+        const std::optional<std::size_t> index =
+            matchedIndex(wanted.native.recordingExporters, exporter, entry->exporterIndex);
+        return index && entry->module->startExport(*index, input, output, std::move(events)) != 0;
+    }
+    return false;
 }
 
 }

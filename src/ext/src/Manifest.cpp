@@ -419,6 +419,26 @@ std::pair<std::string_view, std::string_view> identity(const NativeTransport& en
     return {"name", entry.name};
 }
 
+std::pair<std::string_view, std::string_view> identity(const NativeVideoSource& entry)
+{
+    return {"name", entry.name};
+}
+
+std::pair<std::string_view, std::string_view> identity(const NativeAudioSource& entry)
+{
+    return {"name", entry.name};
+}
+
+std::pair<std::string_view, std::string_view> identity(const NativeMediaSink& entry)
+{
+    return {"name", entry.name};
+}
+
+std::pair<std::string_view, std::string_view> identity(const NativeRecordingExporter& entry)
+{
+    return {"name", entry.name};
+}
+
 std::pair<std::string_view, std::string_view> identity(const DeclaredParam& entry)
 {
     return {"key", entry.key};
@@ -551,6 +571,52 @@ void checkEntry(const NativeInputSource& source, const std::string& path, Contex
 }
 
 void checkEntry(const NativeTransport&, const std::string&, Context&) {}
+
+void checkEntry(const NativeVideoSource& source, const std::string& path, Context& context)
+{
+    for (std::size_t index = 0; index < source.kinds.size(); ++index) {
+        const std::string& kind = source.kinds[index];
+        if (std::ranges::find(kVideoSourceKindNames, kind) == kVideoSourceKindNames.end()) {
+            context.report(Severity::Error, Code::OutOfRange, indexed(path + ".kinds", index), kind);
+        } else if (std::ranges::find(source.kinds.begin(), source.kinds.begin() + static_cast<std::ptrdiff_t>(index),
+                                     kind) != source.kinds.begin() + static_cast<std::ptrdiff_t>(index)) {
+            context.report(Severity::Error, Code::Duplicate, indexed(path + ".kinds", index), kind);
+        }
+    }
+}
+
+void checkEntry(const NativeAudioSource&, const std::string&, Context&) {}
+
+void checkEntry(const SinkVideo& video, const std::string& path, Context& context)
+{
+    const std::pair<const char*, bool> missing[] = {
+        {"fps", !video.fps}, {"width", !video.width}, {"height", !video.height}};
+    for (const auto& [name, absent] : missing) {
+        if (absent) {
+            context.report(Severity::Error, Code::MissingField, path + "." + name);
+        }
+    }
+    if (video.width && video.height && *video.width * *video.height > kMostSinkPixels) {
+        context.report(Severity::Error, Code::OutOfRange, path + ".width", "more than 3840 × 2160 pixels");
+    }
+}
+
+void checkEntry(const NativeMediaSink& sink, const std::string& path, Context& context)
+{
+    if (!sink.video && !sink.audio) {
+        context.report(Severity::Error, Code::MissingField, path + ".video",
+                       "a sink takes the picture, the sound or both");
+    }
+}
+
+void checkEntry(const NativeRecordingExporter& exporter, const std::string& path, Context& context)
+{
+    const bool plain = std::ranges::all_of(exporter.extension, lowerOrDigit);
+    if (!exporter.extension.empty() && (!plain || exporter.extension == "gsrec")) {
+        context.report(Severity::Error, Code::OutOfRange, path + ".extension",
+                       "lowercase letters and digits without the dot, not gsrec");
+    }
+}
 
 void checkEntry(const NativeContribution& native, const std::string& path, Context& context)
 {
@@ -2089,6 +2155,22 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
                 manifest.permissions.end()) {
             context.report(Severity::Error, Code::NativePermissionUndeclared, "$.contributes.native.transports",
                            std::string(kTransportPermission));
+        }
+        const NativeContribution& media = *contributes.native;
+        const std::pair<std::string_view, bool> mediaNeeds[] = {
+            {"videoSources", !media.videoSources.empty()},
+            {"audioSources", !media.audioSources.empty()},
+            {"mediaSinks", !media.mediaSinks.empty()},
+            {"recordingExporters", !media.recordingExporters.empty()},
+        };
+        for (const auto& [key, present] : mediaNeeds) {
+            const std::string_view needed =
+                key == "videoSources" || key == "audioSources" ? kMediaCapturePermission : kMediaOutputPermission;
+            if (present &&
+                std::ranges::find(manifest.permissions, needed, &Permission::name) == manifest.permissions.end()) {
+                context.report(Severity::Error, Code::NativePermissionUndeclared,
+                               "$.contributes.native." + std::string(key), std::string(needed));
+            }
         }
     }
     for (std::size_t index = 0; index < contributes.services.size(); ++index) {

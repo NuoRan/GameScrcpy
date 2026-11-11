@@ -1,6 +1,7 @@
 #include "gs/exthost/Server.h"
 
 #include "Channel.h"
+#include "MediaRing.h"
 #include "Wire.h"
 
 #include "gs/exthost/InProcess.h"
@@ -297,6 +298,13 @@ public:
         send(detail::Kind::TransportChanged, 0, out.bytes());
     }
 
+    void sourcesChanged(std::string_view source) override
+    {
+        detail::WireWriter out;
+        out.text(source);
+        send(detail::Kind::SourcesChanged, 0, out.bytes());
+    }
+
 private:
     void pump(std::uint64_t id, std::chrono::steady_clock::time_point deadline)
     {
@@ -412,6 +420,16 @@ private:
             reply(message.id, discovered(message));
             return;
         }
+        if (message.kind == detail::Kind::SourceList) {
+            detail::WireReader in(message.payload);
+            std::uint32_t kind = 0;
+            std::uint32_t source = 0;
+            const bool good = in.u32(kind) && kind <= static_cast<std::uint32_t>(MediaKind::Audio) && in.u32(source) &&
+                              in.done();
+            reply(message.id, good ? m_module.listSources(static_cast<MediaKind>(kind), source)
+                                   : CallResult{CallStatus::BadArgument, {}, "the request was damaged"});
+            return;
+        }
         if (message.kind == detail::Kind::ClaimWanted) {
             detail::WireReader in(message.payload);
             std::string resource;
@@ -501,6 +519,10 @@ public:
             start(message);
             return true;
         }
+        if (message.kind == detail::Kind::ExportStart) {
+            exportStart(message);
+            return true;
+        }
         if (message.kind != detail::Kind::JobCancel) {
             return false;
         }
@@ -579,6 +601,63 @@ private:
         finish(id, false,
                good ? "the job could not start: there is no such job, or 4 of the extension's jobs are running already"
                     : "the request to start the job was damaged");
+    }
+
+    void exportStart(const detail::Message& message)
+    {
+        const std::uint64_t id = message.id;
+        detail::WireReader in(message.payload);
+        std::uint32_t index = 0;
+        std::string input;
+        std::string output;
+        const bool good = in.u32(index) && in.text(input, kMostExportPathBytes) &&
+                          in.text(output, kMostExportPathBytes) && in.done();
+        Link& link = m_link;
+        JobEvents events{.progress =
+                             [&link, id](double fraction, std::string text) {
+                                 detail::WireWriter out;
+                                 out.u32(0);
+                                 out.f64(fraction);
+                                 out.u32(0);
+                                 out.text(text);
+                                 link.send(detail::Kind::JobUpdate, id, out.bytes());
+                             },
+                         .log =
+                             [&link, id](int level, std::string text) {
+                                 detail::WireWriter out;
+                                 out.u32(1);
+                                 out.f64(0.0);
+                                 out.u32(static_cast<std::uint32_t>(level));
+                                 out.text(text);
+                                 link.send(detail::Kind::JobUpdate, id, out.bytes());
+                             },
+                         .done =
+                             [this, id](bool worked, std::string text) {
+                                 {
+                                     const std::scoped_lock lock(m_mutex);
+                                     m_running.erase(id);
+                                 }
+                                 finish(id, worked, text);
+                             }};
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_running[id] = 0;
+        }
+        const std::uint64_t running = good ? m_module.startExport(index, input, output, std::move(events)) : 0;
+        const std::scoped_lock lock(m_mutex);
+        const auto found = m_running.find(id);
+        if (found == m_running.end()) {
+            return;
+        }
+        if (running != 0) {
+            found->second = running;
+            return;
+        }
+        m_running.erase(found);
+        finish(id, false,
+               good ? "the export could not start: there is no such exporter, or 4 of the extension's jobs are running "
+                      "already"
+                    : "the request to start the export was damaged");
     }
 
     void finish(std::uint64_t id, bool worked, std::string_view text)
@@ -765,6 +844,140 @@ private:
     std::shared_ptr<Shared> m_shared = std::make_shared<Shared>();
     std::map<std::uint64_t, std::deque<std::string>> m_pending;
     std::jthread m_thread;
+};
+
+HANDLE handleOf(std::uint64_t value) noexcept
+{
+    return reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(value));
+}
+
+class MediaStreams
+{
+public:
+    MediaStreams(InProcessModule& module, Link& link) noexcept
+        : m_module(module)
+        , m_link(link)
+    {
+    }
+
+    ~MediaStreams()
+    {
+        for (const auto& [id, stream] : m_sources) {
+            m_module.closeSource(stream);
+        }
+        for (const auto& [id, sink] : m_sinks) {
+            m_module.closeSink(sink);
+        }
+    }
+
+    MediaStreams(const MediaStreams&) = delete;
+    MediaStreams& operator=(const MediaStreams&) = delete;
+
+    bool handle(const detail::Message& message)
+    {
+        switch (message.kind) {
+        case detail::Kind::SourceOpen:
+            openSource(message);
+            return true;
+        case detail::Kind::SourceClose:
+            if (const auto found = m_sources.find(message.id); found != m_sources.end()) {
+                m_module.closeSource(found->second);
+                m_sources.erase(found);
+            }
+            return true;
+        case detail::Kind::SinkOpen:
+            openSink(message);
+            return true;
+        case detail::Kind::SinkClose:
+            if (const auto found = m_sinks.find(message.id); found != m_sinks.end()) {
+                m_module.closeSink(found->second);
+                m_sinks.erase(found);
+            }
+            return true;
+        default:
+            return false;
+        }
+    }
+
+private:
+    void ended(std::uint64_t id, std::string_view why)
+    {
+        detail::WireWriter out;
+        out.text(why);
+        m_link.send(detail::Kind::StreamEnded, id, out.bytes());
+    }
+
+    void openSource(const detail::Message& message)
+    {
+        const std::uint64_t id = message.id;
+        detail::WireReader in(message.payload);
+        std::uint32_t kind = 0;
+        std::uint32_t source = 0;
+        std::string name;
+        std::string params;
+        std::uint64_t wake = 0;
+        if (!in.u32(kind) || kind > static_cast<std::uint32_t>(MediaKind::Audio) || !in.u32(source) ||
+            !in.text(name, kMostSourceIdBytes) || !in.text(params, kMostParamBytes) || !in.u64(wake) || !in.done()) {
+            ended(id, "the request to open the source was damaged");
+            return;
+        }
+        Link& link = m_link;
+        SourceHooks hooks{.wake = handleOf(wake),
+                          .made =
+                              [&link, id](MediaKind made, void* section, std::size_t capacity) {
+                                  detail::WireWriter out;
+                                  out.u32(static_cast<std::uint32_t>(made));
+                                  out.u64(capacity);
+                                  out.u64(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(section)));
+                                  link.send(detail::Kind::MediaRing, id, out.bytes());
+                              },
+                          .ended = [this, id](const std::string& why) { ended(id, why); }};
+        const std::shared_ptr<MediaStream> stream =
+            m_module.openSourceWith(static_cast<MediaKind>(kind), source, name, params, std::move(hooks));
+        if (stream == nullptr) {
+            ended(id, "the source did not open");
+            return;
+        }
+        m_sources.insert_or_assign(id, stream->id());
+    }
+
+    void openSink(const detail::Message& message)
+    {
+        const std::uint64_t id = message.id;
+        detail::WireReader in(message.payload);
+        std::uint32_t index = 0;
+        SinkStart start;
+        std::uint32_t audio = 0;
+        std::uint64_t frames = 0;
+        std::uint64_t sounds = 0;
+        std::uint64_t wake = 0;
+        if (!in.u32(index) || !in.text(start.device, kMostDeviceBytes) || !in.text(start.name, kMostDeviceBytes) ||
+            !in.u32(start.width) || !in.u32(start.height) || !in.u32(start.fps) || !in.u32(audio) || !in.u64(frames) ||
+            !in.u64(sounds) || !in.u64(wake) || !in.done()) {
+            ended(id, "the request to start sending was damaged");
+            return;
+        }
+        start.audio = audio != 0;
+        const std::shared_ptr<detail::SinkBox> box =
+            detail::SinkBox::adopt(id, start, handleOf(frames), handleOf(sounds), handleOf(wake));
+        if (box == nullptr) {
+            ended(id, "the picture and the sound could not be shared with the extension's process");
+            return;
+        }
+        box->setEnded([this, id](const std::string& why) { ended(id, why); });
+        const std::uint64_t sink = m_module.attachSink(index, box);
+        if (sink == 0) {
+            box->setEnded({});
+            ended(id, "the extension did not start sending");
+            return;
+        }
+        m_sinks.insert_or_assign(id, sink);
+    }
+
+    InProcessModule& m_module;
+    Link& m_link;
+    std::map<std::uint64_t, std::uint64_t> m_sources;
+    std::map<std::uint64_t, std::uint64_t> m_sinks;
 };
 
 struct Start {
@@ -1036,6 +1249,7 @@ int serve(int argc, wchar_t** argv)
         Worker worker(*module, link);
         Worker claims(*module, link);
         Streams streams(*module, link);
+        MediaStreams media(*module, link);
         std::map<std::uint64_t, std::uint64_t> sessions;
         std::map<std::uint64_t, std::uint64_t> instances;
         bool running = true;
@@ -1074,6 +1288,8 @@ int serve(int argc, wchar_t** argv)
             } else if (message.kind == detail::Kind::StreamOpen || message.kind == detail::Kind::StreamSend ||
                        message.kind == detail::Kind::StreamClose) {
                 streams.push(std::move(message));
+            } else if (message.kind == detail::Kind::SourceList) {
+                worker.push(std::move(message));
             } else if (message.kind == detail::Kind::Stop) {
                 running = false;
             } else if (message.kind == detail::Kind::Settings) {
@@ -1090,6 +1306,8 @@ int serve(int argc, wchar_t** argv)
                     module->appEvent(topic, json);
                 }
             } else if (jobs.handle(message)) {
+                continue;
+            } else if (media.handle(message)) {
                 continue;
             } else if (!instanced(*module, link, instances, message)) {
                 touched(*module, link, sessions, message);

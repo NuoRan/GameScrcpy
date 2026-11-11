@@ -4,6 +4,7 @@
 
 #include <gs/media/VideoDecoder.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
@@ -12,6 +13,9 @@
 struct ID3D11Device;
 
 namespace gs::capture {
+
+void bgraToNv12(const std::uint8_t* pixels, std::ptrdiff_t pitch, int width, int height, std::uint8_t* luma,
+                std::ptrdiff_t lumaPitch, std::uint8_t* chroma, std::ptrdiff_t chromaPitch) noexcept;
 
 class FrameBuilder
 {

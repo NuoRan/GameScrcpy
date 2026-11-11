@@ -1,6 +1,7 @@
 #include "gs/exthost/Hosted.h"
 
 #include "Channel.h"
+#include "MediaRing.h"
 #include "Wire.h"
 
 #include <algorithm>
@@ -176,6 +177,7 @@ struct HostedModule::Impl {
         }
         failJobs("the extension stopped before the job ended");
         failStreams("the extension stopped");
+        endStreams("the extension stopped");
         if (process != nullptr) {
             if (WaitForSingleObject(process, kStopWaitMs) != WAIT_OBJECT_0) {
                 TerminateProcess(process, kStoppedExit);
@@ -601,6 +603,40 @@ struct HostedModule::Impl {
             }
             return;
         }
+        case detail::Kind::MediaRing:
+            adoptRing(message.id, in);
+            return;
+        case detail::Kind::StreamEnded: {
+            std::string why;
+            if (!in.text(why, 4096)) {
+                return;
+            }
+            std::shared_ptr<detail::StreamBox> source;
+            std::shared_ptr<detail::SinkBox> sink;
+            {
+                const std::scoped_lock lock(mutex);
+                if (const auto found = sources.find(message.id); found != sources.end()) {
+                    source = found->second;
+                }
+                if (const auto found = sinks.find(message.id); found != sinks.end()) {
+                    sink = found->second;
+                }
+            }
+            if (source != nullptr) {
+                source->end(why);
+            }
+            if (sink != nullptr) {
+                sink->end(why);
+            }
+            return;
+        }
+        case detail::Kind::SourcesChanged: {
+            std::string source;
+            if (in.text(source, kMostNameBytes) && options.sourcesChanged) {
+                options.sourcesChanged(source);
+            }
+            return;
+        }
         default:
             return;
         }
@@ -642,6 +678,64 @@ struct HostedModule::Impl {
         }
     }
 
+    void adoptRing(std::uint64_t id, detail::WireReader& in)
+    {
+        std::uint32_t kind = 0;
+        std::uint64_t capacity = 0;
+        std::uint64_t remote = 0;
+        if (!in.u32(kind) || kind > static_cast<std::uint32_t>(MediaKind::Audio) || !in.u64(capacity) ||
+            !in.u64(remote) || !in.done()) {
+            return;
+        }
+        std::shared_ptr<detail::StreamBox> box;
+        HANDLE local = nullptr;
+        {
+            const std::scoped_lock lock(mutex);
+            const auto found = sources.find(id);
+            if (found == sources.end() || process == nullptr) {
+                return;
+            }
+            box = found->second;
+            if (DuplicateHandle(process, reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(remote)),
+                                GetCurrentProcess(), &local, 0, FALSE, DUPLICATE_SAME_ACCESS) == FALSE) {
+                local = nullptr;
+            }
+        }
+        const auto bytes = static_cast<std::size_t>(capacity);
+        bool adopted = false;
+        if (local != nullptr && kind == static_cast<std::uint32_t>(MediaKind::Video)) {
+            if (std::shared_ptr<detail::FrameRing> ring = detail::FrameRing::adopt(local, bytes)) {
+                box->adoptFrames(std::move(ring));
+                adopted = true;
+            }
+        } else if (local != nullptr) {
+            if (std::shared_ptr<detail::SoundRing> ring = detail::SoundRing::adopt(local, bytes)) {
+                box->adoptSounds(std::move(ring));
+                adopted = true;
+            }
+        }
+        if (!adopted) {
+            box->end("the extension's process could not share the picture or the sound");
+        }
+    }
+
+    void endStreams(const std::string& why)
+    {
+        std::map<std::uint64_t, std::shared_ptr<detail::StreamBox>> open;
+        std::map<std::uint64_t, std::shared_ptr<detail::SinkBox>> sending;
+        {
+            const std::scoped_lock lock(mutex);
+            open.swap(sources);
+            sending.swap(sinks);
+        }
+        for (const auto& [id, box] : open) {
+            box->end(why);
+        }
+        for (const auto& [id, box] : sending) {
+            box->end(why);
+        }
+    }
+
     void answerClaim(std::uint64_t id, const std::string& resource, ClaimResult result, std::uint64_t launch)
     {
         bool stale = false;
@@ -680,6 +774,7 @@ struct HostedModule::Impl {
 
     void exited()
     {
+        endStreams("the extension's process stopped");
         std::vector<std::uint64_t> lost;
         bool restart = false;
         bool gaveUp = false;
@@ -893,6 +988,8 @@ struct HostedModule::Impl {
     std::set<std::string> held;
     std::uint64_t launches = 0;
     std::set<std::string, std::less<>> heard;
+    std::map<std::uint64_t, std::shared_ptr<detail::StreamBox>> sources;
+    std::map<std::uint64_t, std::shared_ptr<detail::SinkBox>> sinks;
     std::jthread reader;
 };
 
@@ -1430,6 +1527,178 @@ void HostedModule::closeStream(std::uint64_t stream)
     if (d.streams.erase(stream) > 0 && d.channel && d.channel->toHost().write(detail::Kind::StreamClose, stream, {})) {
         SetEvent(d.channel->toHostEvent());
     }
+}
+
+namespace {
+
+std::uint64_t valueOf(HANDLE handle) noexcept
+{
+    return static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(handle));
+}
+
+void closeRemote(HANDLE process, HANDLE handle) noexcept
+{
+    if (process != nullptr && handle != nullptr) {
+        DuplicateHandle(process, handle, nullptr, nullptr, 0, FALSE, DUPLICATE_CLOSE_SOURCE);
+    }
+}
+
+}
+
+CallResult HostedModule::listSources(MediaKind kind, std::size_t source)
+{
+    Impl& d = *m_impl;
+    const std::size_t count = kind == MediaKind::Video ? d.info.videoSources.size() : d.info.audioSources.size();
+    if (source >= count) {
+        return {CallStatus::Unavailable, {}, "the DLL has no such source"};
+    }
+    detail::WireWriter payload;
+    payload.u32(static_cast<std::uint32_t>(kind));
+    payload.u32(static_cast<std::uint32_t>(source));
+    return d.ask(detail::Kind::SourceList, payload, "the source");
+}
+
+std::shared_ptr<MediaStream> HostedModule::openSource(MediaKind kind, std::size_t source, std::string_view id,
+                                                      std::string_view params)
+{
+    Impl& d = *m_impl;
+    const std::size_t count = kind == MediaKind::Video ? d.info.videoSources.size() : d.info.audioSources.size();
+    if (source >= count || !validSourceId(id) || params.size() > kMostParamBytes) {
+        return nullptr;
+    }
+    const std::scoped_lock lock(d.mutex);
+    if (d.state != Impl::State::Ready || !d.channel || d.process == nullptr || d.sources.size() >= kMostStreams) {
+        return nullptr;
+    }
+    const std::uint64_t stream = ++d.nextId;
+    auto box = std::make_shared<detail::StreamBox>(stream, nullptr, detail::StreamBox::Hooks{});
+    HANDLE remote = nullptr;
+    if (box->wakeHandle() == nullptr || DuplicateHandle(GetCurrentProcess(), box->wakeHandle(), d.process, &remote, 0,
+                                                        FALSE, DUPLICATE_SAME_ACCESS) == FALSE) {
+        return nullptr;
+    }
+    detail::WireWriter payload;
+    payload.u32(static_cast<std::uint32_t>(kind));
+    payload.u32(static_cast<std::uint32_t>(source));
+    payload.text(id);
+    payload.text(params.empty() ? std::string_view("{}") : params);
+    payload.u64(valueOf(remote));
+    if (!d.channel->toHost().write(detail::Kind::SourceOpen, stream, payload.bytes())) {
+        closeRemote(d.process, remote);
+        return nullptr;
+    }
+    d.sources.emplace(stream, box);
+    SetEvent(d.channel->toHostEvent());
+    return box;
+}
+
+void HostedModule::closeSource(std::uint64_t stream)
+{
+    Impl& d = *m_impl;
+    std::shared_ptr<detail::StreamBox> box;
+    {
+        const std::scoped_lock lock(d.mutex);
+        const auto found = d.sources.find(stream);
+        if (found == d.sources.end()) {
+            return;
+        }
+        box = std::move(found->second);
+        d.sources.erase(found);
+        if (d.channel && d.channel->toHost().write(detail::Kind::SourceClose, stream, {})) {
+            SetEvent(d.channel->toHostEvent());
+        }
+    }
+    box->close();
+}
+
+std::shared_ptr<SinkPort> HostedModule::openSink(std::size_t sink, const SinkStart& start)
+{
+    Impl& d = *m_impl;
+    if (sink >= d.info.sinks.size() || start.device.size() > kMostDeviceBytes || start.name.size() > kMostDeviceBytes) {
+        return nullptr;
+    }
+    const std::scoped_lock lock(d.mutex);
+    if (d.state != Impl::State::Ready || !d.channel || d.process == nullptr || d.sinks.size() >= kMostSinks) {
+        return nullptr;
+    }
+    const std::uint64_t id = ++d.nextId;
+    std::shared_ptr<detail::SinkBox> box = detail::SinkBox::make(id, start);
+    if (box == nullptr) {
+        return nullptr;
+    }
+    const std::array<HANDLE, 3> local{box->framesHandle(), box->soundsHandle(), box->wakeHandle()};
+    std::array<HANDLE, 3> remote{};
+    bool shared = true;
+    for (std::size_t index = 0; index < local.size(); ++index) {
+        if (local[index] != nullptr && shared) {
+            shared = DuplicateHandle(GetCurrentProcess(), local[index], d.process, &remote[index], 0, FALSE,
+                                     DUPLICATE_SAME_ACCESS) != FALSE;
+        }
+    }
+    detail::WireWriter payload;
+    payload.u32(static_cast<std::uint32_t>(sink));
+    payload.text(start.device);
+    payload.text(start.name);
+    payload.u32(start.width);
+    payload.u32(start.height);
+    payload.u32(start.fps);
+    payload.u32(start.audio ? 1U : 0U);
+    payload.u64(valueOf(remote[0]));
+    payload.u64(valueOf(remote[1]));
+    payload.u64(valueOf(remote[2]));
+    if (!shared || !d.channel->toHost().write(detail::Kind::SinkOpen, id, payload.bytes())) {
+        for (const HANDLE handle : remote) {
+            closeRemote(d.process, handle);
+        }
+        return nullptr;
+    }
+    d.sinks.emplace(id, box);
+    SetEvent(d.channel->toHostEvent());
+    return box;
+}
+
+void HostedModule::closeSink(std::uint64_t sink)
+{
+    Impl& d = *m_impl;
+    std::shared_ptr<detail::SinkBox> box;
+    {
+        const std::scoped_lock lock(d.mutex);
+        const auto found = d.sinks.find(sink);
+        if (found == d.sinks.end()) {
+            return;
+        }
+        box = std::move(found->second);
+        d.sinks.erase(found);
+        if (d.channel && d.channel->toHost().write(detail::Kind::SinkClose, sink, {})) {
+            SetEvent(d.channel->toHostEvent());
+        }
+    }
+    box->end("the sending stopped");
+}
+
+std::uint64_t HostedModule::startExport(std::size_t exporter, std::string_view input, std::string_view output,
+                                        JobEvents events)
+{
+    Impl& d = *m_impl;
+    if (exporter >= d.info.exporters.size() || input.empty() || output.empty() ||
+        input.size() > kMostExportPathBytes || output.size() > kMostExportPathBytes) {
+        return 0;
+    }
+    detail::WireWriter payload;
+    payload.u32(static_cast<std::uint32_t>(exporter));
+    payload.text(input);
+    payload.text(output);
+    const std::scoped_lock lock(d.mutex);
+    if (d.state != Impl::State::Ready || !d.channel || d.jobs.size() >= kMostRunningJobs) {
+        return 0;
+    }
+    const std::uint64_t id = ++d.nextId;
+    if (!d.channel->toHost().write(detail::Kind::ExportStart, id, payload.bytes())) {
+        return 0;
+    }
+    d.jobs.emplace(id, std::move(events));
+    SetEvent(d.channel->toHostEvent());
+    return id;
 }
 
 }

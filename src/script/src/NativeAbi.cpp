@@ -26,6 +26,12 @@ constexpr Constant kConstants[] = {
      "A flag of claim: ask whoever has the hardware to let it go, and wait up to 3 seconds for it."},
     {"GS_EXT_KIND_INPUT_SOURCE", "\"input-source\"", "A contribution whose data is a gs_ext_input_source."},
     {"GS_EXT_KIND_TRANSPORT", "\"transport\"", "A contribution whose data is a gs_ext_transport."},
+    {"GS_EXT_KIND_VIDEO_SOURCE", "\"video-source\"", "A contribution whose data is a gs_ext_video_source."},
+    {"GS_EXT_KIND_AUDIO_SOURCE", "\"audio-source\"", "A contribution whose data is a gs_ext_audio_source."},
+    {"GS_EXT_KIND_MEDIA_SINK", "\"media-sink\"", "A contribution whose data is a gs_ext_media_sink."},
+    {"GS_EXT_KIND_RECORDING_EXPORTER", "\"recording-exporter\"",
+     "A contribution whose data is a gs_ext_recording_exporter."},
+    {"GS_EXT_SOUND_RATE", "48000", "The rate of all sound that goes between a DLL and GameScrcpy, in frames a second."},
 };
 
 constexpr Enumerator kTypes[] = {
@@ -111,6 +117,19 @@ constexpr Enumerator kSlotKinds[] = {
     {"GS_EXT_SLOT_AXIS1", 2, "\"axis1\" in the manifest: a trigger, with one value from 0 to 1."},
 };
 
+constexpr Enumerator kPixelFormats[] = {
+    {"GS_EXT_PIXEL_BGRA", 1,
+     "Four bytes a pixel in the order blue, green, red and alpha, the rows from the top; alpha is not used."},
+    {"GS_EXT_PIXEL_NV12", 2,
+     "A luma plane with one byte a pixel, then a chroma plane with a blue and a red byte for each 2 x 2 pixels; BT.709 "
+     "colors in limited range."},
+};
+
+constexpr Enumerator kSampleFormats[] = {
+    {"GS_EXT_SAMPLE_S16", 1, "Signed 16-bit samples, the channels of one frame next to each other."},
+    {"GS_EXT_SAMPLE_F32", 2, "32-bit float samples from -1 to 1, the channels of one frame next to each other."},
+};
+
 constexpr Enumeration kEnumerations[] = {
     {"gs_ext_type",
      "What a node parameter or result holds. The names in the manifest's contributes.native are the same types.",
@@ -126,6 +145,12 @@ constexpr Enumeration kEnumerations[] = {
     {"gs_ext_input_kind", "What happened in a gs_ext_input_event.", kInputKinds},
     {"gs_ext_command_kind", "What a finger does in a gs_ext_touch_command.", kCommandKinds},
     {"gs_ext_slot_kind", "The kind of an input slot of a behavior.", kSlotKinds},
+    {"gs_ext_pixel_format",
+     "How the pixels of a gs_ext_video_frame are laid out. A Direct3D 11 shared texture comes in a later version as "
+     "another format, with fields added at the end of gs_ext_video_frame; GameScrcpy refuses a format it does not know "
+     "with GS_EXT_UNSUPPORTED.",
+     kPixelFormats},
+    {"gs_ext_sample_format", "How the samples of a gs_ext_audio are written.", kSampleFormats},
 };
 
 constexpr Field kValueFields[] = {
@@ -409,6 +434,111 @@ constexpr Field kTransportFields[] = {
      "cross with it, so ignore a stream that the DLL no longer knows."},
 };
 
+constexpr Field kVideoFrameFields[] = {
+    {"uint32_t size", "sizeof(gs_ext_video_frame) on the side that fills it in."},
+    {"uint32_t format", "One of gs_ext_pixel_format."},
+    {"uint32_t width",
+     "The width in pixels, from 2 to 4096, even for GS_EXT_PIXEL_NV12; width x height is at most 10,000,000."},
+    {"uint32_t height", "The height in pixels, from 2 to 4096, even for GS_EXT_PIXEL_NV12."},
+    {"const uint8_t* data",
+     "The pixels, or the luma plane of GS_EXT_PIXEL_NV12, row after row; they belong to whoever made the frame and "
+     "are copied before the call returns."},
+    {"uint32_t stride", "How many bytes a row of data takes: at least width x 4 for BGRA and width for NV12."},
+    {"const uint8_t* chroma", "The chroma plane of GS_EXT_PIXEL_NV12, height / 2 rows; NULL for BGRA."},
+    {"uint32_t chroma_stride", "How many bytes a row of chroma takes, at least width; 0 for BGRA."},
+    {"uint64_t time_us", "When the picture was taken, in microseconds of the clock of now_us."},
+};
+
+constexpr Field kAudioFields[] = {
+    {"uint32_t size", "sizeof(gs_ext_audio) on the side that fills it in."},
+    {"uint32_t format", "One of gs_ext_sample_format."},
+    {"uint32_t channels", "How many channels there are, from 1 to 8."},
+    {"uint32_t rate", "The frames a second: always GS_EXT_SOUND_RATE."},
+    {"const void* data",
+     "frames x channels samples; they belong to whoever made the sound and are copied before the call returns."},
+    {"uint32_t frames", "How many frames there are, one sample of each channel each, from 1 to 48000."},
+    {"uint64_t time_us", "When the first frame was heard, in microseconds of the clock of now_us."},
+};
+
+constexpr Field kVideoSourceFields[] = {
+    {"uint32_t size", "sizeof(gs_ext_video_source) in the DLL."},
+    {"const char* name", "The name of the source in the manifest's contributes.native.videoSources."},
+    {"void* context", "Passed back to list, open and close."},
+    {"int32_t (*list)(void* context, gs_ext_result* out)",
+     "Puts the pictures that can be opened now into out as a JSON array with set_text, each { id, name }: id is 1 to "
+     "64 bytes of UTF-8 that stay the same while the picture is there, and name what the devices page shows. "
+     "GameScrcpy calls it when the extension turns on and after sources_changed; answer within 100 ms."},
+    {"int32_t (*open)(void* context, const char* id, size_t id_size, const char* params, size_t params_size, "
+     "uint64_t stream)",
+     "Starts the picture with that id, UTF-8 not ended by a zero byte. params is a UTF-8 JSON object, { phone } with "
+     "the serial of the phone it is shown for or an empty string when it is shown on its own. Return at once and hand "
+     "each picture to video_frame with stream from a thread of your own; anything but GS_EXT_OK means it did not "
+     "start."},
+    {"void (*close)(void* context, uint64_t stream)",
+     "Stops the picture; video_frame for stream is ignored after close returns."},
+};
+
+constexpr Field kAudioSourceFields[] = {
+    {"uint32_t size", "sizeof(gs_ext_audio_source) in the DLL."},
+    {"const char* name", "The name of the source in the manifest's contributes.native.audioSources."},
+    {"void* context", "Passed back to list, open and close."},
+    {"int32_t (*list)(void* context, gs_ext_result* out)",
+     "Puts the sounds that can be opened now into out as a JSON array with set_text, each { id, name }, as a video "
+     "source lists its pictures. A sound plays with the picture of the extension's video source that has the same id."},
+    {"int32_t (*open)(void* context, const char* id, size_t id_size, const char* params, size_t params_size, "
+     "uint64_t stream)",
+     "Starts the sound with that id, with params as a video source gets them. Return at once and hand the sound to "
+     "audio_samples with stream from a thread of your own; anything but GS_EXT_OK means it did not start."},
+    {"void (*close)(void* context, uint64_t stream)",
+     "Stops the sound; audio_samples for stream is ignored after close returns."},
+};
+
+constexpr Field kSinkInfoFields[] = {
+    {"uint32_t size", "sizeof(gs_ext_sink_info) in GameScrcpy."},
+    {"const char* device",
+     "The serial of the phone whose window is sent, UTF-8 ended by a zero byte; valid until close."},
+    {"const char* name", "The name GameScrcpy shows for that phone, UTF-8 ended by a zero byte; valid until close."},
+    {"uint32_t width", "The width of every frame, as the manifest declares; 0 when the sink takes no picture."},
+    {"uint32_t height", "The height of every frame, as the manifest declares; 0 when the sink takes no picture."},
+    {"uint32_t fps", "How many frames come a second, as the manifest declares; 0 when the sink takes no picture."},
+    {"uint32_t format", "The gs_ext_pixel_format of the frames, GS_EXT_PIXEL_BGRA; 0 when no picture comes."},
+    {"uint32_t channels",
+     "The channels of the sound, 2; each gs_ext_audio still says its own. 0 when no sound comes."},
+    {"uint32_t rate", "GS_EXT_SOUND_RATE, or 0 when no sound comes."},
+    {"uint32_t sample_format", "The gs_ext_sample_format of the sound, GS_EXT_SAMPLE_F32; 0 when no sound comes."},
+};
+
+constexpr Field kMediaSinkFields[] = {
+    {"uint32_t size", "sizeof(gs_ext_media_sink) in the DLL."},
+    {"const char* name", "The name of the sink in the manifest's contributes.native.mediaSinks."},
+    {"void* context", "Passed back to open."},
+    {"int32_t (*open)(void* context, const gs_ext_sink_info* info, void** state)",
+     "The user started sending a mirror window here, such as to a virtual camera or a stream; keep what you need in "
+     "*state. Return within 100 ms and connect on a thread of your own; anything but GS_EXT_OK means it did not "
+     "start."},
+    {"int32_t (*frame)(void* state, const gs_ext_video_frame* frame)",
+     "One picture of the window, letterboxed into the size of info, about fps times a second. Copy what you need and "
+     "return quickly; anything but GS_EXT_OK stops the sending. NULL when the sink takes no picture."},
+    {"int32_t (*audio)(void* state, const gs_ext_audio* audio)",
+     "Some sound of the window when the manifest asks for it; copy it and return quickly. NULL when the sink takes no "
+     "sound."},
+    {"void (*close)(void* state)",
+     "The window closed or the user stopped sending: free the state. frame and audio are not called any more."},
+};
+
+constexpr Field kRecordingExporterFields[] = {
+    {"uint32_t size", "sizeof(gs_ext_recording_exporter) in the DLL."},
+    {"const char* name", "The name of the exporter in the manifest's contributes.native.recordingExporters."},
+    {"void* context", "Passed back to start and cancel."},
+    {"int32_t (*start)(void* context, uint64_t job, const char* input, size_t input_size, const char* output, "
+     "size_t output_size)",
+     "Turns a recording into a file of the exporter's format, as a job: input is the path of an MP4 video that "
+     "GameScrcpy made of the recording, output the path the user chose, both UTF-8 not ended by a zero byte. Return "
+     "at once and work on a thread of your own; tell how far it got with job_progress and end it with job_finish or "
+     "job_fail, as a gs_ext_job does."},
+    {"void (*cancel)(void* context, uint64_t job)", "Asks the export to stop soon; it still ends with job_fail."},
+};
+
 constexpr Field kHostFields[] = {
     {"uint32_t size", "sizeof(gs_ext_host) in GameScrcpy; later versions only add functions at the end."},
     {"uint32_t abi_version", "The GS_EXT_ABI_VERSION of GameScrcpy."},
@@ -432,8 +562,8 @@ constexpr Field kHostFields[] = {
      "Says why a node failed; the script that called it gets the text in its error."},
     {"int32_t (*supports)(void* context, const char* feature)",
      "1 when this GameScrcpy has the feature, such as \"jobs\", \"events\", \"settings\", \"claims\", "
-     "\"job-output\", \"app-events\" or \"transports\", otherwise 0; ask before using a function that a later "
-     "version added."},
+     "\"job-output\", \"app-events\", \"transports\" or \"media\", otherwise 0; ask before using a function that a "
+     "later version added."},
     {"int32_t (*job_progress)(void* context, uint64_t job, double fraction, const char* text, size_t size)",
      "Tells how far a job got: fraction from 0 to 1, or -1 when it cannot tell, and a short UTF-8 line about the step "
      "it is on. GameScrcpy passes on at most 20 a second and drops the others in between."},
@@ -527,6 +657,21 @@ constexpr Field kHostFields[] = {
      "not reach the phone, with a reason in UTF-8 of at most 1000 bytes. The session sees a lost connection, as when "
      "the adb tunnel drops, shows the reason and tries to resume; GameScrcpy does not call close for the stream "
      "afterwards."},
+    {"int32_t (*sources_changed)(void* context, const char* source, size_t size)",
+     "Tells GameScrcpy that the pictures or the sounds of one of the DLL's video or audio sources changed, so that it "
+     "calls list again. It needs the permission media.capture."},
+    {"int32_t (*video_frame)(void* context, uint64_t stream, const gs_ext_video_frame* frame)",
+     "Hands one picture of an open video source to GameScrcpy from any thread; it is copied into a ring of a few "
+     "frames, from which GameScrcpy shows the newest. GS_EXT_UNSUPPORTED for a format GameScrcpy does not know, "
+     "GS_EXT_BAD_ARGUMENT for a stream that is not open or a frame against the rules of gs_ext_video_frame, "
+     "GS_EXT_FAILED once the stream has ended."},
+    {"int32_t (*audio_samples)(void* context, uint64_t stream, const gs_ext_audio* audio)",
+     "Hands some sound of an open audio source to GameScrcpy from any thread; it is copied into a ring of about a "
+     "second, and sound that does not fit is dropped. GS_EXT_BAD_ARGUMENT for a stream that is not open or sound "
+     "against the rules of gs_ext_audio."},
+    {"int32_t (*stream_ended)(void* context, uint64_t stream, const char* text, size_t size)",
+     "Says that an open source has nothing more to give, such as when its device was unplugged, and why in UTF-8; "
+     "GameScrcpy shows the picture as disconnected until the source is listed and opened again."},
 };
 
 constexpr Field kContributionFields[] = {
@@ -543,7 +688,8 @@ constexpr Field kPluginFields[] = {
     {"void* context", "Passed back to unload."},
     {"uint32_t contribution_count",
      "How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments, 32 behaviors, 32 jobs, "
-     "8 device providers and 8 transports."},
+     "8 device providers, 8 transports, 8 video sources, 8 audio sources, 8 media sinks and 8 recording "
+     "exporters."},
     {"const gs_ext_contribution* contributions", "What the DLL offers."},
     {"void (*unload)(void* context)", "Called once before the DLL is unloaded; may be NULL."},
     {"void (*settings_changed)(void* context, const char* keys, size_t size)",
@@ -631,6 +777,28 @@ constexpr Structure kStructures[] = {
      "serial or Bluetooth, whose buttons and axes the DLL feeds into the key mapping with input_event. A DLL offers "
      "at most 8, each with at most 64 slots. It needs the permission input.provide.",
      kInputSourceFields},
+    {"gs_ext_video_frame",
+     "One picture going from a video source to GameScrcpy, or from GameScrcpy to a media sink.", kVideoFrameFields},
+    {"gs_ext_audio", "Some sound going from an audio source to GameScrcpy, or from GameScrcpy to a media sink.",
+     kAudioFields},
+    {"gs_ext_video_source",
+     "Pictures that GameScrcpy shows like a capture card, for a phone or on their own, such as a camera, a network "
+     "stream or the picture of a touch box. It needs the permission media.capture.",
+     kVideoSourceFields},
+    {"gs_ext_audio_source",
+     "Sound that GameScrcpy plays with the picture of the extension's video source of the same id. It needs the "
+     "permission media.capture.",
+     kAudioSourceFields},
+    {"gs_ext_sink_info", "What a media sink gets when the user starts sending a window to it.", kSinkInfoFields},
+    {"gs_ext_media_sink",
+     "Somewhere GameScrcpy sends the picture and the sound of a mirror window, such as a virtual camera, RTMP or SRT "
+     "streaming or OBS, started from the window's More menu. It needs the permission media.output. frame and audio "
+     "come from one thread of GameScrcpy, never at the same time.",
+     kMediaSinkFields},
+    {"gs_ext_recording_exporter",
+     "A file format that the recordings list offers under Export as. It needs the permission media.output and counts "
+     "as one of the extension's at most 4 running jobs.",
+     kRecordingExporterFields},
 };
 
 constexpr Entry kEntry = {

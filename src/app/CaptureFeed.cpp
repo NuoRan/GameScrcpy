@@ -307,12 +307,26 @@ void CaptureFeed::ended(const std::string& problem)
     notify(CaptureEvent::Failed);
 }
 
+void CaptureFeed::heard(std::span<const float> interleaved, int channels, int sampleRate, std::int64_t ptsUs)
+{
+    feedSound(interleaved, channels, sampleRate, ptsUs);
+}
+
+void CaptureFeed::setAudioTap(std::function<void(std::span<const float>, int, int, std::int64_t)> tap)
+{
+    const std::scoped_lock lock(m_soundMutex);
+    m_tap = std::move(tap);
+}
+
 void CaptureFeed::feedSound(std::span<const float> interleaved, int channels, int sampleRate, std::int64_t ptsUs)
 {
     {
         const std::scoped_lock lock(m_soundMutex);
         if (m_player != nullptr) {
             static_cast<void>(m_player->pushPcm(interleaved, channels, sampleRate, ptsUs));
+        }
+        if (m_tap) {
+            m_tap(interleaved, channels, sampleRate, ptsUs);
         }
     }
     const std::scoped_lock lock(m_recordMutex);
@@ -424,6 +438,14 @@ void CaptureFeed::applyCrop()
 
 void CaptureFeed::startSound()
 {
+    if (m_source->givesSound()) {
+        auto player = std::make_unique<media::AudioPlayer>();
+        const std::scoped_lock lock(m_soundMutex);
+        player->setMuted(m_muted);
+        player->setVolume(static_cast<float>(m_volume));
+        m_player = std::move(player);
+        return;
+    }
     const std::wstring container = m_source->container();
     if (container.empty()) {
         return;

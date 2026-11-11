@@ -34,11 +34,11 @@ inline constexpr std::array<std::string_view, 12> kExtensionPointNames{"profile"
 inline constexpr std::array<std::string_view, 8> kNativeTypeNames{"boolean", "number", "string",   "point",
                                                                   "region",  "color",  "duration", "json"};
 
-inline constexpr std::array<std::string_view, 19> kPermissionNames{
+inline constexpr std::array<std::string_view, 21> kPermissionNames{
     "device.input", "device.screen", "device.clipboard", "device.apps", "devices.other", "mapping",
     "notify",       "network",       "files.pick",       "files.paths", "input.read",    "hardware",
     "ai",           "devices.provide", "network.listen", "speech.listen", "events.app", "input.provide",
-    "transport"};
+    "transport",    "media.capture",   "media.output"};
 inline constexpr std::size_t kMaxComponentNameLength = 48;
 inline constexpr std::string_view kNeverGrantedPermission = "adb.shell";
 
@@ -452,6 +452,98 @@ struct NativeTransport {
     friend bool operator==(const NativeTransport&, const NativeTransport&) = default;
 };
 
+inline constexpr std::size_t kMostMediaSources = 8;
+inline constexpr std::size_t kMostMediaSinks = 8;
+inline constexpr std::size_t kMostRecordingExporters = 8;
+inline constexpr std::array<std::string_view, 2> kVideoSourceKindNames{"phone", "touchBox"};
+inline constexpr std::string_view kMediaCapturePermission = "media.capture";
+inline constexpr std::string_view kMediaOutputPermission = "media.output";
+inline constexpr std::int64_t kMostSinkFps = 60;
+inline constexpr std::int64_t kLeastSinkSide = 16;
+inline constexpr std::int64_t kMostSinkSide = 4096;
+inline constexpr std::int64_t kMostSinkPixels = 3840 * 2160;
+inline constexpr std::size_t kMostExporterExtensionLength = 16;
+
+struct NativeVideoSource {
+    std::string name;
+    std::string title;
+    std::vector<std::string> kinds;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+        v.text("title", m.title, {.required = true, .maxLength = 40});
+        v.textList("kinds", m.kinds, {.maxItems = 2, .maxLength = 16});
+    }
+
+    friend bool operator==(const NativeVideoSource&, const NativeVideoSource&) = default;
+};
+
+struct NativeAudioSource {
+    std::string name;
+    std::string title;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+        v.text("title", m.title, {.required = true, .maxLength = 40});
+    }
+
+    friend bool operator==(const NativeAudioSource&, const NativeAudioSource&) = default;
+};
+
+struct SinkVideo {
+    std::optional<std::int64_t> fps;
+    std::optional<std::int64_t> width;
+    std::optional<std::int64_t> height;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.integer("fps", m.fps, 1, kMostSinkFps);
+        v.integer("width", m.width, kLeastSinkSide, kMostSinkSide);
+        v.integer("height", m.height, kLeastSinkSide, kMostSinkSide);
+    }
+
+    friend bool operator==(const SinkVideo&, const SinkVideo&) = default;
+};
+
+struct NativeMediaSink {
+    std::string name;
+    std::string title;
+    std::optional<SinkVideo> video;
+    bool audio = false;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+        v.text("title", m.title, {.required = true, .maxLength = 40});
+        v.optionalObject("video", m.video);
+        v.boolean("audio", m.audio);
+    }
+
+    friend bool operator==(const NativeMediaSink&, const NativeMediaSink&) = default;
+};
+
+struct NativeRecordingExporter {
+    std::string name;
+    std::string title;
+    std::string extension;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+        v.text("title", m.title, {.required = true, .maxLength = 40});
+        v.text("extension", m.extension, {.required = true, .maxLength = kMostExporterExtensionLength});
+    }
+
+    friend bool operator==(const NativeRecordingExporter&, const NativeRecordingExporter&) = default;
+};
+
 struct NativeContribution {
     std::string dll;
     TextMap dlls;
@@ -464,6 +556,10 @@ struct NativeContribution {
     std::vector<NativeSpeechEngine> speechEngines;
     std::vector<NativeInputSource> inputSources;
     std::vector<NativeTransport> transports;
+    std::vector<NativeVideoSource> videoSources;
+    std::vector<NativeAudioSource> audioSources;
+    std::vector<NativeMediaSink> mediaSinks;
+    std::vector<NativeRecordingExporter> recordingExporters;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -482,6 +578,10 @@ struct NativeContribution {
         v.objectList("speechEngines", m.speechEngines, kMostSpeechEngines);
         v.objectList("inputSources", m.inputSources, kMostInputSources);
         v.objectList("transports", m.transports, kMostNativeTransports);
+        v.objectList("videoSources", m.videoSources, kMostMediaSources);
+        v.objectList("audioSources", m.audioSources, kMostMediaSources);
+        v.objectList("mediaSinks", m.mediaSinks, kMostMediaSinks);
+        v.objectList("recordingExporters", m.recordingExporters, kMostRecordingExporters);
     }
 
     friend bool operator==(const NativeContribution&, const NativeContribution&) = default;

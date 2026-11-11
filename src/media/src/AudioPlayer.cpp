@@ -111,6 +111,7 @@ struct AudioPlayer::State {
         }
         const std::span<const float> samples(resampled.data(),
                                              static_cast<std::size_t>(converted) * static_cast<std::size_t>(channels));
+        tell(samples, channels, ptsUs);
         if (const auto compensation = regulator->push(samples, static_cast<std::uint32_t>(frames), ptsUs)) {
             if (const int set = swr_set_compensation(pcmResampler, compensation->delta, compensation->distance);
                 set < 0) {
@@ -205,6 +206,7 @@ struct AudioPlayer::State {
             }
             const std::span<const float> samples(resampled.data(), static_cast<std::size_t>(converted) *
                                                                        static_cast<std::size_t>(channels));
+            tell(samples, channels, pts);
             if (const auto compensation = regulator->push(samples, decoded, pts)) {
                 if (const int set = swr_set_compensation(resampler, compensation->delta, compensation->distance);
                     set < 0) {
@@ -231,6 +233,14 @@ struct AudioPlayer::State {
 
     void updateGain() noexcept { gain.store(muted ? 0.0f : volume, std::memory_order_relaxed); }
 
+    void tell(std::span<const float> samples, int channels, std::int64_t ptsUs)
+    {
+        const std::lock_guard guard(tapLock);
+        if (tap && !samples.empty()) {
+            tap(samples, channels, playbackRate, ptsUs);
+        }
+    }
+
     const std::chrono::milliseconds target;
 
     std::optional<protocol::AudioSessionInfo> described;
@@ -255,6 +265,9 @@ struct AudioPlayer::State {
     float volume = 1.0f;
     bool muted = false;
     std::atomic<float> gain{1.0f};
+
+    std::mutex tapLock;
+    AudioTap tap;
 };
 
 AudioPlayer::AudioPlayer(std::chrono::milliseconds target) : m_state(std::make_unique<State>(target)) {}
@@ -332,6 +345,12 @@ void AudioPlayer::setMuted(bool muted) noexcept
     const std::lock_guard guard(m_state->volumeLock);
     m_state->muted = muted;
     m_state->updateGain();
+}
+
+void AudioPlayer::setTap(AudioTap tap)
+{
+    const std::lock_guard guard(m_state->tapLock);
+    m_state->tap = std::move(tap);
 }
 
 AudioStats AudioPlayer::stats() const

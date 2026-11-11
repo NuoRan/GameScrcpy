@@ -341,6 +341,7 @@ add_dependencies(gs_media_tests gs_recorder_child)
 gs_add_unit_test(gs_capture_tests
     SOURCES
         unit/capture/AudioPairingTests.cpp
+        unit/capture/BgraFramesTests.cpp
         unit/capture/CaptureFormatTests.cpp
         unit/capture/CropDetectorTests.cpp
         unit/capture/EncoderTests.cpp
@@ -456,6 +457,7 @@ if(GS_BUILD_APP)
             unit/app/McpTestSupport.h
             unit/app/McpToolsTests.cpp
             unit/app/NativeExtensionTests.cpp
+            unit/app/NativeMediaTests.cpp
             unit/app/OfflineNetworkTests.cpp
             unit/app/PhoneFilesTests.cpp
             unit/app/PhoneStatusTests.cpp
@@ -588,6 +590,11 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionLinks.h"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionLogic.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionLogic.h"
+            "${PROJECT_SOURCE_DIR}/src/app/ExtensionMedia.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/ExtensionMedia.h"
+            "${PROJECT_SOURCE_DIR}/src/app/MediaOffers.h"
+            "${PROJECT_SOURCE_DIR}/src/app/MediaSinks.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/MediaSinks.h"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionModules.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionModules.h"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionPanels.cpp"

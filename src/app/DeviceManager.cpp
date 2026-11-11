@@ -20,6 +20,7 @@
 #include "Esp32Session.h"
 #include "ExtensionHost.h"
 #include "ExtensionLogic.h"
+#include "ExtensionMedia.h"
 #include "ExtensionPanels.h"
 #include "FailureAdvice.h"
 #include "GridLayout.h"
@@ -7442,6 +7443,7 @@ void DeviceManager::setExtensions(ExtensionHost* extensions)
             connect(native, &NativeExtensions::moduleTrouble, this, &DeviceManager::noteModuleTrouble);
             connect(native, &NativeExtensions::providedChanged, this, &DeviceManager::syncProvided);
             connect(native, &NativeExtensions::transportPhonesChanged, this, &DeviceManager::syncTransportPhones);
+            connect(native, &NativeExtensions::sourcesChanged, this, &DeviceManager::syncSources);
         }
         connect(m_extensions, &ExtensionHost::nativeChanged, this, &DeviceManager::applyModules);
         connect(m_extensions, &ExtensionHost::addOnsChanged, this, &DeviceManager::applyModules);
@@ -7451,6 +7453,7 @@ void DeviceManager::setExtensions(ExtensionHost* extensions)
     syncEsp32();
     syncProvided();
     syncTransportPhones();
+    syncSources();
     if (ExtensionPanels* panels = ExtensionPanels::instance()) {
         connect(panels, &ExtensionPanels::menusChanged, this, &DeviceManager::setTrayMenu, Qt::UniqueConnection);
     }
@@ -8361,7 +8364,7 @@ void DeviceManager::captureDevicesChanged()
     }
     std::vector<QString> shown;
     for (const Row& row : m_rows) {
-        if (row.capture != nullptr && !row.capture->demo) {
+        if (row.capture != nullptr && !row.capture->demo && row.capture->sourceExtension.empty()) {
             shown.push_back(row.serial);
         }
     }
@@ -8382,7 +8385,7 @@ void DeviceManager::captureDevicesChanged()
     }
     for (int i = static_cast<int>(m_rows.size()) - 1; i >= 0; --i) {
         Row& row = m_rows[static_cast<std::size_t>(i)];
-        if (row.capture == nullptr || row.capture->demo) {
+        if (row.capture == nullptr || row.capture->demo || !row.capture->sourceExtension.empty()) {
             continue;
         }
         const bool present = std::ranges::find(plan.removed, row.serial) == plan.removed.end();
@@ -8973,7 +8976,8 @@ QVariantMap DeviceManager::captureState(const Row& row) const
             {QStringLiteral("manualCrop"), manualCropOf(wanted).has_value()},
             {QStringLiteral("touchMethods"), methods},
             {QStringLiteral("profileId"), profile},
-            {QStringLiteral("summary"), captureSummary(resolution, touchTitle, profileName(profile))}};
+            {QStringLiteral("summary"), captureSummary(resolution, touchTitle, profileName(profile))},
+            {QStringLiteral("extension"), state.sourceExtensionName}};
 }
 
 std::optional<Advice> DeviceManager::captureAdviceOf(const Row& row) const
@@ -10196,6 +10200,144 @@ void DeviceManager::syncProvided()
         }
     }
     emit countsChanged();
+}
+
+void DeviceManager::syncSources()
+{
+    const NativeExtensions* native = m_extensions != nullptr ? m_extensions->native() : nullptr;
+    const std::vector<MediaSourceDevice> sources =
+        native != nullptr ? native->mediaSources() : std::vector<MediaSourceDevice>{};
+    std::vector<QString> shown;
+    for (const Row& row : m_rows) {
+        if (row.capture != nullptr && !row.capture->sourceExtension.empty()) {
+            shown.push_back(row.serial);
+        }
+    }
+    const SourcePlan plan = planExtensionSources(sources, shown);
+    for (const MediaSourceDevice& source : plan.added) {
+        addSourceRow(extensionSourceSerial(source), source);
+    }
+    for (int i = static_cast<int>(m_rows.size()) - 1; i >= 0; --i) {
+        Row& row = m_rows[static_cast<std::size_t>(i)];
+        if (row.capture == nullptr || row.capture->sourceExtension.empty()) {
+            continue;
+        }
+        const bool present = std::ranges::find(plan.removed, row.serial) == plan.removed.end();
+        const bool was = row.listed;
+        row.listed = present;
+        if (present) {
+            const auto listed = std::ranges::find_if(sources, [&row](const MediaSourceDevice& source) {
+                return source.kind == exthost::MediaKind::Video && extensionSourceSerial(source) == row.serial;
+            });
+            if (listed != sources.end() && listed->name != row.capture->name) {
+                row.capture->name = listed->name;
+                rowChanged(i);
+            }
+            row.capture->goneShown = false;
+            if (!was && !row.capture->drivenBy.isEmpty()) {
+                lentCaptureBack(row);
+            } else if (!was && row.session.phase == session::SessionPhase::Reconnecting) {
+                startCapture(row);
+            }
+            continue;
+        }
+        if (!row.capture->drivenBy.isEmpty()) {
+            if (was) {
+                qInfo("the picture source %s is gone while a phone showed it", qUtf8Printable(row.name()));
+                lentCaptureLeft(row);
+            }
+            rowChanged(i);
+            continue;
+        }
+        if (!active(row.session.phase) && row.mirror == nullptr) {
+            qInfo("%s no longer offers the picture %s", qUtf8Printable(row.capture->sourceExtensionName),
+                  qUtf8Printable(row.name()));
+            removeRow(i);
+            continue;
+        }
+        if (was) {
+            qInfo("the picture source %s is gone while it was in use", qUtf8Printable(row.name()));
+            if (row.mirror != nullptr && !row.capture->goneShown) {
+                row.mirror->showToast(tr("The picture source was disconnected"), QStringLiteral("unlink"));
+                row.capture->goneShown = true;
+            }
+            if (row.capture->feed != nullptr) {
+                row.capture->feed->stop();
+            }
+            detachCaptureTouch(row);
+            row.session = {session::SessionPhase::Reconnecting, std::nullopt};
+        }
+        rowChanged(i);
+    }
+    updateStatsTimer();
+    usbChanged();
+    emit countsChanged();
+}
+
+void DeviceManager::addSourceRow(const QString& serial, const MediaSourceDevice& source)
+{
+    if (indexOf(serial) >= 0 || m_graphics == nullptr) {
+        return;
+    }
+    auto state = std::make_unique<CaptureRow>();
+    state->name = source.name;
+    state->sourceExtension = source.extension;
+    state->sourceExtensionName = source.extensionName;
+    ExtensionVideoSource::Opener open = [this, video = source](exthost::MediaKind kind,
+                                                              const std::string& params) -> std::unique_ptr<SourceLease> {
+        const NativeExtensions* native = m_extensions != nullptr ? m_extensions->native() : nullptr;
+        if (native == nullptr) {
+            return nullptr;
+        }
+        if (kind == exthost::MediaKind::Video) {
+            return native->openSource(video, params);
+        }
+        const std::optional<MediaSourceDevice> sound = pairedSound(native->mediaSources(), video);
+        return sound ? native->openSource(*sound, params) : nullptr;
+    };
+    ExtensionVideoSource::Phone phone = [this, serial]() -> std::string {
+        const int index = indexOf(serial);
+        if (index < 0 || m_rows[static_cast<std::size_t>(index)].capture == nullptr) {
+            return {};
+        }
+        const int shown = indexOf(m_rows[static_cast<std::size_t>(index)].capture->drivenBy);
+        return shown >= 0 ? m_rows[static_cast<std::size_t>(shown)].deviceId.toStdString() : std::string();
+    };
+    state->feed = std::make_unique<CaptureFeed>(
+        m_graphics->device(), std::make_unique<ExtensionVideoSource>(std::move(open), std::move(phone)));
+    state->channel->attach(state->dropping);
+    const int at = static_cast<int>(m_rows.size());
+    beginInsertRows({}, at, at);
+    Row row;
+    row.serial = serial;
+    row.listed = true;
+    row.state = adb::DeviceState::Device;
+    row.deviceId = serial;
+    row.capture = std::move(state);
+    m_rows.push_back(std::move(row));
+    endInsertRows();
+    qInfo("%s adds the picture %s to the devices page (%s)", qUtf8Printable(source.extensionName),
+          qUtf8Printable(source.name), qUtf8Printable(serial));
+    emit countsChanged();
+}
+
+bool DeviceManager::setAudioTap(const QString& serial,
+                                std::function<void(std::span<const float>, int, int, std::int64_t)> tap)
+{
+    const int index = indexOf(serial);
+    if (index < 0) {
+        return false;
+    }
+    Row& row = m_rows[static_cast<std::size_t>(index)];
+    if (CaptureFeed* feed = pictureFeedOf(row); feed != nullptr) {
+        feed->setAudioTap(std::move(tap));
+        return true;
+    }
+    if (row.controller != nullptr) {
+        row.controller->setAudioTap(std::move(tap));
+        return true;
+    }
+    return false;
 }
 
 void DeviceManager::connectProvided(Row& row)

@@ -6281,6 +6281,13 @@
     </message>
 </context>
 <context>
+    <name>ExtensionMedia</name>
+    <message>
+        <source>The extension&apos;s picture could not be opened</source>
+        <translation>打不开扩展提供的画面</translation>
+    </message>
+</context>
+<context>
     <name>ExtensionSettingsSheet</name>
     <message>
         <source>Extension · %1 · changes apply at once</source>
@@ -6437,6 +6444,18 @@
     <message>
         <source>Connection methods: %1</source>
         <translation>连接方式：%1</translation>
+    </message>
+    <message>
+        <source>Pictures and sound: %1</source>
+        <translation>画面与声音：%1</translation>
+    </message>
+    <message>
+        <source>Sends windows to: %1</source>
+        <translation>可把窗口发送到：%1</translation>
+    </message>
+    <message>
+        <source>Exports recordings as: %1</source>
+        <translation>可把录像导出为：%1</translation>
     </message>
     <message>
         <source>Its DLL runs in a process of its own; when that stops three times within a minute, the extension is turned off.</source>
@@ -11004,6 +11023,10 @@
         </translation>
     </message>
     <message>
+        <source>Send to %1</source>
+        <translation>发送到 %1</translation>
+    </message>
+    <message>
         <source>Import a profile</source>
         <translation>导入方案</translation>
     </message>
@@ -12707,6 +12730,18 @@
         <translation>这台手机还没有录像。点工具栏上的“录制”就能录一段。</translation>
     </message>
     <message>
+        <source>Export the recording as %1</source>
+        <translation>把录像导出为 %1</translation>
+    </message>
+    <message>
+        <source>%1 files (*.%2)</source>
+        <translation>%1 文件 (*.%2)</translation>
+    </message>
+    <message>
+        <source>Exporting the recording as %1…</source>
+        <translation>正在把录像导出为 %1…</translation>
+    </message>
+    <message>
         <source>Move this recording to the Recycle Bin?</source>
         <translation>把这段录像移到回收站？</translation>
     </message>
@@ -12739,6 +12774,10 @@
     <message>
         <source>Show in folder</source>
         <translation>在文件夹中显示</translation>
+    </message>
+    <message>
+        <source>Export as %1…</source>
+        <translation>导出为 %1…</translation>
     </message>
     <message>
         <source>Move to the Recycle Bin…</source>
@@ -21551,6 +21590,10 @@
         <translation>控制中</translation>
     </message>
     <message>
+        <source>The picture source was disconnected</source>
+        <translation>画面来源已断开</translation>
+    </message>
+    <message>
         <source>%1 is already doing this as often as it may; wait for it to end</source>
         <translation>%1 同时做这件事的次数已达上限，请等它结束</translation>
     </message>
@@ -22033,6 +22076,14 @@
         <translation>提供连接手机的方式</translation>
     </message>
     <message>
+        <source>Provide pictures or sound</source>
+        <translation>提供画面或声音</translation>
+    </message>
+    <message>
+        <source>Send the picture or the sound elsewhere</source>
+        <translation>把画面或声音送到别处</translation>
+    </message>
+    <message>
         <source>Its script %1 is not in the extension</source>
         <translation>扩展里没有它的脚本 %1</translation>
     </message>
@@ -22270,6 +22321,29 @@
     <message>
         <source>AI clients cannot connect: %1</source>
         <translation>AI 客户端无法连接：%1</translation>
+    </message>
+</context>
+<context>
+    <name>gs::app::MediaSinks</name>
+    <message>
+        <source>This destination is not available any more</source>
+        <translation>这个发送目标已经不可用</translation>
+    </message>
+    <message>
+        <source>The window is closed</source>
+        <translation>窗口已关闭</translation>
+    </message>
+    <message>
+        <source>This window has no picture to send</source>
+        <translation>这个窗口没有可发送的画面</translation>
+    </message>
+    <message>
+        <source>%1 did not start</source>
+        <translation>%1 没能开始</translation>
+    </message>
+    <message>
+        <source>Stopped sending to %1: %2</source>
+        <translation>已停止发送到 %1：%2</translation>
     </message>
 </context>
 <context>
@@ -22670,6 +22744,28 @@
         <translation>
             <numerusform>已保存 %n 个视频：录制中画面尺寸变了，每一段单独成一个视频</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>The recording was not exported: %1</source>
+        <translation>录像没有导出：%1</translation>
+    </message>
+    <message>
+        <source>Saved %1 as %2</source>
+        <translation>已把 %1 存为 %2</translation>
+    </message>
+    <message numerus="yes">
+        <source>Saved %n file(s) as %1: the picture changed size while recording, so each part is a file of its own</source>
+        <translation>
+            <numerusform>已存为 %n 个 %1 文件：录制中画面尺寸变了，每一段单独成一个文件</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>The recording was not exported as %1: %2</source>
+        <translation>录像没有导出为 %1：%2</translation>
+    </message>
+    <message>
+        <source>The recording was not exported as %1: the extension is off or already busy with 4 jobs</source>
+        <translation>录像没有导出为 %1：扩展没有打开，或已经在运行 4 个任务</translation>
     </message>
     <message>
         <source>The task could not be saved</source>

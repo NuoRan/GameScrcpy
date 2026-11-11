@@ -123,6 +123,12 @@ Item {
             lines.push(qsTr("Input devices: %1").arg(dll.inputSources.join(qsTr(", ", "list separator"))))
         if ((dll.transports ?? []).length > 0)
             lines.push(qsTr("Connection methods: %1").arg(dll.transports.join(qsTr(", ", "list separator"))))
+        if ((dll.sources ?? []).length > 0)
+            lines.push(qsTr("Pictures and sound: %1").arg(dll.sources.join(qsTr(", ", "list separator"))))
+        if ((dll.sinks ?? []).length > 0)
+            lines.push(qsTr("Sends windows to: %1").arg(dll.sinks.join(qsTr(", ", "list separator"))))
+        if ((dll.exporters ?? []).length > 0)
+            lines.push(qsTr("Exports recordings as: %1").arg(dll.exporters.join(qsTr(", ", "list separator"))))
         lines.push(dll.ownProcess
                    ? qsTr("Its DLL runs in a process of its own; when that stops three times within a minute, the "
                           + "extension is turned off.")

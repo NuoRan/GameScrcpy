@@ -46,6 +46,7 @@ struct HostedOptions {
     std::vector<DeclaredInput> inputs;
     std::function<void(const std::string& source, const std::string& slot, double x, double y, std::uint64_t at)> input;
     std::function<void(const std::string& transport)> transportChanged;
+    std::function<void(const std::string& source)> sourcesChanged;
 };
 
 class HostedModule final : public Module
@@ -88,6 +89,14 @@ public:
                                   StreamEvents events) override;
     [[nodiscard]] StreamSent sendStream(std::uint64_t stream, std::string_view bytes) override;
     void closeStream(std::uint64_t stream) override;
+    [[nodiscard]] CallResult listSources(MediaKind kind, std::size_t source) override;
+    [[nodiscard]] std::shared_ptr<MediaStream> openSource(MediaKind kind, std::size_t source, std::string_view id,
+                                                          std::string_view params) override;
+    void closeSource(std::uint64_t stream) override;
+    [[nodiscard]] std::shared_ptr<SinkPort> openSink(std::size_t sink, const SinkStart& start) override;
+    void closeSink(std::uint64_t sink) override;
+    [[nodiscard]] std::uint64_t startExport(std::size_t exporter, std::string_view input, std::string_view output,
+                                            JobEvents events) override;
 
     [[nodiscard]] int crashes() const;
     [[nodiscard]] bool waitReady(std::chrono::milliseconds limit) const;

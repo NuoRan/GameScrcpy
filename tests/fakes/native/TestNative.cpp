@@ -9,7 +9,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <deque>
+#include <filesystem>
+#include <fstream>
 #include <functional>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -1193,8 +1196,317 @@ int32_t hearStart(void*, uint64_t job, const char* args, size_t size)
 
 void refuseCancel(void*, uint64_t) {}
 
+struct Producer {
+    std::atomic<bool> stop{false};
+    std::thread thread;
+};
+
+std::mutex g_producerMutex;
+std::map<uint64_t, std::unique_ptr<Producer>> g_producers;
+
+void endStream(uint64_t stream)
+{
+    constexpr char kDone[] = "done";
+    g_host->stream_ended(g_host->context, stream, kDone, sizeof(kDone) - 1);
+}
+
+void sendPictures(uint64_t stream, const std::string& params, const std::atomic<bool>& stop)
+{
+    const int frames = static_cast<int>(numberIn(params, "frames", 0.0));
+    const auto width = static_cast<uint32_t>(numberIn(params, "width", 64.0));
+    const auto height = static_cast<uint32_t>(numberIn(params, "height", 48.0));
+    const auto pause = static_cast<DWORD>(numberIn(params, "pause", 33.0));
+    const bool planar = params.find("\"nv12\"") != std::string::npos;
+    std::vector<uint8_t> pixels(planar ? std::size_t{width} * height * 3 / 2 : std::size_t{width} * height * 4);
+    for (int index = 0; (frames == 0 || index < frames) && !stop.load(); ++index) {
+        if (planar) {
+            for (uint32_t y = 0; y < height; ++y) {
+                for (uint32_t x = 0; x < width; ++x) {
+                    const uint32_t shade = x + y + static_cast<uint32_t>(index);
+                    pixels[std::size_t{y} * width + x] = static_cast<uint8_t>(shade & 0xFFU);
+                }
+            }
+            uint8_t* chroma = pixels.data() + std::size_t{width} * height;
+            for (std::size_t at = 0; at + 1 < std::size_t{width} * height / 2; at += 2) {
+                chroma[at] = static_cast<uint8_t>(100 + index % 100);
+                chroma[at + 1] = 150;
+            }
+        } else {
+            for (uint32_t y = 0; y < height; ++y) {
+                for (uint32_t x = 0; x < width; ++x) {
+                    uint8_t* pixel = pixels.data() + (std::size_t{y} * width + x) * 4;
+                    pixel[0] = static_cast<uint8_t>(x & 0xFFU);
+                    pixel[1] = static_cast<uint8_t>(y & 0xFFU);
+                    pixel[2] = static_cast<uint8_t>((index * 40) & 0xFF);
+                    pixel[3] = 255;
+                }
+            }
+        }
+        gs_ext_video_frame frame{};
+        frame.size = sizeof(gs_ext_video_frame);
+        frame.format = planar ? GS_EXT_PIXEL_NV12 : GS_EXT_PIXEL_BGRA;
+        frame.width = width;
+        frame.height = height;
+        frame.data = pixels.data();
+        frame.stride = planar ? width : width * 4;
+        frame.chroma = planar ? pixels.data() + std::size_t{width} * height : nullptr;
+        frame.chroma_stride = planar ? width : 0;
+        frame.time_us = g_host->now_us(g_host->context);
+        if (g_host->video_frame(g_host->context, stream, &frame) != GS_EXT_OK) {
+            return;
+        }
+        Sleep(pause);
+    }
+    if (!stop.load()) {
+        endStream(stream);
+    }
+}
+
+void sendTone(uint64_t stream, const std::string& params, const std::atomic<bool>& stop)
+{
+    const int blocks = static_cast<int>(numberIn(params, "blocks", 0.0));
+    const auto pause = static_cast<DWORD>(numberIn(params, "pause", 10.0));
+    constexpr uint32_t kFrames = 480;
+    std::vector<int16_t> samples(std::size_t{kFrames} * 2);
+    for (int block = 0; (blocks == 0 || block < blocks) && !stop.load(); ++block) {
+        for (uint32_t frame = 0; frame < kFrames; ++frame) {
+            const auto value = static_cast<int16_t>((block * 7 + static_cast<int>(frame)) % 1000);
+            samples[std::size_t{frame} * 2] = value;
+            samples[std::size_t{frame} * 2 + 1] = static_cast<int16_t>(-value);
+        }
+        gs_ext_audio audio{};
+        audio.size = sizeof(gs_ext_audio);
+        audio.format = GS_EXT_SAMPLE_S16;
+        audio.channels = 2;
+        audio.rate = GS_EXT_SOUND_RATE;
+        audio.data = samples.data();
+        audio.frames = kFrames;
+        audio.time_us = g_host->now_us(g_host->context);
+        if (g_host->audio_samples(g_host->context, stream, &audio) != GS_EXT_OK) {
+            return;
+        }
+        Sleep(pause);
+    }
+    if (!stop.load()) {
+        endStream(stream);
+    }
+}
+
+using Produce = void (*)(uint64_t stream, const std::string& params, const std::atomic<bool>& stop);
+
+int32_t openProducer(const char* id, size_t idSize, const char* params, size_t paramsSize, uint64_t stream,
+                     Produce produce)
+{
+    if (std::string(id, idSize) != "bars") {
+        return GS_EXT_FAILED;
+    }
+    auto producer = std::make_unique<Producer>();
+    Producer* made = producer.get();
+    const std::string text(params, paramsSize);
+    const std::scoped_lock lock(g_producerMutex);
+    made->thread = std::thread([stream, text, made, produce] { produce(stream, text, made->stop); });
+    g_producers[stream] = std::move(producer);
+    return GS_EXT_OK;
+}
+
+int32_t openBars(void*, const char* id, size_t idSize, const char* params, size_t paramsSize, uint64_t stream)
+{
+    return openProducer(id, idSize, params, paramsSize, stream, &sendPictures);
+}
+
+int32_t openTone(void*, const char* id, size_t idSize, const char* params, size_t paramsSize, uint64_t stream)
+{
+    return openProducer(id, idSize, params, paramsSize, stream, &sendTone);
+}
+
+void closeProducer(void*, uint64_t stream)
+{
+    std::unique_ptr<Producer> producer;
+    {
+        const std::scoped_lock lock(g_producerMutex);
+        if (const auto found = g_producers.find(stream); found != g_producers.end()) {
+            producer = std::move(found->second);
+            g_producers.erase(found);
+        }
+    }
+    if (producer != nullptr) {
+        producer->stop.store(true);
+        if (producer->thread.joinable()) {
+            producer->thread.join();
+        }
+    }
+}
+
+void stopProducers()
+{
+    std::map<uint64_t, std::unique_ptr<Producer>> left;
+    {
+        const std::scoped_lock lock(g_producerMutex);
+        left.swap(g_producers);
+    }
+    for (auto& [stream, producer] : left) {
+        producer->stop.store(true);
+        if (producer->thread.joinable()) {
+            producer->thread.join();
+        }
+    }
+}
+
+int32_t listBars(void*, gs_ext_result* out)
+{
+    const std::string bars = "[{\"id\":\"bars\",\"name\":\"Test bars\"},{\"name\":\"no id\"}]";
+    return g_host->set_text(out, GS_EXT_TYPE_JSON, bars.data(), bars.size());
+}
+
+int32_t listTone(void*, gs_ext_result* out)
+{
+    const std::string tone = "[{\"id\":\"bars\",\"name\":\"Test tone\"}]";
+    return g_host->set_text(out, GS_EXT_TYPE_JSON, tone.data(), tone.size());
+}
+
+struct Collected {
+    int opened = 0;
+    int closed = 0;
+    int frames = 0;
+    int audioFrames = 0;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t fps = 0;
+    uint32_t channels = 0;
+    std::string device;
+    std::string name;
+    uint8_t corner[4] = {};
+    uint8_t centre[4] = {};
+    bool refuse = false;
+};
+
+Collected g_collected;
+
+int32_t openCollector(void*, const gs_ext_sink_info* info, void** state)
+{
+    const std::scoped_lock lock(g_mutex);
+    ++g_collected.opened;
+    g_collected.device = info->device != nullptr ? info->device : "";
+    g_collected.name = info->name != nullptr ? info->name : "";
+    g_collected.width = info->width;
+    g_collected.height = info->height;
+    g_collected.fps = info->fps;
+    g_collected.channels = info->channels;
+    *state = &g_collected;
+    return GS_EXT_OK;
+}
+
+int32_t collectFrame(void*, const gs_ext_video_frame* frame)
+{
+    const std::scoped_lock lock(g_mutex);
+    ++g_collected.frames;
+    if (frame->data != nullptr && frame->width > 1 && frame->height > 1) {
+        std::memcpy(g_collected.corner, frame->data, 4);
+        std::memcpy(g_collected.centre,
+                    frame->data + std::size_t{frame->height / 2} * frame->stride + std::size_t{frame->width / 2} * 4, 4);
+    }
+    return g_collected.refuse ? GS_EXT_FAILED : GS_EXT_OK;
+}
+
+int32_t collectAudio(void*, const gs_ext_audio* audio)
+{
+    const std::scoped_lock lock(g_mutex);
+    g_collected.audioFrames += static_cast<int>(audio->frames);
+    return GS_EXT_OK;
+}
+
+void closeCollector(void*)
+{
+    const std::scoped_lock lock(g_mutex);
+    ++g_collected.closed;
+}
+
+void appendBytes(std::string& out, const uint8_t (&bytes)[4])
+{
+    out += '[';
+    for (int index = 0; index < 4; ++index) {
+        out += (index > 0 ? "," : "") + std::to_string(bytes[index]);
+    }
+    out += ']';
+}
+
+int32_t sinkReport(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    std::string out;
+    {
+        const std::scoped_lock lock(g_mutex);
+        out = "{\"opened\":" + std::to_string(g_collected.opened) + ",\"closed\":" + std::to_string(g_collected.closed) +
+              ",\"frames\":" + std::to_string(g_collected.frames) +
+              ",\"audioFrames\":" + std::to_string(g_collected.audioFrames) +
+              ",\"width\":" + std::to_string(g_collected.width) + ",\"height\":" + std::to_string(g_collected.height) +
+              ",\"fps\":" + std::to_string(g_collected.fps) + ",\"channels\":" + std::to_string(g_collected.channels) +
+              ",\"device\":";
+        appendText(out, g_collected.device.data(), g_collected.device.size());
+        out += ",\"name\":";
+        appendText(out, g_collected.name.data(), g_collected.name.size());
+        out += ",\"corner\":";
+        appendBytes(out, g_collected.corner);
+        out += ",\"centre\":";
+        appendBytes(out, g_collected.centre);
+        out += '}';
+    }
+    return giveText(result, GS_EXT_TYPE_JSON, out);
+}
+
+int32_t refuseFrames(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    {
+        const std::scoped_lock lock(g_mutex);
+        g_collected.refuse = args[0].flag != 0;
+    }
+    return giveFlag(result, true);
+}
+
+int32_t changeSources(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    constexpr char kName[] = "bars";
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number = g_host->sources_changed(g_host->context, kName, sizeof(kName) - 1);
+    return GS_EXT_OK;
+}
+
+std::filesystem::path pathOf(const std::string& text)
+{
+    return std::filesystem::path(std::u8string(text.begin(), text.end()));
+}
+
+int32_t startCopy(void*, uint64_t job, const char* input, size_t inputSize, const char* output, size_t outputSize)
+{
+    const std::string from(input, inputSize);
+    const std::string to(output, outputSize);
+    JobBook& book = jobBook();
+    const std::scoped_lock lock(book.mutex);
+    book.threads.emplace_back([job, from, to] {
+        constexpr char kCopying[] = "copying";
+        g_host->job_progress(g_host->context, job, 0.5, kCopying, sizeof(kCopying) - 1);
+        std::ifstream in(pathOf(from), std::ios::binary);
+        if (!in) {
+            sayJob(job, false, "the input cannot be read");
+            return;
+        }
+        const std::string bytes((std::istreambuf_iterator<char>(in)), std::istreambuf_iterator<char>());
+        std::ofstream out(pathOf(to), std::ios::binary);
+        out << "exported:" << bytes;
+        out.close();
+        if (!out) {
+            sayJob(job, false, "the output cannot be written");
+            return;
+        }
+        sayJob(job, true, "{\"bytes\":" + std::to_string(bytes.size()) + "}");
+    });
+    return GS_EXT_OK;
+}
+
+void cancelCopy(void*, uint64_t) {}
+
 void unloadAll(void*)
 {
+    stopProducers();
     std::vector<std::thread> threads;
     {
         JobBook& book = jobBook();
@@ -1229,6 +1541,18 @@ const gs_ext_behavior kTap = {
     sizeof(gs_ext_behavior), "tap", kTapSlots, 1, 1, 0, nullptr, &tapStart, &tapInput, nullptr, nullptr, nullptr,
     &tapStop,
 };
+
+const gs_ext_node kMediaNodes[] = {
+    {sizeof(gs_ext_node), "sinkReport", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &sinkReport},
+    {sizeof(gs_ext_node), "refuseFrames", kOneFlag, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &refuseFrames},
+    {sizeof(gs_ext_node), "changeSources", nullptr, 0, GS_EXT_TYPE_NUMBER, nullptr, &changeSources},
+};
+
+const gs_ext_video_source kBars = {sizeof(gs_ext_video_source), "bars", nullptr, &listBars, &openBars, &closeProducer};
+const gs_ext_audio_source kTone = {sizeof(gs_ext_audio_source), "tone", nullptr, &listTone, &openTone, &closeProducer};
+const gs_ext_media_sink kCollector = {sizeof(gs_ext_media_sink), "collector", nullptr, &openCollector, &collectFrame,
+                                      &collectAudio, &closeCollector};
+const gs_ext_recording_exporter kCopy = {sizeof(gs_ext_recording_exporter), "copy", nullptr, &startCopy, &cancelCopy};
 
 const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_TOUCH_METHOD, "recorder", &kRecorder},
@@ -1280,6 +1604,13 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "closedStreams", &kNodes[37]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "setPhones", &kNodes[38]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_TRANSPORT, "loop", &kLoop},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "sinkReport", &kMediaNodes[0]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "refuseFrames", &kMediaNodes[1]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "changeSources", &kMediaNodes[2]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_VIDEO_SOURCE, "bars", &kBars},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_AUDIO_SOURCE, "tone", &kTone},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_MEDIA_SINK, "collector", &kCollector},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_RECORDING_EXPORTER, "copy", &kCopy},
 };
 
 const gs_ext_plugin kPlugin = {

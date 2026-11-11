@@ -93,6 +93,22 @@ void WireWriter::info(const ModuleInfo& info)
     for (const TransportInfo& transport : info.transports) {
         text(transport.name);
     }
+    for (const std::vector<MediaInfo>* sources : {&info.videoSources, &info.audioSources}) {
+        u32(static_cast<std::uint32_t>(sources->size()));
+        for (const MediaInfo& source : *sources) {
+            text(source.name);
+        }
+    }
+    u32(static_cast<std::uint32_t>(info.sinks.size()));
+    for (const SinkInfo& sink : info.sinks) {
+        text(sink.name);
+        u32(sink.video ? 1U : 0U);
+        u32(sink.audio ? 1U : 0U);
+    }
+    u32(static_cast<std::uint32_t>(info.exporters.size()));
+    for (const ExporterInfo& exporter : info.exporters) {
+        text(exporter.name);
+    }
 }
 
 void WireWriter::event(const InputEvent& event)
@@ -310,6 +326,45 @@ bool WireReader::info(ModuleInfo& out)
             return false;
         }
         out.transports.push_back(std::move(transport));
+    }
+    for (std::vector<MediaInfo>* media : {&out.videoSources, &out.audioSources}) {
+        std::uint32_t count = 0;
+        if (!u32(count) || count > kMostMediaSources) {
+            return false;
+        }
+        for (std::uint32_t index = 0; index < count; ++index) {
+            MediaInfo source;
+            if (!text(source.name, kMostNameBytes)) {
+                return false;
+            }
+            media->push_back(std::move(source));
+        }
+    }
+    std::uint32_t sinks = 0;
+    if (!u32(sinks) || sinks > kMostSinks) {
+        return false;
+    }
+    for (std::uint32_t index = 0; index < sinks; ++index) {
+        SinkInfo sink;
+        std::uint32_t video = 0;
+        std::uint32_t audio = 0;
+        if (!text(sink.name, kMostNameBytes) || !u32(video) || !u32(audio)) {
+            return false;
+        }
+        sink.video = video != 0;
+        sink.audio = audio != 0;
+        out.sinks.push_back(std::move(sink));
+    }
+    std::uint32_t exporters = 0;
+    if (!u32(exporters) || exporters > kMostExporters) {
+        return false;
+    }
+    for (std::uint32_t index = 0; index < exporters; ++index) {
+        ExporterInfo exporter;
+        if (!text(exporter.name, kMostNameBytes)) {
+            return false;
+        }
+        out.exporters.push_back(std::move(exporter));
     }
     return true;
 }

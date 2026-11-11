@@ -89,6 +89,8 @@ public:
     void sample(const capture::CaptureSample& sample) override;
     void frame(media::VideoFrame frame) override;
     void ended(const std::string& problem) override;
+    void heard(std::span<const float> interleaved, int channels, int sampleRate, std::int64_t ptsUs) override;
+    void setAudioTap(std::function<void(std::span<const float>, int, int, std::int64_t)> tap);
 
     void feedSound(std::span<const float> interleaved, int channels, int sampleRate, std::int64_t ptsUs);
 
@@ -137,6 +139,7 @@ private:
     std::unique_ptr<capture::AudioCapture> m_capture;
     bool m_muted = false;
     double m_volume = 1.0;
+    std::function<void(std::span<const float>, int, int, std::int64_t)> m_tap;
 
     mutable std::mutex m_recordMutex;
     std::shared_ptr<record::Recorder> m_recorder;

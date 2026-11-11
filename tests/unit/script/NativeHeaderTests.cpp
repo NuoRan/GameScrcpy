@@ -140,3 +140,42 @@ TEST_CASE("ADR-0112: the C header offers input sources: their contribution kind,
     CHECK(inputEvent < hostEnd);
     CHECK(header.find("input.provide", host) < hostEnd);
 }
+
+TEST_CASE("ADR-0112: the media contributions, their pictures and sound and the host functions that carry them are in "
+          "the C header, which stays plain ASCII")
+{
+    const std::string header = generatedHeader();
+    for (const std::string_view structure :
+         {"gs_ext_video_frame", "gs_ext_audio", "gs_ext_video_source", "gs_ext_audio_source", "gs_ext_sink_info",
+          "gs_ext_media_sink", "gs_ext_recording_exporter"}) {
+        CAPTURE(structure);
+        const std::size_t defined = header.find("struct " + std::string(structure) + " {\n");
+        REQUIRE(defined != std::string::npos);
+        const std::size_t firstField = header.find(";\n", defined);
+        const std::size_t size = header.find("    uint32_t size;\n", defined);
+        CHECK(size + std::string_view("    uint32_t size").size() == firstField);
+    }
+    for (const std::string_view kind : {"#define GS_EXT_KIND_VIDEO_SOURCE \"video-source\"\n",
+                                        "#define GS_EXT_KIND_AUDIO_SOURCE \"audio-source\"\n",
+                                        "#define GS_EXT_KIND_MEDIA_SINK \"media-sink\"\n",
+                                        "#define GS_EXT_KIND_RECORDING_EXPORTER \"recording-exporter\"\n",
+                                        "#define GS_EXT_SOUND_RATE 48000\n", "    GS_EXT_PIXEL_BGRA = 1,\n",
+                                        "    GS_EXT_PIXEL_NV12 = 2,\n", "    GS_EXT_SAMPLE_S16 = 1,\n",
+                                        "    GS_EXT_SAMPLE_F32 = 2,\n"}) {
+        CAPTURE(kind);
+        CHECK(header.find(kind) != std::string::npos);
+    }
+    const std::size_t host = header.find("struct gs_ext_host {\n");
+    REQUIRE(host != std::string::npos);
+    const std::size_t end = header.find("};\n", host);
+    std::size_t last = header.find("(*release)", host);
+    for (const std::string_view function :
+         {"(*sources_changed)", "(*video_frame)", "(*audio_samples)", "(*stream_ended)"}) {
+        CAPTURE(function);
+        const std::size_t at = header.find(function, host);
+        CHECK(at < end);
+        CHECK(at > last);
+        last = at;
+    }
+    CHECK(std::ranges::all_of(header, [](char c) { return static_cast<unsigned char>(c) < 0x80; }));
+}

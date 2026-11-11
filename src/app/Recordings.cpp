@@ -2,6 +2,7 @@
 
 #include "AppEvents.h"
 #include "AppSettings.h"
+#include "NativeExtensions.h"
 #include "ProfileLibrary.h"
 #include "RecordingConvert.h"
 #include "Settings.h"
@@ -690,6 +691,145 @@ void Recordings::exportVideo(const QString& folder, const QString& serial)
             },
             Qt::QueuedConnection);
     });
+}
+
+struct Recordings::ExportRun {
+    QString folder;
+    QString serial;
+    QString title;
+    std::string extension;
+    std::string exporter;
+    std::vector<std::pair<std::string, QString>> parts;
+    std::size_t next = 0;
+};
+
+QVariantList Recordings::exporters() const
+{
+    QVariantList list;
+    const NativeExtensions* native = NativeExtensions::instance();
+    if (native == nullptr) {
+        return list;
+    }
+    for (const ExporterOffer& offer : native->exporters()) {
+        list.append(QVariantMap{{QStringLiteral("key"), QString::fromStdString(offer.extension + "/" + offer.name)},
+                                {QStringLiteral("title"), offer.title},
+                                {QStringLiteral("extensionName"), offer.extensionName},
+                                {QStringLiteral("suffix"), QString::fromStdString(offer.fileExtension)}});
+    }
+    return list;
+}
+
+void Recordings::watchExtensions(NativeExtensions& extensions)
+{
+    connect(&extensions, &NativeExtensions::mediaChanged, this, &Recordings::exportersChanged);
+}
+
+void Recordings::exportWith(const QString& folder, const QString& serial, const QString& exporter, const QUrl& target)
+{
+    const QString clean = QDir::cleanPath(QDir::fromNativeSeparators(folder));
+    const QString output = target.isLocalFile() ? target.toLocalFile() : target.toString();
+    const qsizetype slash = exporter.lastIndexOf(u'/');
+    if (clean.isEmpty() || output.isEmpty() || slash <= 0 || m_exporting.contains(clean)) {
+        return;
+    }
+    QString title = exporter.mid(slash + 1);
+    for (const QVariant& offer : exporters()) {
+        if (offer.toMap().value(QStringLiteral("key")).toString() == exporter) {
+            title = offer.toMap().value(QStringLiteral("title")).toString();
+        }
+    }
+    auto run = std::make_shared<ExportRun>();
+    run->folder = clean;
+    run->serial = serial;
+    run->title = title;
+    run->extension = exporter.left(slash).toStdString();
+    run->exporter = exporter.mid(slash + 1).toStdString();
+    m_exporting.insert(clean);
+    qInfo("exporting %s with %s", qUtf8Printable(QDir::toNativeSeparators(clean)), qUtf8Printable(exporter));
+    const QPointer<Recordings> self(this);
+    QThreadPool::globalInstance()->start([self, run, output] {
+        auto made = record::exportMp4(pathOf(run->folder));
+        QMetaObject::invokeMethod(
+            QCoreApplication::instance(),
+            [self, run, output, made = std::move(made)] {
+                if (self == nullptr) {
+                    return;
+                }
+                if (!made) {
+                    self->m_exporting.remove(run->folder);
+                    emit self->exported(
+                        run->serial, false,
+                        tr("The recording was not exported: %1").arg(QString::fromStdString(made.error())), {});
+                    return;
+                }
+                const QFileInfo chosen(output);
+                for (std::size_t index = 0; index < made->size(); ++index) {
+                    const std::u8string input = (*made)[index].file.u8string();
+                    const QString part =
+                        index == 0 ? output
+                                   : chosen.dir().filePath(QStringLiteral("%1 (%2).%3")
+                                                               .arg(chosen.completeBaseName())
+                                                               .arg(index + 1)
+                                                               .arg(chosen.suffix()));
+                    run->parts.emplace_back(std::string(reinterpret_cast<const char*>(input.data()), input.size()),
+                                            part);
+                }
+                self->exportNext(run);
+            },
+            Qt::QueuedConnection);
+    });
+}
+
+void Recordings::exportNext(const std::shared_ptr<ExportRun>& run)
+{
+    if (run->next >= run->parts.size()) {
+        m_exporting.remove(run->folder);
+        const QString first = run->parts.empty() ? QString() : QDir::toNativeSeparators(run->parts.front().second);
+        qInfo("exported %s with %s", qUtf8Printable(QDir::toNativeSeparators(run->folder)), qUtf8Printable(run->title));
+        emit exported(run->serial, true,
+                      run->parts.size() == 1
+                          ? tr("Saved %1 as %2").arg(QFileInfo(first).fileName(), run->title)
+                          : tr("Saved %n file(s) as %1: the picture changed size while recording, so each part is a "
+                               "file of its own",
+                               "", static_cast<int>(run->parts.size()))
+                                .arg(run->title),
+                      first);
+        return;
+    }
+    const auto& [input, output] = run->parts[run->next++];
+    const QPointer<Recordings> self(this);
+    exthost::JobEvents events{.progress = {},
+                              .log = {},
+                              .done = [self, run](bool worked, std::string text) {
+                                  QMetaObject::invokeMethod(
+                                      QCoreApplication::instance(),
+                                      [self, run, worked, why = QString::fromStdString(text)] {
+                                          if (self == nullptr) {
+                                              return;
+                                          }
+                                          if (worked) {
+                                              self->exportNext(run);
+                                              return;
+                                          }
+                                          self->m_exporting.remove(run->folder);
+                                          qWarning("exporting %s with %s: %s",
+                                                   qUtf8Printable(QDir::toNativeSeparators(run->folder)),
+                                                   qUtf8Printable(run->title), qUtf8Printable(why));
+                                          emit self->exported(
+                                              run->serial, false,
+                                              tr("The recording was not exported as %1: %2").arg(run->title, why), {});
+                                      },
+                                      Qt::QueuedConnection);
+                              }};
+    const NativeExtensions* native = NativeExtensions::instance();
+    if (native == nullptr || !native->startExport(run->extension, run->exporter, input, output.toStdString(),
+                                                  std::move(events))) {
+        m_exporting.remove(run->folder);
+        emit exported(run->serial, false,
+                      tr("The recording was not exported as %1: the extension is off or already busy with 4 jobs")
+                          .arg(run->title),
+                      {});
+    }
 }
 
 void Recordings::showInFolder(const QString& path) const

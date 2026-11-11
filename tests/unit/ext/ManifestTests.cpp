@@ -1665,3 +1665,116 @@ TEST_CASE("ADR-0112: a service is checked for its name, its schemas, and an app 
     CHECK(undeclared(loaded, "$.contributes.services[0].script", "script"));
     CHECK(undeclared(loaded, "$.contributes.services[1].node", "native"));
 }
+
+namespace {
+
+Json mediaBase()
+{
+    Json json = nativeBase();
+    json["contributes"]["native"]["videoSources"] =
+        Json::array({{{"name", "camera"}, {"title", "Camera"}, {"kinds", {"phone", "touchBox"}}},
+                     {{"name", "screen"}, {"title", "Screen"}}});
+    json["contributes"]["native"]["audioSources"] = Json::array({{{"name", "microphone"}, {"title", "Microphone"}}});
+    json["contributes"]["native"]["mediaSinks"] =
+        Json::array({{{"name", "camera"},
+                      {"title", "Virtual camera"},
+                      {"video", {{"fps", 30}, {"width", 1280}, {"height", 720}}}},
+                     {{"name", "stream"},
+                      {"title", "Live stream"},
+                      {"video", {{"fps", 60}, {"width", 1920}, {"height", 1080}}},
+                      {"audio", true}},
+                     {{"name", "recorder"}, {"title", "Sound recorder"}, {"audio", true}}});
+    json["contributes"]["native"]["recordingExporters"] =
+        Json::array({{{"name", "gif"}, {"title", "GIF animation"}, {"extension", "gif"}}});
+    json["permissions"].push_back({{"name", "media.capture"}, {"reason", "Shows the camera."}});
+    json["permissions"].push_back({{"name", "media.output"}, {"reason", "Streams the window."}});
+    return json;
+}
+
+}
+
+TEST_CASE("ADR-0112: video and audio sources, media sinks and recording exporters load, survive a save and a load, and "
+          "need media.capture and media.output")
+{
+    const LoadedManifest loaded = load(mediaBase());
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    REQUIRE(loaded.manifest.contributes.native.has_value());
+    const NativeContribution& native = *loaded.manifest.contributes.native;
+    CHECK(native.videoSources == std::vector<NativeVideoSource>{{.name = "camera", .title = "Camera",
+                                                                 .kinds = {"phone", "touchBox"}},
+                                                                {.name = "screen", .title = "Screen", .kinds = {}}});
+    CHECK(native.audioSources == std::vector<NativeAudioSource>{{.name = "microphone", .title = "Microphone"}});
+    REQUIRE(native.mediaSinks.size() == 3);
+    CHECK(native.mediaSinks[0].video == SinkVideo{.fps = 30, .width = 1280, .height = 720});
+    CHECK_FALSE(native.mediaSinks[0].audio);
+    CHECK(native.mediaSinks[1].audio);
+    CHECK_FALSE(native.mediaSinks[2].video.has_value());
+    CHECK(native.recordingExporters ==
+          std::vector<NativeRecordingExporter>{{.name = "gif", .title = "GIF animation", .extension = "gif"}});
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+    CHECK(std::ranges::find(kPermissionNames, "media.capture") != kPermissionNames.end());
+    CHECK(std::ranges::find(kPermissionNames, "media.output") != kPermissionNames.end());
+
+    Json json = mediaBase();
+    json["permissions"] = Json::array({{{"name", "notify"}, {"reason", "Shows when it beeps."}}});
+    const LoadedManifest bare = load(json);
+    INFO(listed(bare));
+    CHECK_FALSE(bare.usable);
+    CHECK(reports(bare, Code::NativePermissionUndeclared, "$.contributes.native.videoSources"));
+    CHECK(reports(bare, Code::NativePermissionUndeclared, "$.contributes.native.audioSources"));
+    CHECK(reports(bare, Code::NativePermissionUndeclared, "$.contributes.native.mediaSinks"));
+    CHECK(reports(bare, Code::NativePermissionUndeclared, "$.contributes.native.recordingExporters"));
+    const auto said = [&bare](std::string_view path) {
+        return std::ranges::find_if(bare.diagnostics, [path](const Diagnostic& each) { return each.path == path; });
+    };
+    REQUIRE(said("$.contributes.native.videoSources") != bare.diagnostics.end());
+    CHECK(said("$.contributes.native.videoSources")->detail == "media.capture");
+    REQUIRE(said("$.contributes.native.mediaSinks") != bare.diagnostics.end());
+    CHECK(said("$.contributes.native.mediaSinks")->detail == "media.output");
+
+    const Json schema = Json::parse(manifestJsonSchema());
+    const Json declared = schema["properties"]["contributes"]["properties"]["native"]["properties"];
+    CHECK(declared["mediaSinks"]["items"]["properties"]["video"]["properties"]["fps"]["maximum"] == kMostSinkFps);
+    CHECK(declared["recordingExporters"]["items"]["required"] == Json::array({"name", "title", "extension"}));
+    CHECK(declared["videoSources"]["maxItems"] == kMostMediaSources);
+}
+
+TEST_CASE("ADR-0112: a media sink with a bad frame rate or size, or that takes nothing, and an exporter with a bad "
+          "extension do not load")
+{
+    Json json = mediaBase();
+    Json& native = json["contributes"]["native"];
+    native["videoSources"][0]["kinds"] = {"phone", "camera"};
+    native["videoSources"][1]["kinds"] = {"phone", "phone"};
+    native["mediaSinks"][0]["video"]["fps"] = 0;
+    native["mediaSinks"][1]["video"]["fps"] = 61;
+    native["mediaSinks"][1]["video"]["width"] = 8;
+    native["mediaSinks"][2].erase("audio");
+    native["mediaSinks"].push_back({{"name", "huge"}, {"title", "Huge"}, {"video", {{"fps", 30}, {"width", 4096},
+                                                                                     {"height", 4096}}}});
+    native["mediaSinks"].push_back({{"name", "half"}, {"title", "Half"}, {"video", {{"fps", 30}}}});
+    native["mediaSinks"].push_back({{"name", "camera"}, {"title", "Again"}, {"audio", true}});
+    native["recordingExporters"].push_back({{"name", "dotted"}, {"title", "Dotted"}, {"extension", ".mp4"}});
+    native["recordingExporters"].push_back({{"name", "ours"}, {"title", "Ours"}, {"extension", "gsrec"}});
+    native["recordingExporters"].push_back({{"name", "plain"}, {"title", "Plain"}});
+    const LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.videoSources[0].kinds[1]"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.native.videoSources[1].kinds[1]"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.mediaSinks[0].video.fps"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.mediaSinks[1].video.fps"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.mediaSinks[1].video.width"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.native.mediaSinks[2].video"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.mediaSinks[3].video.width"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.native.mediaSinks[4].video.width"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.native.mediaSinks[4].video.height"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.native.mediaSinks[5].name"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.recordingExporters[1].extension"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.recordingExporters[2].extension"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.native.recordingExporters[3].extension"));
+}

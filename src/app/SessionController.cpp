@@ -63,6 +63,7 @@ public:
 
     void setAudioMuted(bool muted) noexcept { m_audio.setMuted(muted); }
     void setAudioVolume(float volume) noexcept { m_audio.setVolume(volume); }
+    void setAudioTap(media::AudioTap tap) { m_audio.setTap(std::move(tap)); }
 
     void onVideoOpened() override
     {
@@ -1134,6 +1135,11 @@ void SessionController::setAudioMuted(bool muted)
 void SessionController::setAudioVolume(float volume)
 {
     m_bridge->setAudioVolume(volume);
+}
+
+void SessionController::setAudioTap(media::AudioTap tap)
+{
+    m_bridge->setAudioTap(std::move(tap));
 }
 
 void SessionController::pressKey(std::uint32_t keycode)

@@ -1,9 +1,12 @@
 #pragma once
 
+#include "gs/exthost/Media.h"
+
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -215,6 +218,26 @@ struct StreamEvents {
     std::function<void(std::string reason)> closed;
 };
 
+struct MediaInfo {
+    std::string name;
+
+    friend bool operator==(const MediaInfo&, const MediaInfo&) = default;
+};
+
+struct SinkInfo {
+    std::string name;
+    bool video = false;
+    bool audio = false;
+
+    friend bool operator==(const SinkInfo&, const SinkInfo&) = default;
+};
+
+struct ExporterInfo {
+    std::string name;
+
+    friend bool operator==(const ExporterInfo&, const ExporterInfo&) = default;
+};
+
 struct ModuleInfo {
     std::vector<TouchMethodInfo> touchMethods;
     std::vector<NodeInfo> nodes;
@@ -224,6 +247,10 @@ struct ModuleInfo {
     std::vector<ProviderInfo> providers;
     std::vector<InputSourceInfo> inputSources;
     std::vector<TransportInfo> transports;
+    std::vector<MediaInfo> videoSources;
+    std::vector<MediaInfo> audioSources;
+    std::vector<SinkInfo> sinks;
+    std::vector<ExporterInfo> exporters;
 
     friend bool operator==(const ModuleInfo&, const ModuleInfo&) = default;
 };
@@ -350,6 +377,7 @@ public:
     virtual void inputEvent(std::string_view, std::string_view, double, double, std::uint64_t) {}
     [[nodiscard]] virtual ServiceResult callService(std::string_view, std::string_view) { return {}; }
     virtual void transportChanged(std::string_view) {}
+    virtual void sourcesChanged(std::string_view) {}
 };
 
 class Module
@@ -391,6 +419,19 @@ public:
     }
     [[nodiscard]] virtual StreamSent sendStream(std::uint64_t, std::string_view) { return StreamSent::Failed; }
     virtual void closeStream(std::uint64_t) {}
+    [[nodiscard]] virtual CallResult listSources(MediaKind, std::size_t) { return {}; }
+    [[nodiscard]] virtual std::shared_ptr<MediaStream> openSource(MediaKind, std::size_t, std::string_view,
+                                                                  std::string_view)
+    {
+        return nullptr;
+    }
+    virtual void closeSource(std::uint64_t) {}
+    [[nodiscard]] virtual std::shared_ptr<SinkPort> openSink(std::size_t, const SinkStart&) { return nullptr; }
+    virtual void closeSink(std::uint64_t) {}
+    [[nodiscard]] virtual std::uint64_t startExport(std::size_t, std::string_view, std::string_view, JobEvents)
+    {
+        return 0;
+    }
 };
 
 }

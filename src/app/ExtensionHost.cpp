@@ -460,6 +460,12 @@ QString permissionTitle(std::string_view name)
     if (name == "transport") {
         return ExtensionHost::tr("Provide ways to connect to phones");
     }
+    if (name == ext::kMediaCapturePermission) {
+        return ExtensionHost::tr("Provide pictures or sound");
+    }
+    if (name == ext::kMediaOutputPermission) {
+        return ExtensionHost::tr("Send the picture or the sound elsewhere");
+    }
     return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
 }
 
@@ -930,6 +936,21 @@ NativeWanted ExtensionHost::nativeWanted(const Extension& extension) const
         wanted.transportTitles.push_back(
             extensionText(manifest, "transports." + transport.name + ".title", transport.title, language));
     }
+    for (const ext::NativeVideoSource& source : wanted.native.videoSources) {
+        wanted.videoSourceTitles.push_back(
+            extensionText(manifest, "videoSources." + source.name + ".title", source.title, language));
+    }
+    for (const ext::NativeAudioSource& source : wanted.native.audioSources) {
+        wanted.audioSourceTitles.push_back(
+            extensionText(manifest, "audioSources." + source.name + ".title", source.title, language));
+    }
+    for (const ext::NativeMediaSink& sink : wanted.native.mediaSinks) {
+        wanted.sinkTitles.push_back(extensionText(manifest, "mediaSinks." + sink.name + ".title", sink.title, language));
+    }
+    for (const ext::NativeRecordingExporter& exporter : wanted.native.recordingExporters) {
+        wanted.exporterTitles.push_back(
+            extensionText(manifest, "recordingExporters." + exporter.name + ".title", exporter.title, language));
+    }
     return wanted;
 }
 
@@ -1305,6 +1326,30 @@ QVariantList ExtensionHost::entries() const
                                        {QStringLiteral("ownProcess"),
                                         !(extension->builtin && manifest.id.starts_with(ext::kReservedIdPrefix))},
                                        {QStringLiteral("architectures"), architectures}});
+                const ext::NativeContribution& media = *manifest.contributes.native;
+                QStringList sources;
+                for (const ext::NativeVideoSource& source : media.videoSources) {
+                    sources.append(extensionText(manifest, "videoSources." + source.name + ".title", source.title,
+                                                 language));
+                }
+                for (const ext::NativeAudioSource& source : media.audioSources) {
+                    sources.append(extensionText(manifest, "audioSources." + source.name + ".title", source.title,
+                                                 language));
+                }
+                QStringList sinks;
+                for (const ext::NativeMediaSink& sink : media.mediaSinks) {
+                    sinks.append(extensionText(manifest, "mediaSinks." + sink.name + ".title", sink.title, language));
+                }
+                QStringList exporters;
+                for (const ext::NativeRecordingExporter& exporter : media.recordingExporters) {
+                    exporters.append(extensionText(manifest, "recordingExporters." + exporter.name + ".title",
+                                                   exporter.title, language));
+                }
+                QVariantMap dll = row.value(QStringLiteral("native")).toMap();
+                dll.insert(QStringLiteral("sources"), sources);
+                dll.insert(QStringLiteral("sinks"), sinks);
+                dll.insert(QStringLiteral("exporters"), exporters);
+                row.insert(QStringLiteral("native"), dll);
             }
         } else {
             const QString id = QString::fromStdWString(extension->directory.parent_path().filename().wstring());

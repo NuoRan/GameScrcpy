@@ -3,14 +3,28 @@
 #include "gs/exthost/Module.h"
 
 #include <chrono>
+#include <cstddef>
+#include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace gs::exthost {
 
+namespace detail {
+class SinkBox;
+}
+
 inline constexpr std::chrono::microseconds kNodeBudget{100'000};
+
+struct SourceHooks {
+    void* wake = nullptr;
+    std::function<void(MediaKind kind, void* section, std::size_t capacity)> made;
+    std::function<void(const std::string& why)> ended;
+};
 
 struct InProcessOptions {
     std::filesystem::path dll;
@@ -60,6 +74,17 @@ public:
                                   StreamEvents events) override;
     [[nodiscard]] StreamSent sendStream(std::uint64_t stream, std::string_view bytes) override;
     void closeStream(std::uint64_t stream) override;
+    [[nodiscard]] CallResult listSources(MediaKind kind, std::size_t source) override;
+    [[nodiscard]] std::shared_ptr<MediaStream> openSource(MediaKind kind, std::size_t source, std::string_view id,
+                                                          std::string_view params) override;
+    void closeSource(std::uint64_t stream) override;
+    [[nodiscard]] std::shared_ptr<SinkPort> openSink(std::size_t sink, const SinkStart& start) override;
+    void closeSink(std::uint64_t sink) override;
+    [[nodiscard]] std::uint64_t startExport(std::size_t exporter, std::string_view input, std::string_view output,
+                                            JobEvents events) override;
+    [[nodiscard]] std::shared_ptr<MediaStream> openSourceWith(MediaKind kind, std::size_t source, std::string_view id,
+                                                              std::string_view params, SourceHooks hooks);
+    [[nodiscard]] std::uint64_t attachSink(std::size_t sink, std::shared_ptr<detail::SinkBox> box);
 
     struct Impl;
 

@@ -16,7 +16,7 @@ struct ID3D11Texture2D;
 
 namespace gs::capture {
 
-enum class SampleKind : std::uint8_t { Nv12, Yuy2, Mjpg, H264, Texture };
+enum class SampleKind : std::uint8_t { Nv12, Yuy2, Mjpg, H264, Texture, Bgra };
 
 struct CaptureSample {
     SampleKind kind = SampleKind::Nv12;
@@ -44,6 +44,7 @@ public:
     virtual void sample(const CaptureSample& sample) = 0;
     virtual void frame(media::VideoFrame frame) = 0;
     virtual void ended(const std::string& problem) = 0;
+    virtual void heard(std::span<const float>, int, int, std::int64_t) {}
 };
 
 class CaptureSource
@@ -55,6 +56,7 @@ public:
     virtual void stop() = 0;
     [[nodiscard]] virtual std::string problem() const = 0;
     [[nodiscard]] virtual std::wstring container() const { return {}; }
+    [[nodiscard]] virtual bool givesSound() const { return false; }
 };
 
 }

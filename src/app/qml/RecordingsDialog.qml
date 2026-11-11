@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 
 import QtQuick
+import QtQuick.Dialogs
 import QtQuick.Templates as T
 import GameScrcpy.Theme
 import GameScrcpy.Controls
@@ -38,6 +39,12 @@ Dialog {
     function askTrash(entry: var) {
         dialog.trashing = entry
         trashConfirm.open()
+    }
+
+    function exportAs(entry: var, exporter: var) {
+        exportPicker.entry = entry
+        exportPicker.exporter = exporter
+        exportPicker.open()
     }
 
     function trash() {
@@ -104,6 +111,24 @@ Dialog {
                 return
             dialog.entries = recordings
             dialog.loading = false
+        }
+    }
+
+    FileDialog {
+        id: exportPicker
+
+        property var entry: ({})
+        property var exporter: ({})
+
+        objectName: "recordingExportPicker"
+        title: qsTr("Export the recording as %1").arg(exportPicker.exporter.title ?? "")
+        fileMode: FileDialog.SaveFile
+        defaultSuffix: exportPicker.exporter.suffix ?? ""
+        nameFilters: [qsTr("%1 files (*.%2)").arg(exportPicker.exporter.title ?? "").arg(exportPicker.exporter.suffix ?? "")]
+        onAccepted: {
+            Recordings.exportWith(exportPicker.entry.folder ?? "", exportPicker.entry.serial ?? "",
+                                  exportPicker.exporter.key ?? "", exportPicker.selectedFile)
+            dialog.notified(qsTr("Exporting the recording as %1…").arg(exportPicker.exporter.title ?? ""), "share")
         }
     }
 
@@ -251,6 +276,26 @@ Dialog {
                         iconName: "folder-open"
                         text: qsTr("Show in folder")
                         onTriggered: Recordings.showInFolder(row.modelData.folder ?? "")
+                    }
+
+                    Instantiator {
+                        model: Recordings.exporters
+
+                        delegate: MenuItem {
+                            id: exportItem
+
+                            required property var modelData
+
+                            objectName: "recordingRowExport"
+                            iconName: "share"
+                            text: qsTr("Export as %1…").arg(exportItem.modelData.title ?? "")
+                            shortcut: exportItem.modelData.extensionName ?? ""
+                            enabled: !row.broken
+                            onTriggered: dialog.exportAs(row.modelData, exportItem.modelData)
+                        }
+
+                        onObjectAdded: (index, object) => rowMenu.insertItem(2 + index, object)
+                        onObjectRemoved: (index, object) => rowMenu.removeItem(object)
                     }
 
                     MenuItem {

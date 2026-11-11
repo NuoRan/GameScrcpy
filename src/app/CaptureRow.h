@@ -39,6 +39,8 @@ struct CaptureRow {
     bool cropEditing = false;
     bool goneShown = false;
     QString drivenBy;
+    std::string sourceExtension;
+    QString sourceExtensionName;
 };
 
 }

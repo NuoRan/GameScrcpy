@@ -42,6 +42,7 @@ class Recorder;
 namespace gs::app {
 
 class AppSettings;
+class NativeExtensions;
 
 class RecordingTap final : public OperationObserver
 {
@@ -126,6 +127,7 @@ class Recordings final : public QObject
     QML_SINGLETON
     Q_PROPERTY(QString location READ location NOTIFY locationChanged FINAL)
     Q_PROPERTY(QUrl locationUrl READ locationUrl NOTIFY locationChanged FINAL)
+    Q_PROPERTY(QVariantList exporters READ exporters NOTIFY exportersChanged FINAL)
 
 public:
     explicit Recordings(AppSettings& settings, QObject* parent = nullptr);
@@ -153,6 +155,10 @@ public:
     int listRecordings(const QString& serial, const QString& phone);
     Q_INVOKABLE QVariantMap describe(const QString& folder, const QString& serial) const;
     Q_INVOKABLE QString moveToTrash(const QString& folder);
+    [[nodiscard]] QVariantList exporters() const;
+    Q_INVOKABLE void exportWith(const QString& folder, const QString& serial, const QString& exporter,
+                                const QUrl& target);
+    void watchExtensions(NativeExtensions& extensions);
 
 signals:
     void locationChanged();
@@ -160,11 +166,14 @@ signals:
     void exported(const QString& serial, bool ok, const QString& text, const QString& shown);
     void testSaved(int ticket, bool ok, const QString& text);
     void recordingsListed(int ticket, const QVariantList& recordings);
+    void exportersChanged();
 
 private:
     struct Run;
+    struct ExportRun;
 
     void tick();
+    void exportNext(const std::shared_ptr<ExportRun>& run);
 
     static inline Recordings* s_instance = nullptr;
 

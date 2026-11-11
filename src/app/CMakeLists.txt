@@ -256,6 +256,8 @@ qt_add_qml_module(GameScrcpy
         ExtensionLinks.h
         ExtensionLogic.cpp
         ExtensionLogic.h
+        ExtensionMedia.cpp
+        ExtensionMedia.h
         ExtensionModules.cpp
         ExtensionModules.h
         ExtensionPanels.cpp
@@ -337,6 +339,9 @@ qt_add_qml_module(GameScrcpy
         McpTools.h
         McpTrace.cpp
         McpTrace.h
+        MediaOffers.h
+        MediaSinks.cpp
+        MediaSinks.h
         MirrorInputItem.cpp
         MirrorInputItem.h
         MirrorWindow.cpp

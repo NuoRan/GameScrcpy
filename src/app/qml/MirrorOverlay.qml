@@ -1602,6 +1602,8 @@ Item {
                 CommandMenuItem { commandState: latencyCommand }
                 CommandMenuItem { commandState: miniCommand }
                 MenuItem {
+                    id: syncInMore
+
                     objectName: "syncPhones"
                     iconName: "link"
                     text: qsTr("Sync…")
@@ -1609,6 +1611,40 @@ Item {
                     shortcut: overlay.syncRole === "follower" ? qsTr("Following %1").arg(overlay.syncLeader)
                               : overlay.syncRole === "master" ? qsTr("%n phone(s)", "", overlay.syncCount) : ""
                     onTriggered: syncDialog.show()
+                }
+                Instantiator {
+                    model: MediaSinks.sinks
+
+                    delegate: MenuItem {
+                        id: sinkItem
+
+                        required property var modelData
+                        readonly property string sinkKey: sinkItem.modelData.key ?? ""
+
+                        objectName: "mediaSinkInMore"
+                        text: qsTr("Send to %1").arg(sinkItem.modelData.title ?? "")
+                        shortcut: sinkItem.modelData.extensionName ?? ""
+                        choice: true
+                        chosen: MediaSinks.running.some(run => run.serial === overlay.serial
+                                                               && run.key === sinkItem.sinkKey)
+                        enabled: !overlay.noPicture || sinkItem.modelData.picture !== true
+                        onTriggered: {
+                            const problem = MediaSinks.toggle(overlay.serial, sinkItem.sinkKey)
+                            if (problem !== "")
+                                overlay.toast(problem, "triangle-alert")
+                        }
+                    }
+
+                    onObjectAdded: (index, object) => {
+                        for (let at = 0; at < moreMenu.count; ++at) {
+                            if (moreMenu.itemAt(at) === syncInMore) {
+                                moreMenu.insertItem(at + 1 + index, object)
+                                return
+                            }
+                        }
+                        moreMenu.addItem(object)
+                    }
+                    onObjectRemoved: (index, object) => moreMenu.removeItem(object)
                 }
                 CommandMenuItem { commandState: settingsCommand }
                 CommandMenuItem { commandState: disconnectCommand }
@@ -2071,6 +2107,15 @@ Item {
         function onAssistantWanted(serial: string) {
             if (serial === overlay.serial)
                 Qt.callLater(aiCorner.show)
+        }
+    }
+
+    Connections {
+        target: MediaSinks
+
+        function onStopped(serial: string, text: string) {
+            if (serial === overlay.serial)
+                overlay.toast(text, "triangle-alert")
         }
     }
 
