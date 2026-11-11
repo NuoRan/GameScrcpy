@@ -25,6 +25,8 @@ add_library(gs_ext STATIC
     src/Ed25519.cpp
     src/Minisign.cpp
     src/NativeCheck.cpp
+    include/gs/ext/Signing.h
+    src/Signing.cpp
 )
 add_library(gs::ext ALIAS gs_ext)
 

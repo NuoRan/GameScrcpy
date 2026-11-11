@@ -14,6 +14,7 @@ Item {
 
     property string failure
     property string filter: ""
+    property string highlighted: ""
     property int tourBaseEnabled: 0
     readonly property var extensions: ExtensionHost.entries
     readonly property int extensionCount: page.extensions.length
@@ -38,6 +39,8 @@ Item {
     onVisibleChanged: {
         if (page.visible)
             SettingsCatalog.scoped = false
+        else
+            page.highlighted = ""
     }
     onCapabilitiesChanged: {
         if (page.filter !== "" && !page.capabilities.includes(page.filter))
@@ -122,6 +125,8 @@ Item {
                    ? qsTr("Its DLL runs in a process of its own; when that stops three times within a minute, the "
                           + "extension is turned off.")
                    : qsTr("Its DLL runs inside GameScrcpy."))
+        if ((dll.architectures ?? []).length > 0)
+            lines.push(qsTr("Built for: %1").arg(dll.architectures.join(qsTr(", ", "list separator"))))
         return lines.join("\n")
     }
 
@@ -172,9 +177,49 @@ Item {
             return qsTr("The video filter does not compile")
         case "texture-unreadable":
             return qsTr("A picture it needs could not be read")
+        case "native-architecture-missing":
+            return qsTr("This extension has no version for this computer")
         default:
             return qsTr("Could not load")
         }
+    }
+
+    function publisherColor(kind: string): color {
+        switch (kind) {
+        case "verified":
+            return Theme.colors.successText
+        case "unsigned":
+            return Theme.colors.textTertiary
+        default:
+            return Theme.colors.warningText
+        }
+    }
+
+    function publisherNote(kind: string): string {
+        switch (kind) {
+        case "verified":
+            return qsTr("Updates have to be signed with the same key. To accept a new key, remove the extension and "
+                        + "install it again.")
+        case "unsigned":
+            return qsTr("Nothing tells who made it or whether it was changed.")
+        case "changed":
+            return qsTr("It is signed with a different key than the one it had when it was first installed.")
+        default:
+            return qsTr("Its files no longer match its signature.")
+        }
+    }
+
+    function reveal(id: string): bool {
+        search.clear()
+        page.filter = ""
+        const found = page.extensions.some(entry => entry.id === id)
+        page.highlighted = found ? id : ""
+        return found
+    }
+
+    function scrollTo(item: Item) {
+        const top = item.mapToItem(cards, 0, 0).y - Theme.space.lg
+        content.contentY = Math.max(0, Math.min(top, content.contentHeight - content.height))
     }
 
     function healthText(health: var): string {
@@ -513,12 +558,24 @@ Item {
                         readonly property string noticeText: card.modelData.problems.some(item => item.code === "consent-required")
                                                              ? qsTr("Turn it on again to allow what's new")
                                                              : card.healthText
+                        readonly property var publisher: card.modelData.publisher ?? ({})
+                        readonly property bool highlighted: page.highlighted !== ""
+                                                            && page.highlighted === card.modelData.id
 
                         objectName: "extensionCard"
                         Layout.preferredWidth: page.cardWidth
                         Layout.fillHeight: true
                         padding: 0
                         horizontalPadding: 0
+                        active: card.highlighted
+                        onHighlightedChanged: {
+                            if (card.highlighted)
+                                Qt.callLater(() => page.scrollTo(card))
+                        }
+                        onYChanged: {
+                            if (card.highlighted)
+                                page.scrollTo(card)
+                        }
 
                         ColumnLayout {
                             width: card.availableWidth
@@ -595,6 +652,41 @@ Item {
                                         color: Theme.colors.textTertiary
                                         font.pixelSize: Theme.type.caption.size
                                         elide: Text.ElideRight
+                                    }
+
+                                    RowLayout {
+                                        objectName: "publisherLine"
+                                        Layout.fillWidth: true
+                                        visible: (card.publisher.state ?? "") !== ""
+                                        spacing: Theme.space.xs
+
+                                        Icon {
+                                            name: card.publisher.state === "verified" || card.publisher.state === "unsigned"
+                                                  ? "shield" : "triangle-alert"
+                                            size: Theme.size.infoIcon - Theme.space.xxs
+                                            color: page.publisherColor(card.publisher.state ?? "")
+                                        }
+
+                                        Text {
+                                            id: publisherText
+
+                                            objectName: "publisherText"
+                                            Layout.fillWidth: true
+                                            textFormat: Text.PlainText
+                                            text: card.publisher.text ?? ""
+                                            color: page.publisherColor(card.publisher.state ?? "")
+                                            font.pixelSize: Theme.type.caption.size
+                                            elide: Text.ElideRight
+
+                                            HoverHandler {
+                                                id: publisherHover
+                                            }
+
+                                            Tooltip {
+                                                text: publisherText.text
+                                                visible: publisherText.truncated && publisherHover.hovered
+                                            }
+                                        }
                                     }
                                 }
 
@@ -811,6 +903,49 @@ Item {
                 color: Theme.colors.textSecondary
                 font.pixelSize: Theme.type.body.size
                 wrapMode: Text.Wrap
+            }
+
+            RowLayout {
+                id: publisherDetails
+
+                readonly property string kind: detailsDialog.entry.publisher?.state ?? ""
+
+                objectName: "publisherDetails"
+                Layout.fillWidth: true
+                visible: publisherDetails.kind !== ""
+                spacing: Theme.space.sm
+
+                Icon {
+                    Layout.alignment: Qt.AlignTop
+                    name: publisherDetails.kind === "verified" || publisherDetails.kind === "unsigned"
+                          ? "shield" : "triangle-alert"
+                    size: Theme.size.iconSmall
+                    color: page.publisherColor(publisherDetails.kind)
+                }
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.space.xxs
+
+                    Text {
+                        Layout.fillWidth: true
+                        textFormat: Text.PlainText
+                        text: detailsDialog.entry.publisher?.text ?? ""
+                        color: page.publisherColor(publisherDetails.kind)
+                        font.pixelSize: Theme.type.label.size
+                        font.weight: Theme.type.label.weight
+                        wrapMode: Text.Wrap
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        textFormat: Text.PlainText
+                        text: page.publisherNote(publisherDetails.kind)
+                        color: Theme.colors.textSecondary
+                        font.pixelSize: Theme.type.caption.size
+                        wrapMode: Text.Wrap
+                    }
+                }
             }
 
             Text {

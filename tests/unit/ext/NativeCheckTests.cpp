@@ -412,6 +412,156 @@ TEST_CASE("a new author key or a lost signature on an update counts as a key cha
     CHECK(authorChanged(first, checkSignature(directoryContents(scratch / "first"), kOtherKey)));
 }
 
+TEST_CASE("ADR-0112: the export table of a library lists its functions, and its machine field names its processor")
+{
+    const PeExports none = readPeExports(buildPe({}));
+    INFO(none.problem);
+    CHECK(none.valid);
+    CHECK(none.names.empty());
+    CHECK(none.machine == kMachineX64);
+
+    const PeExports plugin = readPeExports(buildPe({.exports = {"gs_ext_main", "helper"}}));
+    INFO(plugin.problem);
+    REQUIRE(plugin.valid);
+    CHECK(plugin.names == std::vector<std::string>{"gs_ext_main", "helper"});
+
+    const PeExports arm = readPeExports(buildPe({.machine = kMachineArm64, .exports = {"gs_ext_main"}}));
+    INFO(arm.problem);
+    REQUIRE(arm.valid);
+    CHECK(arm.machine == kMachineArm64);
+    CHECK(arm.names == std::vector<std::string>{"gs_ext_main"});
+    CHECK(readPeImports(buildPe({.machine = kMachineArm64})).machine == kMachineArm64);
+    CHECK(readPeExports(buildPe({.wide = false, .exports = {"gs_ext_main"}})).machine == 0x014C);
+
+    CHECK(machineName(kMachineX64) == "x64");
+    CHECK(machineName(kMachineArm64) == "arm64");
+    CHECK(machineName(0x014C) == "x86");
+    CHECK(machineName(0x1234) == "machine 0x1234");
+    CHECK(architectureMachine("x64") == kMachineX64);
+    CHECK(architectureMachine("arm64") == kMachineArm64);
+    CHECK(architectureMachine("x86") == 0);
+    CHECK(architectureMachine("") == 0);
+
+    const PeExports system = readPeExports(readFile(systemLibrary(L"kernel32.dll")));
+    INFO(system.problem);
+    REQUIRE(system.valid);
+    CHECK(system.names.size() > 100);
+    CHECK(std::ranges::find(system.names, std::string("GetTickCount")) != system.names.end());
+
+    std::string cut = buildPe({.exports = {"gs_ext_main"}});
+    cut.resize(kPeSectionFile + 32);
+    CHECK_FALSE(readPeExports(cut).valid);
+    CHECK_FALSE(readPeExports("MZ").valid);
+}
+
+TEST_CASE("ADR-0112: each DLL a package lists is checked for its processor and for gs_ext_main")
+{
+    Scratch scratch;
+    const fs::path folder = scratch / "dlls";
+    writeFile(folder / "manifest.json", "{}");
+    writeFile(folder / "bin/x64/plugin.dll", buildPe({.exports = {"gs_ext_main"}}));
+    writeFile(folder / "bin/arm64/plugin.dll", buildPe({.machine = kMachineArm64, .exports = {"gs_ext_main"}}));
+    writeFile(folder / "bin/old.dll", buildPe({.exports = {"gs_ext_entry"}}));
+    writeFile(folder / "bin/x86.dll", buildPe({.wide = false, .exports = {"gs_ext_main"}}));
+    writeFile(folder / "bin/notes.dll", "not a library, only text that happens to end in .dll and is long enough");
+    Manifest manifest;
+    manifest.contributes.native =
+        NativeContribution{.dlls = {{"x64", "bin/x64/plugin.dll"}, {"arm64", "bin/arm64/plugin.dll"}}};
+
+    const LibraryCheck both = checkNativeLibraries(directoryContents(folder), manifest);
+    INFO(listed(both.diagnostics));
+    CHECK(both.diagnostics.empty());
+    REQUIRE(both.libraries.size() == 2);
+    CHECK(both.libraries[0] == NativeLibrary{.architecture = "arm64",
+                                             .path = "bin/arm64/plugin.dll",
+                                             .machine = kMachineArm64,
+                                             .entry = true});
+    CHECK(both.libraries[1] ==
+          NativeLibrary{.architecture = "x64", .path = "bin/x64/plugin.dll", .machine = kMachineX64, .entry = true});
+
+    manifest.contributes.native->dlls = {{"x64", "bin/x64/plugin.dll"}, {"arm64", "bin/x64/plugin.dll"}};
+    const LibraryCheck swapped = checkNativeLibraries(directoryContents(folder), manifest);
+    CHECK(reports(swapped.diagnostics, Code::NativeMachineMismatch, R"($.contributes.native.dll["arm64"])"));
+    CHECK_FALSE(reports(swapped.diagnostics, Code::NativeMachineMismatch, R"($.contributes.native.dll["x64"])"));
+
+    manifest.contributes.native->dlls = {{"riscv64", "bin/x64/plugin.dll"}};
+    CHECK(checkNativeLibraries(directoryContents(folder), manifest).diagnostics.empty());
+
+    manifest.contributes.native->dlls.clear();
+    manifest.contributes.native->dll = "bin/old.dll";
+    const LibraryCheck old = checkNativeLibraries(directoryContents(folder), manifest);
+    REQUIRE(old.diagnostics.size() == 1);
+    CHECK(old.diagnostics[0].code == Code::NativeEntryMissing);
+    CHECK(old.diagnostics[0].path == "$.contributes.native.dll");
+    CHECK(old.diagnostics[0].detail.find("gs_ext_entry") != std::string::npos);
+    REQUIRE(old.libraries.size() == 1);
+    CHECK(old.libraries[0].oldEntry);
+    CHECK_FALSE(old.libraries[0].entry);
+
+    manifest.contributes.native->dll = "bin/x86.dll";
+    CHECK(reports(checkNativeLibraries(directoryContents(folder), manifest).diagnostics, Code::NativeMachineMismatch,
+                  "$.contributes.native.dll"));
+    manifest.contributes.native->dll = "bin/arm64/plugin.dll";
+    CHECK(checkNativeLibraries(directoryContents(folder), manifest).diagnostics.empty());
+    manifest.contributes.native->dll = "bin/notes.dll";
+    CHECK(reports(checkNativeLibraries(directoryContents(folder), manifest).diagnostics, Code::NativeDllInvalid,
+                  "$.contributes.native.dll"));
+    manifest.contributes.native->dll = "bin/missing.dll";
+    CHECK(reports(checkNativeLibraries(directoryContents(folder), manifest).diagnostics, Code::FileMissing,
+                  "$.contributes.native.dll"));
+    CHECK(checkNativeLibraries(directoryContents(folder), Manifest{}).libraries.empty());
+}
+
+TEST_CASE("ADR-0112: installing takes the DLL for this processor and refuses a package that has none")
+{
+    Scratch scratch;
+    const fs::path folder = scratch / "both";
+    writeFile(folder / "manifest.json", "{}");
+    writeFile(folder / "bin/x64/plugin.dll", buildPe({.exports = {"gs_ext_main"}}));
+    writeFile(folder / "bin/arm64/plugin.dll", buildPe({.machine = kMachineArm64, .exports = {"gs_ext_main"}}));
+    Manifest manifest;
+    manifest.contributes.native =
+        NativeContribution{.dlls = {{"x64", "bin/x64/plugin.dll"}, {"arm64", "bin/arm64/plugin.dll"}}};
+    CHECK_FALSE(checkNative(directoryContents(folder), manifest, {}, "x64").refused());
+    CHECK_FALSE(checkNative(directoryContents(folder), manifest, {}, "arm64").refused());
+    CHECK(checkNative(directoryContents(folder), manifest).files.size() == 2);
+
+    manifest.contributes.native->dlls = {{"arm64", "bin/arm64/plugin.dll"}};
+    const NativeCheck none = checkNative(directoryContents(folder), manifest, {}, "x64");
+    CHECK(none.refusal == NativeRefusal::Architecture);
+    CHECK(none.detail == "no DLL for x64");
+    CHECK_FALSE(checkNative(directoryContents(folder), manifest, {}, "arm64").refused());
+
+    manifest.contributes.native->dlls = {{"x64", "bin/arm64/plugin.dll"}};
+    const NativeCheck wrong = checkNative(directoryContents(folder), manifest, {}, "x64");
+    CHECK(wrong.refusal == NativeRefusal::Architecture);
+    CHECK(wrong.detail == "bin/arm64/plugin.dll is built for arm64, not x64");
+
+    manifest.contributes.native->dlls.clear();
+    manifest.contributes.native->dll = "bin/arm64/plugin.dll";
+    CHECK(checkNative(directoryContents(folder), manifest, {}, "x64").refusal == NativeRefusal::Architecture);
+    CHECK_FALSE(checkNative(directoryContents(folder), manifest, {}, "arm64").refused());
+
+    writeFile(folder / "bin/hook.dll", buildPe({.imports = {{"user32.dll", {"SetWindowsHookExW"}}}}));
+    CHECK(checkNative(directoryContents(folder), manifest, {}, "x64").refusal == NativeRefusal::Injection);
+}
+
+TEST_CASE("ADR-0112: the quick signature check names the signing key without hashing every file")
+{
+    Scratch scratch;
+    writeSigned(scratch / "signed");
+    CHECK(checkSignedSums(directoryContents(scratch / "signed"), kAuthorKey).state == SignatureState::Valid);
+    writeFile(scratch / "signed/bin/notes.txt", "changed after signing\n");
+    CHECK(checkSignature(directoryContents(scratch / "signed"), kAuthorKey).state == SignatureState::Invalid);
+    const SignatureCheck quick = checkSignedSums(directoryContents(scratch / "signed"), kAuthorKey);
+    CHECK(quick.state == SignatureState::Valid);
+    REQUIRE(quick.key.has_value());
+    CHECK(minisignKeyId(*quick.key) == "C1D2E3F4A5B60718");
+    CHECK(checkSignedSums(directoryContents(scratch / "signed"), kOtherKey).state == SignatureState::Invalid);
+    fs::remove(scratch / "signed/SHA512SUMS.minisig");
+    CHECK(checkSignedSums(directoryContents(scratch / "signed"), kAuthorKey).state == SignatureState::Unsigned);
+}
+
 TEST_CASE("components and tasks are contributed by name and folder under their own extension points")
 {
     const std::string json = R"({"schemaVersion": 1, "id": "alice.kit", "version": "1.0.0", "name": "Kit",

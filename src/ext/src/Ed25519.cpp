@@ -387,6 +387,40 @@ bool canonical(const std::uint8_t* scalar) noexcept
     return false;
 }
 
+std::array<std::uint64_t, 8> blake2bState(std::string_view data, std::uint64_t length) noexcept
+{
+    std::array<std::uint64_t, 8> h = kStart;
+    h[0] ^= 0x01010000 ^ length;
+    const std::uint8_t* bytes = bytesOf(data);
+    std::size_t offset = 0;
+    while (data.size() - offset > 128) {
+        blake2bBlock(h, bytes + offset, offset + 128, false);
+        offset += 128;
+    }
+    std::array<std::uint8_t, 128> last{};
+    const std::size_t count = data.size() - offset;
+    std::copy_n(bytes + offset, count, last.begin());
+    blake2bBlock(h, last.data(), offset + count, true);
+    return h;
+}
+
+Encoded reducedDigest(const Digest512& digest) noexcept
+{
+    std::array<std::int64_t, 64> wide{};
+    for (std::size_t i = 0; i < 64; ++i) {
+        wide[i] = digest[i];
+    }
+    return reducedByOrder(wide);
+}
+
+Digest512 clampedScalar(const Ed25519Seed& seed)
+{
+    Digest512 expanded = sha512(std::string_view(reinterpret_cast<const char*>(seed.data()), seed.size()));
+    expanded[0] = static_cast<std::uint8_t>(expanded[0] & 248U);
+    expanded[31] = static_cast<std::uint8_t>((expanded[31] & 127U) | 64U);
+    return expanded;
+}
+
 std::optional<Point> negatedPoint(const Ed25519Key& key) noexcept
 {
     Point r{};
@@ -449,18 +483,7 @@ Digest512 sha512(std::string_view data)
 
 Digest512 blake2b512(std::string_view data)
 {
-    std::array<std::uint64_t, 8> h = kStart;
-    h[0] ^= 0x01010040;
-    const std::uint8_t* bytes = bytesOf(data);
-    std::size_t offset = 0;
-    while (data.size() - offset > 128) {
-        blake2bBlock(h, bytes + offset, offset + 128, false);
-        offset += 128;
-    }
-    std::array<std::uint8_t, 128> last{};
-    const std::size_t count = data.size() - offset;
-    std::copy_n(bytes + offset, count, last.begin());
-    blake2bBlock(h, last.data(), offset + count, true);
+    const std::array<std::uint64_t, 8> h = blake2bState(data, 64);
     Digest512 digest{};
     for (std::size_t i = 0; i < 8; ++i) {
         for (std::size_t k = 0; k < 8; ++k) {
@@ -468,6 +491,52 @@ Digest512 blake2b512(std::string_view data)
         }
     }
     return digest;
+}
+
+Digest256 blake2b256(std::string_view data)
+{
+    const std::array<std::uint64_t, 8> h = blake2bState(data, 32);
+    Digest256 digest{};
+    for (std::size_t i = 0; i < 4; ++i) {
+        for (std::size_t k = 0; k < 8; ++k) {
+            digest[8 * i + k] = static_cast<std::uint8_t>(h[i] >> (8 * k));
+        }
+    }
+    return digest;
+}
+
+Ed25519Key ed25519PublicKey(const Ed25519Seed& seed)
+{
+    const Digest512 scalar = clampedScalar(seed);
+    return encoded(baseMultiplied(scalar.data()));
+}
+
+Ed25519Signature signEd25519(std::string_view message, const Ed25519Seed& seed)
+{
+    const Digest512 scalar = clampedScalar(seed);
+    const Encoded publicKey = encoded(baseMultiplied(scalar.data()));
+    std::string prefixed(reinterpret_cast<const char*>(scalar.data() + 32), 32);
+    prefixed.append(message);
+    const Encoded nonce = reducedDigest(sha512(prefixed));
+    const Encoded committed = encoded(baseMultiplied(nonce.data()));
+    std::string hashed(reinterpret_cast<const char*>(committed.data()), committed.size());
+    hashed.append(reinterpret_cast<const char*>(publicKey.data()), publicKey.size());
+    hashed.append(message);
+    const Encoded challenge = reducedDigest(sha512(hashed));
+    std::array<std::int64_t, 64> sum{};
+    for (std::size_t i = 0; i < 32; ++i) {
+        sum[i] = nonce[i];
+    }
+    for (std::size_t i = 0; i < 32; ++i) {
+        for (std::size_t j = 0; j < 32; ++j) {
+            sum[i + j] += static_cast<std::int64_t>(challenge[i]) * scalar[j];
+        }
+    }
+    const Encoded response = reducedByOrder(sum);
+    Ed25519Signature signature{};
+    std::copy(committed.begin(), committed.end(), signature.begin());
+    std::copy(response.begin(), response.end(), signature.begin() + 32);
+    return signature;
 }
 
 bool verifyEd25519(std::string_view message, const Ed25519Signature& signature, const Ed25519Key& publicKey)

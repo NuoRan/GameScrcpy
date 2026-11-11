@@ -21,6 +21,8 @@ struct PeLayout {
     std::vector<PeModule> imports;
     std::vector<PeModule> delayed;
     bool virtualDelay = false;
+    std::uint16_t machine = 0;
+    std::vector<std::string> exports;
 };
 
 class PeBytes
@@ -72,6 +74,7 @@ inline std::string buildPe(const PeLayout& layout)
     PeBytes section;
     const std::size_t importTable = layout.imports.empty() ? 0 : section.reserve(20 * (layout.imports.size() + 1));
     const std::size_t delayTable = layout.delayed.empty() ? 0 : section.reserve(32 * (layout.delayed.size() + 1));
+    const std::size_t exportTable = layout.exports.empty() ? 0 : section.reserve(40);
     const auto thunkOf = [&](const std::string& function, bool virtualAddress) -> std::uint64_t {
         if (function.starts_with('#')) {
             return std::stoull(function.substr(1)) | ordinalFlag;
@@ -115,6 +118,25 @@ inline std::string buildPe(const PeLayout& layout)
         section.put(descriptor + 12, field(address), 4);
         section.put(descriptor + 16, field(names), 4);
     }
+    if (!layout.exports.empty()) {
+        const std::size_t count = layout.exports.size();
+        const std::size_t functions = section.reserve(4 * count);
+        const std::size_t names = section.reserve(4 * count);
+        const std::size_t ordinals = section.reserve(2 * count);
+        for (std::size_t index = 0; index < count; ++index) {
+            section.put(functions + 4 * index, rva(functions), 4);
+            section.put(names + 4 * index, rva(section.text(layout.exports[index])), 4);
+            section.put(ordinals + 2 * index, index, 2);
+        }
+        const std::size_t library = section.text("fixture.dll");
+        section.put(exportTable + 12, rva(library), 4);
+        section.put(exportTable + 16, 1, 4);
+        section.put(exportTable + 20, count, 4);
+        section.put(exportTable + 24, count, 4);
+        section.put(exportTable + 28, rva(functions), 4);
+        section.put(exportTable + 32, rva(names), 4);
+        section.put(exportTable + 36, rva(ordinals), 4);
+    }
     const std::size_t used = section.size();
     section.align(0x200);
 
@@ -127,7 +149,7 @@ inline std::string buildPe(const PeLayout& layout)
     image.data()[0x41] = 'E';
     const std::size_t coff = 0x44;
     const std::size_t optionalSize = layout.wide ? 240 : 224;
-    image.put(coff, layout.wide ? 0x8664 : 0x014C, 2);
+    image.put(coff, layout.machine != 0 ? layout.machine : (layout.wide ? 0x8664 : 0x014C), 2);
     image.put(coff + 2, 1, 2);
     image.put(coff + 16, optionalSize, 2);
     image.put(coff + 18, 0x2022, 2);
@@ -147,6 +169,10 @@ inline std::string buildPe(const PeLayout& layout)
     image.put(optional + 68, 2, 2);
     image.put(optional + (layout.wide ? 108 : 92), 16, 4);
     const std::size_t directories = optional + (layout.wide ? 112 : 96);
+    if (!layout.exports.empty()) {
+        image.put(directories, rva(exportTable), 4);
+        image.put(directories + 4, 40, 4);
+    }
     if (!layout.imports.empty()) {
         image.put(directories + 8, rva(importTable), 4);
         image.put(directories + 12, 20 * (layout.imports.size() + 1), 4);

@@ -128,6 +128,7 @@ gs_add_unit_test(gs_ext_tests
         unit/ext/NativeCheckTests.cpp
         unit/ext/PeImage.h
         unit/ext/SchemaTests.cpp
+        unit/ext/SigningTests.cpp
     LIBRARIES
         gs::ext
         gs::miniz
@@ -487,6 +488,7 @@ if(GS_BUILD_APP)
             unit/app/WindowFitTests.cpp
             unit/app/ExtensionExportTests.cpp
             unit/app/ExtensionSecurityTests.cpp
+            unit/app/ExtensionLinksTests.cpp
             unit/ext/PeImage.h
             "${PROJECT_SOURCE_DIR}/src/app/AiAssistant.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/AiAssistant.h"
@@ -581,6 +583,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionBisect.h"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionHost.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionHost.h"
+            "${PROJECT_SOURCE_DIR}/src/app/ExtensionLinks.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/ExtensionLinks.h"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionLogic.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionLogic.h"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionModules.cpp"

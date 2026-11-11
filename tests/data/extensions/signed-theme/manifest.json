@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "gstest.signed-theme",
+  "version": "1.0.0",
+  "name": "Signed theme",
+  "description": "A theme that the tests sign with a key made on the spot.",
+  "license": "MIT",
+  "requires": {
+    "theme": "^1.0"
+  },
+  "contributes": {
+    "themes": [
+      {
+        "name": "Ember",
+        "dark": {
+          "accent": "#FF6B3D"
+        }
+      }
+    ]
+  }
+}

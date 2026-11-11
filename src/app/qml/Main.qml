@@ -61,7 +61,19 @@ Window {
     function confirmInstall(packageUrl: string) {
         installDialog.info = ExtensionHost.inspect(packageUrl)
         installDialog.packageUrl = packageUrl
+        installDialog.source = ""
         installDialog.open()
+    }
+
+    function confirmDownloaded(packageUrl: string, source: string) {
+        root.confirmInstall(packageUrl)
+        installDialog.source = source
+    }
+
+    function showExtension(id: string) {
+        rail.currentIndex = 3
+        if (!extensionsPage.reveal(id))
+            root.notify(qsTr("This extension is not installed"), "warn")
     }
 
     function confirmBundle(bundleUrl: string) {
@@ -331,9 +343,39 @@ Window {
     }
 
     Connections {
+        target: ExtensionLinks
+
+        function onExtensionWanted(id: string) {
+            root.showExtension(id)
+            root.bringForward()
+        }
+
+        function onPackageReady(fileUrl: string, source: string) {
+            linkToast.close()
+            rail.currentIndex = 3
+            root.confirmDownloaded(fileUrl, source)
+            root.bringForward()
+        }
+
+        function onFailed(message: string) {
+            linkToast.close()
+            root.notify(message, "bad")
+            root.bringForward()
+        }
+
+        function onDownloadChanged() {
+            if (ExtensionLinks.downloading && !linkToast.opened)
+                linkToast.open()
+            else if (!ExtensionLinks.downloading)
+                linkToast.close()
+        }
+    }
+
+    Connections {
         target: ExtensionHost
 
         function onInstallFinished(result: var) {
+            ExtensionLinks.release()
             if (result.ok === true) {
                 if (result.consentRequired === true)
                     root.notify(qsTr("Installed %1 %2. It needs more than before: turn it on in Extensions to allow it")
@@ -901,6 +943,20 @@ Window {
 
     Toast {
         id: toast
+    }
+
+    Toast {
+        id: linkToast
+
+        objectName: "linkDownload"
+        y: parent ? parent.height - height - Theme.space.xxl - (toast.visible ? toast.height + Theme.space.sm : 0) : 0
+        tone: "info"
+        text: ExtensionLinks.progress >= 0
+              ? qsTr("Downloading an extension from %1 · %2%").arg(ExtensionLinks.source)
+                                                              .arg(Math.round(ExtensionLinks.progress * 100))
+              : qsTr("Downloading an extension from %1…").arg(ExtensionLinks.source)
+        actionText: qsTr("Cancel")
+        onActionTriggered: ExtensionLinks.cancel()
     }
 
     Toast {

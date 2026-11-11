@@ -7,7 +7,9 @@
 
 #include <gs/ext/Archive.h>
 #include <gs/ext/Bundle.h>
+#include <gs/ext/Minisign.h>
 #include <gs/ext/NativeCheck.h>
+#include <gs/ext/Signing.h>
 
 #include <doctest/doctest.h>
 
@@ -368,20 +370,32 @@ TEST_CASE("a signed update shows its author key, and a new key or a lost signatu
 
     const QVariantMap rekeyed = host.inspect(textOf(second));
     INFO(codesOf(rekeyed));
-    CHECK(rekeyed.value(QStringLiteral("ok")).toBool());
+    CHECK_FALSE(rekeyed.value(QStringLiteral("ok")).toBool());
+    CHECK(codesOf(rekeyed).find("publisher-changed") != std::string::npos);
     const QVariantMap rekeyedSecurity = rekeyed.value(QStringLiteral("security")).toMap();
     CHECK(rekeyedSecurity.value(QStringLiteral("author")).toString() == QStringLiteral("valid"));
     CHECK(rekeyedSecurity.value(QStringLiteral("keyId")).toString() == QStringLiteral("1122334455667788"));
     CHECK(rekeyedSecurity.value(QStringLiteral("keyChanged")).toBool());
     CHECK(rekeyedSecurity.value(QStringLiteral("previousKeyId")).toString() == QStringLiteral("C1D2E3F4A5B60718"));
-    CHECK(rekeyedSecurity.value(QStringLiteral("warnings")).toStringList().size() == 1);
+    CHECK(rekeyedSecurity.value(QStringLiteral("warnings")).toStringList().isEmpty());
+    const QVariantMap rekeyedPublisher = rekeyed.value(QStringLiteral("publisher")).toMap();
+    CHECK(rekeyedPublisher.value(QStringLiteral("state")).toString() == QStringLiteral("changed"));
+    CHECK(rekeyedPublisher.value(QStringLiteral("previousKeyId")).toString() == QStringLiteral("C1D2E3F4A5B60718"));
+    const gs::ext::InstalledExtension refusedUpdate = host.install(second);
+    CHECK_FALSE(refusedUpdate.ok());
+    CHECK(reports(refusedUpdate.diagnostics, gs::ext::Code::PublisherChanged));
+    CHECK_FALSE(fs::exists(fixture.user / "alice.signed/2.0.0"));
 
     const QVariantMap stripped = host.inspect(textOf(unsignedUpdate));
     INFO(codesOf(stripped));
-    CHECK(stripped.value(QStringLiteral("ok")).toBool());
+    CHECK_FALSE(stripped.value(QStringLiteral("ok")).toBool());
+    CHECK(codesOf(stripped).find("signature-missing") != std::string::npos);
     const QVariantMap strippedSecurity = stripped.value(QStringLiteral("security")).toMap();
     CHECK(strippedSecurity.value(QStringLiteral("author")).toString() == QStringLiteral("unsigned"));
     CHECK(strippedSecurity.value(QStringLiteral("keyChanged")).toBool());
+    CHECK(stripped.value(QStringLiteral("publisher")).toMap().value(QStringLiteral("state")).toString() ==
+          QStringLiteral("unsigned"));
+    CHECK_FALSE(host.install(unsignedUpdate).ok());
 
     const fs::path tampered = fixture.scratch / "signed-tampered";
     writeFile(tampered / "manifest.json", kSecondManifest);
@@ -393,6 +407,7 @@ TEST_CASE("a signed update shows its author key, and a new key or a lost signatu
     REQUIRE(gs::ext::packDirectory(tampered, forged).empty());
     const QVariantMap broken = host.inspect(textOf(forged));
     CHECK_FALSE(broken.value(QStringLiteral("ok")).toBool());
+    CHECK(codesOf(broken).find("signature-invalid") == std::string::npos);
     const QVariantMap brokenSecurity = broken.value(QStringLiteral("security")).toMap();
     CHECK(brokenSecurity.value(QStringLiteral("author")).toString() == QStringLiteral("invalid"));
     CHECK(brokenSecurity.value(QStringLiteral("refused")).toBool());
@@ -447,4 +462,168 @@ TEST_CASE("the Windows scan of a harmless buffer finds nothing or is not availab
 {
     const ScanVerdict result = gs::app::scanWithAmsi("GameScrcpy test text", "note.txt");
     CHECK((result == ScanVerdict::Clean || result == ScanVerdict::Unavailable));
+}
+
+namespace {
+
+gs::ext::MinisignSecretKey testKey(std::uint8_t number)
+{
+    gs::ext::Ed25519Seed seed{};
+    seed.fill(number);
+    gs::ext::MinisignKeyId id{};
+    id.fill(number);
+    return gs::ext::makeMinisignKey(seed, id);
+}
+
+std::string themeManifest(std::string_view id, std::string_view version, std::string_view more)
+{
+    return R"({"schemaVersion": 1, "id": ")" + std::string(id) + R"(", "version": ")" + std::string(version) +
+           R"(", "name": "Theme", "license": "MIT", "requires": {"theme": "^1.0"},
+               "contributes": {"themes": [{"name": "Ember", "dark": {"accent": "#FF6B3D"}}]})" +
+           std::string(more) + "}";
+}
+
+fs::path themePackage(const Fixture& fixture, std::string_view stem, const std::string& manifestText,
+                      const gs::ext::MinisignSecretKey* key)
+{
+    const fs::path folder = fixture.scratch / ("theme-" + std::string(stem));
+    writeFile(folder / "manifest.json", manifestText);
+    const fs::path archive = fixture.scratch / (std::string(stem) + ".gsext");
+    const std::vector<gs::ext::Diagnostic> problems =
+        key != nullptr ? gs::ext::packSigned(folder, archive, *key, "test") : gs::ext::packDirectory(folder, archive);
+    INFO(listed(problems));
+    REQUIRE(problems.empty());
+    return archive;
+}
+
+QVariantMap entryOf(const ExtensionHost& host, const QString& id)
+{
+    const QVariantList entries = host.entries();
+    for (const QVariant& entry : entries) {
+        if (entry.toMap().value(QStringLiteral("id")).toString() == id) {
+            return entry.toMap();
+        }
+    }
+    return {};
+}
+
+}
+
+TEST_CASE("ADR-0112: the Extensions page names the verified publisher with its key, or says an extension is "
+          "unsigned, and removing it forgets the key")
+{
+    const Fixture fixture;
+    const gs::ext::MinisignSecretKey key = testKey(0x21);
+    const gs::ext::MinisignKey publicKey = gs::ext::minisignPublicKey(key);
+    const QString keyId = QString::fromStdString(gs::ext::minisignKeyId(publicKey));
+    const std::string authorKey = R"(, "authors": ["Alice"], "authorKey": ")" + gs::ext::minisignKeyText(publicKey) + "\"";
+    const fs::path signedTheme =
+        themePackage(fixture, "signed", themeManifest("alice.ember", "1.0.0", authorKey), &key);
+    const fs::path plainTheme = themePackage(fixture, "plain", themeManifest("bob.plain", "1.0.0", {}), nullptr);
+    AppSettings settings(fixture.data);
+    ExtensionHost host(settings, {fixture.user, {}});
+    host.start(false);
+
+    const QVariantMap offered = host.inspect(textOf(signedTheme));
+    INFO(codesOf(offered));
+    CHECK(offered.value(QStringLiteral("ok")).toBool());
+    CHECK_FALSE(offered.contains(QStringLiteral("security")));
+    const QVariantMap offeredPublisher = offered.value(QStringLiteral("publisher")).toMap();
+    CHECK(offeredPublisher.value(QStringLiteral("state")).toString() == QStringLiteral("verified"));
+    CHECK(offeredPublisher.value(QStringLiteral("keyId")).toString() == keyId);
+    CHECK(offeredPublisher.value(QStringLiteral("text")).toString() ==
+          QStringLiteral("Verified publisher: Alice \u00B7 ") + keyId);
+
+    REQUIRE(host.install(signedTheme).ok());
+    REQUIRE(host.install(plainTheme).ok());
+    CHECK(fs::exists(fixture.user / ".publishers/alice.ember.pub"));
+    const QVariantMap signedEntry = entryOf(host, QStringLiteral("alice.ember"));
+    REQUIRE_FALSE(signedEntry.isEmpty());
+    const QVariantMap publisher = signedEntry.value(QStringLiteral("publisher")).toMap();
+    CHECK(publisher.value(QStringLiteral("state")).toString() == QStringLiteral("verified"));
+    CHECK(publisher.value(QStringLiteral("keyId")).toString() == keyId);
+    CHECK(publisher.value(QStringLiteral("text")).toString() ==
+          QStringLiteral("Verified publisher: Alice \u00B7 ") + keyId);
+    const QVariantMap plainEntry = entryOf(host, QStringLiteral("bob.plain"));
+    REQUIRE_FALSE(plainEntry.isEmpty());
+    CHECK(plainEntry.value(QStringLiteral("publisher")).toMap().value(QStringLiteral("state")).toString() ==
+          QStringLiteral("unsigned"));
+    CHECK(plainEntry.value(QStringLiteral("publisher")).toMap().value(QStringLiteral("text")).toString() ==
+          QStringLiteral("Unsigned"));
+
+    const gs::ext::MinisignSecretKey other = testKey(0x22);
+    const std::string otherKey =
+        R"(, "authors": ["Alice"], "authorKey": ")" + gs::ext::minisignKeyText(gs::ext::minisignPublicKey(other)) + "\"";
+    const fs::path rekeyed = themePackage(fixture, "rekeyed", themeManifest("alice.ember", "1.1.0", otherKey), &other);
+    const QVariantMap refused = host.inspect(textOf(rekeyed));
+    CHECK_FALSE(refused.value(QStringLiteral("ok")).toBool());
+    CHECK(codesOf(refused).find("publisher-changed") != std::string::npos);
+    CHECK_FALSE(host.install(rekeyed).ok());
+
+    REQUIRE(host.remove(QStringLiteral("alice.ember"), QStringLiteral("1.0.0")));
+    CHECK_FALSE(fs::exists(fixture.user / ".publishers/alice.ember.pub"));
+    CHECK(host.inspect(textOf(rekeyed)).value(QStringLiteral("ok")).toBool());
+    REQUIRE(host.install(rekeyed).ok());
+    CHECK(entryOf(host, QStringLiteral("alice.ember"))
+              .value(QStringLiteral("publisher"))
+              .toMap()
+              .value(QStringLiteral("keyId"))
+              .toString() == QString::fromStdString(gs::ext::minisignKeyId(gs::ext::minisignPublicKey(other))));
+}
+
+TEST_CASE("ADR-0112: a native extension with no DLL for this processor is refused when installed and held back when "
+          "found installed")
+{
+    const Fixture fixture;
+    const bool armHost = gs::ext::hostArchitecture() == "arm64";
+    const std::string elsewhere = armHost ? "x64" : "arm64";
+    const std::uint16_t machine = armHost ? gs::ext::kMachineX64 : gs::ext::kMachineArm64;
+    std::string manifestText = nativeManifest("alice.elsewhere");
+    const std::string_view plainDll = "\"bin/helper.dll\"";
+    manifestText.replace(manifestText.find(plainDll), plainDll.size(), "{\"" + elsewhere + "\": \"bin/helper.dll\"}");
+    const fs::path archive =
+        fixture.pack("elsewhere", manifestText, {.imports = {{"kernel32.dll", {"GetTickCount"}}}, .machine = machine});
+    {
+        AppSettings settings(fixture.data);
+        ExtensionHost host(settings, {fixture.user, {}});
+        host.setScanner(verdict(ScanVerdict::Clean));
+        host.start(false);
+
+        const QVariantMap info = host.inspect(textOf(archive));
+        INFO(codesOf(info));
+        CHECK_FALSE(info.value(QStringLiteral("ok")).toBool());
+        CHECK(codesOf(info).find("native-refused") != std::string::npos);
+        const QVariantMap security = info.value(QStringLiteral("security")).toMap();
+        CHECK(security.value(QStringLiteral("refused")).toBool());
+        const std::string_view here = gs::ext::hostArchitecture();
+        CHECK(security.value(QStringLiteral("detail")).toString() ==
+              QStringLiteral("no DLL for ") + QString::fromUtf8(here.data(), static_cast<qsizetype>(here.size())));
+        CHECK(security.value(QStringLiteral("reason")).toString() ==
+              QStringLiteral("This extension has no version for this computer."));
+        CHECK_FALSE(host.install(archive).ok());
+        CHECK_FALSE(fs::exists(fixture.user / "alice.elsewhere"));
+    }
+
+    const fs::path installed = fixture.user / "alice.elsewhere/1.0.0";
+    writeFile(installed / "manifest.json", manifestText);
+    writeFile(installed / "bin/helper.dll", buildPe({.machine = machine}));
+    AppSettings settings(fixture.data);
+    ExtensionHost found(settings, {fixture.user, {}});
+    found.start(false);
+    const QVariantMap entry = entryOf(found, QStringLiteral("alice.elsewhere"));
+    REQUIRE_FALSE(entry.isEmpty());
+    bool missing = false;
+    for (const QVariant& problem : entry.value(QStringLiteral("problems")).toList()) {
+        const QVariantMap map = problem.toMap();
+        if (map.value(QStringLiteral("code")).toString() == QStringLiteral("native-architecture-missing")) {
+            missing = true;
+            CHECK(map.value(QStringLiteral("severity")).toString() == QStringLiteral("error"));
+            CHECK(map.value(QStringLiteral("hint")).toString() ==
+                  QStringLiteral("This extension has no version for this computer."));
+        }
+    }
+    CHECK(missing);
+    CHECK(entry.value(QStringLiteral("native")).toMap().value(QStringLiteral("architectures")).toStringList() ==
+          QStringList{QString::fromStdString(elsewhere)});
+    CHECK_FALSE(entry.value(QStringLiteral("active")).toBool());
 }

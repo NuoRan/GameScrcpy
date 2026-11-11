@@ -2,6 +2,7 @@
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -50,6 +51,11 @@ constexpr std::array<RfcVector, 3> kRfcVectors{{
      "dc027beceea1ec40a"},
 }};
 
+constexpr std::array<std::string_view, 3> kRfcSeeds{
+    "9d61b19deffd5a60ba844af492ec2cc44449c5697b326919703bac031cae7f60",
+    "4ccd089b28ff96da9db6c346ec114e0f5b8a319f35aba624da8cf6ed4fb8a6fb",
+    "c5aa8df43f9f837bedb7442f31dcb7b166d38535076f094b85ce3a2e0b4458f7"};
+
 int nibble(char c)
 {
     if (c >= '0' && c <= '9') {
@@ -78,7 +84,8 @@ std::array<std::uint8_t, N> arrayOf(std::string_view text)
     return out;
 }
 
-std::string hexOf(const Digest512& digest)
+template <std::size_t N>
+std::string hexOf(const std::array<std::uint8_t, N>& digest)
 {
     constexpr std::string_view kDigits = "0123456789abcdef";
     std::string text;
@@ -87,6 +94,42 @@ std::string hexOf(const Digest512& digest)
         text.push_back(kDigits[byte & 0x0f]);
     }
     return text;
+}
+
+template <std::size_t N>
+std::string bytesOf(const std::array<std::uint8_t, N>& bytes)
+{
+    return std::string(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+}
+
+std::string base64(std::string_view bytes)
+{
+    constexpr std::string_view kDigits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string out;
+    for (std::size_t i = 0; i < bytes.size(); i += 3) {
+        const std::size_t count = std::min<std::size_t>(3, bytes.size() - i);
+        std::uint32_t group = 0;
+        for (std::size_t k = 0; k < 3; ++k) {
+            group = (group << 8) | (k < count ? static_cast<std::uint8_t>(bytes[i + k]) : 0U);
+        }
+        out.push_back(kDigits[(group >> 18) & 63U]);
+        out.push_back(kDigits[(group >> 12) & 63U]);
+        out.push_back(count > 1 ? kDigits[(group >> 6) & 63U] : '=');
+        out.push_back(count > 2 ? kDigits[group & 63U] : '=');
+    }
+    return out;
+}
+
+std::string secretBlock(const MinisignSecretKey& key, std::string_view kdf)
+{
+    std::string head = "Ed" + bytesOf(key.id) + bytesOf(key.seed) + bytesOf(key.publicKey);
+    std::string block = "Ed";
+    block.append(kdf);
+    block.append("B2");
+    block.append(48, '\0');
+    block.append(head.substr(2));
+    block.append(bytesOf(blake2b256(head)));
+    return block;
 }
 
 std::string replaced(std::string_view text, std::string_view from, std::string_view to)
@@ -190,4 +233,108 @@ TEST_CASE("minisign tells another key, a changed message, a changed trusted comm
     CHECK_FALSE(parseMinisignKey("RWQYB7al9OPSwU7aritYZ3nmUlPQk5fh7N4Izs3H4UUtma8A/RO4rFB").has_value());
     CHECK_FALSE(parseMinisignKey("RUQYB7al9OPSwU7aritYZ3nmUlPQk5fh7N4Izs3H4UUtma8A/RO4rFBZ").has_value());
     CHECK_FALSE(parseMinisignKey(std::string(kAuthorKey) + "\n").has_value());
+}
+
+TEST_CASE("ADR-0112: BLAKE2b-256 gives the published digests, also across a block boundary")
+{
+    CHECK(hexOf(blake2b256("")) == "0e5751c026e543b2e8ab2eb06099daa1d1e5df47778f7787faab45cdf12fe3a8");
+    CHECK(hexOf(blake2b256("abc")) == "bddd813c634239723171ef3fee98579b94964e3bb1cb3e427262c8c068d52319");
+    CHECK(hexOf(blake2b256(std::string(200, 'a'))) ==
+          "6b6e59aaf00eb730cf93de53560846722184bbd92f8368c21ffa95380c2f9fe6");
+}
+
+TEST_CASE("ADR-0112: Ed25519 makes the RFC 8032 public keys and signatures from their secret seeds")
+{
+    for (std::size_t index = 0; index < kRfcVectors.size(); ++index) {
+        const RfcVector& vector = kRfcVectors[index];
+        CAPTURE(vector.message);
+        const Ed25519Seed seed = arrayOf<32>(kRfcSeeds[index]);
+        CHECK(ed25519PublicKey(seed) == arrayOf<32>(vector.publicKey));
+        const Ed25519Signature signature = signEd25519(unhex(vector.message), seed);
+        CHECK(signature == arrayOf<64>(vector.signature));
+        CHECK(verifyEd25519(unhex(vector.message), signature, ed25519PublicKey(seed)));
+    }
+    const Ed25519Seed seed = arrayOf<32>(kRfcSeeds[1]);
+    const std::string message(1000, 'x');
+    CHECK(verifyEd25519(message, signEd25519(message, seed), ed25519PublicKey(seed)));
+    CHECK_FALSE(verifyEd25519(message + "y", signEd25519(message, seed), ed25519PublicKey(seed)));
+}
+
+TEST_CASE("ADR-0112: a minisign key made here signs what minisign verifies, and its files read back")
+{
+    const MinisignSecretKey key = makeMinisignKey(arrayOf<32>(kRfcSeeds[0]), MinisignKeyId{1, 2, 3, 4, 5, 6, 7, 8});
+    const MinisignKey publicKey = minisignPublicKey(key);
+    CHECK(publicKey.publicKey == arrayOf<32>(kRfcVectors[0].publicKey));
+    CHECK(minisignKeyId(publicKey) == "0807060504030201");
+    const std::string text = minisignKeyText(publicKey);
+    CHECK(text.size() == 56);
+    CHECK(text.starts_with("RW"));
+    CHECK(parseMinisignKey(text) == publicKey);
+    CHECK(minisignPublicKeyFile(publicKey) ==
+          "untrusted comment: minisign public key 0807060504030201\n" + text + "\n");
+
+    const std::string signature = signMinisign(kMessage, key, "file:message.txt\thashed");
+    CHECK(signature.starts_with("untrusted comment: "));
+    CHECK(signature.find("\nRUQ") != std::string::npos);
+    CHECK(signature.find("\ntrusted comment: file:message.txt\thashed\n") != std::string::npos);
+    CHECK(verifyMinisign(kMessage, signature, publicKey) == MinisignResult::Valid);
+    CHECK(verifyMinisign("another message", signature, publicKey) == MinisignResult::BadSignature);
+    CHECK(verifyMinisign(kMessage, signature, *parseMinisignKey(kAuthorKey)) == MinisignResult::OtherKey);
+    CHECK(signMinisign(kMessage, key, "two\nlines").find("trusted comment: two lines\n") != std::string::npos);
+    CHECK(signMinisign(kMessage, key, "same") == signMinisign(kMessage, key, "same"));
+
+    const std::string secretFile = minisignSecretKeyFile(key);
+    CHECK(secretFile.starts_with("untrusted comment: "));
+    CHECK(secretFile.ends_with("\n" + base64(secretBlock(key, std::string_view("\0\0", 2))) + "\n"));
+    const LoadedSecretKey loaded = parseMinisignSecretKey(secretFile);
+    REQUIRE(loaded.state == SecretKeyState::Valid);
+    CHECK(loaded.key.id == key.id);
+    CHECK(loaded.key.seed == key.seed);
+    CHECK(loaded.key.publicKey == key.publicKey);
+    std::string crlf;
+    for (const char c : secretFile) {
+        if (c == '\n') {
+            crlf += '\r';
+        }
+        crlf += c;
+    }
+    CHECK(parseMinisignSecretKey(crlf).state == SecretKeyState::Valid);
+}
+
+TEST_CASE("ADR-0112: a secret key with a password, a damaged checksum or another shape is not used")
+{
+    const MinisignSecretKey key = makeMinisignKey(arrayOf<32>(kRfcSeeds[2]), MinisignKeyId{9, 9, 9, 9, 9, 9, 9, 9});
+    const std::string plain = secretBlock(key, std::string_view("\0\0", 2));
+    CHECK(parseMinisignSecretKey("untrusted comment: key\n" + base64(plain) + "\n").state == SecretKeyState::Valid);
+    CHECK(parseMinisignSecretKey("untrusted comment: key\n" + base64(secretBlock(key, "Sc")) + "\n").state ==
+          SecretKeyState::Encrypted);
+    std::string damaged = plain;
+    damaged.back() = static_cast<char>(damaged.back() ^ 0x01);
+    CHECK(parseMinisignSecretKey("untrusted comment: key\n" + base64(damaged) + "\n").state == SecretKeyState::Damaged);
+    MinisignSecretKey swapped = key;
+    swapped.publicKey[0] = static_cast<std::uint8_t>(swapped.publicKey[0] ^ 0x01);
+    CHECK(parseMinisignSecretKey("untrusted comment: key\n" + base64(secretBlock(swapped, std::string_view("\0\0", 2))) +
+                                 "\n")
+              .state == SecretKeyState::Damaged);
+    CHECK(parseMinisignSecretKey("untrusted comment: key\n" + base64(secretBlock(key, "Xx")) + "\n").state ==
+          SecretKeyState::Malformed);
+    CHECK(parseMinisignSecretKey("untrusted comment: key\n" + base64(plain.substr(0, 157)) + "\n").state ==
+          SecretKeyState::Malformed);
+    CHECK(parseMinisignSecretKey(base64(plain)).state == SecretKeyState::Malformed);
+    CHECK(parseMinisignSecretKey("untrusted comment: key\n" + std::string(kAuthorKey) + "\n").state ==
+          SecretKeyState::Malformed);
+    CHECK(parseMinisignSecretKey("").state == SecretKeyState::Malformed);
+}
+
+TEST_CASE("ADR-0112: generated keys are new each time and sign")
+{
+    const MinisignSecretKey first = generateMinisignKey();
+    const MinisignSecretKey second = generateMinisignKey();
+    CHECK(first.seed != second.seed);
+    CHECK(first.id != second.id);
+    CHECK(ed25519PublicKey(first.seed) == first.publicKey);
+    CHECK(verifyMinisign("signed", signMinisign("signed", first, "test"), minisignPublicKey(first)) ==
+          MinisignResult::Valid);
+    CHECK(verifyMinisign("signed", signMinisign("signed", first, "test"), minisignPublicKey(second)) ==
+          MinisignResult::OtherKey);
 }

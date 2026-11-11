@@ -860,6 +860,40 @@ Item {
                         owner: "mine"
                     }
                 }
+
+                SettingCard {
+                    objectName: "linksCard"
+                    title: qsTr("Extension links")
+                    iconName: "link"
+                    tone: "azure"
+                    visible: ExtensionLinks.portable && !SettingsCatalog.searching && SettingsCatalog.device === ""
+
+                    SettingsRow {
+                        objectName: "linksRow"
+                        width: parent ? parent.width : implicitWidth
+                        title: qsTr("Open gamescrcpy:// links with this copy")
+                        note: ExtensionLinks.registration === "this"
+                              ? qsTr("Links on web pages that install or show extensions open in this copy.")
+                              : ExtensionLinks.registration === "other"
+                                ? qsTr("Another copy of GameScrcpy opens these links now.")
+                                : qsTr("Web pages can offer extensions through gamescrcpy:// links. This portable copy "
+                                       + "opens them once you register it.")
+
+                        Button {
+                            objectName: "registerLinks"
+                            small: true
+                            iconName: "link"
+                            text: ExtensionLinks.registration === "this" ? qsTr("Remove gamescrcpy:// links")
+                                                                         : qsTr("Register gamescrcpy:// links")
+                            onClicked: {
+                                if (ExtensionLinks.registration === "this")
+                                    ExtensionLinks.unregisterLinks()
+                                else
+                                    ExtensionLinks.registerLinks()
+                            }
+                        }
+                    }
+                }
             }
 
             Section {

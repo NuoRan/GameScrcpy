@@ -558,7 +558,13 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
     entry->wanted = wanted;
     entry->loadNumber = ++g_lastLoadNumber;
     const std::string where = "$[\"" + wanted.id + "\"].contributes.native";
-    const std::filesystem::path dll = wanted.directory / pathOf(wanted.native.dll);
+    const std::string chosen = ext::nativeDllFor(wanted.native, ext::hostArchitecture());
+    if (chosen.empty()) {
+        entry->problems.push_back({ext::Severity::Error, ext::Code::NativeArchitectureMissing, where + ".dll",
+                                   std::string(ext::hostArchitecture())});
+        return entry;
+    }
+    const std::filesystem::path dll = wanted.directory / pathOf(chosen);
     const std::filesystem::path store =
         m_options.storeRoot.empty() ? std::filesystem::path() : m_options.storeRoot / pathOf(wanted.id + ".json");
     std::string problem;

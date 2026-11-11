@@ -1,5 +1,5 @@
 add_executable(gs_cli main.cpp McpRelay.cpp McpRelay.h ScriptProject.cpp ScriptProject.h ScriptRun.cpp ScriptTools.cpp
-                      ScriptTools.h)
+                      ScriptTools.h KeyTools.cpp KeyTools.h)
 set_target_properties(gs_cli PROPERTIES OUTPUT_NAME gs)
 target_link_libraries(gs_cli PRIVATE gs::base gs::ext gs::input gs::platform gs::record gs::script gs::tsstrip gs::nlohmann_json d3dcompiler)
 gs_apply_compiler_policy(gs_cli)
@@ -241,4 +241,24 @@ if(GS_BUILD_TESTS)
         gs_cli_validate_bundle gs_cli_validate_bundle_json gs_cli_validate_bundle_missing_index
         gs_cli_validate_bundle_missing_index_exit gs_cli_validate_bundle_mismatch gs_cli_validate_bundle_mismatch_exit
         PROPERTIES FIXTURES_REQUIRED gs_cli_bundles)
+
+    set(gs_cli_keys "${CMAKE_CURRENT_BINARY_DIR}/keys")
+    add_test(NAME gs_cli_keygen_clean COMMAND "${CMAKE_COMMAND}" -E rm -rf "${gs_cli_keys}")
+    set_tests_properties(gs_cli_keygen_clean PROPERTIES FIXTURES_SETUP gs_cli_keys_clean)
+    add_test(NAME gs_cli_keygen COMMAND gs_cli ext keygen "${gs_cli_keys}/author.key")
+    set_tests_properties(gs_cli_keygen PROPERTIES PASS_REGULAR_EXPRESSION
+                                                  "\"authorKey\": \"RW[A-Za-z0-9+/]+\""
+                                                  FIXTURES_REQUIRED gs_cli_keys_clean
+                                                  FIXTURES_SETUP gs_cli_keys)
+    add_test(NAME gs_cli_keygen_kept COMMAND gs_cli ext keygen "${gs_cli_keys}/author.key")
+    set_tests_properties(gs_cli_keygen_kept PROPERTIES WILL_FAIL TRUE FIXTURES_REQUIRED gs_cli_keys)
+    add_test(NAME gs_cli_keygen_usage COMMAND gs_cli ext keygen)
+    set_tests_properties(gs_cli_keygen_usage PROPERTIES PASS_REGULAR_EXPRESSION "usage: gs ext keygen")
+    add_test(NAME gs_cli_sign_package
+             COMMAND "${CMAKE_COMMAND}" "-DGS=$<TARGET_FILE:gs_cli>" "-DSOURCE=${gs_cli_test_data}/signed-theme"
+                     "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/signed-pack" -P "${PROJECT_SOURCE_DIR}/cmake/SignedPackCheck.cmake")
+    add_test(NAME gs_cli_validate_architectures
+             COMMAND "${CMAKE_COMMAND}" "-DGS=$<TARGET_FILE:gs_cli>" "-DDLL=$<TARGET_FILE:gs_ext_pc_clock>"
+                     "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/architectures"
+                     -P "${PROJECT_SOURCE_DIR}/cmake/NativeArchitecturesCheck.cmake")
 endif()

@@ -86,6 +86,7 @@ public:
         bool builtin = false;
         bool active = false;
         bool superseded = false;
+        ext::SignatureCheck signature;
 
         [[nodiscard]] bool usable() const noexcept
         {
@@ -289,6 +290,7 @@ private:
         QString name;
     };
     std::map<std::string, Announced, std::less<>> m_announced;
+    std::map<std::string, ext::MinisignKey, std::less<>> m_publishers;
     std::jthread m_installer;
 };
 

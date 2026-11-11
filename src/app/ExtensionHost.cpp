@@ -14,6 +14,7 @@
 #include <gs/ext/Archive.h>
 #include <gs/ext/Bundle.h>
 #include <gs/ext/Resolution.h>
+#include <gs/ext/Signing.h>
 #include <gs/input/Profile.h>
 #include <gs/input/ProfilePatch.h>
 #include <gs/platform/AtomicFile.h>
@@ -358,6 +359,25 @@ QVariantMap supersededProblem(const ext::Version& version)
                        ExtensionHost::tr("The same version is built in, so this copy is not used. You can remove it."));
 }
 
+QString hintOf(ext::Code code)
+{
+    switch (code) {
+    case ext::Code::NativeArchitectureMissing:
+        return ExtensionHost::tr("This extension has no version for this computer.");
+    case ext::Code::SignatureInvalid:
+        return ExtensionHost::tr("Its author signature does not match its files: it was changed after it was signed.");
+    case ext::Code::SignatureMissing:
+        return ExtensionHost::tr("The installed version is signed by its author, but this one is not. Install "
+                                 "updates only as its author publishes them.");
+    case ext::Code::PublisherChanged:
+        return ExtensionHost::tr("This update is signed with a different key than the installed version. To accept "
+                                 "the new key, remove the extension and install this package again.");
+    default:
+        break;
+    }
+    return toQString(ext::fixHint(code));
+}
+
 QVariantList problemList(const std::vector<ext::Diagnostic>& diagnostics)
 {
     constexpr std::size_t kMostListed = 100;
@@ -376,7 +396,7 @@ QVariantList problemList(const std::vector<ext::Diagnostic>& diagnostics)
                                 {QStringLiteral("code"), toQString(ext::codeName(diagnostic.code))},
                                 {QStringLiteral("path"), QString::fromStdString(diagnostic.path)},
                                 {QStringLiteral("detail"), QString::fromStdString(diagnostic.detail)},
-                                {QStringLiteral("hint"), toQString(ext::fixHint(diagnostic.code))}});
+                                {QStringLiteral("hint"), hintOf(diagnostic.code)}});
     }
     return list;
 }
@@ -595,6 +615,8 @@ QString refusalText(ext::NativeRefusal refusal)
         return ExtensionHost::tr("Its author signature does not match its files: it was changed after it was signed.");
     case ext::NativeRefusal::Unreadable:
         return ExtensionHost::tr("Its code cannot be read, so it cannot be checked.");
+    case ext::NativeRefusal::Architecture:
+        return ExtensionHost::tr("This extension has no version for this computer.");
     }
     return {};
 }
@@ -633,10 +655,6 @@ QVariantMap securityMap(const ext::NativeCheck& check, const std::optional<ext::
     for (const ext::Capability capability : check.uncovered) {
         warnings.append(mismatchText(capability));
     }
-    if (changed) {
-        warnings.append(ExtensionHost::tr("It is not signed with the key of the installed version. Install it only if "
-                                          "you know why the author changed the key."));
-    }
     QStringList files;
     for (const ext::NativeFile& file : check.files) {
         files.append(QString::fromStdString(file.path));
@@ -658,6 +676,44 @@ QVariantMap securityMap(const ext::NativeCheck& check, const std::optional<ext::
             {QStringLiteral("refused"), check.refused()},
             {QStringLiteral("reason"), refusalText(check.refusal)},
             {QStringLiteral("detail"), QString::fromStdString(check.detail)}};
+}
+
+QString authorsOf(const ext::Manifest& manifest, const QString& language)
+{
+    QStringList authors;
+    for (const std::string& author : manifest.authors) {
+        authors.append(QString::fromStdString(author));
+    }
+    return authors.isEmpty() ? extensionText(manifest, "name", manifest.name, language)
+                             : authors.join(ExtensionHost::tr(", ", "list separator"));
+}
+
+QVariantMap publisherMap(const ext::SignatureCheck& signature, const std::optional<ext::MinisignKey>& remembered,
+                         const QString& author)
+{
+    const bool valid = signature.state == ext::SignatureState::Valid && signature.key.has_value();
+    const bool same = valid && (!remembered || *remembered == *signature.key);
+    const QString keyId = valid ? QString::fromStdString(ext::minisignKeyId(*signature.key)) : QString();
+    QString state;
+    QString text;
+    if (signature.state == ext::SignatureState::Unsigned) {
+        state = QStringLiteral("unsigned");
+        text = ExtensionHost::tr("Unsigned");
+    } else if (same) {
+        state = QStringLiteral("verified");
+        text = ExtensionHost::tr("Verified publisher: %1 · %2").arg(author, keyId);
+    } else if (valid) {
+        state = QStringLiteral("changed");
+        text = ExtensionHost::tr("Signed with a different key than before");
+    } else {
+        state = QStringLiteral("invalid");
+        text = ExtensionHost::tr("Its signature does not match its files");
+    }
+    return {{QStringLiteral("state"), state},
+            {QStringLiteral("keyId"), keyId},
+            {QStringLiteral("previousKeyId"),
+             remembered && !same ? QString::fromStdString(ext::minisignKeyId(*remembered)) : QString()},
+            {QStringLiteral("text"), text}};
 }
 
 fs::path profileFolderOf(const fs::path& directory, const std::string& file)
@@ -1175,6 +1231,14 @@ QVariantList ExtensionHost::entries() const
             row.insert(QStringLiteral("enabled"), !extension->superseded && state != states.end() &&
                                                       state->second.enabled && consented(manifest));
             row.insert(QStringLiteral("health"), healthOf(*m_health, manifest.id));
+            if (!extension->builtin) {
+                const auto remembered = m_publishers.find(manifest.id);
+                row.insert(QStringLiteral("publisher"),
+                           publisherMap(extension->signature,
+                                        remembered != m_publishers.end() ? std::optional(remembered->second)
+                                                                         : std::nullopt,
+                                        authorsOf(manifest, language)));
+            }
             if (std::ranges::find(manifest.permissions, std::string_view("network.listen"), &ext::Permission::name) !=
                 manifest.permissions.end()) {
                 row.insert(QStringLiteral("localConnections"),
@@ -1212,6 +1276,12 @@ QVariantList ExtensionHost::entries() const
                     inputSources.append(
                         extensionText(manifest, "inputSources." + source.name + ".title", source.title, language));
                 }
+                QStringList architectures;
+                for (const auto& listed : ext::nativeDlls(*manifest.contributes.native)) {
+                    if (!listed.first.empty()) {
+                        architectures.append(QString::fromStdString(listed.first));
+                    }
+                }
                 row.insert(QStringLiteral("native"),
                            QVariantMap{{QStringLiteral("touchMethods"), methods},
                                        {QStringLiteral("nodes"), nodes},
@@ -1220,7 +1290,8 @@ QVariantList ExtensionHost::entries() const
                                        {QStringLiteral("speechEngines"), speechEngines},
                                        {QStringLiteral("inputSources"), inputSources},
                                        {QStringLiteral("ownProcess"),
-                                        !(extension->builtin && manifest.id.starts_with(ext::kReservedIdPrefix))}});
+                                        !(extension->builtin && manifest.id.starts_with(ext::kReservedIdPrefix))},
+                                       {QStringLiteral("architectures"), architectures}});
             }
         } else {
             const QString id = QString::fromStdWString(extension->directory.parent_path().filename().wstring());
@@ -1513,13 +1584,25 @@ QVariantMap ExtensionHost::inspect(const QString& fileOrUrl) const
     bool refused = false;
     if (check.manifest) {
         const ext::PackageContents contents = ext::archiveContents(*package);
+        std::optional<ext::NativeCheck> native;
         if (ext::hasNativeCode(contents, *check.manifest)) {
-            const ext::NativeCheck native = ext::checkNative(contents, *check.manifest, m_scanner);
-            result.insert(QStringLiteral("security"), securityMap(native, installedSignature(check.manifest->id)));
-            if (native.refused()) {
+            native = ext::checkNative(contents, *check.manifest, m_scanner);
+            result.insert(QStringLiteral("security"), securityMap(*native, installedSignature(check.manifest->id)));
+            if (native->refused()) {
                 refused = true;
-                problems.prepend(refusedProblem(native.refusal, native.detail));
+                problems.prepend(refusedProblem(native->refusal, native->detail));
             }
+        }
+        const ext::SignatureCheck signature =
+            native ? native->signature : ext::checkSignature(contents, check.manifest->authorKey);
+        const std::optional<ext::MinisignKey> remembered =
+            m_roots.user.empty() ? std::nullopt : ext::publisherOf(m_roots.user, check.manifest->id);
+        result.insert(QStringLiteral("publisher"),
+                      publisherMap(signature, remembered, authorsOf(*check.manifest, language)));
+        const std::optional<ext::Diagnostic> publisher = ext::publisherProblem(remembered, signature);
+        if (publisher && !(native && native->refusal == ext::NativeRefusal::BadSignature)) {
+            refused = true;
+            problems.prepend(problemList({*publisher}).constFirst());
         }
     }
     result.insert(QStringLiteral("ok"), check.ok() && !builtin && !refused);
@@ -1674,6 +1757,7 @@ QVariantMap ExtensionHost::inspectBundle(const QString& fileOrUrl) const
         for (const ext::BundleEntry& entry : check.bundle->extensions) {
             std::optional<ext::Manifest> manifest;
             QVariantMap security;
+            QVariantMap publisher;
             QString status;
             const Extension* builtin = exactly(entry.id, entry.version, true);
             if (entry.builtin || builtin != nullptr) {
@@ -1703,13 +1787,23 @@ QVariantMap ExtensionHost::inspectBundle(const QString& fileOrUrl) const
                     }
                     if (package.manifest) {
                         const ext::PackageContents contents = ext::archiveContents(inner);
+                        std::optional<ext::NativeCheck> native;
                         if (ext::hasNativeCode(contents, *package.manifest)) {
-                            const ext::NativeCheck native = ext::checkNative(contents, *package.manifest, m_scanner);
-                            security = securityMap(native, installedSignature(entry.id));
-                            if (native.refused()) {
-                                refusals.append(
-                                    refusedProblem(native.refusal, ext::bundlePackagePath(entry) + ": " + native.detail));
+                            native = ext::checkNative(contents, *package.manifest, m_scanner);
+                            security = securityMap(*native, installedSignature(entry.id));
+                            if (native->refused()) {
+                                refusals.append(refusedProblem(native->refusal,
+                                                               ext::bundlePackagePath(entry) + ": " + native->detail));
                             }
+                        }
+                        const ext::SignatureCheck signature =
+                            native ? native->signature : ext::checkSignature(contents, package.manifest->authorKey);
+                        const std::optional<ext::MinisignKey> remembered = ext::publisherOf(m_roots.user, entry.id);
+                        publisher = publisherMap(signature, remembered, authorsOf(*package.manifest, language));
+                        std::optional<ext::Diagnostic> refusal = ext::publisherProblem(remembered, signature);
+                        if (refusal && !(native && native->refusal == ext::NativeRefusal::BadSignature)) {
+                            refusal->path = ext::bundlePackagePath(entry) + ": " + refusal->path;
+                            refusals.append(problemList({*refusal}).constFirst());
                         }
                     }
                     manifest = std::move(package.manifest);
@@ -1732,6 +1826,9 @@ QVariantMap ExtensionHost::inspectBundle(const QString& fileOrUrl) const
             row.insert(QStringLiteral("values"), static_cast<int>(entry.values.size()));
             if (!security.isEmpty()) {
                 row.insert(QStringLiteral("security"), security);
+            }
+            if (!publisher.isEmpty()) {
+                row.insert(QStringLiteral("publisher"), publisher);
             }
             rows.append(row);
         }
@@ -2256,6 +2353,7 @@ bool ExtensionHost::uninstall(const std::string& id, const ext::Version& version
     if (!others) {
         states.erase(id);
         forgetConsent(id);
+        static_cast<void>(ext::forgetPublisher(m_roots.user, id));
     } else if (const auto state = states.find(id); state != states.end() && state->second.version == version.text()) {
         state->second.version.clear();
     }
@@ -2281,7 +2379,27 @@ void ExtensionHost::reload()
                 std::move(found.directory), std::move(found.manifest), std::move(found.diagnostics), builtin};
             extension.superseded = !builtin && extension.usable() &&
                                    exactly(extension.manifest->id, extension.manifest->version, true) != nullptr;
+            if (!builtin && extension.manifest) {
+                extension.signature =
+                    ext::checkSignedSums(ext::directoryContents(extension.directory), extension.manifest->authorKey);
+            }
             m_extensions.push_back(std::move(extension));
+        }
+    }
+    m_publishers.clear();
+    for (const Extension& extension : m_extensions) {
+        if (extension.builtin || !extension.manifest || m_roots.user.empty() ||
+            m_publishers.contains(extension.manifest->id)) {
+            continue;
+        }
+        const std::string& id = extension.manifest->id;
+        std::optional<ext::MinisignKey> remembered = ext::rememberedPublisher(m_roots.user, id);
+        if (!remembered && extension.signature.state == ext::SignatureState::Valid && extension.signature.key) {
+            remembered = extension.signature.key;
+            static_cast<void>(ext::rememberPublisher(m_roots.user, id, *remembered));
+        }
+        if (remembered) {
+            m_publishers.emplace(id, *remembered);
         }
     }
     resolve();
@@ -2322,6 +2440,14 @@ void ExtensionHost::resolve()
                     problem.path = memberPath(manifest.id) + problem.path.substr(1);
                     m_problems.push_back(std::move(problem));
                 }
+                heldBack.insert(manifest.id);
+                continue;
+            }
+            if (manifest.contributes.native &&
+                ext::nativeDllFor(*manifest.contributes.native, ext::hostArchitecture()).empty()) {
+                m_problems.push_back({ext::Severity::Error, ext::Code::NativeArchitectureMissing,
+                                      memberPath(manifest.id) + ".contributes.native.dll",
+                                      std::string(ext::hostArchitecture())});
                 heldBack.insert(manifest.id);
                 continue;
             }
@@ -2669,17 +2795,12 @@ QString ExtensionHost::textOf(const ext::Manifest& manifest, std::string_view ke
 
 std::optional<ext::SignatureCheck> ExtensionHost::installedSignature(std::string_view id) const
 {
-    const Extension* newest = nullptr;
-    for (const Extension& extension : m_extensions) {
-        if (!extension.builtin && extension.usable() && extension.manifest->id == id &&
-            (newest == nullptr || newest->manifest->version < extension.manifest->version)) {
-            newest = &extension;
-        }
-    }
-    if (newest == nullptr) {
+    const std::optional<ext::MinisignKey> remembered =
+        m_roots.user.empty() ? std::nullopt : ext::publisherOf(m_roots.user, id);
+    if (!remembered) {
         return std::nullopt;
     }
-    return ext::checkSignature(ext::directoryContents(newest->directory), newest->manifest->authorKey);
+    return ext::SignatureCheck{.state = ext::SignatureState::Valid, .key = remembered, .problem = {}};
 }
 
 void ExtensionHost::markRun() const
@@ -2792,6 +2913,7 @@ void ExtensionHost::forget(const std::string& id)
         m_settings.setExtensions(states);
     }
     forgetConsent(id);
+    static_cast<void>(ext::forgetPublisher(m_roots.user, id));
 }
 
 const ext::Manifest* ExtensionHost::manifestOf(std::string_view id) const

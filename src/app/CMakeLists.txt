@@ -252,6 +252,8 @@ qt_add_qml_module(GameScrcpy
         ExtensionIcons.h
         ExtensionHost.cpp
         ExtensionHost.h
+        ExtensionLinks.cpp
+        ExtensionLinks.h
         ExtensionLogic.cpp
         ExtensionLogic.h
         ExtensionModules.cpp

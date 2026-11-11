@@ -103,6 +103,14 @@ enum class Code : std::uint8_t {
     InputNameInvalid,
     ServiceSchemaInvalid,
     ServiceTargetInvalid,
+    NativeArchitectureUnknown,
+    NativeArchitectureMissing,
+    NativeMachineMismatch,
+    NativeEntryMissing,
+    SignatureInvalid,
+    SignatureMissing,
+    PublisherChanged,
+    SigningKeyMismatch,
 };
 
 struct Diagnostic {

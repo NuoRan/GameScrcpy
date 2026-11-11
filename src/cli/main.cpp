@@ -1,3 +1,4 @@
+#include "KeyTools.h"
 #include "McpRelay.h"
 #include "ScriptTools.h"
 
@@ -7,9 +8,12 @@
 #include <gs/ext/Diagnostics.h>
 #include <gs/ext/FilterSource.h>
 #include <gs/ext/Manifest.h>
+#include <gs/ext/NativeCheck.h>
 #include <gs/ext/Package.h>
+#include <gs/ext/Signing.h>
 #include <gs/input/Profile.h>
 #include <gs/input/ProfilePatch.h>
+#include <gs/platform/AtomicFile.h>
 #include <gs/script/ApiFiles.h>
 
 #include <nlohmann/json.hpp>
@@ -29,6 +33,7 @@
 #include <functional>
 #include <future>
 #include <iostream>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <optional>
@@ -59,7 +64,9 @@ constexpr int kMostCompileSeconds = 3600;
 constexpr std::string_view kUsageText =
     "usage: gs validate <folder | package.gsext | bundle.gsbundle> [--official] [--json]\n"
     "                   [--compile-timeout <seconds>]\n"
-    "       gs pack <folder> [-o <package.gsext>] [--official] [--json] [--compile-timeout <seconds>]\n"
+    "       gs pack <folder> [-o <package.gsext>] [--sign <secret key file>] [--official] [--json]\n"
+    "               [--compile-timeout <seconds>]\n"
+    "       gs ext keygen <secret key file> [--force] [--json]\n"
     "       gs new <script folder> [--profile <profile.json>]\n"
     "       gs check <script folder> [--json]\n"
     "       gs types <script folder>\n"
@@ -77,6 +84,12 @@ struct Options {
     bool official = false;
     bool json = false;
     int compileSeconds = kDefaultCompileSeconds;
+    std::optional<fs::path> sign;
+};
+
+struct Extras {
+    std::optional<ext::SignatureCheck> signature;
+    std::vector<ext::NativeLibrary> libraries;
 };
 
 struct Compiler {
@@ -170,6 +183,8 @@ std::optional<Options> parse(int argc, wchar_t** argv)
             options.official = true;
         } else if (argument == L"-o" && i + 1 < argc) {
             options.output = fs::path(argv[++i]);
+        } else if (argument == L"--sign" && i + 1 < argc && !options.sign) {
+            options.sign = fs::path(argv[++i]);
         } else if (argument == L"--compile-timeout" && i + 1 < argc) {
             const std::optional<int> seconds = secondsOf(argv[++i]);
             if (!seconds) {
@@ -183,7 +198,8 @@ std::optional<Options> parse(int argc, wchar_t** argv)
         }
     }
     const bool known = options.command == L"validate" || options.command == L"pack";
-    if (!known || options.inputs.size() != 1 || (options.output && options.command != L"pack")) {
+    if (!known || options.inputs.size() != 1 || (options.output && options.command != L"pack") ||
+        (options.sign && options.command != L"pack")) {
         return std::nullopt;
     }
     return options;
@@ -376,6 +392,65 @@ ext::PackageCheck inspect(const fs::path& input, bool folder, const ext::LoadOpt
     return check;
 }
 
+Extras inspectExtras(const fs::path& input, bool folder, const ext::Manifest& manifest, bool resigning,
+                     std::vector<ext::Diagnostic>& diagnostics)
+{
+    Extras extras;
+    const ext::PackageContents contents = folder ? ext::directoryContents(input) : ext::archiveContents(input);
+    ext::LibraryCheck libraries = ext::checkNativeLibraries(contents, manifest);
+    std::ranges::move(libraries.diagnostics, std::back_inserter(diagnostics));
+    extras.libraries = std::move(libraries.libraries);
+    if (!resigning) {
+        ext::SignatureCheck signature = ext::checkSignature(contents, manifest.authorKey);
+        if (signature.state == ext::SignatureState::Invalid) {
+            diagnostics.push_back({ext::Severity::Error, ext::Code::SignatureInvalid,
+                                   std::string(ext::kChecksumsSignatureFile), signature.problem});
+        }
+        extras.signature = std::move(signature);
+    }
+    return extras;
+}
+
+std::string_view signatureName(ext::SignatureState state) noexcept
+{
+    switch (state) {
+    case ext::SignatureState::Unsigned:
+        return "unsigned";
+    case ext::SignatureState::Valid:
+        return "valid";
+    case ext::SignatureState::Invalid:
+        return "invalid";
+    }
+    return "unsigned";
+}
+
+std::optional<ext::MinisignSecretKey> loadSecretKey(const fs::path& file)
+{
+    constexpr std::size_t kMostKeyBytes = 4096;
+    std::string text;
+    if (gs::platform::readFile(file, kMostKeyBytes, text, gs::platform::WhenBusy::GiveUp)) {
+        std::cerr << "gs pack: cannot read the secret key " << utf8(file) << '\n';
+        return std::nullopt;
+    }
+    const ext::LoadedSecretKey loaded = ext::parseMinisignSecretKey(text);
+    switch (loaded.state) {
+    case ext::SecretKeyState::Valid:
+        return loaded.key;
+    case ext::SecretKeyState::Encrypted:
+        std::cerr << "gs pack: " << utf8(file)
+                  << " is protected by a password, and gs signs only with keys without one; make a key with "
+                     "gs ext keygen, or take the password off a copy with minisign -C -W\n";
+        return std::nullopt;
+    case ext::SecretKeyState::Damaged:
+        std::cerr << "gs pack: " << utf8(file) << " is damaged: its checksum does not match the key\n";
+        return std::nullopt;
+    case ext::SecretKeyState::Malformed:
+        break;
+    }
+    std::cerr << "gs pack: " << utf8(file) << " is not a minisign secret key\n";
+    return std::nullopt;
+}
+
 Json listed(const std::vector<ext::Diagnostic>& diagnostics)
 {
     Json rows = Json::array();
@@ -420,7 +495,8 @@ std::string tally(const std::vector<ext::Diagnostic>& diagnostics)
 }
 
 void print(const Options& options, const std::optional<ext::Manifest>& manifest,
-           const std::vector<ext::Diagnostic>& diagnostics, const fs::path& input, const std::optional<fs::path>& output)
+           const std::vector<ext::Diagnostic>& diagnostics, const fs::path& input, const std::optional<fs::path>& output,
+           const Extras& extras)
 {
     if (options.json) {
         Json report = {{"ok", !ext::hasErrors(diagnostics)}};
@@ -431,6 +507,23 @@ void print(const Options& options, const std::optional<ext::Manifest>& manifest,
         if (output) {
             report["output"] = utf8(*output);
         }
+        if (extras.signature) {
+            Json signature = {{"state", std::string(signatureName(extras.signature->state))}};
+            if (extras.signature->state == ext::SignatureState::Valid && extras.signature->key) {
+                signature["keyId"] = ext::minisignKeyId(*extras.signature->key);
+            }
+            report["signature"] = std::move(signature);
+        }
+        if (!extras.libraries.empty()) {
+            Json libraries = Json::array();
+            for (const ext::NativeLibrary& library : extras.libraries) {
+                libraries.push_back({{"architecture", library.architecture},
+                                     {"path", library.path},
+                                     {"machine", ext::machineName(library.machine)},
+                                     {"entry", library.entry}});
+            }
+            report["libraries"] = std::move(libraries);
+        }
         report["diagnostics"] = listed(diagnostics);
         printJson(report);
         return;
@@ -438,6 +531,18 @@ void print(const Options& options, const std::optional<ext::Manifest>& manifest,
     printDiagnostics(diagnostics);
     const std::string subject = manifest ? manifest->id + " " + manifest->version.text() : utf8(input);
     std::cout << subject << ": " << tally(diagnostics) << '\n';
+    for (const ext::NativeLibrary& library : extras.libraries) {
+        std::cout << printable(library.path) << ": " << ext::machineName(library.machine);
+        if (!library.architecture.empty()) {
+            std::cout << " (listed for " << printable(library.architecture) << ")";
+        }
+        std::cout << (library.entry ? ", exports gs_ext_main\n" : ", does not export gs_ext_main\n");
+    }
+    if (extras.signature && extras.signature->state == ext::SignatureState::Valid && extras.signature->key) {
+        std::cout << "signed with key " << ext::minisignKeyId(*extras.signature->key) << '\n';
+    } else if (extras.signature && extras.signature->state == ext::SignatureState::Unsigned) {
+        std::cout << "not signed\n";
+    }
     if (output) {
         std::cout << "packed " << utf8(*output) << '\n';
     }
@@ -486,6 +591,9 @@ std::vector<ext::Diagnostic> checkMember(const fs::path& bundle, const ext::Bund
     }
     const std::string inner = ext::bundlePackagePath(entry);
     ext::PackageCheck check = inspect(file, false, load, compiler);
+    if (check.manifest && !ext::hasErrors(check.diagnostics)) {
+        inspectExtras(file, false, *check.manifest, false, check.diagnostics);
+    }
     for (ext::Diagnostic& diagnostic : check.diagnostics) {
         diagnostic.path = inner + ":" + diagnostic.path;
         diagnostics.push_back(std::move(diagnostic));
@@ -545,8 +653,12 @@ int validate(const Options& options, Compiler& compiler)
     if (!folder && isBundle(input)) {
         return validateBundle(options, input, load, compiler);
     }
-    const ext::PackageCheck check = inspect(input, folder, load, compiler);
-    print(options, check.manifest, check.diagnostics, input, std::nullopt);
+    ext::PackageCheck check = inspect(input, folder, load, compiler);
+    Extras extras;
+    if (check.manifest && !ext::hasErrors(check.diagnostics)) {
+        extras = inspectExtras(input, folder, *check.manifest, false, check.diagnostics);
+    }
+    print(options, check.manifest, check.diagnostics, input, std::nullopt, extras);
     return ext::hasErrors(check.diagnostics) ? kProblems : kSuccess;
 }
 
@@ -558,9 +670,28 @@ int pack(const Options& options, Compiler& compiler)
         std::cerr << "gs pack: " << utf8(folder) << " is not a folder\n";
         return kUsage;
     }
+    std::optional<ext::MinisignSecretKey> key;
+    if (options.sign) {
+        key = loadSecretKey(*options.sign);
+        if (!key) {
+            return kUsage;
+        }
+    }
     const ext::LoadOptions load{.official = options.official};
     ext::PackageCheck check = inspect(folder, true, load, compiler);
     std::vector<ext::Diagnostic> diagnostics = std::move(check.diagnostics);
+    Extras extras;
+    if (check.manifest && !ext::hasErrors(diagnostics)) {
+        extras = inspectExtras(folder, true, *check.manifest, key.has_value(), diagnostics);
+    }
+    if (key && check.manifest) {
+        const ext::MinisignKey own = ext::minisignPublicKey(*key);
+        const std::optional<ext::MinisignKey> named = ext::parseMinisignKey(check.manifest->authorKey);
+        if (!named || *named != own) {
+            diagnostics.push_back({ext::Severity::Error, ext::Code::SigningKeyMismatch, "$.authorKey",
+                                   "\"authorKey\": \"" + ext::minisignKeyText(own) + "\""});
+        }
+    }
     std::optional<fs::path> output;
     if (check.manifest && !ext::hasErrors(diagnostics)) {
         fs::path parent = fs::absolute(folder).lexically_normal();
@@ -582,13 +713,23 @@ int pack(const Options& options, Compiler& compiler)
             std::cerr << "gs pack: write the package outside the folder being packed\n";
             return kUsage;
         }
-        std::vector<ext::Diagnostic> packed = ext::packDirectory(folder, *output);
+        std::vector<ext::Diagnostic> packed =
+            key ? ext::packSigned(folder, *output, *key, ext::signingComment(*check.manifest))
+                : ext::packDirectory(folder, *output);
         if (ext::hasErrors(packed)) {
             output.reset();
         }
         diagnostics.insert(diagnostics.end(), packed.begin(), packed.end());
+        if (output && key) {
+            ext::SignatureCheck made = ext::checkSignature(ext::archiveContents(*output), check.manifest->authorKey);
+            if (made.state != ext::SignatureState::Valid) {
+                diagnostics.push_back({ext::Severity::Error, ext::Code::SignatureInvalid,
+                                       std::string(ext::kChecksumsSignatureFile), made.problem});
+            }
+            extras.signature = std::move(made);
+        }
     }
-    print(options, check.manifest, diagnostics, folder, output);
+    print(options, check.manifest, diagnostics, folder, output, extras);
     return ext::hasErrors(diagnostics) ? kProblems : kSuccess;
 }
 
@@ -645,6 +786,9 @@ int run(int argc, wchar_t** argv, Compiler& compiler)
     }
     if (argc >= 2 && std::wstring_view(argv[1]) == L"mcp") {
         return gs::cli::runMcpRelay(std::vector<std::wstring_view>(argv + 2, argv + argc));
+    }
+    if (const std::optional<int> handled = gs::cli::runKeyCommand(argc, argv)) {
+        return *handled;
     }
     if (const std::optional<int> handled = gs::cli::runScriptCommand(argc, argv)) {
         return *handled;

@@ -33,6 +33,11 @@ struct ArchiveListing {
     [[nodiscard]] bool ok() const noexcept { return !hasErrors(problems); }
 };
 
+struct PackedFile {
+    std::string path;
+    std::string data;
+};
+
 [[nodiscard]] bool safeArchivePath(std::string_view path);
 [[nodiscard]] ArchiveListing inspectArchive(const std::filesystem::path& archive, const ArchiveLimits& limits = {});
 [[nodiscard]] ArchiveListing inspectDirectory(const std::filesystem::path& directory, const ArchiveLimits& limits = {},
@@ -46,5 +51,10 @@ struct ArchiveListing {
                                                     const std::filesystem::path& archive,
                                                     const ArchiveLimits& limits = {},
                                                     const std::vector<std::string>& skipped = {});
+[[nodiscard]] std::vector<Diagnostic> packDirectory(const std::filesystem::path& directory,
+                                                    const std::filesystem::path& archive,
+                                                    const ArchiveLimits& limits,
+                                                    const std::vector<std::string>& skipped,
+                                                    const std::vector<PackedFile>& added);
 
 }

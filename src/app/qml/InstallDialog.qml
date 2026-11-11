@@ -11,6 +11,7 @@ Dialog {
 
     property var info: ({})
     property string packageUrl
+    property string source
 
     readonly property string version: info.version ?? ""
     readonly property var authors: info.authors ?? []
@@ -23,6 +24,8 @@ Dialog {
     readonly property bool nativeCode: dialog.security.native === true
     readonly property bool refused: dialog.nativeCode && dialog.security.refused === true
     readonly property bool signedByAuthor: dialog.nativeCode && dialog.security.author === "valid"
+    readonly property bool unsignedNative: dialog.nativeCode && dialog.security.author === "unsigned"
+    readonly property var publisher: info.publisher ?? ({})
     readonly property var capabilities: dialog.nativeCode ? (dialog.security.capabilities ?? []) : []
     readonly property var warnings: dialog.nativeCode ? (dialog.security.warnings ?? []) : []
     readonly property bool readable: (info.id ?? "") !== ""
@@ -32,6 +35,10 @@ Dialog {
                                       - dialog.topPadding - dialog.bottomPadding
 
     title: info.name || info.id || decodeURIComponent(packageUrl.substring(packageUrl.lastIndexOf("/") + 1))
+    onClosed: {
+        dialog.source = ""
+        ExtensionLinks.release()
+    }
 
     footer: Item {
         implicitHeight: buttons.implicitHeight + 2 * Theme.space.xl
@@ -105,6 +112,40 @@ Dialog {
                     font.pixelSize: Theme.type.caption.size
                     wrapMode: Text.Wrap
                 }
+
+                Text {
+                    objectName: "installPublisher"
+                    width: parent.width
+                    visible: text !== ""
+                    textFormat: Text.PlainText
+                    text: dialog.publisher.text ?? ""
+                    color: dialog.publisher.state === "verified" ? Theme.colors.successText
+                         : dialog.publisher.state === "unsigned" ? Theme.colors.textSecondary
+                         : Theme.colors.warningText
+                    font.pixelSize: Theme.type.caption.size
+                    wrapMode: Text.Wrap
+                }
+
+                Text {
+                    objectName: "installSource"
+                    width: parent.width
+                    visible: dialog.source !== ""
+                    textFormat: Text.PlainText
+                    text: qsTr("Downloaded from %1; its SHA-256 matches the link").arg(dialog.source)
+                    color: Theme.colors.textSecondary
+                    font.pixelSize: Theme.type.caption.size
+                    wrapMode: Text.Wrap
+                }
+            }
+
+            InlineAlert {
+                objectName: "unsignedNative"
+                width: parent.width
+                visible: dialog.unsignedNative && !dialog.refused
+                tone: "warn"
+                title: qsTr("Unsigned native code")
+                detail: qsTr("Its DLL runs with full rights on this computer, and without a signature nobody can tell "
+                             + "who made it or whether it was changed. Install it only if you trust where it came from.")
             }
 
             Text {
@@ -160,12 +201,10 @@ Dialog {
                 InlineAlert {
                     objectName: "nativeAuthor"
                     width: parent.width
-                    visible: dialog.nativeCode && dialog.security.author !== "invalid"
-                    tone: dialog.signedByAuthor ? "info" : "warn"
-                    title: dialog.signedByAuthor ? qsTr("Signed by its author") : qsTr("Author not verified")
-                    detail: dialog.signedByAuthor
-                            ? qsTr("Key %1. Updates have to be signed with the same key.").arg(dialog.security.keyId ?? "")
-                            : qsTr("The package is not signed, so there is no way to tell who made it or whether it was changed. Install it only if you trust where it came from.")
+                    visible: dialog.signedByAuthor && dialog.publisher.state === "verified"
+                    tone: "info"
+                    title: qsTr("Signed by its author")
+                    detail: qsTr("Key %1. Updates have to be signed with the same key.").arg(dialog.security.keyId ?? "")
                 }
 
                 Row {

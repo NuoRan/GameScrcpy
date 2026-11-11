@@ -26,9 +26,11 @@ constexpr std::uint64_t kMostModules = 4096;
 constexpr std::uint64_t kMostThunks = 65536;
 constexpr std::size_t kMostFunctions = 200000;
 constexpr std::size_t kMostNameBytes = 4096;
+constexpr std::uint32_t kExportDirectory = 0;
 constexpr std::uint32_t kImportDirectory = 1;
 constexpr std::uint32_t kDelayImportDirectory = 13;
 constexpr std::uint64_t kMostDirectories = 16;
+constexpr std::uint64_t kMostExports = 65536;
 constexpr std::size_t kMostChecksumsBytes = std::size_t{4} << 20;
 
 constexpr auto kNetworkModules =
@@ -138,16 +140,18 @@ int severity(NativeRefusal refusal) noexcept
     switch (refusal) {
     case NativeRefusal::None:
         return 0;
-    case NativeRefusal::Unreadable:
+    case NativeRefusal::Architecture:
         return 1;
-    case NativeRefusal::BadSignature:
+    case NativeRefusal::Unreadable:
         return 2;
-    case NativeRefusal::Injection:
+    case NativeRefusal::BadSignature:
         return 3;
-    case NativeRefusal::Blocked:
+    case NativeRefusal::Injection:
         return 4;
-    case NativeRefusal::Threat:
+    case NativeRefusal::Blocked:
         return 5;
+    case NativeRefusal::Threat:
+        return 6;
     }
     return 0;
 }
@@ -179,6 +183,69 @@ public:
     explicit PeReader(std::string_view bytes) : m_bytes(bytes) {}
 
     std::string read(PeImports& out)
+    {
+        if (std::string problem = open(); !problem.empty()) {
+            return problem;
+        }
+        out.wide = m_wide;
+        out.machine = m_machine;
+        const std::optional<std::uint64_t> imports = directory(kImportDirectory);
+        const std::optional<std::uint64_t> delayed = directory(kDelayImportDirectory);
+        if (!imports || !delayed) {
+            return "its data directories are cut short";
+        }
+        if (*imports != 0) {
+            if (std::string problem = readImports(*imports, out); !problem.empty()) {
+                return problem;
+            }
+        }
+        if (*delayed != 0) {
+            if (std::string problem = readDelayed(*delayed, out); !problem.empty()) {
+                return problem;
+            }
+        }
+        return {};
+    }
+
+    std::string readExports(PeExports& out)
+    {
+        if (std::string problem = open(); !problem.empty()) {
+            return problem;
+        }
+        out.machine = m_machine;
+        const std::optional<std::uint64_t> table = directory(kExportDirectory);
+        if (!table) {
+            return "its data directories are cut short";
+        }
+        if (*table == 0) {
+            return {};
+        }
+        const std::optional<std::uint64_t> at = offsetOf(*table);
+        if (!at) {
+            return "its export table lies outside the file";
+        }
+        const std::optional<std::uint64_t> count = number(*at + 24, 4);
+        const std::optional<std::uint64_t> names = number(*at + 32, 4);
+        if (!count || !names) {
+            return "its export table is cut short";
+        }
+        if (*count > kMostExports) {
+            return "it exports too many functions";
+        }
+        for (std::uint64_t index = 0; index < *count; ++index) {
+            const std::optional<std::uint64_t> slot = offsetOf(*names + 4 * index);
+            const std::optional<std::uint64_t> name = slot ? number(*slot, 4) : std::nullopt;
+            const std::optional<std::string> text = name ? textAt(*name) : std::nullopt;
+            if (!text) {
+                return "the name of an exported function lies outside the file";
+            }
+            out.names.push_back(*text);
+        }
+        return {};
+    }
+
+private:
+    std::string open()
     {
         if (!looksLikePe(m_bytes)) {
             return "it is not a Windows program or library";
@@ -218,36 +285,21 @@ public:
             }
             m_sections.push_back({.address = *address, .rawSize = *rawSize, .rawOffset = *rawOffset});
         }
-        out.wide = m_wide;
-        out.machine = static_cast<std::uint16_t>(*machine);
-        const std::uint64_t directories = optional + (m_wide ? 112 : 96);
-        const std::uint64_t present = std::min<std::uint64_t>(*count, kMostDirectories);
-        const std::uint64_t end = optional + *optionalSize;
-        const auto directory = [&](std::uint32_t index) -> std::optional<std::uint64_t> {
-            if (index >= present || directories + 8 * (std::uint64_t{index} + 1) > end) {
-                return std::uint64_t{0};
-            }
-            return number(directories + 8 * std::uint64_t{index}, 4);
-        };
-        const std::optional<std::uint64_t> imports = directory(kImportDirectory);
-        const std::optional<std::uint64_t> delayed = directory(kDelayImportDirectory);
-        if (!imports || !delayed) {
-            return "its data directories are cut short";
-        }
-        if (*imports != 0) {
-            if (std::string problem = readImports(*imports, out); !problem.empty()) {
-                return problem;
-            }
-        }
-        if (*delayed != 0) {
-            if (std::string problem = readDelayed(*delayed, out); !problem.empty()) {
-                return problem;
-            }
-        }
+        m_machine = static_cast<std::uint16_t>(*machine);
+        m_directories = optional + (m_wide ? 112 : 96);
+        m_present = std::min<std::uint64_t>(*count, kMostDirectories);
+        m_end = optional + *optionalSize;
         return {};
     }
 
-private:
+    [[nodiscard]] std::optional<std::uint64_t> directory(std::uint32_t index) const
+    {
+        if (index >= m_present || m_directories + 8 * (std::uint64_t{index} + 1) > m_end) {
+            return std::uint64_t{0};
+        }
+        return number(m_directories + 8 * std::uint64_t{index}, 4);
+    }
+
     [[nodiscard]] std::optional<std::uint64_t> number(std::uint64_t offset, std::size_t width) const
     {
         if (offset > m_bytes.size() || m_bytes.size() - offset < width) {
@@ -413,6 +465,10 @@ private:
     std::vector<Section> m_sections;
     std::uint64_t m_base = 0;
     std::uint64_t m_headers = 0;
+    std::uint64_t m_directories = 0;
+    std::uint64_t m_present = 0;
+    std::uint64_t m_end = 0;
+    std::uint16_t m_machine = 0;
     bool m_wide = false;
 };
 
@@ -441,6 +497,56 @@ PeImports readPeImports(std::string_view image)
         imports.problem = std::move(problem);
     }
     return imports;
+}
+
+PeExports readPeExports(std::string_view image)
+{
+    PeExports exports;
+    PeReader reader(image);
+    std::string problem = reader.readExports(exports);
+    exports.valid = problem.empty();
+    if (!exports.valid) {
+        exports.names.clear();
+        exports.problem = std::move(problem);
+    }
+    return exports;
+}
+
+std::string machineName(std::uint16_t machine)
+{
+    switch (machine) {
+    case kMachineX64:
+        return "x64";
+    case kMachineArm64:
+        return "arm64";
+    case 0x014C:
+        return "x86";
+    case 0x01C4:
+        return "arm";
+    case 0xA641:
+        return "arm64ec";
+    case 0xA64E:
+        return "arm64x";
+    default:
+        break;
+    }
+    constexpr std::string_view kDigits = "0123456789ABCDEF";
+    std::string text = "machine 0x";
+    for (int shift = 12; shift >= 0; shift -= 4) {
+        text.push_back(kDigits[static_cast<std::size_t>((machine >> shift) & 0xF)]);
+    }
+    return text;
+}
+
+std::uint16_t architectureMachine(std::string_view architecture) noexcept
+{
+    if (architecture == "x64") {
+        return kMachineX64;
+    }
+    if (architecture == "arm64") {
+        return kMachineArm64;
+    }
+    return 0;
 }
 
 std::string_view capabilityName(Capability capability) noexcept
@@ -551,7 +657,9 @@ PackageContents directoryContents(const std::filesystem::path& directory)
     return contents;
 }
 
-SignatureCheck checkSignature(const PackageContents& contents, std::string_view authorKey)
+namespace {
+
+SignatureCheck signatureOf(const PackageContents& contents, std::string_view authorKey, bool everyFile)
 {
     SignatureCheck check;
     const auto contains = [&contents](std::string_view path) {
@@ -588,6 +696,10 @@ SignatureCheck checkSignature(const PackageContents& contents, std::string_view 
         return check;
     case MinisignResult::BadComment:
         check.problem = "the trusted comment of SHA512SUMS.minisig was changed after signing";
+        return check;
+    }
+    if (!everyFile) {
+        check.state = SignatureState::Valid;
         return check;
     }
     std::map<std::string, std::string, std::less<>> hashes;
@@ -647,6 +759,18 @@ SignatureCheck checkSignature(const PackageContents& contents, std::string_view 
     return check;
 }
 
+}
+
+SignatureCheck checkSignature(const PackageContents& contents, std::string_view authorKey)
+{
+    return signatureOf(contents, authorKey, true);
+}
+
+SignatureCheck checkSignedSums(const PackageContents& contents, std::string_view authorKey)
+{
+    return signatureOf(contents, authorKey, false);
+}
+
 bool authorChanged(const SignatureCheck& before, const SignatureCheck& after) noexcept
 {
     return before.state == SignatureState::Valid && before.key.has_value() &&
@@ -664,7 +788,8 @@ bool hasNativeCode(const PackageContents& contents, const Manifest& manifest)
     });
 }
 
-NativeCheck checkNative(const PackageContents& contents, const Manifest& manifest, const NativeScanner& scanner)
+NativeCheck checkNative(const PackageContents& contents, const Manifest& manifest, const NativeScanner& scanner,
+                        std::string_view architecture)
 {
     NativeCheck check;
     check.native = hasNativeCode(contents, manifest);
@@ -681,11 +806,17 @@ NativeCheck checkNative(const PackageContents& contents, const Manifest& manifes
         problem != contents.problems.end()) {
         refuse(NativeRefusal::Unreadable, std::string(codeName(problem->code)) + " " + problem->path);
     }
-    const std::string declared = manifest.contributes.native ? manifest.contributes.native->dll : std::string();
+    const std::string declared =
+        manifest.contributes.native ? nativeDllFor(*manifest.contributes.native, architecture) : std::string();
+    if (manifest.contributes.native && declared.empty()) {
+        refuse(NativeRefusal::Architecture,
+               "no DLL for " + (architecture.empty() ? std::string("this computer") : std::string(architecture)));
+    }
     if (!declared.empty() &&
         std::ranges::none_of(contents.files, [&declared](const ArchiveEntry& entry) { return entry.path == declared; })) {
         refuse(NativeRefusal::Unreadable, declared + " is missing");
     }
+    const std::uint16_t wanted = architectureMachine(architecture);
     for (const ArchiveEntry& entry : contents.files) {
         const std::optional<std::string> bytes = contents.read ? contents.read(entry.path) : std::nullopt;
         if (!bytes) {
@@ -703,6 +834,10 @@ NativeCheck checkNative(const PackageContents& contents, const Manifest& manifes
                         .scan = scanner ? scanner(*bytes, entry.path) : ScanVerdict::Skipped};
         if (!file.imports.valid) {
             refuse(NativeRefusal::Unreadable, entry.path + ": " + file.imports.problem);
+        } else if (entry.path == declared && wanted != 0 && file.imports.machine != wanted) {
+            refuse(NativeRefusal::Architecture,
+                   entry.path + " is built for " + machineName(file.imports.machine) + ", not " +
+                       std::string(architecture));
         }
         if (file.scan == ScanVerdict::Threat) {
             refuse(NativeRefusal::Threat, entry.path);
@@ -722,6 +857,52 @@ NativeCheck checkNative(const PackageContents& contents, const Manifest& manifes
     check.signature = checkSignature(contents, manifest.authorKey);
     if (check.signature.state == SignatureState::Invalid) {
         refuse(NativeRefusal::BadSignature, check.signature.problem);
+    }
+    return check;
+}
+
+LibraryCheck checkNativeLibraries(const PackageContents& contents, const Manifest& manifest)
+{
+    LibraryCheck check;
+    if (!manifest.contributes.native) {
+        return check;
+    }
+    const auto report = [&check](Code code, const std::string& architecture, std::string detail) {
+        check.diagnostics.push_back({Severity::Error, code, nativeDllField(architecture), std::move(detail)});
+    };
+    for (const auto& [architecture, path] : nativeDlls(*manifest.contributes.native)) {
+        const std::optional<std::string> bytes = contents.read ? contents.read(path) : std::nullopt;
+        if (!bytes) {
+            report(Code::FileMissing, architecture, path);
+            continue;
+        }
+        const PeExports exports = readPeExports(*bytes);
+        if (!exports.valid) {
+            report(Code::NativeDllInvalid, architecture, path + ": " + exports.problem);
+            continue;
+        }
+        const auto exported = [&exports](std::string_view name) {
+            return std::ranges::find(exports.names, name) != exports.names.end();
+        };
+        NativeLibrary library{.architecture = architecture,
+                              .path = path,
+                              .machine = exports.machine,
+                              .entry = exported(kNativeEntryName),
+                              .oldEntry = exported(kOldNativeEntryName)};
+        const std::uint16_t expected = architectureMachine(architecture);
+        if (architecture.empty() && architectureMachine(machineName(exports.machine)) == 0) {
+            report(Code::NativeMachineMismatch, architecture,
+                   path + " is built for " + machineName(exports.machine) + "; GameScrcpy loads x64 and arm64 DLLs");
+        } else if (expected != 0 && exports.machine != expected) {
+            report(Code::NativeMachineMismatch, architecture,
+                   path + " is built for " + machineName(exports.machine) + ", not " + architecture);
+        }
+        if (!library.entry) {
+            report(Code::NativeEntryMissing, architecture,
+                   library.oldEntry ? path + " exports only gs_ext_entry, the entry of an old SDK"
+                                    : path + " does not export gs_ext_main");
+        }
+        check.libraries.push_back(std::move(library));
     }
     return check;
 }

@@ -581,6 +581,73 @@ TEST_CASE("the permissions a native node needs are known ones that the manifest 
     CHECK(native["properties"]["touchMethods"]["items"]["required"] == Json::array({"name", "title"}));
 }
 
+TEST_CASE("ADR-0112: a native DLL is one path or one path per processor, both forms survive a save and a load, and "
+          "the one for this processor is picked")
+{
+    Json json = nativeBase();
+    json["contributes"]["native"]["dll"] = {{"x64", "bin/x64/clock.dll"}, {"arm64", "bin/arm64/clock.dll"}};
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    REQUIRE(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    const NativeContribution& native = *loaded.manifest.contributes.native;
+    CHECK(native.dll.empty());
+    CHECK(native.dlls == TextMap{{"arm64", "bin/arm64/clock.dll"}, {"x64", "bin/x64/clock.dll"}});
+    CHECK(nativeDllFor(native, "x64") == "bin/x64/clock.dll");
+    CHECK(nativeDllFor(native, "arm64") == "bin/arm64/clock.dll");
+    CHECK(nativeDllFor(native, "x86").empty());
+    CHECK(nativeDlls(native) == std::vector<std::pair<std::string, std::string>>{
+                                    {"arm64", "bin/arm64/clock.dll"}, {"x64", "bin/x64/clock.dll"}});
+    CHECK(nativeDllField("arm64") == R"($.contributes.native.dll["arm64"])");
+    CHECK(nativeDllField("") == "$.contributes.native.dll");
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+    CHECK(Json::parse(saveManifest(loaded.manifest))["contributes"]["native"]["dll"]["x64"] == "bin/x64/clock.dll");
+
+    const LoadedManifest plain = load(nativeBase());
+    REQUIRE(plain.usable);
+    CHECK(nativeDllFor(*plain.manifest.contributes.native, "x64") == "bin/clock.dll");
+    CHECK(nativeDllFor(*plain.manifest.contributes.native, "arm64") == "bin/clock.dll");
+    CHECK(nativeDlls(*plain.manifest.contributes.native) ==
+          std::vector<std::pair<std::string, std::string>>{{"", "bin/clock.dll"}});
+    CHECK(Json::parse(saveManifest(plain.manifest))["contributes"]["native"]["dll"] == "bin/clock.dll");
+    CHECK(std::ranges::find(kNativeArchitectureNames, hostArchitecture()) != kNativeArchitectureNames.end());
+
+    json["contributes"]["native"]["dll"] = {{"x64", "bin/x64/clock.dll"}, {"riscv64", "bin/riscv64/clock.dll"}};
+    loaded = load(json);
+    CHECK(loaded.usable);
+    CHECK(reports(loaded, Code::NativeArchitectureUnknown, R"($.contributes.native.dll["riscv64"])"));
+
+    json["contributes"]["native"]["dll"] = {{"X64", "bin/x64/clock.dll"}};
+    CHECK(reports(load(json), Code::NativeNameInvalid, R"($.contributes.native.dll["X64"])"));
+    json["contributes"]["native"]["dll"] = {{"x64", "bin/x64/clock.exe"}};
+    CHECK(reports(load(json), Code::NativeDllInvalid, R"($.contributes.native.dll["x64"])"));
+    json["contributes"]["native"]["dll"] = {{"x64", "../clock.dll"}};
+    CHECK(reports(load(json), Code::PathInvalid, R"($.contributes.native.dll["x64"])"));
+    json["contributes"]["native"]["dll"] = Json::object();
+    CHECK(reports(load(json), Code::MissingField, "$.contributes.native.dll"));
+    json["contributes"]["native"]["dll"] = Json::array({"bin/clock.dll"});
+    CHECK(reports(load(json), Code::WrongType, "$.contributes.native.dll"));
+
+    const Json schema = Json::parse(manifestJsonSchema());
+    const Json dll = schema["properties"]["contributes"]["properties"]["native"]["properties"]["dll"];
+    REQUIRE(dll["oneOf"].size() == 2);
+    CHECK(dll["oneOf"][0]["type"] == "string");
+    CHECK(dll["oneOf"][1]["type"] == "object");
+    CHECK(dll["oneOf"][1]["minProperties"] == 1);
+    CHECK(dll["oneOf"][1]["propertyNames"]["pattern"] == "^[a-z][A-Za-z0-9]*$");
+    CHECK(schema["properties"]["contributes"]["properties"]["native"]["required"] == Json::array({"dll"}));
+    for (const Code code : {Code::NativeArchitectureUnknown, Code::NativeArchitectureMissing, Code::NativeMachineMismatch,
+                            Code::NativeEntryMissing, Code::SignatureInvalid, Code::SignatureMissing,
+                            Code::PublisherChanged, Code::SigningKeyMismatch}) {
+        CHECK(codeName(code) != "unknown");
+        CHECK_FALSE(fixHint(code).empty());
+    }
+    CHECK(codeName(Code::NativeArchitectureMissing) == "native-architecture-missing");
+    CHECK(codeName(Code::PublisherChanged) == "publisher-changed");
+}
+
 TEST_CASE("ADR-0112: native jobs load with their arguments, result and running limit, survive a save and a load, "
           "and are checked like nodes")
 {

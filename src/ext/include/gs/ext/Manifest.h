@@ -11,6 +11,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -428,8 +429,12 @@ struct NativeInputSource {
     friend bool operator==(const NativeInputSource&, const NativeInputSource&) = default;
 };
 
+inline constexpr std::array<std::string_view, 2> kNativeArchitectureNames{"x64", "arm64"};
+inline constexpr std::size_t kMostNativeDlls = 8;
+
 struct NativeContribution {
     std::string dll;
+    TextMap dlls;
     std::vector<NativeTouchMethod> touchMethods;
     std::vector<NativeNode> nodes;
     std::vector<NativeAttachment> attachments;
@@ -442,7 +447,11 @@ struct NativeContribution {
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
     {
-        v.text("dll", m.dll, {.required = true, .maxLength = 260, .format = TextFormat::PackagePath});
+        v.textOrMap("dll", m.dll, m.dlls, {.required = true, .maxLength = 260, .format = TextFormat::PackagePath},
+                    {.maxEntries = kMostNativeDlls,
+                     .keyFormat = TextFormat::NativeName,
+                     .valueFormat = TextFormat::PackagePath,
+                     .maxLength = 260});
         v.objectList("touchMethods", m.touchMethods, 8);
         v.objectList("nodes", m.nodes, 64);
         v.objectList("attachments", m.attachments, kMostNativeAttachments);
@@ -787,6 +796,11 @@ struct LoadedManifest {
     Manifest manifest;
     std::vector<Diagnostic> diagnostics;
 };
+
+[[nodiscard]] std::string_view hostArchitecture() noexcept;
+[[nodiscard]] std::vector<std::pair<std::string, std::string>> nativeDlls(const NativeContribution& native);
+[[nodiscard]] std::string nativeDllFor(const NativeContribution& native, std::string_view architecture);
+[[nodiscard]] std::string nativeDllField(std::string_view architecture);
 
 [[nodiscard]] std::optional<ExtensionPoint> extensionPointNamed(std::string_view name) noexcept;
 [[nodiscard]] std::string_view nameOf(ExtensionPoint point) noexcept;

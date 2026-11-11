@@ -6443,6 +6443,10 @@
         <translation>它的 DLL 在 GameScrcpy 进程里运行。</translation>
     </message>
     <message>
+        <source>Built for: %1</source>
+        <translation>适用的处理器：%1</translation>
+    </message>
+    <message>
         <source>Components</source>
         <translation>组件</translation>
     </message>
@@ -6461,6 +6465,26 @@
     <message>
         <source>Tours</source>
         <translation>引导</translation>
+    </message>
+    <message>
+        <source>This extension has no version for this computer</source>
+        <translation>这个扩展没有适合这台电脑的版本</translation>
+    </message>
+    <message>
+        <source>Updates have to be signed with the same key. To accept a new key, remove the extension and install it again.</source>
+        <translation>以后的更新必须用同一个公钥签名。要接受新的公钥，请先删除这个扩展，再重新安装。</translation>
+    </message>
+    <message>
+        <source>Nothing tells who made it or whether it was changed.</source>
+        <translation>无法确认是谁做的、有没有被改过。</translation>
+    </message>
+    <message>
+        <source>It is signed with a different key than the one it had when it was first installed.</source>
+        <translation>它的签名公钥与第一次安装时的不同。</translation>
+    </message>
+    <message>
+        <source>Its files no longer match its signature.</source>
+        <translation>它的文件与签名对不上了。</translation>
     </message>
     <message>
         <source>Stopped working three times within a minute, so it was turned off</source>
@@ -8334,6 +8358,18 @@
         <translation>将替换已安装的版本 %1</translation>
     </message>
     <message>
+        <source>Downloaded from %1; its SHA-256 matches the link</source>
+        <translation>从 %1 下载，SHA-256 与链接一致</translation>
+    </message>
+    <message>
+        <source>Unsigned native code</source>
+        <translation>没有签名的原生代码</translation>
+    </message>
+    <message>
+        <source>Its DLL runs with full rights on this computer, and without a signature nobody can tell who made it or whether it was changed. Install it only if you trust where it came from.</source>
+        <translation>它的 DLL 在这台电脑上有完全的权限，没有签名就无法确认是谁做的、有没有被改过。请只在信任它的来源时安装。</translation>
+    </message>
+    <message>
         <source>This package can&apos;t be installed.</source>
         <translation>这个扩展包无法安装。</translation>
     </message>
@@ -8354,16 +8390,8 @@
         <translation>已由作者签名</translation>
     </message>
     <message>
-        <source>Author not verified</source>
-        <translation>作者未验证</translation>
-    </message>
-    <message>
         <source>Key %1. Updates have to be signed with the same key.</source>
         <translation>公钥 %1。以后的更新必须用同一个公钥签名。</translation>
-    </message>
-    <message>
-        <source>The package is not signed, so there is no way to tell who made it or whether it was changed. Install it only if you trust where it came from.</source>
-        <translation>这个扩展包没有签名，无法确认是谁做的、有没有被改过。请只在信任它的来源时安装。</translation>
     </message>
     <message>
         <source>Windows Security found no threat</source>
@@ -10156,6 +10184,10 @@
         <translation>设备</translation>
     </message>
     <message>
+        <source>This extension is not installed</source>
+        <translation>没有安装这个扩展</translation>
+    </message>
+    <message>
         <source>The tour plays the next time you open the AI assistant</source>
         <translation>下次打开 AI 小助手时会再放一遍引导</translation>
     </message>
@@ -10276,6 +10308,18 @@
     <message>
         <source>A device permission is waiting for you</source>
         <translation>有设备授权在等你确认</translation>
+    </message>
+    <message>
+        <source>Downloading an extension from %1 · %2%</source>
+        <translation>正在从 %1 下载扩展 · %2%</translation>
+    </message>
+    <message>
+        <source>Downloading an extension from %1…</source>
+        <translation>正在从 %1 下载扩展…</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
     </message>
     <message>
         <source>GameScrcpy closed unexpectedly last time.</source>
@@ -18492,6 +18536,34 @@
         <translation>计划任务</translation>
     </message>
     <message>
+        <source>Extension links</source>
+        <translation>扩展链接</translation>
+    </message>
+    <message>
+        <source>Open gamescrcpy:// links with this copy</source>
+        <translation>用这份 GameScrcpy 打开 gamescrcpy:// 链接</translation>
+    </message>
+    <message>
+        <source>Links on web pages that install or show extensions open in this copy.</source>
+        <translation>网页上安装或显示扩展的链接会在这份 GameScrcpy 里打开。</translation>
+    </message>
+    <message>
+        <source>Another copy of GameScrcpy opens these links now.</source>
+        <translation>现在由另一份 GameScrcpy 打开这些链接。</translation>
+    </message>
+    <message>
+        <source>Web pages can offer extensions through gamescrcpy:// links. This portable copy opens them once you register it.</source>
+        <translation>网页可以用 gamescrcpy:// 链接提供扩展。注册之后，这份便携版就能打开它们。</translation>
+    </message>
+    <message>
+        <source>Remove gamescrcpy:// links</source>
+        <translation>取消注册 gamescrcpy:// 链接</translation>
+    </message>
+    <message>
+        <source>Register gamescrcpy:// links</source>
+        <translation>注册 gamescrcpy:// 链接</translation>
+    </message>
+    <message>
         <source>Follow Windows (light)</source>
         <translation>跟随 Windows（浅色）</translation>
     </message>
@@ -21849,6 +21921,18 @@
         <translation>已内置相同的版本，这份副本不会被使用，可以移除。</translation>
     </message>
     <message>
+        <source>This extension has no version for this computer.</source>
+        <translation>这个扩展没有适合这台电脑的版本。</translation>
+    </message>
+    <message>
+        <source>The installed version is signed by its author, but this one is not. Install updates only as its author publishes them.</source>
+        <translation>已安装的版本有作者签名，这个没有。请只安装作者发布的更新。</translation>
+    </message>
+    <message>
+        <source>This update is signed with a different key than the installed version. To accept the new key, remove the extension and install this package again.</source>
+        <translation>这个更新的签名公钥与已安装的版本不同。要接受新的公钥，请先删除这个扩展，再重新安装这个扩展包。</translation>
+    </message>
+    <message>
         <source>Send touches and keys</source>
         <translation>发送触控与按键</translation>
     </message>
@@ -21985,6 +22069,22 @@
         <translation>这台电脑的安全设置禁止了它。</translation>
     </message>
     <message>
+        <source>Unsigned</source>
+        <translation>未签名</translation>
+    </message>
+    <message>
+        <source>Verified publisher: %1 · %2</source>
+        <translation>已验证的发布者：%1 · %2</translation>
+    </message>
+    <message>
+        <source>Signed with a different key than before</source>
+        <translation>签名公钥与之前的不同</translation>
+    </message>
+    <message>
+        <source>Its signature does not match its files</source>
+        <translation>签名与文件对不上</translation>
+    </message>
+    <message>
         <source>Its author signature does not match its files: it was changed after it was signed.</source>
         <translation>作者签名与文件对不上：签名之后被改动过。</translation>
     </message>
@@ -21997,10 +22097,6 @@
         <translation>无法用 Windows 安全中心扫描。</translation>
     </message>
     <message>
-        <source>It is not signed with the key of the installed version. Install it only if you know why the author changed the key.</source>
-        <translation>它没有用已装版本的作者公钥签名。只在知道作者为什么换公钥时再安装。</translation>
-    </message>
-    <message>
         <source>Every kind of key</source>
         <translation>所有键位</translation>
     </message>
@@ -22008,6 +22104,45 @@
         <source>, </source>
         <comment>list separator</comment>
         <translation>、</translation>
+    </message>
+</context>
+<context>
+    <name>gs::app::ExtensionLinks</name>
+    <message>
+        <source>GameScrcpy cannot open this link.</source>
+        <translation>GameScrcpy 打不开这个链接。</translation>
+    </message>
+    <message>
+        <source>Another extension is still downloading.</source>
+        <translation>还有一个扩展正在下载。</translation>
+    </message>
+    <message>
+        <source>Extensions cannot be installed here.</source>
+        <translation>这里不能安装扩展。</translation>
+    </message>
+    <message>
+        <source>The download cannot be saved: %1</source>
+        <translation>下载的文件没能保存：%1</translation>
+    </message>
+    <message>
+        <source>The download left https, so it was stopped.</source>
+        <translation>下载转到了 https 以外的地址，已停止。</translation>
+    </message>
+    <message>
+        <source>The package is larger than 200 MiB.</source>
+        <translation>扩展包超过 200 MiB。</translation>
+    </message>
+    <message>
+        <source>The download failed: %1</source>
+        <translation>下载失败：%1</translation>
+    </message>
+    <message>
+        <source>The server answered %1 instead of sending the package.</source>
+        <translation>服务器回应了 %1，没有发来扩展包。</translation>
+    </message>
+    <message>
+        <source>The downloaded file is not the one the link names: its SHA-256 does not match.</source>
+        <translation>下载的文件不是链接指定的那个：SHA-256 对不上。</translation>
     </message>
 </context>
 <context>

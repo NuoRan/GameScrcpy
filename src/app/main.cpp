@@ -14,6 +14,7 @@
 #include "DiagnosticsBundle.h"
 #include "ExtensionHelp.h"
 #include "ExtensionHost.h"
+#include "ExtensionLinks.h"
 #include "ExtensionLogic.h"
 #include "ExtensionPanels.h"
 #include "ExtensionServices.h"
@@ -74,6 +75,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdlib>
 #include <filesystem>
 #include <format>
@@ -371,7 +373,14 @@ int main(int argc, char* argv[])
     QCommandLineOption testCrash(u"test-crash"_s, u"Crash on purpose once started, to try the crash report."_s);
     testCrash.setFlags(QCommandLineOption::HiddenFromHelp);
     parser.addOption(testCrash);
+    parser.addPositionalArgument(u"link"_s, u"A gamescrcpy:// link: install an extension from the web or show one."_s,
+                                 u"[link]"_s);
     parser.process(app);
+    const QString link = gs::app::linkArgument(parser.positionalArguments());
+    if (!link.isEmpty() &&
+        gs::app::LinkHandover::send(gs::app::linkPipeName(gs::app::dataDirectory()), link, std::chrono::seconds(5))) {
+        return EXIT_SUCCESS;
+    }
     const gs::platform::RunningMarker running(L"GameScrcpyRunning");
 
     applyDefaultFont();
@@ -428,6 +437,12 @@ int main(int argc, char* argv[])
     QObject::connect(&extensions, &gs::app::ExtensionHost::tasksChanged, &tasks,
                      [&tasks, &extensions] { tasks.setExtensionTasks(extensions.tasks()); });
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &extensions, &gs::app::ExtensionHost::finish);
+    gs::app::ExtensionLinks extensionLinks(data / "extensions" / ".staging");
+    gs::app::LinkHandover linkHandover(gs::app::linkPipeName(data));
+    QObject::connect(&linkHandover, &gs::app::LinkHandover::received, &extensionLinks, &gs::app::ExtensionLinks::open);
+    if (!parser.isSet(smokeTest)) {
+        linkHandover.listen();
+    }
     gs::app::ExtensionPanels extensionPanels(nullptr);
     extensionPanels.watch(extensions);
     gs::app::watchExtensionHelp(help, extensions);
@@ -634,6 +649,10 @@ int main(int argc, char* argv[])
             catalog->retranslate();
         }
     });
+    if (!link.isEmpty()) {
+        QMetaObject::invokeMethod(&extensionLinks, [&extensionLinks, link] { extensionLinks.open(link); },
+                                  Qt::QueuedConnection);
+    }
     if (parser.isSet(profile)) {
         loadInputProfile(devices, parser.value(profile));
     }

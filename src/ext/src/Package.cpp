@@ -2,6 +2,7 @@
 
 #include "gs/ext/Archive.h"
 #include "gs/ext/FilterSource.h"
+#include "gs/ext/Signing.h"
 
 #include <gs/platform/AtomicFile.h>
 
@@ -161,9 +162,12 @@ PackageCheck checkFiles(const ArchiveListing& listing, const Reader& reader, con
     for (std::size_t index = 0; index < loaded.manifest.contributes.filters.size(); ++index) {
         checkFilter(loaded.manifest, index, listing, reader, check.diagnostics);
     }
-    if (const std::optional<NativeContribution>& native = loaded.manifest.contributes.native;
-        native && entryOf(listing, native->dll) == nullptr) {
-        add(check.diagnostics, Code::FileMissing, "$.contributes.native.dll", native->dll);
+    if (const std::optional<NativeContribution>& native = loaded.manifest.contributes.native) {
+        for (const auto& [architecture, file] : nativeDlls(*native)) {
+            if (entryOf(listing, file) == nullptr) {
+                add(check.diagnostics, Code::FileMissing, nativeDllField(architecture), file);
+            }
+        }
     }
     for (std::size_t index = 0; index < loaded.manifest.contributes.scripts.size(); ++index) {
         const ScriptContribution& script = loaded.manifest.contributes.scripts[index];
@@ -257,6 +261,15 @@ InstalledExtension installPackage(const std::filesystem::path& archive, const st
     if (result.manifest && target.empty()) {
         add(result.diagnostics, Code::IdInvalid, "$.id", result.manifest->id);
     }
+    std::optional<MinisignKey> remembered;
+    SignatureCheck incoming;
+    if (result.ok()) {
+        remembered = publisherOf(root, result.manifest->id);
+        incoming = checkSignature(directoryContents(staging), result.manifest->authorKey);
+        if (std::optional<Diagnostic> refused = publisherProblem(remembered, incoming)) {
+            result.diagnostics.push_back(std::move(*refused));
+        }
+    }
     if (!result.ok()) {
         fs::remove_all(staging, error);
         return result;
@@ -293,6 +306,9 @@ InstalledExtension installPackage(const std::filesystem::path& archive, const st
     if (replacing) {
         fs::remove(journal, error);
         fs::remove_all(previous, error);
+    }
+    if (incoming.state == SignatureState::Valid && incoming.key) {
+        static_cast<void>(rememberPublisher(root, result.manifest->id, *incoming.key));
     }
     result.directory = target;
     return result;

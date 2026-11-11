@@ -547,10 +547,17 @@ void checkEntry(const NativeInputSource& source, const std::string& path, Contex
 
 void checkEntry(const NativeContribution& native, const std::string& path, Context& context)
 {
-    std::string lower = native.dll;
-    std::ranges::transform(lower, lower.begin(), [](char c) { return c >= 'A' && c <= 'Z' ? char(c - 'A' + 'a') : c; });
-    if (!native.dll.empty() && !lower.ends_with(".dll")) {
-        context.report(Severity::Error, Code::NativeDllInvalid, path + ".dll", native.dll);
+    for (const auto& [architecture, file] : nativeDlls(native)) {
+        const std::string at = architecture.empty() ? path + ".dll" : keyed(path + ".dll", architecture);
+        std::string lower = file;
+        std::ranges::transform(lower, lower.begin(), [](char c) { return c >= 'A' && c <= 'Z' ? char(c - 'A' + 'a') : c; });
+        if (!file.empty() && !lower.ends_with(".dll")) {
+            context.report(Severity::Error, Code::NativeDllInvalid, at, file);
+        }
+        if (!architecture.empty() &&
+            std::ranges::find(kNativeArchitectureNames, architecture) == kNativeArchitectureNames.end()) {
+            context.report(Severity::Warning, Code::NativeArchitectureUnknown, at, architecture);
+        }
     }
 }
 
@@ -1359,6 +1366,23 @@ public:
         }
     }
 
+    void textOrMap(std::string_view name, std::string& field, TextMap& fields, const TextRule& rule,
+                   const MapRule& mapRule)
+    {
+        const Json* node = find(name);
+        if (node == nullptr || !node->is_object()) {
+            text(name, field, rule);
+            return;
+        }
+        if (node->empty()) {
+            if (rule.required) {
+                report(Severity::Error, rule.missing, name);
+            }
+            return;
+        }
+        textMap(name, fields, mapRule);
+    }
+
     template <typename E, std::size_t N>
     void choice(std::string_view name, E& field, const std::array<std::string_view, N>& names, bool required)
     {
@@ -1612,6 +1636,16 @@ public:
         set(name, std::move(object));
     }
 
+    void textOrMap(std::string_view name, const std::string& field, const TextMap& fields, const TextRule& rule,
+                   const MapRule& mapRule)
+    {
+        if (!fields.empty()) {
+            textMap(name, fields, mapRule);
+            return;
+        }
+        text(name, field, rule);
+    }
+
     template <typename E, std::size_t N>
     void choice(std::string_view name, const E& field, const std::array<std::string_view, N>& names, bool required)
     {
@@ -1854,6 +1888,20 @@ public:
                         {"additionalProperties", stringSchema(rule.maxLength, rule.valueFormat)}});
     }
 
+    void textOrMap(std::string_view name, const std::string&, const TextMap&, const TextRule& rule,
+                   const MapRule& mapRule)
+    {
+        Json map = {{"type", "object"},
+                    {"minProperties", 1},
+                    {"maxProperties", mapRule.maxEntries},
+                    {"propertyNames", stringSchema(64, mapRule.keyFormat)},
+                    {"additionalProperties", stringSchema(mapRule.maxLength, mapRule.valueFormat)}};
+        Json forms = Json::array();
+        forms.push_back(stringSchema(rule.maxLength, rule.format, rule.required));
+        forms.push_back(std::move(map));
+        property(name, {{"oneOf", std::move(forms)}}, rule.required);
+    }
+
     template <typename E, std::size_t N>
     void choice(std::string_view name, const E&, const std::array<std::string_view, N>& names, bool required)
     {
@@ -2081,6 +2129,45 @@ std::optional<ExtensionPoint> extensionPointNamed(std::string_view name) noexcep
 std::string_view nameOf(ExtensionPoint point) noexcept
 {
     return kExtensionPointNames[static_cast<std::size_t>(point)];
+}
+
+std::string_view hostArchitecture() noexcept
+{
+#if defined(_M_ARM64) || defined(__aarch64__)
+    return "arm64";
+#elif defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__)
+    return "x64";
+#else
+    return {};
+#endif
+}
+
+std::vector<std::pair<std::string, std::string>> nativeDlls(const NativeContribution& native)
+{
+    std::vector<std::pair<std::string, std::string>> found;
+    if (!native.dlls.empty()) {
+        for (const auto& [architecture, file] : native.dlls) {
+            found.emplace_back(architecture, file);
+        }
+    } else if (!native.dll.empty()) {
+        found.emplace_back(std::string(), native.dll);
+    }
+    return found;
+}
+
+std::string nativeDllFor(const NativeContribution& native, std::string_view architecture)
+{
+    if (native.dlls.empty()) {
+        return native.dll;
+    }
+    const auto found = native.dlls.find(architecture);
+    return found != native.dlls.end() ? found->second : std::string();
+}
+
+std::string nativeDllField(std::string_view architecture)
+{
+    const std::string base = "$.contributes.native.dll";
+    return architecture.empty() ? base : base + "[\"" + std::string(architecture) + "\"]";
 }
 
 LoadedManifest loadManifest(std::string_view json, const LoadOptions& options)

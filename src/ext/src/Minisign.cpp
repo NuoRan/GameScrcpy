@@ -1,9 +1,12 @@
 #include "gs/ext/Minisign.h"
 
+#include <gs/platform/Crypto.h>
+
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -17,6 +20,10 @@ constexpr std::string_view kTrustedComment = "trusted comment: ";
 constexpr std::size_t kKeyBytes = 42;
 constexpr std::size_t kSignatureBytes = 74;
 constexpr std::size_t kMostSignatureFileBytes = 4096;
+constexpr std::size_t kSecretKeyBytes = 158;
+constexpr std::size_t kMostSecretKeyFileBytes = 4096;
+constexpr std::size_t kMostTrustedCommentBytes = 1024;
+constexpr std::string_view kBase64Digits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
 int base64Value(char c) noexcept
 {
@@ -93,6 +100,61 @@ std::array<std::uint8_t, N> bytesAt(const std::string& data, std::size_t offset)
     return out;
 }
 
+std::string encodedBase64(std::string_view bytes)
+{
+    std::string out;
+    out.reserve((bytes.size() + 2) / 3 * 4);
+    for (std::size_t i = 0; i < bytes.size(); i += 3) {
+        const std::size_t count = std::min<std::size_t>(3, bytes.size() - i);
+        std::uint32_t group = 0;
+        for (std::size_t k = 0; k < 3; ++k) {
+            const std::uint32_t byte = k < count ? static_cast<std::uint8_t>(bytes[i + k]) : 0U;
+            group = (group << 8) | byte;
+        }
+        out.push_back(kBase64Digits[(group >> 18) & 63U]);
+        out.push_back(kBase64Digits[(group >> 12) & 63U]);
+        out.push_back(count > 1 ? kBase64Digits[(group >> 6) & 63U] : '=');
+        out.push_back(count > 2 ? kBase64Digits[group & 63U] : '=');
+    }
+    return out;
+}
+
+template <std::size_t N>
+void appendBytes(std::string& out, const std::array<std::uint8_t, N>& bytes)
+{
+    out.append(reinterpret_cast<const char*>(bytes.data()), bytes.size());
+}
+
+std::string_view viewOf(std::span<const std::uint8_t> bytes)
+{
+    return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
+}
+
+std::string secretKeyBlock(const MinisignSecretKey& key)
+{
+    std::string head = "Ed";
+    appendBytes(head, key.id);
+    appendBytes(head, key.seed);
+    appendBytes(head, key.publicKey);
+    const Digest256 checksum = blake2b256(head);
+    std::string block = "Ed";
+    block.append(2, '\0');
+    block.append("B2");
+    block.append(48, '\0');
+    block.append(head.substr(2));
+    appendBytes(block, checksum);
+    return block;
+}
+
+std::string cleanComment(std::string_view text)
+{
+    std::string out;
+    for (const char c : text.substr(0, kMostTrustedCommentBytes)) {
+        out.push_back(c == '\n' || c == '\r' ? ' ' : c);
+    }
+    return out;
+}
+
 }
 
 std::optional<MinisignKey> parseMinisignKey(std::string_view text)
@@ -150,6 +212,98 @@ MinisignResult verifyMinisign(std::string_view message, std::string_view signatu
         return MinisignResult::BadComment;
     }
     return MinisignResult::Valid;
+}
+
+MinisignSecretKey makeMinisignKey(const Ed25519Seed& seed, const MinisignKeyId& id)
+{
+    return MinisignSecretKey{.id = id, .seed = seed, .publicKey = ed25519PublicKey(seed)};
+}
+
+MinisignSecretKey generateMinisignKey()
+{
+    Ed25519Seed seed{};
+    MinisignKeyId id{};
+    platform::randomBytes(seed);
+    platform::randomBytes(id);
+    return makeMinisignKey(seed, id);
+}
+
+MinisignKey minisignPublicKey(const MinisignSecretKey& key)
+{
+    return MinisignKey{.id = key.id, .publicKey = key.publicKey};
+}
+
+std::string minisignKeyText(const MinisignKey& key)
+{
+    std::string raw = "Ed";
+    appendBytes(raw, key.id);
+    appendBytes(raw, key.publicKey);
+    return encodedBase64(raw);
+}
+
+std::string minisignPublicKeyFile(const MinisignKey& key)
+{
+    return std::string(kUntrustedComment) + " minisign public key " + minisignKeyId(key) + "\n" + minisignKeyText(key) +
+           "\n";
+}
+
+std::string minisignSecretKeyFile(const MinisignSecretKey& key)
+{
+    return std::string(kUntrustedComment) + " minisign secret key " + minisignKeyId(minisignPublicKey(key)) +
+           ", not protected by a password\n" + encodedBase64(secretKeyBlock(key)) + "\n";
+}
+
+LoadedSecretKey parseMinisignSecretKey(std::string_view file)
+{
+    LoadedSecretKey loaded;
+    if (file.size() > kMostSecretKeyFileBytes) {
+        return loaded;
+    }
+    const std::vector<std::string_view> lines = linesOf(file);
+    if (lines.size() < 2 || !lines[0].starts_with(kUntrustedComment)) {
+        return loaded;
+    }
+    const std::optional<std::string> raw = decoded(lines[1]);
+    if (!raw || raw->size() != kSecretKeyBytes || raw->substr(0, 2) != "Ed" || raw->substr(4, 2) != "B2") {
+        return loaded;
+    }
+    const std::string_view kdf = std::string_view(*raw).substr(2, 2);
+    if (kdf == "Sc") {
+        loaded.state = SecretKeyState::Encrypted;
+        return loaded;
+    }
+    if (kdf != std::string_view("\0\0", 2)) {
+        return loaded;
+    }
+    constexpr std::size_t kKeyStart = 54;
+    MinisignSecretKey key{.id = bytesAt<8>(*raw, kKeyStart),
+                          .seed = bytesAt<32>(*raw, kKeyStart + 8),
+                          .publicKey = bytesAt<32>(*raw, kKeyStart + 40)};
+    std::string head = "Ed";
+    head.append(raw->substr(kKeyStart, 72));
+    const Digest256 checksum = blake2b256(head);
+    if (bytesAt<32>(*raw, kKeyStart + 72) != checksum || ed25519PublicKey(key.seed) != key.publicKey) {
+        loaded.state = SecretKeyState::Damaged;
+        return loaded;
+    }
+    loaded.state = SecretKeyState::Valid;
+    loaded.key = key;
+    return loaded;
+}
+
+std::string signMinisign(std::string_view message, const MinisignSecretKey& key, std::string_view trustedComment)
+{
+    const std::string comment = cleanComment(trustedComment);
+    const Digest512 digest = blake2b512(message);
+    const Ed25519Signature detached = signEd25519(viewOf(digest), key.seed);
+    std::string block = "ED";
+    appendBytes(block, key.id);
+    appendBytes(block, detached);
+    std::string commented(viewOf(detached));
+    commented.append(comment);
+    const Ed25519Signature global = signEd25519(commented, key.seed);
+    return std::string(kUntrustedComment) + " signature from minisign secret key\n" + encodedBase64(block) + "\n" +
+           std::string(kTrustedComment) + comment + "\n" + encodedBase64(viewOf(global)) + "\n";
 }
 
 }

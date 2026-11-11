@@ -64,5 +64,11 @@ Source: "{#ReleaseDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs
 Name: "{autoprograms}\GameScrcpy"; Filename: "{app}\GameScrcpy.exe"
 Name: "{autodesktop}\GameScrcpy"; Filename: "{app}\GameScrcpy.exe"; Tasks: desktopicon
 
+[Registry]
+Root: HKA; Subkey: "Software\Classes\gamescrcpy"; ValueType: string; ValueName: ""; ValueData: "URL:GameScrcpy"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\gamescrcpy"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKA; Subkey: "Software\Classes\gamescrcpy\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: """{app}\GameScrcpy.exe"",0"
+Root: HKA; Subkey: "Software\Classes\gamescrcpy\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\GameScrcpy.exe"" ""%1"""
+
 [Run]
 Filename: "{app}\GameScrcpy.exe"; Description: "{cm:LaunchProgram,GameScrcpy}"; Flags: nowait postinstall skipifsilent

@@ -401,11 +401,32 @@ ArchiveListing inspectDirectory(const std::filesystem::path& directory, const Ar
 std::vector<Diagnostic> packDirectory(const std::filesystem::path& directory, const std::filesystem::path& archive,
                                       const ArchiveLimits& limits, const std::vector<std::string>& skipped)
 {
+    return packDirectory(directory, archive, limits, skipped, {});
+}
+
+std::vector<Diagnostic> packDirectory(const std::filesystem::path& directory, const std::filesystem::path& archive,
+                                      const ArchiveLimits& limits, const std::vector<std::string>& skipped,
+                                      const std::vector<PackedFile>& added)
+{
     ArchiveListing listing = inspectDirectory(directory, limits, skipped);
     if (!listing.ok()) {
         return std::move(listing.problems);
     }
     std::vector<Diagnostic> problems;
+    std::vector<std::pair<std::string, const PackedFile*>> entries;
+    for (const ArchiveEntry& entry : listing.files) {
+        if (std::ranges::none_of(added, [&entry](const PackedFile& file) { return file.path == entry.path; })) {
+            entries.emplace_back(entry.path, nullptr);
+        }
+    }
+    for (const PackedFile& file : added) {
+        if (!safeArchivePath(file.path)) {
+            report(problems, Code::ArchiveUnsafePath, file.path);
+            return problems;
+        }
+        entries.emplace_back(file.path, &file);
+    }
+    std::ranges::sort(entries, {}, &std::pair<std::string, const PackedFile*>::first);
     std::filesystem::path temporary = archive;
     temporary += ".tmp";
     Zip zip;
@@ -415,13 +436,17 @@ std::vector<Diagnostic> packDirectory(const std::filesystem::path& directory, co
     }
     std::uint64_t total = 0;
     std::time_t stamp = kPackedTime;
-    for (const ArchiveEntry& entry : listing.files) {
-        const std::string& name = entry.path;
-        std::ifstream in(directory / pathOf(name), std::ios::binary);
-        const std::string data{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
-        if (!in.is_open() || in.bad()) {
-            report(problems, Code::ArchiveUnreadable, name);
-            break;
+    for (const auto& [name, given] : entries) {
+        std::string data;
+        if (given != nullptr) {
+            data = given->data;
+        } else {
+            std::ifstream in(directory / pathOf(name), std::ios::binary);
+            data.assign(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+            if (!in.is_open() || in.bad()) {
+                report(problems, Code::ArchiveUnreadable, name);
+                break;
+            }
         }
         if (data.size() > limits.maxFileBytes) {
             report(problems, Code::ArchiveEntryTooLarge, name, std::to_string(data.size()));
