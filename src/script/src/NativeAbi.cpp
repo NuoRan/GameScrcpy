@@ -25,6 +25,7 @@ constexpr Constant kConstants[] = {
     {"GS_EXT_CLAIM_WAIT", "1u",
      "A flag of claim: ask whoever has the hardware to let it go, and wait up to 3 seconds for it."},
     {"GS_EXT_KIND_INPUT_SOURCE", "\"input-source\"", "A contribution whose data is a gs_ext_input_source."},
+    {"GS_EXT_KIND_TRANSPORT", "\"transport\"", "A contribution whose data is a gs_ext_transport."},
 };
 
 constexpr Enumerator kTypes[] = {
@@ -365,6 +366,49 @@ constexpr Field kDeviceProviderFields[] = {
      "Does an action of a device that names neither a panel nor a job, such as disconnecting. May be NULL."},
 };
 
+constexpr Field kStreamOpenFields[] = {
+    {"uint32_t size", "sizeof(gs_ext_stream_open) in GameScrcpy."},
+    {"const char* phone", "The id that discover gave for the phone, UTF-8 ended by a zero byte."},
+    {"const char* channel",
+     "The channel of the session that the stream carries, ended by a zero byte: \"control\" first, then \"video\", "
+     "\"audio\" and \"bulk\" as the session needs them."},
+    {"const char* session",
+     "The session as a UTF-8 JSON object, not ended by a zero byte, the same for all of its streams and for every "
+     "attempt to resume it: session (its id), token (32 hex digits; the client proves to the server that it knows "
+     "it), protocol (the protocol version), socket (the abstract socket that the server of the session listens on), "
+     "lingerMs and log, and server, how GameScrcpy starts that server over adb, which a transport that starts it "
+     "itself does the same way: { file (the server package on this computer), path (where it goes on the phone), "
+     "command (the shell command that starts it), stdin (the line to write to its standard input) }, or null when "
+     "GameScrcpy has no server package."},
+    {"size_t session_size", "How many bytes session has."},
+};
+
+constexpr Field kTransportFields[] = {
+    {"uint32_t size", "sizeof(gs_ext_transport) in the DLL."},
+    {"const char* name", "The name of the transport in the manifest's contributes.native.transports."},
+    {"void* context", "Passed back to discover, open, send and close."},
+    {"int32_t (*discover)(void* context, gs_ext_result* out)",
+     "Puts the phones it can reach now into out as a JSON array with set_text, each { id, name, model, detail }: id "
+     "is 1 to 64 characters that stay the same for the same phone, name is what the devices page calls it, and model "
+     "and detail are short texts for its card that may be left out. GameScrcpy calls it when the extension turns on "
+     "and after transport_changed; answer within 100 ms."},
+    {"int32_t (*open)(void* context, uint64_t stream, const gs_ext_stream_open* open)",
+     "Starts opening a byte stream, numbered stream, to the server on a phone for one channel of a session. The "
+     "stream has to reach the same server endpoint that the adb tunnel reaches: the abstract socket that the server "
+     "started for the session listens on. GameScrcpy runs the session's own handshake and protocol over it, so "
+     "encryption, the proof of the token and the video coding do not change; starting that server on the phone is "
+     "the transport's business. Return at once, then call stream_opened when bytes can flow, or stream_closed with "
+     "a reason when they cannot, within 20 seconds. Anything but GS_EXT_OK means it did not start, and nothing more "
+     "may be said about it."},
+    {"int32_t (*send)(void* context, uint64_t stream, const uint8_t* data, size_t size)",
+     "Sends at most 64 KiB toward the phone on an opened stream; return quickly. GS_EXT_OK takes all of the bytes "
+     "and GS_EXT_BUSY none of them, which GameScrcpy sends again after stream_writable; anything else ends the "
+     "stream."},
+    {"void (*close)(void* context, uint64_t stream)",
+     "GameScrcpy is done with the stream: close it and forget it. It never comes after stream_closed, but it may "
+     "cross with it, so ignore a stream that the DLL no longer knows."},
+};
+
 constexpr Field kHostFields[] = {
     {"uint32_t size", "sizeof(gs_ext_host) in GameScrcpy; later versions only add functions at the end."},
     {"uint32_t abi_version", "The GS_EXT_ABI_VERSION of GameScrcpy."},
@@ -388,7 +432,8 @@ constexpr Field kHostFields[] = {
      "Says why a node failed; the script that called it gets the text in its error."},
     {"int32_t (*supports)(void* context, const char* feature)",
      "1 when this GameScrcpy has the feature, such as \"jobs\", \"events\", \"settings\", \"claims\", "
-     "\"job-output\" or \"app-events\", otherwise 0; ask before using a function that a later version added."},
+     "\"job-output\", \"app-events\" or \"transports\", otherwise 0; ask before using a function that a later "
+     "version added."},
     {"int32_t (*job_progress)(void* context, uint64_t job, double fraction, const char* text, size_t size)",
      "Tells how far a job got: fraction from 0 to 1, or -1 when it cannot tell, and a short UTF-8 line about the step "
      "it is on. GameScrcpy passes on at most 20 a second and drops the others in between."},
@@ -465,6 +510,23 @@ constexpr Field kHostFields[] = {
      "json parameter that returns json; it gets { caller, permissions, input }: the id of the extension that calls "
      "(\"\" for the user's own logic), the permissions that both extensions have, and the arguments. allowed() "
      "answers for this extension only, so decide yourself what to do for the caller."},
+    {"int32_t (*transport_changed)(void* context, const char* transport, size_t size)",
+     "Tells GameScrcpy that the phones one of the DLL's transports can reach changed, so that it calls discover "
+     "again; a session that lost its connection through the transport tries again at once."},
+    {"int32_t (*stream_opened)(void* context, uint64_t stream)",
+     "Says that a stream that open started now reaches the server on the phone."},
+    {"int32_t (*stream_data)(void* context, uint64_t stream, const uint8_t* data, size_t size)",
+     "Gives bytes that came from the phone on an opened stream, in order; GameScrcpy copies them before it returns. "
+     "Call it from a thread of the DLL's own or from within open, send and close, never from a node, a touch method, "
+     "an attachment, a behavior or a device provider: in its own process a DLL may wait here while GameScrcpy "
+     "catches up."},
+    {"int32_t (*stream_writable)(void* context, uint64_t stream)",
+     "After send returned GS_EXT_BUSY: the stream can take bytes again, so GameScrcpy sends what it holds."},
+    {"int32_t (*stream_closed)(void* context, uint64_t stream, const char* reason, size_t size)",
+     "Ends a stream that can carry no more, also when the server on the phone closed its end, or says why open could "
+     "not reach the phone, with a reason in UTF-8 of at most 1000 bytes. The session sees a lost connection, as when "
+     "the adb tunnel drops, shows the reason and tries to resume; GameScrcpy does not call close for the stream "
+     "afterwards."},
 };
 
 constexpr Field kContributionFields[] = {
@@ -480,8 +542,8 @@ constexpr Field kPluginFields[] = {
     {"uint32_t abi_version", "Set it to GS_EXT_ABI_VERSION."},
     {"void* context", "Passed back to unload."},
     {"uint32_t contribution_count",
-     "How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments, 32 behaviors, 32 jobs "
-     "and 8 device providers."},
+     "How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments, 32 behaviors, 32 jobs, "
+     "8 device providers and 8 transports."},
     {"const gs_ext_contribution* contributions", "What the DLL offers."},
     {"void (*unload)(void* context)", "Called once before the DLL is unloaded; may be NULL."},
     {"void (*settings_changed)(void* context, const char* keys, size_t size)",
@@ -552,6 +614,15 @@ constexpr Structure kStructures[] = {
      "Devices that GameScrcpy lists on its devices page, such as boxes that touch a phone without showing its "
      "picture. It needs the permission devices.provide.",
      kDeviceProviderFields},
+    {"gs_ext_stream_open", "The stream that a transport opens: to which phone, for which channel of which session.",
+     kStreamOpenFields},
+    {"gs_ext_transport",
+     "A transport: another way to reach phones, such as a relay server, a company tunnel, a cloud phone or another "
+     "way of finding phones on the network. Its phones are listed on the devices page with its title as the way they "
+     "are connected, and their sessions run over byte streams that it carries, one for each channel of a session. "
+     "It needs the permission transport, and network when it uses the network. open, send and close may come from "
+     "different GameScrcpy threads, one call into the transport at a time; the DLL reports from its own threads.",
+     kTransportFields},
     {"gs_ext_host", "What GameScrcpy gives a DLL.", kHostFields},
     {"gs_ext_contribution", "One thing a DLL offers.", kContributionFields},
     {"gs_ext_plugin", "What a DLL offers, as one description that the DLL keeps.", kPluginFields},

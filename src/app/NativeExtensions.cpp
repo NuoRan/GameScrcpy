@@ -23,6 +23,7 @@
 #include <iterator>
 #include <map>
 #include <optional>
+#include <set>
 #include <utility>
 
 namespace gs::app {
@@ -209,6 +210,47 @@ std::optional<ProvidedDevice> providedOf(const NativeWanted& wanted, const ext::
                           .actions = std::move(actions)};
 }
 
+constexpr std::size_t kMostTransportPhones = 64;
+
+std::optional<TransportPhone> phoneOf(const NativeWanted& wanted, const ext::NativeTransport& declared,
+                                      const QString& title, const nlohmann::json& phone, std::string& problem)
+{
+    if (!phone.is_object()) {
+        problem = "it is not an object";
+        return std::nullopt;
+    }
+    const std::optional<std::string> id = textIn(phone, "id", 64);
+    const std::optional<std::string> name = textIn(phone, "name", 64);
+    const std::optional<std::string> model = textIn(phone, "model", 64);
+    const std::optional<std::string> detail = textIn(phone, "detail", 200);
+    if (!id || id->empty() || !name || name->empty()) {
+        problem = "it has no id or no name";
+        return std::nullopt;
+    }
+    if (!exthost::validUtf8(*id) ||
+        std::ranges::any_of(*id, [](char c) { return static_cast<unsigned char>(c) < 0x20; })) {
+        problem = "its id is not plain text";
+        return std::nullopt;
+    }
+    if (!model || !detail) {
+        problem = "its model or detail is not valid text";
+        return std::nullopt;
+    }
+    constexpr std::string_view kSvg = "svg:";
+    const std::string_view icon = declared.icon;
+    return TransportPhone{
+        .extension = wanted.id,
+        .extensionName = wanted.name,
+        .transport = declared.name,
+        .transportTitle = title,
+        .id = *id,
+        .name = QString::fromStdString(*name),
+        .model = QString::fromStdString(*model),
+        .detail = QString::fromStdString(*detail),
+        .icon = builtinIconName(icon) ? QString::fromStdString(declared.icon) : QString(),
+        .iconPath = icon.starts_with(kSvg) ? extensionIconPath(wanted.directory, icon.substr(kSvg.size())) : QString()};
+}
+
 }
 
 std::string nativeTouchOptions(std::string_view snapshot, std::string_view phone, std::string_view device,
@@ -233,6 +275,7 @@ struct NativeExtensions::Shared {
     std::mutex mutex;
     NativeExtensions* owner = nullptr;
     std::map<std::pair<std::string, std::uint64_t>, std::weak_ptr<ModuleTouchPort>> ports;
+    std::shared_ptr<TransportChanges> changes;
 
     void post(std::function<void(NativeExtensions&)> work)
     {
@@ -272,6 +315,14 @@ struct NativeExtensions::Shared {
         post([id, loadNumber, from = std::string(source), key = std::string(slot), x, y](NativeExtensions& owner) {
             owner.deliverInput(id, loadNumber, from, key, x, y);
         });
+    }
+
+    void transportChanged(const std::string& id, std::string_view transport)
+    {
+        if (changes != nullptr) {
+            changes->bump(transportKey(id, transport));
+        }
+        post([id](NativeExtensions& owner) { owner.refreshTransports(id); });
     }
 
     void lose(const std::string& id, std::uint64_t session)
@@ -393,6 +444,13 @@ public:
         }
     }
 
+    void transportChanged(std::string_view transport) override
+    {
+        if (const std::shared_ptr<NativeExtensions::Shared> shared = m_shared.lock()) {
+            shared->transportChanged(m_id, transport);
+        }
+    }
+
 private:
     std::string m_id;
     QString m_name;
@@ -416,6 +474,7 @@ struct NativeExtensions::Entry {
     bool pending = false;
     std::uint64_t loadNumber = 0;
     std::vector<std::optional<std::size_t>> inputIndex;
+    std::vector<std::optional<std::size_t>> transportIndex;
 };
 
 namespace {
@@ -474,6 +533,17 @@ void matchEntry(NativeExtensions::Entry& entry)
                                       where + ".deviceProviders[" + std::to_string(index) + "]", provider.name});
         }
     }
+    for (std::size_t index = 0; index < wanted.native.transports.size(); ++index) {
+        const ext::NativeTransport& transport = wanted.native.transports[index];
+        const auto found = std::ranges::find(info.transports, transport.name, &exthost::TransportInfo::name);
+        const bool fits = found != info.transports.end();
+        entry.transportIndex.push_back(
+            fits ? std::optional<std::size_t>(static_cast<std::size_t>(found - info.transports.begin())) : std::nullopt);
+        if (!fits) {
+            entry.problems.push_back({ext::Severity::Warning, ext::Code::NativeMismatch,
+                                      where + ".transports[" + std::to_string(index) + "]", transport.name});
+        }
+    }
     for (std::size_t index = 0; index < wanted.native.attachments.size(); ++index) {
         const ext::NativeAttachment& attachment = wanted.native.attachments[index];
         const auto found = std::ranges::find(info.attachments, attachment.name, &exthost::AttachmentInfo::name);
@@ -525,6 +595,7 @@ NativeExtensions::NativeExtensions(NativeOptions options, QObject* parent)
     , m_shared(std::make_shared<Shared>())
 {
     m_shared->owner = this;
+    m_shared->changes = m_changes;
     m_modules = makeModules();
     s_instance = this;
     connect(this, &NativeExtensions::crashed, this, [this](const QString& id) { emit inputsEnded(id); });
@@ -625,6 +696,11 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
                 alive->input(id, loadNumber, from, key, x, y);
             }
         };
+        options.transportChanged = [shared, id](const std::string& transport) {
+            if (const std::shared_ptr<Shared> alive = shared.lock()) {
+                alive->transportChanged(id, transport);
+            }
+        };
         options.claim = [claimer](const std::string& resource, bool wait,
                                   std::function<void(exthost::ClaimResult)> answer) {
             HardwareClaims* claims = HardwareClaims::instance();
@@ -659,7 +735,14 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
                 alive->lose(id, session);
             }
         };
-        options.restarted = [id] { log::info(kCategory, "{}: its process stopped and started again", id); };
+        options.restarted = [shared, id, transports = wanted.native.transports] {
+            log::info(kCategory, "{}: its process stopped and started again", id);
+            if (const std::shared_ptr<Shared> alive = shared.lock()) {
+                for (const ext::NativeTransport& transport : transports) {
+                    alive->transportChanged(id, transport.name);
+                }
+            }
+        };
         options.stopped = [shared, id, name] {
             log::warning(kCategory, "{}: its process stopped three times within a minute, so it was turned off", id);
             if (const std::shared_ptr<Shared> alive = shared.lock()) {
@@ -730,6 +813,7 @@ void NativeExtensions::matchLate(const exthost::Module* module)
     setExtensionInputTitles(inputTitles());
     emit changed();
     refreshProviders();
+    refreshTransports();
 }
 
 void NativeExtensions::failLate(const exthost::Module* module, const std::string& why)
@@ -803,6 +887,18 @@ void NativeExtensions::apply(std::vector<NativeWanted> wanted)
         emit changed();
     }
     refreshProviders();
+    for (const std::shared_ptr<Entry>& entry : previous) {
+        const bool kept = std::ranges::any_of(current, [&entry](const std::shared_ptr<Entry>& now) {
+            return now->module != nullptr && now->module == entry->module;
+        });
+        if (kept) {
+            continue;
+        }
+        for (const ext::NativeTransport& transport : entry->wanted.native.transports) {
+            m_changes->bump(transportKey(entry->wanted.id, transport.name));
+        }
+    }
+    refreshTransports();
 }
 
 void NativeExtensions::setSettings(const std::string& id, const std::string& json)
@@ -900,6 +996,88 @@ std::vector<NativeEventTarget> NativeExtensions::eventTargets() const
                            .module = entry->module});
     }
     return targets;
+}
+
+std::vector<TransportPhone> NativeExtensions::transportPhones() const
+{
+    return m_phones;
+}
+
+void NativeExtensions::refreshTransports(std::string_view extension)
+{
+    std::vector<TransportPhone> next;
+    if (!extension.empty()) {
+        std::ranges::copy_if(m_phones, std::back_inserter(next),
+                             [extension](const TransportPhone& phone) { return phone.extension != extension; });
+    }
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        const NativeWanted& wanted = entry->wanted;
+        if ((!extension.empty() && wanted.id != extension) || entry->module == nullptr || entry->pending ||
+            !entry->module->working() ||
+            std::ranges::find(wanted.granted, ext::kTransportPermission) == wanted.granted.end()) {
+            continue;
+        }
+        for (std::size_t index = 0; index < wanted.native.transports.size(); ++index) {
+            if (index >= entry->transportIndex.size() || !entry->transportIndex[index]) {
+                continue;
+            }
+            const ext::NativeTransport& declared = wanted.native.transports[index];
+            const QString title = index < wanted.transportTitles.size() && !wanted.transportTitles[index].isEmpty()
+                                      ? wanted.transportTitles[index]
+                                      : QString::fromStdString(declared.title);
+            const exthost::CallResult found = entry->module->discover(*entry->transportIndex[index]);
+            if (!found.ok()) {
+                log::warning(kCategory, "{}: the transport {} failed: {}", wanted.id, declared.name, found.problem);
+                continue;
+            }
+            const nlohmann::json phones = nlohmann::json::parse(found.value.text, nullptr, false);
+            std::set<std::string> seen;
+            std::size_t taken = 0;
+            for (const nlohmann::json& phone : phones.is_array() ? phones : nlohmann::json::array()) {
+                std::string problem;
+                std::optional<TransportPhone> made = phoneOf(wanted, declared, title, phone, problem);
+                if (made && !seen.insert(made->id).second) {
+                    made.reset();
+                    problem = "its id comes twice";
+                }
+                if (!made) {
+                    log::warning(kCategory, "{}: a phone from {} was left out: {}", wanted.id, declared.name, problem);
+                } else if (taken++ < kMostTransportPhones) {
+                    next.push_back(std::move(*made));
+                }
+            }
+        }
+    }
+    if (next != m_phones) {
+        m_phones = std::move(next);
+        emit transportPhonesChanged();
+    }
+}
+
+std::shared_ptr<session::PhoneStreams> NativeExtensions::phoneStreams(
+    const TransportPhone& phone, std::shared_ptr<const session::ServerPackage> package) const
+{
+    PhoneRoute route;
+    route.key = transportKey(phone.extension, phone.transport);
+    route.phone = phone.id;
+    route.through = phone.transportTitle.toStdString();
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        if (entry->wanted.id != phone.extension) {
+            continue;
+        }
+        const std::vector<ext::NativeTransport>& transports = entry->wanted.native.transports;
+        const auto found = std::ranges::find(transports, phone.transport, &ext::NativeTransport::name);
+        const auto index = static_cast<std::size_t>(found - transports.begin());
+        const bool allowed = std::ranges::find(entry->wanted.granted, ext::kTransportPermission) !=
+                             entry->wanted.granted.end();
+        if (entry->module != nullptr && !entry->pending && allowed && found != transports.end() &&
+            index < entry->transportIndex.size() && entry->transportIndex[index]) {
+            route.module = entry->module;
+            route.transport = *entry->transportIndex[index];
+        }
+        break;
+    }
+    return makePhoneStreams(std::move(route), m_changes, std::move(package));
 }
 
 void NativeExtensions::setGlobals(GlobalChoices globals)

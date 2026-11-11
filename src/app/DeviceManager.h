@@ -15,6 +15,7 @@
 #include "ScriptWorkbenchConsole.h"
 #include "StatusProblem.h"
 #include "SyncGroups.h"
+#include "TransportPhones.h"
 #include "TrayNotices.h"
 
 #include <gs/adb/AdbClient.h>
@@ -191,6 +192,7 @@ public:
         Esp32Role,
         PictureRole,
         ProvidedRole,
+        TransportedRole,
     };
     Q_ENUM(Role)
 
@@ -554,6 +556,7 @@ private:
         bool esp32Wifi = false;
         std::optional<ProvidedDevice> provided;
         QVariantMap providedJob;
+        std::optional<TransportPhone> transported;
         std::uint32_t shotPending = 0;
         quint64 shotTicket = 0;
         quint64 shotAskedTicket = 0;
@@ -774,6 +777,10 @@ private:
     [[nodiscard]] QVariantMap providedState(const Row& row) const;
     [[nodiscard]] std::optional<Advice> providedAdviceOf(const Row& row) const;
     [[nodiscard]] DevicePresentation providedPresentation(const Row& row) const;
+    void syncTransportPhones();
+    [[nodiscard]] std::function<std::unique_ptr<session::ServerHost>()> transportHost(const TransportPhone& phone) const;
+    [[nodiscard]] static QVariantMap transportedState(const Row& row);
+    [[nodiscard]] static std::optional<Advice> transportedAdviceOf(const Row& row);
     void syncEsp32();
     void esp32BoardsChanged();
     void connectEsp32(Row& row);

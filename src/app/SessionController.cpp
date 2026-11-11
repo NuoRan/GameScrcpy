@@ -927,9 +927,11 @@ void SessionController::start(session::TransportChoice transport, const settings
     options.bulk = !showsAppDisplay();
     m_launchPending = false;
     m_bulkReady = false;
-    m_session = std::make_unique<session::Session>(
-        std::make_unique<session::AdbServerHost>(m_adb, m_serial.toStdString(), m_package, transport), options,
-        *m_bridge);
+    std::unique_ptr<session::ServerHost> host = m_hostFactory ? m_hostFactory() : nullptr;
+    if (host == nullptr) {
+        host = std::make_unique<session::AdbServerHost>(m_adb, m_serial.toStdString(), m_package, transport);
+    }
+    m_session = std::make_unique<session::Session>(std::move(host), options, *m_bridge);
     if (controlOnly) {
         protocol::SetVideoPaused pause;
         pause.paused = true;

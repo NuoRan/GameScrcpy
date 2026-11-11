@@ -6435,6 +6435,10 @@
         <translation>输入设备：%1</translation>
     </message>
     <message>
+        <source>Connection methods: %1</source>
+        <translation>连接方式：%1</translation>
+    </message>
+    <message>
         <source>Its DLL runs in a process of its own; when that stops three times within a minute, the extension is turned off.</source>
         <translation>它的 DLL 在单独的进程里运行；这个进程一分钟内停止三次，扩展就会被关闭。</translation>
     </message>
@@ -21067,6 +21071,10 @@
         <translation>需要处理</translation>
     </message>
     <message>
+        <source>%1 · %2 / %3</source>
+        <translation>%1 · %2 / %3</translation>
+    </message>
+    <message>
         <source>%1 comes with an extension and cannot have its own logic. Copy it to your profiles first</source>
         <translation>%1 是扩展带来的，不能有自己的逻辑。先复制一份到你的方案里</translation>
     </message>
@@ -21563,6 +21571,22 @@
         <translation>确认 %1 已打开、设备已连好，然后再点“控制”</translation>
     </message>
     <message>
+        <source>Reconnecting: %1</source>
+        <translation>正在重新连接：%1</translation>
+    </message>
+    <message>
+        <source>GameScrcpy connects again by itself as soon as %1 reaches the phone again</source>
+        <translation>等 %1 重新连上手机，GameScrcpy 会自己再连接</translation>
+    </message>
+    <message>
+        <source>Not connected: %1</source>
+        <translation>没有连上：%1</translation>
+    </message>
+    <message>
+        <source>Check that %1 is on and can reach the phone, then connect again</source>
+        <translation>确认 %1 已打开、能连到手机，然后再连接</translation>
+    </message>
+    <message>
         <source>Connect GameScrcpy Companion first: scan the code in this window with the phone</source>
         <translation>请先连上 GameScrcpy 伴侣：用手机扫描这个窗口里的二维码</translation>
     </message>
@@ -22003,6 +22027,10 @@
     <message>
         <source>Feed the buttons of home-made devices into the key mapping</source>
         <translation>把自制设备的按键送进键位</translation>
+    </message>
+    <message>
+        <source>Provide ways to connect to phones</source>
+        <translation>提供连接手机的方式</translation>
     </message>
     <message>
         <source>Its script %1 is not in the extension</source>

@@ -45,6 +45,9 @@ extern "C" {
 /* A contribution whose data is a gs_ext_input_source. */
 #define GS_EXT_KIND_INPUT_SOURCE "input-source"
 
+/* A contribution whose data is a gs_ext_transport. */
+#define GS_EXT_KIND_TRANSPORT "transport"
+
 /* What a node parameter or result holds. The names in the manifest's contributes.native are the same types. */
 enum gs_ext_type {
     /* No value: the result of a node that gives nothing back. */
@@ -202,6 +205,8 @@ typedef struct gs_ext_attachment gs_ext_attachment;
 typedef struct gs_ext_behavior gs_ext_behavior;
 typedef struct gs_ext_job gs_ext_job;
 typedef struct gs_ext_device_provider gs_ext_device_provider;
+typedef struct gs_ext_stream_open gs_ext_stream_open;
+typedef struct gs_ext_transport gs_ext_transport;
 typedef struct gs_ext_host gs_ext_host;
 typedef struct gs_ext_contribution gs_ext_contribution;
 typedef struct gs_ext_plugin gs_ext_plugin;
@@ -499,6 +504,38 @@ struct gs_ext_device_provider {
     int32_t (*act)(void* context, const char* device, size_t device_size, const char* action, size_t action_size);
 };
 
+/* The stream that a transport opens: to which phone, for which channel of which session. */
+struct gs_ext_stream_open {
+    /* sizeof(gs_ext_stream_open) in GameScrcpy. */
+    uint32_t size;
+    /* The id that discover gave for the phone, UTF-8 ended by a zero byte. */
+    const char* phone;
+    /* The channel of the session that the stream carries, ended by a zero byte: "control" first, then "video", "audio" and "bulk" as the session needs them. */
+    const char* channel;
+    /* The session as a UTF-8 JSON object, not ended by a zero byte, the same for all of its streams and for every attempt to resume it: session (its id), token (32 hex digits; the client proves to the server that it knows it), protocol (the protocol version), socket (the abstract socket that the server of the session listens on), lingerMs and log, and server, how GameScrcpy starts that server over adb, which a transport that starts it itself does the same way: { file (the server package on this computer), path (where it goes on the phone), command (the shell command that starts it), stdin (the line to write to its standard input) }, or null when GameScrcpy has no server package. */
+    const char* session;
+    /* How many bytes session has. */
+    size_t session_size;
+};
+
+/* A transport: another way to reach phones, such as a relay server, a company tunnel, a cloud phone or another way of finding phones on the network. Its phones are listed on the devices page with its title as the way they are connected, and their sessions run over byte streams that it carries, one for each channel of a session. It needs the permission transport, and network when it uses the network. open, send and close may come from different GameScrcpy threads, one call into the transport at a time; the DLL reports from its own threads. */
+struct gs_ext_transport {
+    /* sizeof(gs_ext_transport) in the DLL. */
+    uint32_t size;
+    /* The name of the transport in the manifest's contributes.native.transports. */
+    const char* name;
+    /* Passed back to discover, open, send and close. */
+    void* context;
+    /* Puts the phones it can reach now into out as a JSON array with set_text, each { id, name, model, detail }: id is 1 to 64 characters that stay the same for the same phone, name is what the devices page calls it, and model and detail are short texts for its card that may be left out. GameScrcpy calls it when the extension turns on and after transport_changed; answer within 100 ms. */
+    int32_t (*discover)(void* context, gs_ext_result* out);
+    /* Starts opening a byte stream, numbered stream, to the server on a phone for one channel of a session. The stream has to reach the same server endpoint that the adb tunnel reaches: the abstract socket that the server started for the session listens on. GameScrcpy runs the session's own handshake and protocol over it, so encryption, the proof of the token and the video coding do not change; starting that server on the phone is the transport's business. Return at once, then call stream_opened when bytes can flow, or stream_closed with a reason when they cannot, within 20 seconds. Anything but GS_EXT_OK means it did not start, and nothing more may be said about it. */
+    int32_t (*open)(void* context, uint64_t stream, const gs_ext_stream_open* open);
+    /* Sends at most 64 KiB toward the phone on an opened stream; return quickly. GS_EXT_OK takes all of the bytes and GS_EXT_BUSY none of them, which GameScrcpy sends again after stream_writable; anything else ends the stream. */
+    int32_t (*send)(void* context, uint64_t stream, const uint8_t* data, size_t size);
+    /* GameScrcpy is done with the stream: close it and forget it. It never comes after stream_closed, but it may cross with it, so ignore a stream that the DLL no longer knows. */
+    void (*close)(void* context, uint64_t stream);
+};
+
 /* What GameScrcpy gives a DLL. */
 struct gs_ext_host {
     /* sizeof(gs_ext_host) in GameScrcpy; later versions only add functions at the end. */
@@ -523,7 +560,7 @@ struct gs_ext_host {
     int32_t (*set_text)(gs_ext_result* result, uint32_t type, const char* text, size_t size);
     /* Says why a node failed; the script that called it gets the text in its error. */
     int32_t (*set_error)(gs_ext_result* result, const char* text, size_t size);
-    /* 1 when this GameScrcpy has the feature, such as "jobs", "events", "settings", "claims", "job-output" or "app-events", otherwise 0; ask before using a function that a later version added. */
+    /* 1 when this GameScrcpy has the feature, such as "jobs", "events", "settings", "claims", "job-output", "app-events" or "transports", otherwise 0; ask before using a function that a later version added. */
     int32_t (*supports)(void* context, const char* feature);
     /* Tells how far a job got: fraction from 0 to 1, or -1 when it cannot tell, and a short UTF-8 line about the step it is on. GameScrcpy passes on at most 20 a second and drops the others in between. */
     int32_t (*job_progress)(void* context, uint64_t job, double fraction, const char* text, size_t size);
@@ -551,6 +588,16 @@ struct gs_ext_host {
     int32_t (*input_event)(void* context, const char* source, size_t source_size, const char* slot, size_t slot_size, double x, double y, uint64_t time_us);
     /* Calls a service that another extension offers in its manifest's contributes.services, named "<extension id>/<service>", with its arguments as UTF-8 JSON of at most 252 KiB (empty for null), and waits for the answer, at most 10 seconds. GS_EXT_OK puts the result into result as json; anything else puts the reason there as a string: GS_EXT_UNSUPPORTED (GS-API-146) when no extension that is on offers the service, and also when it is called on a thread of GameScrcpy's own; GS_EXT_DENIED (GS-API-147) when this extension does not list the other one in its dependencies; GS_EXT_BAD_ARGUMENT (GS-API-148) when the arguments or the result do not match the service's schemas; GS_EXT_FAILED (GS-API-149) when the service failed or took too long. The text stays valid until the same thread calls call_service again. Call it only from a thread of the DLL's own: never from a node, an action, a touch method, an attachment, a behavior, a job's start or a callback such as settings_changed. Ask supports("services") first. A service that the DLL answers itself is a node with one json parameter that returns json; it gets { caller, permissions, input }: the id of the extension that calls ("" for the user's own logic), the permissions that both extensions have, and the arguments. allowed() answers for this extension only, so decide yourself what to do for the caller. */
     int32_t (*call_service)(void* context, const char* service, size_t service_size, const char* json, size_t json_size, gs_ext_result* result);
+    /* Tells GameScrcpy that the phones one of the DLL's transports can reach changed, so that it calls discover again; a session that lost its connection through the transport tries again at once. */
+    int32_t (*transport_changed)(void* context, const char* transport, size_t size);
+    /* Says that a stream that open started now reaches the server on the phone. */
+    int32_t (*stream_opened)(void* context, uint64_t stream);
+    /* Gives bytes that came from the phone on an opened stream, in order; GameScrcpy copies them before it returns. Call it from a thread of the DLL's own or from within open, send and close, never from a node, a touch method, an attachment, a behavior or a device provider: in its own process a DLL may wait here while GameScrcpy catches up. */
+    int32_t (*stream_data)(void* context, uint64_t stream, const uint8_t* data, size_t size);
+    /* After send returned GS_EXT_BUSY: the stream can take bytes again, so GameScrcpy sends what it holds. */
+    int32_t (*stream_writable)(void* context, uint64_t stream);
+    /* Ends a stream that can carry no more, also when the server on the phone closed its end, or says why open could not reach the phone, with a reason in UTF-8 of at most 1000 bytes. The session sees a lost connection, as when the adb tunnel drops, shows the reason and tries to resume; GameScrcpy does not call close for the stream afterwards. */
+    int32_t (*stream_closed)(void* context, uint64_t stream, const char* reason, size_t size);
 };
 
 /* One thing a DLL offers. */
@@ -573,7 +620,7 @@ struct gs_ext_plugin {
     uint32_t abi_version;
     /* Passed back to unload. */
     void* context;
-    /* How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments, 32 behaviors, 32 jobs and 8 device providers. */
+    /* How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments, 32 behaviors, 32 jobs, 8 device providers and 8 transports. */
     uint32_t contribution_count;
     /* What the DLL offers. */
     const gs_ext_contribution* contributions;

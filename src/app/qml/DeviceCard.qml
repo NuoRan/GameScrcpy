@@ -33,6 +33,7 @@ Card {
     required property var esp32
     required property var picture
     required property var provided
+    required property var transported
 
     readonly property var transports: ["device.transport.adb", "device.transport.wifi", "device.transport.auto"]
     readonly property bool isCapture: card.capture !== undefined && card.capture !== null
@@ -41,6 +42,8 @@ Card {
     readonly property bool isProvided: card.provided !== undefined && card.provided !== null
                                        && card.provided.isProvided === true
     readonly property bool isPhone: !card.isCapture && !card.isEsp32 && !card.isProvided
+    readonly property bool isTransported: card.transported !== undefined && card.transported !== null
+                                          && card.transported.isTransported === true
     readonly property var providedActions: card.isProvided ? card.provided.actions ?? [] : []
     readonly property var settingsAction: card.providedActions.find(each => each.id === "settings") ?? null
     readonly property var menuActions: card.providedActions.filter(each => each.id !== "settings")
@@ -286,15 +289,30 @@ Card {
                     }
                 }
 
-                Text {
-                    objectName: "deviceSummary"
+                RowLayout {
                     Layout.fillWidth: true
-                    textFormat: Text.PlainText
-                    text: card.summary
-                    color: (card.isEsp32 && card.esp32.inUse === true) || card.providedTrouble
-                           ? Theme.colors.warningText : Theme.colors.textTertiary
-                    font.pixelSize: Theme.type.caption.size
-                    elide: Text.ElideRight
+                    spacing: Theme.space.xs
+
+                    Icon {
+                        objectName: "deviceTransportIcon"
+                        visible: card.isTransported
+                        name: card.isTransported && card.transported.icon !== ""
+                              ? ExtensionPanels.iconOf(card.transported.icon) : "puzzle"
+                        customPath: card.isTransported ? card.transported.iconPath ?? "" : ""
+                        size: Theme.size.iconSmall
+                        color: Theme.colors.textTertiary
+                    }
+
+                    Text {
+                        objectName: "deviceSummary"
+                        Layout.fillWidth: true
+                        textFormat: Text.PlainText
+                        text: card.summary
+                        color: (card.isEsp32 && card.esp32.inUse === true) || card.providedTrouble
+                               ? Theme.colors.warningText : Theme.colors.textTertiary
+                        font.pixelSize: Theme.type.caption.size
+                        elide: Text.ElideRight
+                    }
                 }
 
                 RowLayout {

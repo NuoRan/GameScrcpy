@@ -55,6 +55,16 @@ enum class Kind : std::uint32_t {
     InputEvent,
     ServiceCall,
     ServiceAnswer,
+    TransportDiscover,
+    TransportChanged,
+    StreamOpen,
+    StreamOpened,
+    StreamSend,
+    StreamSent,
+    StreamData,
+    StreamTaken,
+    StreamClose,
+    StreamClosed,
 };
 
 struct Message {

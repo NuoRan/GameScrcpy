@@ -414,6 +414,11 @@ std::pair<std::string_view, std::string_view> identity(const NativeInputSource& 
     return {"name", entry.name};
 }
 
+std::pair<std::string_view, std::string_view> identity(const NativeTransport& entry)
+{
+    return {"name", entry.name};
+}
+
 std::pair<std::string_view, std::string_view> identity(const DeclaredParam& entry)
 {
     return {"key", entry.key};
@@ -544,6 +549,8 @@ void checkEntry(const NativeInputSource& source, const std::string& path, Contex
         context.report(Severity::Error, Code::MissingField, path + ".slots");
     }
 }
+
+void checkEntry(const NativeTransport&, const std::string&, Context&) {}
 
 void checkEntry(const NativeContribution& native, const std::string& path, Context& context)
 {
@@ -2076,6 +2083,12 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
             std::ranges::find(manifest.permissions, kInputPermission, &Permission::name) == manifest.permissions.end()) {
             context.report(Severity::Error, Code::NativePermissionUndeclared, "$.contributes.native.inputSources",
                            std::string(kInputPermission));
+        }
+        if (!contributes.native->transports.empty() &&
+            std::ranges::find(manifest.permissions, kTransportPermission, &Permission::name) ==
+                manifest.permissions.end()) {
+            context.report(Severity::Error, Code::NativePermissionUndeclared, "$.contributes.native.transports",
+                           std::string(kTransportPermission));
         }
     }
     for (std::size_t index = 0; index < contributes.services.size(); ++index) {

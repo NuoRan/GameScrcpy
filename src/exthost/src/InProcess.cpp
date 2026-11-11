@@ -509,6 +509,7 @@ struct InProcessModule::Impl {
         }
         pump.reset();
         endJobs();
+        endStreams();
         {
             const std::scoped_lock lock(touchMutex);
             for (const auto& [id, session] : sessions) {
@@ -546,6 +547,35 @@ struct InProcessModule::Impl {
         std::chrono::steady_clock::time_point outputSecond{};
         std::size_t outputs = 0;
     };
+
+    struct OpenStream {
+        std::size_t transport = 0;
+        std::shared_ptr<const StreamEvents> events;
+        bool opened = false;
+    };
+
+    void endStreams()
+    {
+        std::vector<std::pair<std::uint64_t, OpenStream>> open;
+        {
+            const std::scoped_lock lock(streamMutex);
+            streamsEnded = true;
+            for (auto& [id, stream] : streams) {
+                open.emplace_back(id, std::move(stream));
+            }
+            streams.clear();
+        }
+        for (const auto& [id, stream] : open) {
+            {
+                const std::scoped_lock lock(transportMutex);
+                const gs_ext_transport& entry = transports[stream.transport];
+                entry.close(entry.context, id);
+            }
+            if (stream.events->closed) {
+                stream.events->closed("the extension stopped");
+            }
+        }
+    }
 
     void endJobs()
     {
@@ -599,6 +629,11 @@ struct InProcessModule::Impl {
     std::vector<gs_ext_behavior> behaviors;
     std::vector<gs_ext_job> nativeJobs;
     std::vector<gs_ext_device_provider> providers;
+    std::vector<gs_ext_transport> transports;
+    std::mutex streamMutex;
+    std::map<std::uint64_t, OpenStream> streams;
+    bool streamsEnded = false;
+    std::mutex transportMutex;
     std::mutex jobMutex;
     std::condition_variable jobsEnded;
     std::map<std::uint64_t, Job> jobs;
@@ -754,7 +789,7 @@ int32_t hostSupports(void*, const char* feature)
         return 0;
     }
     const std::string_view name(feature, strnlen(feature, kMostNameBytes));
-    if (name == "input-sources" || name == "services") {
+    if (name == "input-sources" || name == "services" || name == "transports") {
         return 1;
     }
     return name == "jobs" || name == "events" || name == "settings" || name == "claims" || name == "job-output" ||
@@ -1089,6 +1124,97 @@ int32_t hostJobFail(void* context, uint64_t job, const char* text, size_t size)
     return GS_EXT_OK;
 }
 
+int32_t hostTransportChanged(void* context, const char* transport, size_t size)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if (transport == nullptr || size == 0 || size > kMostNameBytes) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    const std::string_view name(transport, size);
+    if (std::ranges::find(impl.info.transports, name, &TransportInfo::name) == impl.info.transports.end()) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (impl.services != nullptr) {
+        impl.services->transportChanged(name);
+    }
+    return GS_EXT_OK;
+}
+
+std::shared_ptr<const StreamEvents> openedEvents(InProcessModule::Impl& impl, uint64_t stream)
+{
+    const std::scoped_lock lock(impl.streamMutex);
+    const auto found = impl.streams.find(stream);
+    return found != impl.streams.end() && found->second.opened ? found->second.events : nullptr;
+}
+
+int32_t hostStreamOpened(void* context, uint64_t stream)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    std::shared_ptr<const StreamEvents> events;
+    {
+        const std::scoped_lock lock(impl.streamMutex);
+        const auto found = impl.streams.find(stream);
+        if (found == impl.streams.end() || found->second.opened) {
+            return GS_EXT_BAD_ARGUMENT;
+        }
+        found->second.opened = true;
+        events = found->second.events;
+    }
+    if (events->opened) {
+        events->opened();
+    }
+    return GS_EXT_OK;
+}
+
+int32_t hostStreamData(void* context, uint64_t stream, const uint8_t* data, size_t size)
+{
+    if (data == nullptr && size > 0) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    const std::shared_ptr<const StreamEvents> events = openedEvents(implOf(context), stream);
+    if (events == nullptr) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (size > 0 && events->data) {
+        events->data(std::string_view(reinterpret_cast<const char*>(data), size));
+    }
+    return GS_EXT_OK;
+}
+
+int32_t hostStreamWritable(void* context, uint64_t stream)
+{
+    const std::shared_ptr<const StreamEvents> events = openedEvents(implOf(context), stream);
+    if (events == nullptr) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (events->writable) {
+        events->writable();
+    }
+    return GS_EXT_OK;
+}
+
+int32_t hostStreamClosed(void* context, uint64_t stream, const char* reason, size_t size)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if (reason == nullptr && size > 0) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    std::shared_ptr<const StreamEvents> events;
+    {
+        const std::scoped_lock lock(impl.streamMutex);
+        const auto found = impl.streams.find(stream);
+        if (found == impl.streams.end()) {
+            return GS_EXT_BAD_ARGUMENT;
+        }
+        events = std::move(found->second.events);
+        impl.streams.erase(found);
+    }
+    if (events->closed) {
+        events->closed(lineOf(reason, size, kMostReasonBytes));
+    }
+    return GS_EXT_OK;
+}
+
 template <typename Native>
 bool copied(const void* data, Native& out)
 {
@@ -1282,6 +1408,26 @@ std::string addInputSource(InProcessModule::Impl& impl, const gs_ext_contributio
     return {};
 }
 
+std::string addTransport(InProcessModule::Impl& impl, const gs_ext_contribution& entry,
+                         std::set<std::string, std::less<>>& names)
+{
+    gs_ext_transport transport{};
+    std::string name;
+    if (!copied(entry.data, transport)) {
+        return "a transport has no data";
+    }
+    if (std::string problem = named("transport", transport.name, entry, names, name); !problem.empty()) {
+        return problem;
+    }
+    if (transport.discover == nullptr || transport.open == nullptr || transport.send == nullptr ||
+        transport.close == nullptr) {
+        return "the transport " + name + " lacks discover, open, send or close";
+    }
+    impl.transports.push_back(transport);
+    impl.info.transports.push_back({.name = name});
+    return {};
+}
+
 std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
 {
     if (!copied(plugin, impl.described)) {
@@ -1325,6 +1471,8 @@ std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
             problem = addProvider(impl, entry, names);
         } else if (kind == GS_EXT_KIND_INPUT_SOURCE) {
             problem = addInputSource(impl, entry, names);
+        } else if (kind == GS_EXT_KIND_TRANSPORT) {
+            problem = addTransport(impl, entry, names);
         } else if (kind.empty()) {
             problem = "contribution " + std::to_string(index + 1) + " has no kind";
         } else if (impl.services != nullptr) {
@@ -1343,6 +1491,9 @@ std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
     }
     if (impl.info.inputSources.size() > kMostInputSources) {
         return "the DLL offers more than 8 input sources";
+    }
+    if (impl.transports.size() > kMostTransports) {
+        return "the DLL offers more than 8 transports";
     }
     return {};
 }
@@ -1404,6 +1555,11 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
     impl->host.events_subscribe = &hostEventsSubscribe;
     impl->host.input_event = &hostInputEvent;
     impl->host.call_service = &hostCallService;
+    impl->host.transport_changed = &hostTransportChanged;
+    impl->host.stream_opened = &hostStreamOpened;
+    impl->host.stream_data = &hostStreamData;
+    impl->host.stream_writable = &hostStreamWritable;
+    impl->host.stream_closed = &hostStreamClosed;
     const gs_ext_plugin* plugin = nullptr;
     const int32_t status = entry(&impl->host, &plugin);
     impl->entered = status == GS_EXT_OK;
@@ -1888,6 +2044,123 @@ void InProcessModule::appEvent(std::string_view topic, std::string_view json)
         });
     }
     static_cast<void>(d.pump->push(std::string(topic), std::string(json)));
+}
+
+CallResult InProcessModule::discover(std::size_t transport)
+{
+    Impl& d = *m_impl;
+    if (transport >= d.transports.size()) {
+        return {CallStatus::Unavailable, {}, "the DLL has no such transport"};
+    }
+    ResultBox box;
+    gs_ext_result result{};
+    result.host = &box;
+    const gs_ext_transport& entry = d.transports[transport];
+    int32_t status = GS_EXT_FAILED;
+    {
+        const std::scoped_lock lock(d.nodeMutex);
+        status = entry.discover(entry.context, &result);
+    }
+    if (status != GS_EXT_OK) {
+        return {CallStatus::Failed, {},
+                box.error.empty() ? "the transport failed with status " + std::to_string(status) : box.error};
+    }
+    std::string text = result.value.type != GS_EXT_TYPE_JSON || result.value.size == 0
+                           ? std::string()
+                           : std::string(result.value.text, result.value.size);
+    if (!nlohmann::json::parse(text, nullptr, false).is_array()) {
+        return {CallStatus::Failed, {}, "the transport did not give a JSON array"};
+    }
+    return {CallStatus::Ok, Value{.type = ValueType::Json, .text = std::move(text)}, {}};
+}
+
+bool InProcessModule::openStream(std::size_t transport, std::uint64_t stream, const StreamRequest& request,
+                                 StreamEvents events)
+{
+    Impl& d = *m_impl;
+    if (transport >= d.transports.size() || stream == 0 || request.phone.empty() ||
+        request.phone.size() > kMostDeviceBytes || request.channel.empty() || request.channel.size() > kMostNameBytes ||
+        request.session.size() > kMostSessionBytes || !validUtf8(request.phone) || !validUtf8(request.session)) {
+        return false;
+    }
+    {
+        const std::scoped_lock lock(d.streamMutex);
+        if (d.streamsEnded ||
+            !d.streams
+                 .emplace(stream, Impl::OpenStream{.transport = transport,
+                                                   .events = std::make_shared<const StreamEvents>(std::move(events)),
+                                                   .opened = false})
+                 .second) {
+            return false;
+        }
+    }
+    const std::string session = request.session.empty() ? std::string("{}") : request.session;
+    gs_ext_stream_open open{};
+    open.size = sizeof(gs_ext_stream_open);
+    open.phone = request.phone.c_str();
+    open.channel = request.channel.c_str();
+    open.session = session.data();
+    open.session_size = session.size();
+    int32_t status = GS_EXT_FAILED;
+    {
+        const std::scoped_lock lock(d.transportMutex);
+        const gs_ext_transport& entry = d.transports[transport];
+        status = entry.open(entry.context, stream, &open);
+    }
+    if (status != GS_EXT_OK) {
+        const std::scoped_lock lock(d.streamMutex);
+        d.streams.erase(stream);
+        return false;
+    }
+    return true;
+}
+
+StreamSent InProcessModule::sendStream(std::uint64_t stream, std::string_view bytes)
+{
+    Impl& d = *m_impl;
+    if (bytes.size() > kMostStreamBytes) {
+        return StreamSent::Failed;
+    }
+    std::size_t transport = 0;
+    {
+        const std::scoped_lock lock(d.streamMutex);
+        const auto found = d.streams.find(stream);
+        if (found == d.streams.end() || !found->second.opened) {
+            return StreamSent::Failed;
+        }
+        transport = found->second.transport;
+    }
+    if (bytes.empty()) {
+        return StreamSent::Taken;
+    }
+    int32_t status = GS_EXT_FAILED;
+    {
+        const std::scoped_lock lock(d.transportMutex);
+        const gs_ext_transport& entry = d.transports[transport];
+        status = entry.send(entry.context, stream, reinterpret_cast<const uint8_t*>(bytes.data()), bytes.size());
+    }
+    if (status == GS_EXT_OK) {
+        return StreamSent::Taken;
+    }
+    return status == GS_EXT_BUSY ? StreamSent::Busy : StreamSent::Failed;
+}
+
+void InProcessModule::closeStream(std::uint64_t stream)
+{
+    Impl& d = *m_impl;
+    std::size_t transport = 0;
+    {
+        const std::scoped_lock lock(d.streamMutex);
+        const auto found = d.streams.find(stream);
+        if (found == d.streams.end()) {
+            return;
+        }
+        transport = found->second.transport;
+        d.streams.erase(found);
+    }
+    const std::scoped_lock lock(d.transportMutex);
+    const gs_ext_transport& entry = d.transports[transport];
+    entry.close(entry.context, stream);
 }
 
 }

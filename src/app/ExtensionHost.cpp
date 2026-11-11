@@ -457,6 +457,9 @@ QString permissionTitle(std::string_view name)
     if (name == "input.provide") {
         return ExtensionHost::tr("Feed the buttons of home-made devices into the key mapping");
     }
+    if (name == "transport") {
+        return ExtensionHost::tr("Provide ways to connect to phones");
+    }
     return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
 }
 
@@ -923,6 +926,10 @@ NativeWanted ExtensionHost::nativeWanted(const Extension& extension) const
         }
         wanted.inputTexts.push_back(std::move(texts));
     }
+    for (const ext::NativeTransport& transport : wanted.native.transports) {
+        wanted.transportTitles.push_back(
+            extensionText(manifest, "transports." + transport.name + ".title", transport.title, language));
+    }
     return wanted;
 }
 
@@ -1282,6 +1289,11 @@ QVariantList ExtensionHost::entries() const
                         architectures.append(QString::fromStdString(listed.first));
                     }
                 }
+                QStringList transports;
+                for (const ext::NativeTransport& transport : manifest.contributes.native->transports) {
+                    transports.append(
+                        extensionText(manifest, "transports." + transport.name + ".title", transport.title, language));
+                }
                 row.insert(QStringLiteral("native"),
                            QVariantMap{{QStringLiteral("touchMethods"), methods},
                                        {QStringLiteral("nodes"), nodes},
@@ -1289,6 +1301,7 @@ QVariantList ExtensionHost::entries() const
                                        {QStringLiteral("behaviors"), behaviors},
                                        {QStringLiteral("speechEngines"), speechEngines},
                                        {QStringLiteral("inputSources"), inputSources},
+                                       {QStringLiteral("transports"), transports},
                                        {QStringLiteral("ownProcess"),
                                         !(extension->builtin && manifest.id.starts_with(ext::kReservedIdPrefix))},
                                        {QStringLiteral("architectures"), architectures}});

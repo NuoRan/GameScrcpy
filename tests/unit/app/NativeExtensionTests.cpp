@@ -23,7 +23,9 @@
 #include <gs/input/MappingEngine.h>
 #include <gs/input/Modules.h>
 #include <gs/input/Profile.h>
+#include <gs/platform/Crypto.h>
 #include <gs/script/Services.h>
+#include <gs/session/StreamHost.h>
 
 #include <gamescrcpy_ext.h>
 
@@ -42,12 +44,14 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <deque>
 #include <filesystem>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <regex>
+#include <span>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -1017,6 +1021,291 @@ TEST_CASE("ADR-0112: a DLL's device provider lists its devices, says when they c
         CHECK(module->listDevices(0).status == exthost::CallStatus::Failed);
         REQUIRE(callNode(*module, "setBoxes", {json("[]")}).ok());
     }
+}
+
+namespace {
+
+struct StreamWatch {
+    std::mutex mutex;
+    bool opened = false;
+    std::string data;
+    int writable = 0;
+    std::optional<std::string> closed;
+
+    exthost::StreamEvents events()
+    {
+        return {.opened =
+                    [this] {
+                        const std::scoped_lock lock(mutex);
+                        opened = true;
+                    },
+                .data =
+                    [this](std::string_view bytes) {
+                        const std::scoped_lock lock(mutex);
+                        data.append(bytes);
+                    },
+                .writable =
+                    [this] {
+                        const std::scoped_lock lock(mutex);
+                        ++writable;
+                    },
+                .closed =
+                    [this](std::string why) {
+                        const std::scoped_lock lock(mutex);
+                        closed = std::move(why);
+                    }};
+    }
+
+    bool isOpened()
+    {
+        const std::scoped_lock lock(mutex);
+        return opened;
+    }
+
+    std::string got()
+    {
+        const std::scoped_lock lock(mutex);
+        return data;
+    }
+
+    int writables()
+    {
+        const std::scoped_lock lock(mutex);
+        return writable;
+    }
+
+    std::optional<std::string> reason()
+    {
+        const std::scoped_lock lock(mutex);
+        return closed;
+    }
+};
+
+}
+
+TEST_CASE("ADR-0112: a DLL's transport lists phones and opens streams that carry bytes both ways, hold back while "
+          "the DLL is busy and close from either side, in GameScrcpy and in gs-exthost.exe")
+{
+    struct Changes final : exthost::HostServices {
+        std::mutex mutex;
+        std::vector<std::string> transports;
+
+        void log(int, std::string_view) override {}
+        bool notify(std::string_view, std::string_view) override { return false; }
+        void transportChanged(std::string_view transport) override
+        {
+            const std::scoped_lock lock(mutex);
+            transports.emplace_back(transport);
+        }
+        std::vector<std::string> seen()
+        {
+            const std::scoped_lock lock(mutex);
+            return transports;
+        }
+    };
+    const auto json = [](std::string value) { return textValue(exthost::ValueType::Json, std::move(value)); };
+    const auto text = [](std::string value) { return textValue(exthost::ValueType::String, std::move(value)); };
+    const auto flag = [](bool on) {
+        exthost::Value made;
+        made.type = exthost::ValueType::Boolean;
+        made.flag = on;
+        return made;
+    };
+    Scratch scratch;
+    std::string problem;
+    std::deque<StreamWatch> watches;
+    Changes inside;
+    const std::unique_ptr<exthost::InProcessModule> loaded = exthost::InProcessModule::load(
+        {.dll = kTestDll, .store = scratch / "inside.json", .granted = {}, .services = &inside}, problem);
+    REQUIRE_MESSAGE(loaded != nullptr, problem);
+    Changes outside;
+    exthost::HostedOptions options = hostedOptions(scratch);
+    options.transportChanged = [&outside](const std::string& transport) { outside.transportChanged(transport); };
+    const std::unique_ptr<exthost::HostedModule> hosted = exthost::HostedModule::start(std::move(options), problem);
+    REQUIRE_MESSAGE(hosted != nullptr, problem);
+    const std::array<std::pair<exthost::Module*, Changes*>, 2> modules{
+        {{loaded.get(), &inside}, {hosted.get(), &outside}}};
+    for (const auto& [module, changes] : modules) {
+        CAPTURE(module == loaded.get());
+        REQUIRE(module->info().transports == std::vector<exthost::TransportInfo>{{"loop"}});
+        CHECK(callNode(*module, "supports", {text("transports")}).value.flag);
+        const exthost::CallResult listed = module->discover(0);
+        REQUIRE_MESSAGE(listed.ok(), listed.problem);
+        const nlohmann::json phones = nlohmann::json::parse(listed.value.text);
+        REQUIRE(phones.size() == 3);
+        CHECK(phones[0]["id"] == "echo");
+        CHECK(phones[0]["model"] == "Loop");
+        CHECK(module->discover(1).status == exthost::CallStatus::Unavailable);
+        CHECK(callNode(*module, "setPhones", {json(R"([{"id":"echo","name":"Echo"}])")}).value.number == GS_EXT_OK);
+        REQUIRE(eventually([&] { return changes->seen() == std::vector<std::string>{"loop"}; }));
+        CHECK(nlohmann::json::parse(module->discover(0).value.text).size() == 1);
+
+        StreamWatch& echo = watches.emplace_back();
+        const std::string session = R"({"session":"gamescrcpy_1","token":"00"})";
+        REQUIRE(module->openStream(0, 1, {.phone = "echo", .channel = "control", .session = session}, echo.events()));
+        REQUIRE(eventually([&] { return echo.isOpened(); }));
+        CHECK(nlohmann::json::parse(callNode(*module, "lastOpen").value.text) ==
+              nlohmann::json{{"phone", "echo"}, {"channel", "control"}, {"session", nlohmann::json::parse(session)}});
+        CHECK(module->sendStream(1, "hello") == exthost::StreamSent::Taken);
+        REQUIRE(eventually([&] { return echo.got() == "hello"; }));
+        const std::string big(exthost::kMostStreamBytes, 'b');
+        CHECK(module->sendStream(1, big) == exthost::StreamSent::Taken);
+        REQUIRE(eventually([&] { return echo.got().size() == 5 + big.size(); }));
+        CHECK(module->sendStream(1, big + "!") == exthost::StreamSent::Failed);
+
+        CHECK(callNode(*module, "holdSends", {flag(true)}).value.flag);
+        std::size_t held = 0;
+        exthost::StreamSent sent = exthost::StreamSent::Taken;
+        for (int round = 0; round < 8 && sent == exthost::StreamSent::Taken; ++round) {
+            sent = module->sendStream(1, big);
+            if (sent == exthost::StreamSent::Taken) {
+                held += big.size();
+            }
+        }
+        CHECK(sent == exthost::StreamSent::Busy);
+        CHECK(callNode(*module, "holdSends", {flag(false)}).value.flag);
+        REQUIRE(eventually([&] { return echo.writables() >= 1; }));
+        CHECK(module->sendStream(1, "x") == exthost::StreamSent::Taken);
+        REQUIRE(eventually([&] { return echo.got().size() == 5 + big.size() + held + 1; }));
+        CHECK(echo.got().back() == 'x');
+
+        CHECK(callNode(*module, "dropStreams", {text("gone")}).value.number == 1);
+        REQUIRE(eventually([&] { return echo.reason() == std::optional<std::string>("gone"); }));
+        CHECK(module->sendStream(1, "late") == exthost::StreamSent::Failed);
+
+        StreamWatch& refused = watches.emplace_back();
+        REQUIRE(module->openStream(0, 2, {.phone = "refuse", .channel = "video", .session = "{}"}, refused.events()));
+        REQUIRE(eventually([&] { return refused.reason() == std::optional<std::string>("nobody answers"); }));
+        CHECK_FALSE(refused.isOpened());
+
+        StreamWatch& nowhere = watches.emplace_back();
+        if (module->openStream(0, 3, {.phone = "nowhere", .channel = "control", .session = "{}"}, nowhere.events())) {
+            REQUIRE(eventually([&] { return nowhere.reason().has_value(); }));
+        }
+        CHECK_FALSE(nowhere.isOpened());
+
+        StreamWatch& first = watches.emplace_back();
+        StreamWatch& second = watches.emplace_back();
+        REQUIRE(module->openStream(0, 4, {.phone = "pair", .channel = "control", .session = "{}"}, first.events()));
+        REQUIRE(module->openStream(0, 5, {.phone = "pair", .channel = "control", .session = "{}"}, second.events()));
+        REQUIRE(eventually([&] { return first.isOpened() && second.isOpened(); }));
+        CHECK(module->sendStream(4, "ping") == exthost::StreamSent::Taken);
+        REQUIRE(eventually([&] { return second.got() == "ping"; }));
+        CHECK(module->sendStream(5, "pong") == exthost::StreamSent::Taken);
+        REQUIRE(eventually([&] { return first.got() == "pong"; }));
+        module->closeStream(4);
+        REQUIRE(eventually([&] { return second.reason() == std::optional<std::string>("the other end left"); }));
+        CHECK_FALSE(first.reason().has_value());
+        REQUIRE(eventually([&] { return callNode(*module, "closedStreams").value.text == "[4]"; }));
+    }
+}
+
+TEST_CASE("ADR-0112: the registry lists the phones of an extension allowed to provide a way to reach them, with the "
+          "transport's title and icon, follows changes and carries a session's streams through the transport")
+{
+    ApplicationScope application;
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.native/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    writeFile(folder / "icons/loop.svg", R"(<svg viewBox="0 0 24 24"><path d="M4 4 L20 20"/></svg>)");
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    app::NativeWanted wanted = testWanted(folder);
+    wanted.native.nodes = {
+        {.name = "setPhones", .params = {{"phones", "json"}}, .returns = "number", .description = {}, .permissions = {}},
+        {.name = "lastOpen", .params = {}, .returns = "json", .description = {}, .permissions = {}}};
+    wanted.native.transports = {{.name = "loop", .title = "Loopback", .icon = "svg:icons/loop.svg"}};
+    wanted.transportTitles = {QStringLiteral("Loop line")};
+    int changes = 0;
+    QObject::connect(&registry, &app::NativeExtensions::transportPhonesChanged, [&changes] { ++changes; });
+    const auto setPhones = [&](const std::string& json) {
+        REQUIRE(registry.call("gstest.native", "setPhones", {script::NodeValue{.type = script::NodeType::Json, .text = json}})
+                    .problem.empty());
+        for (int round = 0; round < 20; ++round) {
+            QCoreApplication::processEvents();
+        }
+    };
+
+    registry.apply({wanted});
+    CHECK(registry.transportPhones().empty());
+
+    wanted.granted = {"transport"};
+    registry.apply({wanted});
+    const std::vector<app::TransportPhone> listed = registry.transportPhones();
+    REQUIRE(listed.size() == 3);
+    CHECK(listed[0].extension == "gstest.native");
+    CHECK(listed[0].extensionName == "Test native");
+    CHECK(listed[0].transport == "loop");
+    CHECK(listed[0].transportTitle == "Loop line");
+    CHECK(listed[0].id == "echo");
+    CHECK(listed[0].name == "Echo phone");
+    CHECK(listed[0].model == "Loop");
+    CHECK(listed[0].detail == "answers what it gets");
+    CHECK(listed[0].iconPath == "M4 4 L20 20");
+    CHECK(listed[0].icon.isEmpty());
+    CHECK(listed[2].id == "refuse");
+    CHECK(changes >= 1);
+
+    setPhones(R"([{"id":"echo","name":"Echo phone"},{"id":"","name":"No id"},{"id":"twin","name":"Twin"},)"
+              R"({"id":"twin","name":"Twin again"},{"name":"Nameless"}])");
+    const std::vector<app::TransportPhone> changed = registry.transportPhones();
+    REQUIRE(changed.size() == 2);
+    CHECK(changed[0].id == "echo");
+    CHECK(changed[0].model.isEmpty());
+    CHECK(changed[1].id == "twin");
+
+    session::LaunchParams params;
+    params.token.fill(std::uint8_t{0xAB});
+    params.socketName = "gamescrcpy_0123456789abcdef";
+    auto opened = registry.phoneStreams(changed[0], nullptr)->open(session::StreamChannel::Control, params, 5s, {});
+    REQUIRE_MESSAGE(opened.has_value(), (opened.has_value() ? std::string() : opened.error().detail));
+    const nlohmann::json open = nlohmann::json::parse(registry.call("gstest.native", "lastOpen", {}).value.text);
+    CHECK(open["phone"] == "echo");
+    CHECK(open["channel"] == "control");
+    CHECK(open["session"]["token"] == platform::toHex(params.token));
+    CHECK(open["session"]["socket"] == "gamescrcpy_0123456789abcdef");
+    CHECK(open["session"]["server"].is_null());
+    std::unique_ptr<session::ByteStream>& stream = *opened;
+    stream->setReadTimeout(5s);
+    stream->setWriteTimeout(5s);
+    const std::string ping = "ping";
+    REQUIRE(stream->writeAll(std::span(reinterpret_cast<const std::uint8_t*>(ping.data()), ping.size())));
+    std::array<std::uint8_t, 4> back{};
+    REQUIRE(stream->readExact(back));
+    CHECK(std::string(back.begin(), back.end()) == "ping");
+    stream.reset();
+
+    app::TransportPhone absent = changed[0];
+    absent.id = "refuse";
+    const std::shared_ptr<session::PhoneStreams> retrying = registry.phoneStreams(absent, nullptr);
+    const auto refused = retrying->open(session::StreamChannel::Video, params, 5s, {});
+    REQUIRE_FALSE(refused.has_value());
+    CHECK(refused.error().kind == session::FailureKind::ConnectFailed);
+    CHECK(refused.error().detail.find("Loop line") != std::string::npos);
+    CHECK(refused.error().detail.find("nobody answers") != std::string::npos);
+    CHECK_FALSE(retrying->awaitChange(std::chrono::steady_clock::now() + 50ms, {}).has_value());
+    setPhones(R"([{"id":"echo","name":"Echo phone"}])");
+    CHECK(retrying->awaitChange(std::chrono::steady_clock::now() + 5s, {}).has_value());
+
+    app::TransportPhone elsewhere = changed[0];
+    elsewhere.extension = "gstest.missing";
+    const auto off = registry.phoneStreams(elsewhere, nullptr)->open(session::StreamChannel::Control, params, 1s, {});
+    REQUIRE_FALSE(off.has_value());
+    CHECK(off.error().kind == session::FailureKind::ServerEnded);
+
+    const session::ServerPackage package({1, 2, 3}, fs::path("C:/gs/server.apk"));
+    const nlohmann::json described = nlohmann::json::parse(app::streamSession(params, &package));
+    CHECK(described["session"] == params.socketName);
+    CHECK(described["protocol"] == 1);
+    CHECK(described["server"]["file"] == "C:/gs/server.apk");
+    CHECK(described["server"]["path"] == package.remotePath());
+    CHECK(described["server"]["command"].get<std::string>().find("socket=gamescrcpy_0123456789abcdef") !=
+          std::string::npos);
+    CHECK(described["server"]["stdin"] == "GS_TOKEN=" + platform::toHex(params.token) + "\n");
+
+    wanted.granted = {};
+    registry.apply({wanted});
+    CHECK(registry.transportPhones().empty());
 }
 
 TEST_CASE("ADR-0112: the registry lists the devices of an extension allowed to add them, leaves out bad ones, "

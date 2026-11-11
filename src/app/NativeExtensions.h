@@ -4,6 +4,7 @@
 #include "KeyLabels.h"
 #include "ProvidedDevice.h"
 #include "TouchMethods.h"
+#include "TransportPhones.h"
 
 #include <gs/base/Clock.h>
 #include <gs/ext/Diagnostics.h>
@@ -58,6 +59,7 @@ struct NativeWanted {
     std::vector<NativeTexts> behaviorTexts;
     std::string settings;
     std::vector<NativeTexts> inputTexts;
+    std::vector<QString> transportTitles;
 };
 
 [[nodiscard]] std::string nativeTouchOptions(std::string_view snapshot, std::string_view phone,
@@ -131,6 +133,10 @@ public:
     [[nodiscard]] exthost::CallResult actOnDevice(std::string_view extension, std::string_view provider,
                                                   std::string_view device, std::string_view action) const;
     [[nodiscard]] std::vector<NativeEventTarget> eventTargets() const;
+    [[nodiscard]] std::vector<TransportPhone> transportPhones() const;
+    void refreshTransports(std::string_view extension = {});
+    [[nodiscard]] std::shared_ptr<session::PhoneStreams>
+    phoneStreams(const TransportPhone& phone, std::shared_ptr<const session::ServerPackage> package) const;
 
     [[nodiscard]] std::unique_ptr<ExtensionTouch> openTouch(std::string_view key, std::string_view device,
                                                              ControlSink& injection,
@@ -159,6 +165,7 @@ signals:
     void providedChanged();
     void inputEvent(const QString& extension, const QString& name, bool button, double x, double y);
     void inputsEnded(const QString& extension);
+    void transportPhonesChanged();
 
 private:
     [[nodiscard]] std::shared_ptr<Entry> load(const NativeWanted& wanted) const;
@@ -185,6 +192,8 @@ private:
     std::map<std::string, std::deque<Microseconds>, std::less<>> m_faults;
     SteadyClock m_steady;
     std::vector<ProvidedDevice> m_provided;
+    std::shared_ptr<TransportChanges> m_changes = std::make_shared<TransportChanges>();
+    std::vector<TransportPhone> m_phones;
 };
 
 }

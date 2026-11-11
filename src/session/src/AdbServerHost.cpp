@@ -195,14 +195,29 @@ std::shared_ptr<const ServerPackage> ServerPackage::load(const std::filesystem::
     if (bytes.empty()) {
         return nullptr;
     }
-    return std::make_shared<const ServerPackage>(std::move(bytes));
+    return std::make_shared<const ServerPackage>(std::move(bytes), path);
 }
 
-ServerPackage::ServerPackage(std::vector<std::uint8_t> bytes) : m_bytes(std::move(bytes))
+ServerPackage::ServerPackage(std::vector<std::uint8_t> bytes, std::filesystem::path file)
+    : m_bytes(std::move(bytes)), m_file(std::move(file))
 {
     const platform::Sha256Digest digest = platform::sha256(m_bytes);
     m_remotePath =
         std::format("/data/local/tmp/gs-server-{}.jar", platform::toHex(std::span<const std::uint8_t>(digest).first(8)));
+}
+
+std::string serverCommand(const ServerPackage& package, const LaunchParams& params, std::string_view extra)
+{
+    return std::format("trap '' HUP PIPE; CLASSPATH={} exec app_process / com.gamescrcpy.server.Main {} {} {} {}{}",
+                       adb::shellQuote(package.remotePath()), protocol::kProtocolVersion,
+                       adb::shellQuote("socket=" + params.socketName),
+                       adb::shellQuote(std::format("lingerMs={}", params.linger.count())),
+                       adb::shellQuote("log=" + params.logLevel), extra);
+}
+
+std::string serverInput(const LaunchParams& params)
+{
+    return "GS_TOKEN=" + platform::toHex(params.token) + "\n";
 }
 
 class AdbServerHost::Impl
@@ -414,18 +429,13 @@ private:
         const std::string direct = m_choice == TransportChoice::AdbTunnel
                                        ? std::string()
                                        : std::format(" transport=udp udpPort={}", m_direct.devicePort);
-        const std::string command =
-            std::format("trap '' HUP PIPE; CLASSPATH={} exec app_process / com.gamescrcpy.server.Main {} {} {} {}{}",
-                        adb::shellQuote(m_package->remotePath()), protocol::kProtocolVersion,
-                        adb::shellQuote("socket=" + m_params.socketName),
-                        adb::shellQuote(std::format("lingerMs={}", m_params.linger.count())),
-                        adb::shellQuote("log=" + m_params.logLevel), direct);
+        const std::string command = serverCommand(*m_package, m_params, direct);
         auto process = m_client.spawn(m_serial, command);
         if (!process) {
             return makeUnexpected(adbFailure(FailureKind::LaunchFailed, process.error()));
         }
         m_process = std::make_unique<adb::ShellProcess>(std::move(*process));
-        const std::string token = "GS_TOKEN=" + platform::toHex(m_params.token) + "\n";
+        const std::string token = serverInput(m_params);
         if (!m_process->writeStdin({reinterpret_cast<const std::uint8_t*>(token.data()), token.size()})) {
             return makeUnexpected(failure(FailureKind::LaunchFailed, "the token could not reach the server"));
         }

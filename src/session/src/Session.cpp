@@ -743,7 +743,11 @@ private:
             reportFatal(failure(FailureKind::ProtocolError, std::format("malformed data on the {} channel: {}", channel,
                                                                         protocol::errorName(failed.decode))));
         } else {
-            reportLost(failure(FailureKind::ConnectionLost, std::format("the {} connection closed", channel)));
+            std::string text = std::format("the {} connection closed", channel);
+            if (!failed.detail.empty()) {
+                text += ": " + failed.detail;
+            }
+            reportLost(failure(FailureKind::ConnectionLost, std::move(text)));
         }
     }
 

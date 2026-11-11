@@ -168,7 +168,7 @@ QString problemText(StatusProblem problem)
 
 bool isWireless(const QString& serial)
 {
-    return !serial.startsWith(u"emulator-") && !serial.startsWith(u"box:") &&
+    return !serial.startsWith(u"emulator-") && !serial.startsWith(u"box:") && !serial.startsWith(u"via:") &&
            (serial.contains(u':') || serial.contains(u"._adb-tls-connect._tcp"));
 }
 
@@ -672,6 +672,9 @@ QString DeviceManager::Row::name() const
     if (provided) {
         return provided->name;
     }
+    if (transported) {
+        return transported->name;
+    }
     const QString name = DevicePresentation::nameOf(marketName, manufacturer, model);
     if (!appLabel.isEmpty()) {
         return DeviceManager::tr("%1 — %2").arg(name.isEmpty() ? host : name, appLabel);
@@ -702,6 +705,9 @@ QVariant DeviceManager::data(const QModelIndex& index, int role) const
     if (row.provided) {
         advice = providedAdviceOf(row);
     }
+    if (row.transported) {
+        advice = transportedAdviceOf(row);
+    }
 
     switch (role) {
     case SerialRole:
@@ -723,6 +729,9 @@ QVariant DeviceManager::data(const QModelIndex& index, int role) const
                    : row.provided->state == u"problem" ? tr("Needs attention")
                                                        : tr("Online");
         }
+        if (row.transported) {
+            return tr("Online");
+        }
         switch (row.state) {
         case adb::DeviceState::Device:
             return tr("Online");
@@ -735,7 +744,8 @@ QVariant DeviceManager::data(const QModelIndex& index, int role) const
         }
     case StatusRole:
         if (phase == session::SessionPhase::Streaming && row.link) {
-            return tr("%1 (%2)").arg(FailureAdvice::phase(phase), transportName(*row.link));
+            return tr("%1 (%2)").arg(FailureAdvice::phase(phase),
+                                     row.transported ? row.transported->transportTitle : transportName(*row.link));
         }
         return FailureAdvice::phase(phase);
     case ProblemRole:
@@ -776,6 +786,7 @@ QVariant DeviceManager::data(const QModelIndex& index, int role) const
             : isEsp32Row(row) ? esp32Presentation(row)
             : row.aoaOnly   ? DevicePresentation::ofAoa(phase, row.session.failure, row.listed,
                                                         row.usb && row.usb->driver == platform::UsbDriver::Ready)
+            : row.transported ? DevicePresentation::of(phase, row.session.failure, row.listed, adb::DeviceState::Device)
                             : DevicePresentation::of(phase, row.session.failure, row.listed, row.state);
         switch (role) {
         case PillRole:
@@ -805,6 +816,14 @@ QVariant DeviceManager::data(const QModelIndex& index, int role) const
             meta = tr("%1 / %2").arg(linkName(row), row.esp32Where);
         } else if (row.provided) {
             meta = tr("%1 / %2").arg(row.provided->extensionName, QString::fromStdString(row.provided->id));
+        } else if (row.transported) {
+            const TransportPhone& phone = *row.transported;
+            meta = tr("%1 · %2 / %3")
+                       .arg(phone.transportTitle, phone.extensionName,
+                            phone.model.isEmpty() ? QString::fromStdString(phone.id) : phone.model);
+            if (!phone.detail.isEmpty()) {
+                meta = tr("%1 / %2").arg(meta, phone.detail);
+            }
         } else {
             QStringList attachments;
             for (const QVariant& link : linksOf(row)) {
@@ -847,15 +866,18 @@ QVariant DeviceManager::data(const QModelIndex& index, int role) const
                                    : row.capture != nullptr             ? QStringLiteral("capture")
                                    : isEsp32Row(row)                    ? QStringLiteral("esp32")
                                    : row.provided.has_value()           ? QStringLiteral("touch-box")
+                                   : row.transported.has_value()        ? QStringLiteral("transport")
                                    : row.aoaOnly                        ? QStringLiteral("aoa")
                                    : row.serial.startsWith(u"emulator-") ? QStringLiteral("emulator")
                                    : isWireless(row.serial)             ? QStringLiteral("wireless-adb")
                                                                         : QStringLiteral("usb");
         QVariantMap facts{{QStringLiteral("android"), row.androidRelease}, {QStringLiteral("attachment"), attachment}};
         if (phase == session::SessionPhase::Streaming && row.link) {
-            facts.insert(QStringLiteral("link"), *row.link == session::TransportKind::WifiDirect
-                                                     ? QStringLiteral("wifi-direct")
-                                                     : QStringLiteral("adb-tunnel"));
+            const bool direct = *row.link == session::TransportKind::WifiDirect;
+            const bool carried = *row.link == session::TransportKind::Extension;
+            facts.insert(QStringLiteral("link"), direct    ? QStringLiteral("wifi-direct")
+                                                 : carried ? QStringLiteral("extension")
+                                                           : QStringLiteral("adb-tunnel"));
         }
         if (row.aoaOnly || (row.controller != nullptr && row.controller->touchesOverAoa())) {
             facts.insert(QStringLiteral("touch"), QStringLiteral("aoa"));
@@ -872,6 +894,8 @@ QVariant DeviceManager::data(const QModelIndex& index, int role) const
         return providedState(row);
     case PictureRole:
         return pictureStateOf(row);
+    case TransportedRole:
+        return transportedState(row);
     default:
         return {};
     }
@@ -987,6 +1011,9 @@ bool DeviceManager::canConnect(const Row& row) const
         return row.listed && row.provided->state == u"ready" && !row.provided->touchMethod.empty() &&
                !active(row.session.phase);
     }
+    if (row.transported) {
+        return row.listed && !active(row.session.phase);
+    }
     return m_package && m_adbReady && row.listed && row.state == adb::DeviceState::Device && !active(row.session.phase);
 }
 
@@ -1029,7 +1056,7 @@ DeviceFacts DeviceManager::factsOf(const Row& row) const
     facts.rotationControl = hasCapability(row, protocol::Welcome::kRotation);
     facts.orientation = row.orientation;
     facts.transport = static_cast<int>(row.transport);
-    facts.transportChoice = row.capture == nullptr && !isBoxRow(row);
+    facts.transportChoice = row.capture == nullptr && !isBoxRow(row) && !row.transported;
     facts.wireless = isWireless(row.serial);
     facts.fullScreen = row.mirror != nullptr && row.mirror->fullScreen();
     facts.mini = row.mirror != nullptr && row.mirror->mini();
@@ -1813,7 +1840,8 @@ QHash<int, QByteArray> DeviceManager::roleNames() const
             {TunnelOfferRole, "tunnelOffer"},   {CardRole, "card"},
             {LinksRole, "links"},               {HelpRole, "help"},
             {CaptureRole, "capture"},           {Esp32Role, "esp32"},
-            {PictureRole, "picture"},           {ProvidedRole, "provided"}};
+            {PictureRole, "picture"},           {ProvidedRole, "provided"},
+            {TransportedRole, "transported"}};
 }
 
 void DeviceManager::connectDevice(const QString& serial)
@@ -2042,6 +2070,7 @@ void DeviceManager::connectDevice(const QString& serial)
     row.link.reset();
     qInfo("connecting to %s (%s)", qUtf8Printable(row.name()), qUtf8Printable(serial));
     row.controller->setUsbPhone(row.usb);
+    row.controller->setHostFactory(row.transported ? transportHost(*row.transported) : SessionController::HostFactory{});
     row.controller->start(row.transport, m_settings.effective(row.deviceId.toStdString()));
     row.session = {session::SessionPhase::Deploying, std::nullopt};
     rowChanged(index);
@@ -2597,7 +2626,7 @@ void DeviceManager::devicesChanged(const adb::TrackerUpdate& update)
     }
 
     for (Row& row : m_rows) {
-        if (row.demo == nullptr && !row.aoaOnly && row.capture == nullptr && !isBoxRow(row)) {
+        if (row.demo == nullptr && !row.aoaOnly && row.capture == nullptr && !isBoxRow(row) && !row.transported) {
             row.listed = false;
         }
     }
@@ -2635,7 +2664,7 @@ void DeviceManager::devicesChanged(const adb::TrackerUpdate& update)
     const auto now = std::chrono::steady_clock::now();
     bool graced = false;
     for (Row& row : m_rows) {
-        if (row.demo != nullptr || row.aoaOnly || row.capture != nullptr || isBoxRow(row)) {
+        if (row.demo != nullptr || row.aoaOnly || row.capture != nullptr || isBoxRow(row) || row.transported) {
             continue;
         }
         if (row.listed && row.state == adb::DeviceState::Device) {
@@ -2669,7 +2698,7 @@ void DeviceManager::devicesChanged(const adb::TrackerUpdate& update)
     for (int i = static_cast<int>(m_rows.size()) - 1; i >= 0; --i) {
         const Row& row = m_rows[static_cast<std::size_t>(i)];
         if (!row.listed && !active(row.session.phase) && row.demo == nullptr && !row.aoaOnly &&
-            row.capture == nullptr && !isBoxRow(row)) {
+            row.capture == nullptr && !isBoxRow(row) && !row.transported) {
             removeRow(i);
         }
     }
@@ -6763,7 +6792,7 @@ void DeviceManager::syncCompanion(Row& row)
         row.loggedCursor.reset();
     }
     const bool wanted = chosen && !row.companionHeld && row.demo == nullptr && row.host.isEmpty() &&
-                        row.capture == nullptr && row.mirror != nullptr &&
+                        row.capture == nullptr && row.mirror != nullptr && !row.transported &&
                         row.session.phase == session::SessionPhase::Streaming;
     if (!wanted) {
         stopCompanion(row);
@@ -7331,6 +7360,9 @@ QString DeviceManager::linkName(const Row& row)
     if (row.provided) {
         return row.provided->extensionName;
     }
+    if (row.transported) {
+        return row.transported->transportTitle;
+    }
     if (row.controller != nullptr && row.controller->touchesOverAoa() && streaming(row)) {
         return aoaTouchLinkName(row.serial);
     }
@@ -7409,6 +7441,7 @@ void DeviceManager::setExtensions(ExtensionHost* extensions)
                 [this](std::string_view key, std::string_view device) { return touchOptionsFor(key, device); });
             connect(native, &NativeExtensions::moduleTrouble, this, &DeviceManager::noteModuleTrouble);
             connect(native, &NativeExtensions::providedChanged, this, &DeviceManager::syncProvided);
+            connect(native, &NativeExtensions::transportPhonesChanged, this, &DeviceManager::syncTransportPhones);
         }
         connect(m_extensions, &ExtensionHost::nativeChanged, this, &DeviceManager::applyModules);
         connect(m_extensions, &ExtensionHost::addOnsChanged, this, &DeviceManager::applyModules);
@@ -7417,6 +7450,7 @@ void DeviceManager::setExtensions(ExtensionHost* extensions)
     applyModules();
     syncEsp32();
     syncProvided();
+    syncTransportPhones();
     if (ExtensionPanels* panels = ExtensionPanels::instance()) {
         connect(panels, &ExtensionPanels::menusChanged, this, &DeviceManager::setTrayMenu, Qt::UniqueConnection);
     }
@@ -8075,6 +8109,9 @@ void DeviceManager::openAppDisplay(const Row& phone, const QString& package, con
     auto* controller = new SessionController(m_adb, row.host, m_package, m_graphics, this);
     controller->showAppDisplay(package);
     controller->forceTouchBackend(m_touchBackend);
+    if (phone.transported) {
+        controller->setHostFactory(transportHost(*phone.transported));
+    }
     row.controller = controller;
     qInfo("opening %s of %s on an independent display", qUtf8Printable(package), qUtf8Printable(row.host));
     const int at = static_cast<int>(m_rows.size());
@@ -10356,6 +10393,103 @@ DevicePresentation DeviceManager::providedPresentation(const Row& row) const
                 DevicePresentation::Tone::Warn, -1, false, 2};
     }
     return DevicePresentation::of(phase, row.session.failure, true, adb::DeviceState::Device);
+}
+
+void DeviceManager::syncTransportPhones()
+{
+    const NativeExtensions* native = m_extensions != nullptr ? m_extensions->native() : nullptr;
+    const std::vector<TransportPhone> phones =
+        native != nullptr ? native->transportPhones() : std::vector<TransportPhone>{};
+    std::set<QString> present;
+    for (const TransportPhone& phone : phones) {
+        const QString serial = QStringLiteral("via:%1/%2/%3")
+                                   .arg(QString::fromStdString(phone.extension), QString::fromStdString(phone.transport),
+                                        QString::fromStdString(phone.id));
+        present.insert(serial);
+        if (const int found = indexOf(serial); found >= 0) {
+            Row& row = m_rows[static_cast<std::size_t>(found)];
+            row.transported = phone;
+            row.listed = true;
+            rowChanged(found);
+            continue;
+        }
+        const int at = static_cast<int>(m_rows.size());
+        beginInsertRows({}, at, at);
+        Row row;
+        row.serial = serial;
+        row.deviceId = serial;
+        row.transported = phone;
+        row.listed = true;
+        row.state = adb::DeviceState::Unknown;
+        qInfo("%s reaches %s through %s", qUtf8Printable(phone.extensionName), qUtf8Printable(phone.name),
+              qUtf8Printable(phone.transportTitle));
+        m_rows.push_back(std::move(row));
+        endInsertRows();
+    }
+    for (int i = static_cast<int>(m_rows.size()) - 1; i >= 0; --i) {
+        Row& row = m_rows[static_cast<std::size_t>(i)];
+        if (!row.transported || present.contains(row.serial)) {
+            continue;
+        }
+        row.listed = false;
+        if (!active(row.session.phase)) {
+            removeRow(i);
+        } else {
+            rowChanged(i);
+        }
+    }
+    emit countsChanged();
+}
+
+std::function<std::unique_ptr<session::ServerHost>()> DeviceManager::transportHost(const TransportPhone& phone) const
+{
+    const NativeExtensions* native = m_extensions != nullptr ? m_extensions->native() : nullptr;
+    PhoneRoute unreachable;
+    unreachable.key = transportKey(phone.extension, phone.transport);
+    unreachable.phone = phone.id;
+    unreachable.through = phone.transportTitle.toStdString();
+    std::shared_ptr<session::PhoneStreams> streams =
+        native != nullptr ? native->phoneStreams(phone, m_package)
+                          : makePhoneStreams(std::move(unreachable), std::make_shared<TransportChanges>(), m_package);
+    return [streams = std::move(streams)] { return std::make_unique<session::StreamServerHost>(streams); };
+}
+
+QVariantMap DeviceManager::transportedState(const Row& row)
+{
+    if (!row.transported) {
+        return {};
+    }
+    const TransportPhone& phone = *row.transported;
+    return {{QStringLiteral("isTransported"), true},
+            {QStringLiteral("extension"), QString::fromStdString(phone.extension)},
+            {QStringLiteral("extensionName"), phone.extensionName},
+            {QStringLiteral("transport"), QString::fromStdString(phone.transport)},
+            {QStringLiteral("title"), phone.transportTitle},
+            {QStringLiteral("id"), QString::fromStdString(phone.id)},
+            {QStringLiteral("name"), phone.name},
+            {QStringLiteral("model"), phone.model},
+            {QStringLiteral("detail"), phone.detail},
+            {QStringLiteral("icon"), phone.icon},
+            {QStringLiteral("iconPath"), phone.iconPath}};
+}
+
+std::optional<Advice> DeviceManager::transportedAdviceOf(const Row& row)
+{
+    if (!row.transported || !row.session.failure) {
+        return std::nullopt;
+    }
+    const TransportPhone& phone = *row.transported;
+    const QString reason = QString::fromStdString(row.session.failure->detail);
+    if (row.session.phase == session::SessionPhase::Reconnecting) {
+        return Advice{tr("Reconnecting: %1").arg(reason),
+                      tr("GameScrcpy connects again by itself as soon as %1 reaches the phone again")
+                          .arg(phone.transportTitle)};
+    }
+    if (row.session.phase != session::SessionPhase::Failed) {
+        return std::nullopt;
+    }
+    return Advice{tr("Not connected: %1").arg(reason),
+                  tr("Check that %1 is on and can reach the phone, then connect again").arg(phone.extensionName)};
 }
 
 QString DeviceManager::backgroundKeyOf(const Row& row) const

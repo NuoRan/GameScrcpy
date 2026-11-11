@@ -7,12 +7,14 @@
 
 #include <gs/platform/CrashHandler.h>
 
+#include <algorithm>
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
 #include <deque>
 #include <filesystem>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -32,6 +34,8 @@ constexpr auto kServiceWait = std::chrono::seconds(12);
 constexpr std::string_view kServiceThread =
     "call_service works only on a thread of the DLL's own, not inside a call from GameScrcpy";
 thread_local bool t_hostThread = false;
+constexpr std::size_t kDataWindow = 512 * 1024;
+constexpr auto kRoomRetry = std::chrono::milliseconds(10);
 constexpr std::size_t kMostPathBytes = 4096;
 constexpr std::size_t kMostPermissionBytes = 64;
 enum Exit : int { kDone = 0, kUsage = 2, kBroken = 3, kNoStart = 4, kNotLoaded = 5 };
@@ -178,6 +182,53 @@ public:
             m_closed = true;
         }
         m_answered.notify_all();
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_shut = true;
+        }
+        m_room.notify_all();
+    }
+
+    [[nodiscard]] bool deliver(detail::Kind kind, std::uint64_t id, std::string_view payload)
+    {
+        std::unique_lock lock(m_mutex);
+        while (!m_shut) {
+            if (m_channel.toApp().write(kind, id, payload)) {
+                SetEvent(m_channel.toAppEvent());
+                return true;
+            }
+            m_room.wait_until(lock, std::chrono::steady_clock::now() + kRoomRetry);
+        }
+        return false;
+    }
+
+    [[nodiscard]] bool sendData(std::uint64_t id, std::string_view bytes)
+    {
+        const bool onMain = std::this_thread::get_id() == m_main;
+        std::unique_lock lock(m_mutex);
+        while (!m_shut) {
+            if (onMain || m_unacked + bytes.size() <= kDataWindow) {
+                if (m_channel.toApp().write(detail::Kind::StreamData, id, bytes)) {
+                    m_unacked += bytes.size();
+                    SetEvent(m_channel.toAppEvent());
+                    return true;
+                }
+                if (onMain) {
+                    return false;
+                }
+            }
+            m_room.wait_until(lock, std::chrono::steady_clock::now() + kRoomRetry);
+        }
+        return false;
+    }
+
+    void taken(std::size_t size)
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_unacked -= std::min(m_unacked, size);
+        }
+        m_room.notify_all();
     }
 
     void send(detail::Kind kind, std::uint64_t id, std::string_view payload)
@@ -239,6 +290,13 @@ public:
         send(detail::Kind::InputEvent, 0, out.bytes());
     }
 
+    void transportChanged(std::string_view transport) override
+    {
+        detail::WireWriter out;
+        out.text(transport);
+        send(detail::Kind::TransportChanged, 0, out.bytes());
+    }
+
 private:
     void pump(std::uint64_t id, std::chrono::steady_clock::time_point deadline)
     {
@@ -281,6 +339,9 @@ private:
     HANDLE m_parent = nullptr;
     std::thread::id m_main;
     std::mutex m_mutex;
+    std::condition_variable m_room;
+    std::size_t m_unacked = 0;
+    bool m_shut = false;
     std::mutex m_claimMutex;
     std::condition_variable m_answered;
     std::map<std::uint64_t, std::optional<ClaimResult>> m_answers;
@@ -347,6 +408,10 @@ private:
             reply(message.id, provided(message));
             return;
         }
+        if (message.kind == detail::Kind::TransportDiscover) {
+            reply(message.id, discovered(message));
+            return;
+        }
         if (message.kind == detail::Kind::ClaimWanted) {
             detail::WireReader in(message.payload);
             std::string resource;
@@ -388,6 +453,16 @@ private:
             return {CallStatus::BadArgument, {}, "the request was damaged"};
         }
         return m_module.actOnDevice(provider, device, action);
+    }
+
+    CallResult discovered(const detail::Message& message)
+    {
+        detail::WireReader in(message.payload);
+        std::uint32_t transport = 0;
+        if (!in.u32(transport) || !in.done()) {
+            return {CallStatus::BadArgument, {}, "the request was damaged"};
+        }
+        return m_module.discover(transport);
     }
 
     void reply(std::uint64_t id, const CallResult& result)
@@ -518,6 +593,178 @@ private:
     Link& m_link;
     std::mutex m_mutex;
     std::map<std::uint64_t, std::uint64_t> m_running;
+};
+
+class Streams
+{
+public:
+    Streams(Module& module, Link& link)
+        : m_module(module)
+        , m_link(link)
+        , m_thread([this] { run(); })
+    {
+    }
+
+    ~Streams()
+    {
+        {
+            const std::scoped_lock lock(m_shared->mutex);
+            m_shared->stopping = true;
+        }
+        m_shared->wake.notify_all();
+    }
+
+    Streams(const Streams&) = delete;
+    Streams& operator=(const Streams&) = delete;
+
+    void push(detail::Message message)
+    {
+        {
+            const std::scoped_lock lock(m_shared->mutex);
+            m_shared->queue.push_back(std::move(message));
+        }
+        m_shared->wake.notify_one();
+    }
+
+private:
+    struct Shared {
+        std::mutex mutex;
+        std::condition_variable wake;
+        std::deque<detail::Message> queue;
+        std::vector<std::uint64_t> writable;
+        bool stopping = false;
+    };
+
+    void run()
+    {
+        for (;;) {
+            std::optional<detail::Message> message;
+            std::vector<std::uint64_t> ready;
+            {
+                std::unique_lock lock(m_shared->mutex);
+                m_shared->wake.wait(lock, [this] {
+                    return m_shared->stopping || !m_shared->queue.empty() || !m_shared->writable.empty();
+                });
+                if (m_shared->stopping) {
+                    return;
+                }
+                ready.swap(m_shared->writable);
+                if (!m_shared->queue.empty()) {
+                    message = std::move(m_shared->queue.front());
+                    m_shared->queue.pop_front();
+                }
+            }
+            for (const std::uint64_t id : ready) {
+                retry(id);
+            }
+            if (message) {
+                handle(*message);
+            }
+        }
+    }
+
+    void handle(const detail::Message& message)
+    {
+        const std::uint64_t id = message.id;
+        if (message.kind == detail::Kind::StreamOpen) {
+            open(message);
+        } else if (message.kind == detail::Kind::StreamSend) {
+            if (const auto found = m_pending.find(id); found != m_pending.end()) {
+                found->second.push_back(message.payload);
+            } else if (attempt(id, message.payload) == StreamSent::Busy) {
+                m_pending[id].push_back(message.payload);
+            }
+        } else if (message.kind == detail::Kind::StreamClose) {
+            m_pending.erase(id);
+            m_module.closeStream(id);
+        }
+    }
+
+    void open(const detail::Message& message)
+    {
+        const std::uint64_t id = message.id;
+        detail::WireReader in(message.payload);
+        std::uint32_t transport = 0;
+        StreamRequest request;
+        if (!in.u32(transport) || !in.text(request.phone, kMostDeviceBytes) ||
+            !in.text(request.channel, kMostNameBytes) || !in.text(request.session, kMostSessionBytes) || !in.done()) {
+            closed(id, "the request to open a connection was damaged");
+            return;
+        }
+        Link& link = m_link;
+        const std::shared_ptr<Shared> shared = m_shared;
+        const auto later = [shared, id] {
+            {
+                const std::scoped_lock lock(shared->mutex);
+                shared->writable.push_back(id);
+            }
+            shared->wake.notify_one();
+        };
+        StreamEvents events;
+        events.opened = [&link, id] { static_cast<void>(link.deliver(detail::Kind::StreamOpened, id, {})); };
+        events.data = [&link, id](std::string_view bytes) {
+            while (!bytes.empty()) {
+                const std::string_view chunk = bytes.substr(0, kMostStreamBytes);
+                if (!link.sendData(id, chunk)) {
+                    return;
+                }
+                bytes.remove_prefix(chunk.size());
+            }
+        };
+        events.writable = later;
+        events.closed = [&link, id, later](std::string reason) {
+            detail::WireWriter out;
+            out.text(reason);
+            static_cast<void>(link.deliver(detail::Kind::StreamClosed, id, out.bytes()));
+            later();
+        };
+        if (!m_module.openStream(transport, id, request, std::move(events))) {
+            closed(id, "the transport could not start a connection to the phone");
+        }
+    }
+
+    StreamSent attempt(std::uint64_t id, std::string_view bytes)
+    {
+        const StreamSent sent = m_module.sendStream(id, bytes);
+        if (sent == StreamSent::Taken) {
+            detail::WireWriter out;
+            out.u32(static_cast<std::uint32_t>(bytes.size()));
+            static_cast<void>(m_link.deliver(detail::Kind::StreamSent, id, out.bytes()));
+        } else if (sent == StreamSent::Failed) {
+            m_pending.erase(id);
+            m_module.closeStream(id);
+            closed(id, "the extension could not send to the phone");
+        }
+        return sent;
+    }
+
+    void retry(std::uint64_t id)
+    {
+        auto found = m_pending.find(id);
+        while (found != m_pending.end() && !found->second.empty()) {
+            const std::string chunk = found->second.front();
+            if (attempt(id, chunk) != StreamSent::Taken) {
+                return;
+            }
+            found->second.pop_front();
+        }
+        if (found != m_pending.end()) {
+            m_pending.erase(found);
+        }
+    }
+
+    void closed(std::uint64_t id, std::string_view reason)
+    {
+        detail::WireWriter out;
+        out.text(reason);
+        static_cast<void>(m_link.deliver(detail::Kind::StreamClosed, id, out.bytes()));
+    }
+
+    Module& m_module;
+    Link& m_link;
+    std::shared_ptr<Shared> m_shared = std::make_shared<Shared>();
+    std::map<std::uint64_t, std::deque<std::string>> m_pending;
+    std::jthread m_thread;
 };
 
 struct Start {
@@ -788,6 +1035,7 @@ int serve(int argc, wchar_t** argv)
     {
         Worker worker(*module, link);
         Worker claims(*module, link);
+        Streams streams(*module, link);
         std::map<std::uint64_t, std::uint64_t> sessions;
         std::map<std::uint64_t, std::uint64_t> instances;
         bool running = true;
@@ -815,8 +1063,17 @@ int serve(int argc, wchar_t** argv)
             } else if (message.kind == detail::Kind::ClaimWanted) {
                 claims.push(std::move(message));
             } else if (message.kind == detail::Kind::Call || message.kind == detail::Kind::DeviceList ||
-                       message.kind == detail::Kind::DeviceAct) {
+                       message.kind == detail::Kind::DeviceAct || message.kind == detail::Kind::TransportDiscover) {
                 worker.push(std::move(message));
+            } else if (message.kind == detail::Kind::StreamTaken) {
+                detail::WireReader in(message.payload);
+                std::uint32_t size = 0;
+                if (in.u32(size) && in.done()) {
+                    link.taken(size);
+                }
+            } else if (message.kind == detail::Kind::StreamOpen || message.kind == detail::Kind::StreamSend ||
+                       message.kind == detail::Kind::StreamClose) {
+                streams.push(std::move(message));
             } else if (message.kind == detail::Kind::Stop) {
                 running = false;
             } else if (message.kind == detail::Kind::Settings) {

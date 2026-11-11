@@ -45,6 +45,7 @@ struct HostedOptions {
     std::function<void(const std::string& problem)> notReady;
     std::vector<DeclaredInput> inputs;
     std::function<void(const std::string& source, const std::string& slot, double x, double y, std::uint64_t at)> input;
+    std::function<void(const std::string& transport)> transportChanged;
 };
 
 class HostedModule final : public Module
@@ -82,6 +83,11 @@ public:
     [[nodiscard]] bool claimWanted(std::string_view resource, std::string_view by) override;
     [[nodiscard]] bool hears(std::string_view topic) const override;
     void appEvent(std::string_view topic, std::string_view json) override;
+    [[nodiscard]] CallResult discover(std::size_t transport) override;
+    [[nodiscard]] bool openStream(std::size_t transport, std::uint64_t stream, const StreamRequest& request,
+                                  StreamEvents events) override;
+    [[nodiscard]] StreamSent sendStream(std::uint64_t stream, std::string_view bytes) override;
+    void closeStream(std::uint64_t stream) override;
 
     [[nodiscard]] int crashes() const;
     [[nodiscard]] bool waitReady(std::chrono::milliseconds limit) const;

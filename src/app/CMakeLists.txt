@@ -416,6 +416,8 @@ qt_add_qml_module(GameScrcpy
         ThumbnailView.h
         TouchMethods.h
         TranslateNoop.h
+        TransportPhones.cpp
+        TransportPhones.h
         TrayNotices.cpp
         TrayNotices.h
         UhidTouchSink.cpp

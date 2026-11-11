@@ -6,6 +6,7 @@ add_library(gs_session STATIC
     include/gs/session/ServerHost.h
     include/gs/session/Session.h
     include/gs/session/SessionState.h
+    include/gs/session/StreamHost.h
     include/gs/session/Transport.h
     src/AdbServerHost.cpp
     src/DirectHandshake.cpp
@@ -22,6 +23,10 @@ add_library(gs_session STATIC
     src/ReliableStream.h
     src/Session.cpp
     src/SessionState.cpp
+    src/StreamChannels.h
+    src/StreamHost.cpp
+    src/StreamTransport.cpp
+    src/StreamTransport.h
     src/TunnelTransport.cpp
     src/TunnelTransport.h
 )

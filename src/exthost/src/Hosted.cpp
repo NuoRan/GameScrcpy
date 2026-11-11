@@ -23,6 +23,7 @@ using Steady = std::chrono::steady_clock;
 constexpr DWORD kPollMs = 250;
 constexpr DWORD kStopWaitMs = 2'000;
 constexpr std::chrono::milliseconds kClaimWantedWait{1'000};
+constexpr std::size_t kStreamWindow = 128 * 1024;
 constexpr UINT kStoppedExit = 9;
 constexpr int kWarning = 1;
 std::string utf8(const std::filesystem::path& path)
@@ -174,6 +175,7 @@ struct HostedModule::Impl {
             reader.join();
         }
         failJobs("the extension stopped before the job ended");
+        failStreams("the extension stopped");
         if (process != nullptr) {
             if (WaitForSingleObject(process, kStopWaitMs) != WAIT_OBJECT_0) {
                 TerminateProcess(process, kStoppedExit);
@@ -529,6 +531,76 @@ struct HostedModule::Impl {
             });
             return;
         }
+        case detail::Kind::TransportChanged: {
+            std::string transport;
+            if (in.text(transport, kMostNameBytes) && in.done() && options.transportChanged) {
+                options.transportChanged(transport);
+            }
+            return;
+        }
+        case detail::Kind::StreamOpened: {
+            const std::shared_ptr<const StreamEvents> events = eventsOf(message.id);
+            if (events != nullptr && events->opened) {
+                events->opened();
+            }
+            return;
+        }
+        case detail::Kind::StreamData: {
+            const std::shared_ptr<const StreamEvents> events = eventsOf(message.id);
+            if (events != nullptr && events->data) {
+                events->data(message.payload);
+            }
+            detail::WireWriter taken;
+            taken.u32(static_cast<std::uint32_t>(message.payload.size()));
+            const std::scoped_lock lock(mutex);
+            if (channel && channel->toHost().write(detail::Kind::StreamTaken, message.id, taken.bytes())) {
+                SetEvent(channel->toHostEvent());
+            }
+            return;
+        }
+        case detail::Kind::StreamSent: {
+            std::uint32_t size = 0;
+            if (!in.u32(size) || !in.done()) {
+                return;
+            }
+            std::shared_ptr<const StreamEvents> events;
+            {
+                const std::scoped_lock lock(mutex);
+                const auto found = streams.find(message.id);
+                if (found == streams.end()) {
+                    return;
+                }
+                found->second.unsent -= std::min<std::size_t>(found->second.unsent, size);
+                if (found->second.waiting) {
+                    found->second.waiting = false;
+                    events = found->second.events;
+                }
+            }
+            if (events != nullptr && events->writable) {
+                events->writable();
+            }
+            return;
+        }
+        case detail::Kind::StreamClosed: {
+            std::string reason;
+            if (!in.text(reason, kMostReasonBytes)) {
+                reason.clear();
+            }
+            std::shared_ptr<const StreamEvents> events;
+            {
+                const std::scoped_lock lock(mutex);
+                const auto found = streams.find(message.id);
+                if (found == streams.end()) {
+                    return;
+                }
+                events = std::move(found->second.events);
+                streams.erase(found);
+            }
+            if (events->closed) {
+                events->closed(std::move(reason));
+            }
+            return;
+        }
         default:
             return;
         }
@@ -546,6 +618,27 @@ struct HostedModule::Impl {
         out.text(fits ? std::string_view(result.text) : std::string_view("GS-API-148 the answer is larger than 252 KiB"));
         if (channel->toHost().write(detail::Kind::ServiceAnswer, id, out.bytes())) {
             SetEvent(channel->toHostEvent());
+        }
+    }
+
+    std::shared_ptr<const StreamEvents> eventsOf(std::uint64_t id)
+    {
+        const std::scoped_lock lock(mutex);
+        const auto found = streams.find(id);
+        return found == streams.end() ? nullptr : found->second.events;
+    }
+
+    void failStreams(const std::string& why)
+    {
+        std::map<std::uint64_t, Stream> ended;
+        {
+            const std::scoped_lock lock(mutex);
+            ended.swap(streams);
+        }
+        for (const auto& [id, stream] : ended) {
+            if (stream.events->closed) {
+                stream.events->closed(why);
+            }
         }
     }
 
@@ -658,6 +751,7 @@ struct HostedModule::Impl {
             }
         }
         failJobs("the extension's process stopped before the job ended");
+        failStreams("the extension's process stopped");
         if (failedLate && options.notReady) {
             options.notReady(why);
         }
@@ -785,6 +879,12 @@ struct HostedModule::Impl {
     std::uint64_t nextInstance = 0;
     std::map<std::uint64_t, Remote> instances;
     std::map<std::uint64_t, JobEvents> jobs;
+    struct Stream {
+        std::shared_ptr<const StreamEvents> events;
+        std::size_t unsent = 0;
+        bool waiting = false;
+    };
+    std::map<std::uint64_t, Stream> streams;
     struct ClaimLink {
         std::mutex mutex;
         Impl* impl = nullptr;
@@ -1258,6 +1358,76 @@ void HostedModule::appEvent(std::string_view topic, std::string_view json)
         return;
     }
     if (d.channel->toHost().write(detail::Kind::AppEvent, 0, payload.bytes())) {
+        SetEvent(d.channel->toHostEvent());
+    }
+}
+
+CallResult HostedModule::discover(std::size_t transport)
+{
+    Impl& d = *m_impl;
+    if (transport >= d.info.transports.size()) {
+        return {CallStatus::Unavailable, {}, "the DLL has no such transport"};
+    }
+    detail::WireWriter payload;
+    payload.u32(static_cast<std::uint32_t>(transport));
+    return d.ask(detail::Kind::TransportDiscover, payload, "the transport");
+}
+
+bool HostedModule::openStream(std::size_t transport, std::uint64_t stream, const StreamRequest& request,
+                              StreamEvents events)
+{
+    Impl& d = *m_impl;
+    if (transport >= d.info.transports.size() || stream == 0 || request.phone.empty() ||
+        request.phone.size() > kMostDeviceBytes || request.channel.empty() || request.channel.size() > kMostNameBytes ||
+        request.session.size() > kMostSessionBytes) {
+        return false;
+    }
+    detail::WireWriter payload;
+    payload.u32(static_cast<std::uint32_t>(transport));
+    payload.text(request.phone);
+    payload.text(request.channel);
+    payload.text(request.session);
+    const std::scoped_lock lock(d.mutex);
+    if (d.state != Impl::State::Ready || !d.channel || d.streams.contains(stream) ||
+        !d.channel->toHost().write(detail::Kind::StreamOpen, stream, payload.bytes())) {
+        return false;
+    }
+    d.streams.emplace(stream, Impl::Stream{.events = std::make_shared<const StreamEvents>(std::move(events))});
+    SetEvent(d.channel->toHostEvent());
+    return true;
+}
+
+StreamSent HostedModule::sendStream(std::uint64_t stream, std::string_view bytes)
+{
+    Impl& d = *m_impl;
+    if (bytes.size() > kMostStreamBytes) {
+        return StreamSent::Failed;
+    }
+    const std::scoped_lock lock(d.mutex);
+    const auto found = d.streams.find(stream);
+    if (found == d.streams.end() || d.state != Impl::State::Ready || !d.channel) {
+        return StreamSent::Failed;
+    }
+    if (bytes.empty()) {
+        return StreamSent::Taken;
+    }
+    if (found->second.unsent + bytes.size() > kStreamWindow) {
+        found->second.waiting = true;
+        return StreamSent::Busy;
+    }
+    if (!d.channel->toHost().write(detail::Kind::StreamSend, stream, bytes)) {
+        return StreamSent::Failed;
+    }
+    found->second.unsent += bytes.size();
+    SetEvent(d.channel->toHostEvent());
+    return StreamSent::Taken;
+}
+
+void HostedModule::closeStream(std::uint64_t stream)
+{
+    Impl& d = *m_impl;
+    const std::scoped_lock lock(d.mutex);
+    if (d.streams.erase(stream) > 0 && d.channel && d.channel->toHost().write(detail::Kind::StreamClose, stream, {})) {
         SetEvent(d.channel->toHostEvent());
     }
 }

@@ -888,6 +888,47 @@ TEST_CASE("ADR-0112: native input sources load with their slots, survive a save 
     CHECK(std::string(fixHint(Code::InputNameInvalid)).find("Ext.<extension id>.<source>.<slot>") != std::string::npos);
 }
 
+TEST_CASE("ADR-0112: native transports load with their titles and icons, survive a save and a load, and need the "
+          "permission transport")
+{
+    Json json = nativeBase();
+    json["contributes"]["native"]["transports"] =
+        Json::array({{{"name", "relay"}, {"title", "Relay server"}, {"icon", "svg:icons/relay.svg"}},
+                     {{"name", "lan"}, {"title", "LAN"}}});
+    json["permissions"].push_back({{"name", "transport"}, {"reason", "Reaches phones through the relay."}});
+    json["permissions"].push_back(
+        {{"name", "network"}, {"reason", "Talks to the relay."}, {"hosts", Json::array({"relay.example.com"})}});
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    REQUIRE(loaded.manifest.contributes.native.has_value());
+    CHECK(loaded.manifest.contributes.native->transports ==
+          std::vector<NativeTransport>{{.name = "relay", .title = "Relay server", .icon = "svg:icons/relay.svg"},
+                                       {.name = "lan", .title = "LAN"}});
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+
+    json["permissions"] = Json::array({{{"name", "notify"}, {"reason", "Shows when it beeps."}}});
+    json["contributes"]["native"]["transports"].push_back({{"name", "relay"}, {"title", "Again"}});
+    json["contributes"]["native"]["transports"].push_back({{"name", "Relay"}, {"title", "Bad name"}});
+    json["contributes"]["native"]["transports"].push_back({{"name", "untitled"}});
+    loaded = load(json);
+    INFO(listed(loaded));
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::NativePermissionUndeclared, "$.contributes.native.transports"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.native.transports[2].name"));
+    CHECK(reports(loaded, Code::NativeNameInvalid, "$.contributes.native.transports[3].name"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.native.transports[4].title"));
+
+    const Json schema = Json::parse(manifestJsonSchema());
+    const Json transport =
+        schema["properties"]["contributes"]["properties"]["native"]["properties"]["transports"]["items"];
+    CHECK(transport["required"] == Json::array({"name", "title"}));
+    CHECK(transport["properties"]["name"]["pattern"] == "^[a-z][A-Za-z0-9]*$");
+}
+
 namespace {
 
 Json panelBase()

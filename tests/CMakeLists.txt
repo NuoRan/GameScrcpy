@@ -285,6 +285,7 @@ gs_add_unit_test(gs_session_tests
         unit/session/ReceiverStatsTests.cpp
         unit/session/ReliableStreamTests.cpp
         unit/session/SessionTests.cpp
+        unit/session/StreamTransportTests.cpp
     LIBRARIES
         gs::session
         gs::nlohmann_json
@@ -724,6 +725,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/TaskLibrary.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/TaskLibrary.h"
             "${PROJECT_SOURCE_DIR}/src/app/ThemeTokens.h"
+            "${PROJECT_SOURCE_DIR}/src/app/TransportPhones.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/TransportPhones.h"
             "${PROJECT_SOURCE_DIR}/src/app/TrayNotices.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/TrayNotices.h"
             "${PROJECT_SOURCE_DIR}/src/app/UhidTouchSink.cpp"

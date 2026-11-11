@@ -189,6 +189,32 @@ inline constexpr std::string_view kAppEventsPermission = "events.app";
 [[nodiscard]] bool phoneTopic(std::string_view topic) noexcept;
 [[nodiscard]] bool reservedTopic(std::string_view topic) noexcept;
 
+inline constexpr std::size_t kMostTransports = 8;
+inline constexpr std::size_t kMostStreamBytes = 64 * 1024;
+inline constexpr std::size_t kMostReasonBytes = 1000;
+inline constexpr std::size_t kMostSessionBytes = 16 * 1024;
+
+struct TransportInfo {
+    std::string name;
+
+    friend bool operator==(const TransportInfo&, const TransportInfo&) = default;
+};
+
+enum class StreamSent : std::uint8_t { Taken, Busy, Failed };
+
+struct StreamRequest {
+    std::string phone;
+    std::string channel;
+    std::string session;
+};
+
+struct StreamEvents {
+    std::function<void()> opened;
+    std::function<void(std::string_view bytes)> data;
+    std::function<void()> writable;
+    std::function<void(std::string reason)> closed;
+};
+
 struct ModuleInfo {
     std::vector<TouchMethodInfo> touchMethods;
     std::vector<NodeInfo> nodes;
@@ -197,6 +223,7 @@ struct ModuleInfo {
     std::vector<JobInfo> jobs;
     std::vector<ProviderInfo> providers;
     std::vector<InputSourceInfo> inputSources;
+    std::vector<TransportInfo> transports;
 
     friend bool operator==(const ModuleInfo&, const ModuleInfo&) = default;
 };
@@ -322,6 +349,7 @@ public:
     virtual void listening(std::string_view, bool) {}
     virtual void inputEvent(std::string_view, std::string_view, double, double, std::uint64_t) {}
     [[nodiscard]] virtual ServiceResult callService(std::string_view, std::string_view) { return {}; }
+    virtual void transportChanged(std::string_view) {}
 };
 
 class Module
@@ -356,6 +384,13 @@ public:
     [[nodiscard]] virtual bool claimWanted(std::string_view, std::string_view) { return false; }
     [[nodiscard]] virtual bool hears(std::string_view) const { return false; }
     virtual void appEvent(std::string_view, std::string_view) {}
+    [[nodiscard]] virtual CallResult discover(std::size_t) { return {}; }
+    [[nodiscard]] virtual bool openStream(std::size_t, std::uint64_t, const StreamRequest&, StreamEvents)
+    {
+        return false;
+    }
+    [[nodiscard]] virtual StreamSent sendStream(std::uint64_t, std::string_view) { return StreamSent::Failed; }
+    virtual void closeStream(std::uint64_t) {}
 };
 
 }

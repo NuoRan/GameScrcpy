@@ -28,6 +28,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -48,10 +49,13 @@ class SessionController : public QObject
     Q_OBJECT
 
 public:
+    using HostFactory = std::function<std::unique_ptr<session::ServerHost>()>;
+
     SessionController(adb::AdbClient adb, QString serial, std::shared_ptr<const session::ServerPackage> package,
                       const render::GraphicsDevice* graphics, QObject* parent = nullptr);
     ~SessionController() override;
 
+    void setHostFactory(HostFactory factory) { m_hostFactory = std::move(factory); }
     void start(session::TransportChoice transport, const settings::Settings& settings);
     void stop();
     void showAppDisplay(const QString& package);
@@ -222,6 +226,7 @@ private:
     std::unique_ptr<ExtensionTouch> m_extensionTouch;
     QString m_extensionTouchTitle;
     QString m_extensionTouchProblem;
+    HostFactory m_hostFactory;
 };
 
 }

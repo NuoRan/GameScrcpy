@@ -89,6 +89,10 @@ void WireWriter::info(const ModuleInfo& info)
     for (const InputSourceInfo& source : info.inputSources) {
         text(source.name);
     }
+    u32(static_cast<std::uint32_t>(info.transports.size()));
+    for (const TransportInfo& transport : info.transports) {
+        text(transport.name);
+    }
 }
 
 void WireWriter::event(const InputEvent& event)
@@ -295,6 +299,17 @@ bool WireReader::info(ModuleInfo& out)
             return false;
         }
         out.inputSources.push_back(std::move(source));
+    }
+    std::uint32_t transports = 0;
+    if (!u32(transports) || transports > kMostTransports) {
+        return false;
+    }
+    for (std::uint32_t index = 0; index < transports; ++index) {
+        TransportInfo transport;
+        if (!text(transport.name, kMostNameBytes)) {
+            return false;
+        }
+        out.transports.push_back(std::move(transport));
     }
     return true;
 }

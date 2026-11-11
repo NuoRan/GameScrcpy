@@ -10,6 +10,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace gs::session {
@@ -19,15 +20,21 @@ class ServerPackage
 public:
     [[nodiscard]] static std::shared_ptr<const ServerPackage> load(const std::filesystem::path& path);
 
-    explicit ServerPackage(std::vector<std::uint8_t> bytes);
+    explicit ServerPackage(std::vector<std::uint8_t> bytes, std::filesystem::path file = {});
 
     [[nodiscard]] std::span<const std::uint8_t> bytes() const noexcept { return m_bytes; }
     [[nodiscard]] const std::string& remotePath() const noexcept { return m_remotePath; }
+    [[nodiscard]] const std::filesystem::path& file() const noexcept { return m_file; }
 
 private:
     std::vector<std::uint8_t> m_bytes;
     std::string m_remotePath;
+    std::filesystem::path m_file;
 };
+
+[[nodiscard]] std::string serverCommand(const ServerPackage& package, const LaunchParams& params,
+                                        std::string_view extra = {});
+[[nodiscard]] std::string serverInput(const LaunchParams& params);
 
 enum class TransportChoice : std::uint8_t {
     AdbTunnel,

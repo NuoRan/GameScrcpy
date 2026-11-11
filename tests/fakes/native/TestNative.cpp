@@ -2,10 +2,13 @@
 
 #include <windows.h>
 
+#include <algorithm>
 #include <atomic>
+#include <condition_variable>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <functional>
 #include <map>
 #include <memory>
@@ -568,6 +571,255 @@ int32_t padTouch(void*, void*, const gs_ext_gamepad* pad)
     return GS_EXT_OK;
 }
 
+constexpr char kLoopPhones[] = R"([{"id":"echo","name":"Echo phone","model":"Loop","detail":"answers what it gets"},)"
+                               R"({"id":"pair","name":"Pair phone"},{"id":"refuse","name":"Absent phone"}])";
+
+struct LoopBook {
+    std::mutex mutex;
+    std::condition_variable wake;
+    std::deque<std::function<void()>> work;
+    std::thread thread;
+    bool stopping = false;
+    std::map<uint64_t, std::string> phones;
+    std::map<uint64_t, uint64_t> peers;
+    uint64_t waitingPair = 0;
+    std::vector<uint64_t> busy;
+    bool hold = false;
+    std::string lastOpen = "null";
+    std::string closed;
+    std::string listed = kLoopPhones;
+};
+
+LoopBook& loopBook()
+{
+    static LoopBook book;
+    return book;
+}
+
+void loopLater(LoopBook& book, std::function<void()> step)
+{
+    book.work.push_back(std::move(step));
+    if (!book.thread.joinable()) {
+        book.thread = std::thread([] {
+            LoopBook& running = loopBook();
+            std::unique_lock lock(running.mutex);
+            for (;;) {
+                running.wake.wait(lock, [&running] { return running.stopping || !running.work.empty(); });
+                if (running.work.empty()) {
+                    return;
+                }
+                std::function<void()> next = std::move(running.work.front());
+                running.work.pop_front();
+                lock.unlock();
+                next();
+                lock.lock();
+            }
+        });
+    }
+    book.wake.notify_one();
+}
+
+void stopLoop()
+{
+    LoopBook& book = loopBook();
+    std::thread thread;
+    {
+        const std::scoped_lock lock(book.mutex);
+        book.stopping = true;
+        thread = std::move(book.thread);
+    }
+    book.wake.notify_all();
+    if (thread.joinable()) {
+        thread.join();
+    }
+    const std::scoped_lock lock(book.mutex);
+    book.stopping = false;
+    book.work.clear();
+    book.phones.clear();
+    book.peers.clear();
+    book.waitingPair = 0;
+    book.busy.clear();
+    book.hold = false;
+    book.lastOpen = "null";
+    book.closed.clear();
+    book.listed = kLoopPhones;
+}
+
+void loopClosing(LoopBook& book, uint64_t stream, std::string reason)
+{
+    loopLater(book, [stream, reason = std::move(reason)] {
+        g_host->stream_closed(g_host->context, stream, reason.data(), reason.size());
+    });
+}
+
+int32_t loopDiscover(void*, gs_ext_result* out)
+{
+    std::string listed;
+    {
+        LoopBook& book = loopBook();
+        const std::scoped_lock lock(book.mutex);
+        listed = book.listed;
+    }
+    return g_host->set_text(out, GS_EXT_TYPE_JSON, listed.data(), listed.size());
+}
+
+int32_t loopOpen(void*, uint64_t stream, const gs_ext_stream_open* open)
+{
+    const std::string phone = open->phone != nullptr ? open->phone : "";
+    const std::string channel = open->channel != nullptr ? open->channel : "";
+    const std::string session = open->session != nullptr && open->session_size > 0
+                                    ? std::string(open->session, open->session_size)
+                                    : std::string("null");
+    LoopBook& book = loopBook();
+    const std::scoped_lock lock(book.mutex);
+    book.lastOpen = "{\"phone\":";
+    appendText(book.lastOpen, phone.data(), phone.size());
+    book.lastOpen += ",\"channel\":";
+    appendText(book.lastOpen, channel.data(), channel.size());
+    book.lastOpen += ",\"session\":" + session + "}";
+    if (phone == "refuse") {
+        loopClosing(book, stream, "nobody answers");
+        return GS_EXT_OK;
+    }
+    if (phone == "pair") {
+        if (book.waitingPair == 0) {
+            book.waitingPair = stream;
+        } else {
+            book.peers[book.waitingPair] = stream;
+            book.peers[stream] = book.waitingPair;
+            book.waitingPair = 0;
+        }
+    } else if (phone != "echo") {
+        return GS_EXT_FAILED;
+    }
+    book.phones[stream] = phone;
+    loopLater(book, [stream] { g_host->stream_opened(g_host->context, stream); });
+    return GS_EXT_OK;
+}
+
+int32_t loopSend(void*, uint64_t stream, const uint8_t* data, size_t size)
+{
+    LoopBook& book = loopBook();
+    const std::scoped_lock lock(book.mutex);
+    const auto phone = book.phones.find(stream);
+    if (phone == book.phones.end()) {
+        return GS_EXT_FAILED;
+    }
+    if (book.hold) {
+        if (std::ranges::find(book.busy, stream) == book.busy.end()) {
+            book.busy.push_back(stream);
+        }
+        return GS_EXT_BUSY;
+    }
+    uint64_t target = stream;
+    if (phone->second == "pair") {
+        const auto peer = book.peers.find(stream);
+        if (peer == book.peers.end()) {
+            return GS_EXT_OK;
+        }
+        target = peer->second;
+    }
+    std::vector<uint8_t> bytes(data, data + size);
+    loopLater(book, [target, bytes = std::move(bytes)] {
+        g_host->stream_data(g_host->context, target, bytes.data(), bytes.size());
+    });
+    return GS_EXT_OK;
+}
+
+void loopClose(void*, uint64_t stream)
+{
+    LoopBook& book = loopBook();
+    const std::scoped_lock lock(book.mutex);
+    if (!book.closed.empty()) {
+        book.closed += ',';
+    }
+    book.closed += std::to_string(stream);
+    book.phones.erase(stream);
+    std::erase(book.busy, stream);
+    if (book.waitingPair == stream) {
+        book.waitingPair = 0;
+    }
+    if (const auto peer = book.peers.find(stream); peer != book.peers.end()) {
+        const uint64_t other = peer->second;
+        book.peers.erase(peer);
+        book.peers.erase(other);
+        book.phones.erase(other);
+        loopClosing(book, other, "the other end left");
+    }
+}
+
+int32_t holdSends(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    LoopBook& book = loopBook();
+    {
+        const std::scoped_lock lock(book.mutex);
+        book.hold = args[0].flag != 0;
+        if (!book.hold) {
+            for (const uint64_t stream : book.busy) {
+                loopLater(book, [stream] { g_host->stream_writable(g_host->context, stream); });
+            }
+            book.busy.clear();
+        }
+    }
+    return giveFlag(result, true);
+}
+
+int32_t dropStreams(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    const std::string reason(args[0].text, args[0].size);
+    double dropped = 0;
+    LoopBook& book = loopBook();
+    {
+        const std::scoped_lock lock(book.mutex);
+        for (const auto& entry : book.phones) {
+            loopClosing(book, entry.first, reason);
+            ++dropped;
+        }
+        book.phones.clear();
+        book.peers.clear();
+        book.waitingPair = 0;
+        book.busy.clear();
+    }
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number = dropped;
+    return GS_EXT_OK;
+}
+
+int32_t lastOpen(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    std::string opened;
+    {
+        LoopBook& book = loopBook();
+        const std::scoped_lock lock(book.mutex);
+        opened = book.lastOpen;
+    }
+    return giveText(result, GS_EXT_TYPE_JSON, opened);
+}
+
+int32_t closedStreams(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    std::string closed;
+    {
+        LoopBook& book = loopBook();
+        const std::scoped_lock lock(book.mutex);
+        closed = "[" + book.closed + "]";
+    }
+    return giveText(result, GS_EXT_TYPE_JSON, closed);
+}
+
+int32_t setPhones(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    {
+        LoopBook& book = loopBook();
+        const std::scoped_lock lock(book.mutex);
+        book.listed.assign(args[0].text, args[0].size);
+    }
+    constexpr char kName[] = "loop";
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number = g_host->transport_changed(g_host->context, kName, sizeof(kName) - 1);
+    return GS_EXT_OK;
+}
+
 const uint32_t kTwoNumbers[] = {GS_EXT_TYPE_NUMBER, GS_EXT_TYPE_NUMBER};
 const uint32_t kOneString[] = {GS_EXT_TYPE_STRING};
 const uint32_t kTwoStrings[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING};
@@ -618,7 +870,15 @@ const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "callService", kStringAndJson, 2, GS_EXT_TYPE_NUMBER, nullptr, &callServiceLater},
     {sizeof(gs_ext_node), "callServiceNow", kStringAndJson, 2, GS_EXT_TYPE_NUMBER, nullptr, &callServiceNow},
     {sizeof(gs_ext_node), "serviceResult", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &serviceResult},
+    {sizeof(gs_ext_node), "holdSends", kOneFlag, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &holdSends},
+    {sizeof(gs_ext_node), "dropStreams", kOneString, 1, GS_EXT_TYPE_NUMBER, nullptr, &dropStreams},
+    {sizeof(gs_ext_node), "lastOpen", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &lastOpen},
+    {sizeof(gs_ext_node), "closedStreams", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &closedStreams},
+    {sizeof(gs_ext_node), "setPhones", kOneJson, 1, GS_EXT_TYPE_NUMBER, nullptr, &setPhones},
 };
+
+const gs_ext_transport kLoop = {sizeof(gs_ext_transport), "loop",    nullptr,   &loopDiscover,
+                                &loopOpen,                &loopSend, &loopClose};
 
 const gs_ext_device_provider kBoxes = {sizeof(gs_ext_device_provider), "boxes", nullptr, &listBoxes, &actOnBox};
 
@@ -950,6 +1210,7 @@ void unloadAll(void*)
         }
     }
     joinServiceCalls();
+    stopLoop();
 }
 
 const gs_ext_job kCount = {sizeof(gs_ext_job), "count", nullptr, &countStart, &countCancel};
@@ -1013,6 +1274,12 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "sendInput", &kNodes[28]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "sendInputs", &kNodes[29]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_INPUT_SOURCE, "pad", &kPad},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "holdSends", &kNodes[34]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "dropStreams", &kNodes[35]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "lastOpen", &kNodes[36]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "closedStreams", &kNodes[37]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "setPhones", &kNodes[38]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_TRANSPORT, "loop", &kLoop},
 };
 
 const gs_ext_plugin kPlugin = {

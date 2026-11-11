@@ -18,6 +18,7 @@ enum class ChannelError : std::uint8_t { Closed, TimedOut, Malformed };
 struct ChannelFailure {
     ChannelError error = ChannelError::Closed;
     protocol::DecodeError decode = protocol::DecodeError::Truncated;
+    std::string detail;
 };
 
 class FrameChannel
@@ -55,6 +56,7 @@ public:
 enum class TransportKind : std::uint8_t {
     AdbTunnel,
     WifiDirect,
+    Extension,
 };
 
 class Link

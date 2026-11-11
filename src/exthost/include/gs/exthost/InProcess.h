@@ -55,6 +55,11 @@ public:
     [[nodiscard]] bool claimWanted(std::string_view resource, std::string_view by) override;
     [[nodiscard]] bool hears(std::string_view topic) const override;
     void appEvent(std::string_view topic, std::string_view json) override;
+    [[nodiscard]] CallResult discover(std::size_t transport) override;
+    [[nodiscard]] bool openStream(std::size_t transport, std::uint64_t stream, const StreamRequest& request,
+                                  StreamEvents events) override;
+    [[nodiscard]] StreamSent sendStream(std::uint64_t stream, std::string_view bytes) override;
+    void closeStream(std::uint64_t stream) override;
 
     struct Impl;
 
