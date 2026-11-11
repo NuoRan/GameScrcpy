@@ -2244,6 +2244,7 @@ void ExtensionHost::resolve()
     if (m_mode == Mode::Normal) {
         const settings::ExtensionStates& states = m_settings.extensions();
         std::vector<ext::Manifest> candidates;
+        std::set<std::string, std::less<>> heldBack;
         for (const Extension& extension : m_extensions) {
             if (!extension.usable()) {
                 continue;
@@ -2260,18 +2261,23 @@ void ExtensionHost::resolve()
                     problem.path = memberPath(manifest.id) + problem.path.substr(1);
                     m_problems.push_back(std::move(problem));
                 }
+                heldBack.insert(manifest.id);
                 continue;
             }
             if (state != states.end() && state->second.enabled && !consented(manifest)) {
                 m_problems.push_back({ext::Severity::Warning, ext::Code::ConsentRequired,
                                       memberPath(manifest.id) + ".permissions", manifest.version.text()});
+                heldBack.insert(manifest.id);
                 continue;
             }
             candidates.push_back(manifest);
         }
+        for (const ext::Manifest& manifest : candidates) {
+            heldBack.erase(manifest.id);
+        }
         std::vector<std::string> enabled;
         for (const auto& [id, state] : states) {
-            if (state.enabled && (!m_bisect || m_bisect->loads(id))) {
+            if (state.enabled && !heldBack.contains(id) && (!m_bisect || m_bisect->loads(id))) {
                 enabled.push_back(id);
             }
         }

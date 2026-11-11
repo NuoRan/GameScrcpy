@@ -221,6 +221,7 @@ TEST_CASE("an extension whose dependency is missing or whose extension point the
     CHECK(reports(host.problemsOf("alice.needs"), gs::ext::Code::DependencyMissing));
     CHECK(reports(host.problemsOf("alice.script"), gs::ext::Code::HostApiMissing,
                   R"($["alice.script"].requires["command"])"));
+    CHECK_FALSE(reports(host.problemsOf("alice.script"), gs::ext::Code::DependencyMissing));
 
     fixture.add(fixture.user, "bob.base", "1.2.0");
     host.start(false);
@@ -439,6 +440,7 @@ TEST_CASE("installing through the host replaces older versions, and an update th
     CHECK_FALSE(activeVersion(host, "alice.glow", "2.0.0"));
     CHECK(host.filters("").empty());
     CHECK(reports(host.problemsOf("alice.glow"), gs::ext::Code::ConsentRequired));
+    CHECK_FALSE(reports(host.problemsOf("alice.glow"), gs::ext::Code::DependencyMissing));
     REQUIRE(host.setEnabled("alice.glow", true));
     CHECK(activeVersion(host, "alice.glow", "2.0.0"));
     CHECK_FALSE(reports(host.problemsOf("alice.glow"), gs::ext::Code::ConsentRequired));
@@ -485,6 +487,7 @@ TEST_CASE("a version that asks for more than was allowed stays off until the ext
     CHECK_FALSE(activeVersion(host, "alice.glow", newest));
     CHECK(meanwhile.empty() == !activeVersion(host, "alice.glow", "1.0.0"));
     CHECK(reports(host.problemsOf("alice.glow"), gs::ext::Code::ConsentRequired));
+    CHECK_FALSE(reports(host.problemsOf("alice.glow"), gs::ext::Code::DependencyMissing));
 
     REQUIRE(host.setEnabled("alice.glow", true));
     CHECK(activeVersion(host, "alice.glow", newest));

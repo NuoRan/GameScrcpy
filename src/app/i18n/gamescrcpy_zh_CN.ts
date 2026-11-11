@@ -6549,6 +6549,10 @@
         <translation>未加载</translation>
     </message>
     <message>
+        <source>Turn it on again to allow what&apos;s new</source>
+        <translation>重新打开，同意新的要求</translation>
+    </message>
+    <message>
         <source>Built-in</source>
         <translation>内置</translation>
     </message>
@@ -6803,10 +6807,6 @@
     <message>
         <source>Needs a different version of another extension</source>
         <translation>需要另一个扩展的其他版本</translation>
-    </message>
-    <message>
-        <source>Turn it on again to allow what the new version asks for</source>
-        <translation>重新打开开关，同意新版本的要求</translation>
     </message>
     <message>
         <source>The video filter does not compile</source>

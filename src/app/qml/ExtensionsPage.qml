@@ -164,8 +164,6 @@ Item {
         case "dependency-version":
         case "dependency-conflict":
             return qsTr("Needs a different version of another extension")
-        case "consent-required":
-            return qsTr("Turn it on again to allow what the new version asks for")
         case "filter-compile-failed":
             return qsTr("The video filter does not compile")
         case "texture-unreadable":
@@ -508,6 +506,9 @@ Item {
                                                             : ""
                         readonly property var health: card.modelData.health ?? ({})
                         readonly property string healthText: page.healthText(card.health)
+                        readonly property string noticeText: card.modelData.problems.some(item => item.code === "consent-required")
+                                                             ? qsTr("Turn it on again to allow what's new")
+                                                             : card.healthText
 
                         objectName: "extensionCard"
                         Layout.preferredWidth: page.cardWidth
@@ -667,10 +668,10 @@ Item {
                                 spacing: Theme.space.xs
 
                                 Icon {
-                                    name: card.failing ? "circle-x" : card.healthText !== "" ? "triangle-alert" : "shield"
+                                    name: card.failing ? "circle-x" : card.noticeText !== "" ? "triangle-alert" : "shield"
                                     size: Theme.size.infoIcon
                                     color: card.failing ? Theme.colors.dangerText
-                                         : card.healthText !== "" ? Theme.colors.warningText
+                                         : card.noticeText !== "" ? Theme.colors.warningText
                                          : Theme.colors.textTertiary
                                 }
 
@@ -680,13 +681,13 @@ Item {
                                     textFormat: Text.PlainText
                                     text: card.failing
                                           ? page.failureText(card.errors)
-                                          : card.healthText !== ""
-                                            ? card.healthText
+                                          : card.noticeText !== ""
+                                            ? card.noticeText
                                             : card.modelData.permissions.length > 0
                                               ? card.modelData.permissions.map(permission => permission.title).join(" · ")
                                               : qsTr("No extra permission")
                                     color: card.failing ? Theme.colors.dangerText
-                                         : card.healthText !== "" ? Theme.colors.warningText
+                                         : card.noticeText !== "" ? Theme.colors.warningText
                                          : Theme.colors.textTertiary
                                     font.pixelSize: Theme.type.caption.size
                                     elide: Text.ElideRight
@@ -715,7 +716,7 @@ Item {
 
                                 Button {
                                     objectName: "extensionDetails"
-                                    visible: card.failing || card.healthText !== "" || (card.health.events ?? []).length > 0
+                                    visible: card.failing || card.noticeText !== "" || (card.health.events ?? []).length > 0
                                     small: true
                                     text: qsTr("Details")
                                     Accessible.description: card.modelData.name
