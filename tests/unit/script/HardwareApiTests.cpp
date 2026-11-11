@@ -4,6 +4,7 @@
 
 #include <doctest/doctest.h>
 
+#include <algorithm>
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
@@ -13,6 +14,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 using gs::script::ControlInfo;
@@ -55,7 +57,10 @@ public:
     std::optional<std::string> loadStore(std::string_view) override { return std::nullopt; }
     void saveStore(std::string_view, std::string_view) override {}
 
-    bool offersService(std::string_view name) override { return name.starts_with("hardware."); }
+    bool offersService(std::string_view name) override
+    {
+        return name.starts_with("hardware.") || name.starts_with("net.");
+    }
 
     ServiceAnswer callService(std::string_view name, std::string_view json) override
     {
@@ -387,4 +392,76 @@ export async function hold() {
     CHECK(fixture.finish(task).kind == ReportKind::TaskCancelled);
     CHECK(fixture.recorder.count(logged("wanted Box")) == 1);
     CHECK(fixture.services->calls() == released);
+}
+
+TEST_CASE("ADR-0112: net.listen hands each request to its handler and sends back what the handler answers")
+{
+    Fixture fixture;
+    const ScriptId script = fixture.load(R"js(
+export async function serve() {
+    const server = await net.listen(8765, async (request) => {
+        log.info("asked", request.method, request.path, request.query.name, request.headers["x-thing"], request.text);
+        if (request.path === "/json") return { status: 201, json: { ok: true } };
+        if (request.path === "/text") return "hi";
+        if (request.path === "/fail") throw new Error("broken");
+        if (request.path === "/bad") return { status: 99 };
+        return undefined;
+    }, { origins: ["https://deck.example"] });
+    log.info("listening", server.port, server.isOpen, Object.prototype.toString.call(server));
+    try {
+        await net.listen(80, () => undefined);
+    } catch (error) {
+        log.info("port", error.message.split(" ")[0], error.name);
+    }
+    await sleep(30000);
+}
+)js");
+    const TaskId task = fixture.host->start(script, "serve");
+    const Asked listen = fixture.asked(0, "net.listen");
+    CHECK(listen.json == R"({"port":8765,"origins":["https://deck.example"]})");
+    fixture.host->answer(listen.id, R"({"handle":"n1","port":8765})");
+    REQUIRE(fixture.recorder.waitFor(logged("listening 8765 true [object NetServer]")).has_value());
+    REQUIRE(fixture.recorder.waitFor(logged("port GS-API-101 RangeError")).has_value());
+    for (const auto& [request, path] : std::vector<std::pair<int, std::string>>{
+             {1, "/json"}, {2, "/text"}, {3, "/none"}, {4, "/fail"}, {5, "/bad"}}) {
+        fixture.host->event("net", "n1",
+                            R"({"type":"request","request":)" + std::to_string(request) + R"(,"method":"POST","path":")" +
+                                path + R"(","query":{"name":"Ann"},"headers":{"x-thing":"a"},"body":"aGk="})");
+    }
+    const auto answered = [&fixture] {
+        std::vector<std::string> found;
+        for (const std::string& call : fixture.services->calls()) {
+            if (call.starts_with("net.respond ")) {
+                found.push_back(call.substr(12));
+            }
+        }
+        return found;
+    };
+    for (int round = 0; round < 3000 && answered().size() < 5; ++round) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    const std::vector<std::string> answers = answered();
+    REQUIRE(answers.size() == 5);
+    const auto has = [&answers](const std::string& wanted) {
+        return std::ranges::find(answers, wanted) != answers.end();
+    };
+    CHECK(has(R"({"handle":"n1","request":1,"status":201,"headers":{"content-type":"application/json; charset=utf-8"},)"
+              R"("body":"eyJvayI6dHJ1ZX0="})"));
+    CHECK(has(R"({"handle":"n1","request":2,"status":200,"headers":{"content-type":"text/plain; charset=utf-8"},)"
+              R"("body":"aGk="})"));
+    CHECK(has(R"({"handle":"n1","request":3,"status":204,"headers":{},"body":""})"));
+    CHECK(has(R"({"handle":"n1","request":4,"status":500,"headers":{},"body":""})"));
+    CHECK(has(R"({"handle":"n1","request":5,"status":500,"headers":{},"body":""})"));
+    CHECK(fixture.recorder.count(logged("asked POST /json Ann a hi")) == 1);
+
+    fixture.host->cancel(task);
+    CHECK(fixture.finish(task).kind == ReportKind::TaskCancelled);
+    const auto closed = [&fixture] {
+        const std::vector<std::string> calls = fixture.services->calls();
+        return std::ranges::find(calls, std::string(R"(net.close {"handle":"n1"})")) != calls.end();
+    };
+    for (int round = 0; round < 3000 && !closed(); ++round) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    CHECK(closed());
 }

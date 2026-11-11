@@ -851,3 +851,39 @@ TEST_CASE("ADR-0112: the tours of an extension that is on come with their text i
     REQUIRE(host.setEnabled("alice.tours", false));
     CHECK(host.tours().isEmpty());
 }
+
+TEST_CASE("ADR-0112: local connections of an extension follow its permission and its own switch in the details")
+{
+    const Fixture fixture;
+    writeFile(fixture.user / "alice.deck/1.0.0/manifest.json",
+              R"({"schemaVersion": 1, "id": "alice.deck", "version": "1.0.0", "name": "Deck", "license": "MIT",
+                  "requires": {"script": "^1.0"},
+                  "contributes": {"scripts": [{"name": "app", "entry": "app.js", "run": "app"}]},
+                  "permissions": [{"name": "network.listen", "reason": "Stream Deck buttons."}]})");
+    writeFile(fixture.user / "alice.deck/1.0.0/app.js", "log.info(\"deck\");\n");
+    AppSettings settings(fixture.data);
+    ExtensionHost host(settings, {fixture.user, {}});
+    host.start(false);
+    INFO(listed(host.problems()));
+    const auto entry = [&host] {
+        const QVariantList entries = host.entries();
+        return entries.isEmpty() ? QVariantMap() : entries[0].toMap();
+    };
+    CHECK_FALSE(host.localConnections("alice.deck"));
+    CHECK_FALSE(host.setLocalConnections(QStringLiteral("alice.deck"), true));
+    REQUIRE(host.setEnabled("alice.deck", true));
+    CHECK(host.localConnections("alice.deck"));
+    CHECK(entry().value(QStringLiteral("localConnections")).toBool());
+    int changes = 0;
+    QObject::connect(&host, &ExtensionHost::extensionsChanged, [&changes] { ++changes; });
+    REQUIRE(host.setLocalConnections(QStringLiteral("alice.deck"), false));
+    CHECK(changes == 1);
+    CHECK_FALSE(host.localConnections("alice.deck"));
+    CHECK(entry().contains(QStringLiteral("localConnections")));
+    CHECK_FALSE(entry().value(QStringLiteral("localConnections")).toBool());
+    CHECK(host.setLocalConnections(QStringLiteral("alice.deck"), false));
+    CHECK(changes == 1);
+    REQUIRE(host.setLocalConnections(QStringLiteral("alice.deck"), true));
+    CHECK(host.localConnections("alice.deck"));
+    CHECK_FALSE(host.setLocalConnections(QStringLiteral("alice.other"), true));
+}

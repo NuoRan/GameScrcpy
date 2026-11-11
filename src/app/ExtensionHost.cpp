@@ -424,6 +424,9 @@ QString permissionTitle(std::string_view name)
     if (name == "devices.provide") {
         return ExtensionHost::tr("Add devices to the devices page");
     }
+    if (name == "network.listen") {
+        return ExtensionHost::tr("Accept connections from programs on this computer");
+    }
     return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
 }
 
@@ -1136,6 +1139,13 @@ QVariantList ExtensionHost::entries() const
             row.insert(QStringLiteral("enabled"), !extension->superseded && state != states.end() &&
                                                       state->second.enabled && consented(manifest));
             row.insert(QStringLiteral("health"), healthOf(*m_health, manifest.id));
+            if (std::ranges::find(manifest.permissions, std::string_view("network.listen"), &ext::Permission::name) !=
+                manifest.permissions.end()) {
+                row.insert(QStringLiteral("localConnections"),
+                           state != states.end() &&
+                               std::ranges::find(state->second.granted, std::string_view("network.listen")) !=
+                                   state->second.granted.end());
+            }
             if (manifest.contributes.native) {
                 QStringList methods;
                 for (const ext::NativeTouchMethod& method : manifest.contributes.native->touchMethods) {
@@ -1191,6 +1201,54 @@ void ExtensionHost::clearHealth(const QString& id)
 {
     m_health->clear(id.toStdString());
     emit extensionsChanged();
+}
+
+bool ExtensionHost::localConnections(std::string_view id) const
+{
+    constexpr std::string_view kListen = "network.listen";
+    const auto extension = std::ranges::find_if(m_extensions, [id](const Extension& each) {
+        return each.active && each.manifest && each.manifest->id == id;
+    });
+    if (extension == m_extensions.end() ||
+        std::ranges::find(extension->manifest->permissions, kListen, &ext::Permission::name) ==
+            extension->manifest->permissions.end()) {
+        return false;
+    }
+    const settings::ExtensionStates& states = m_settings.extensions();
+    const auto state = states.find(std::string(id));
+    return state != states.end() && std::ranges::find(state->second.granted, kListen) != state->second.granted.end();
+}
+
+bool ExtensionHost::setLocalConnections(const QString& id, bool on)
+{
+    constexpr std::string_view kListen = "network.listen";
+    const std::string key = id.toStdString();
+    const auto extension = std::ranges::find_if(m_extensions, [&key](const Extension& each) {
+        return each.usable() && !each.superseded && each.manifest->id == key;
+    });
+    if (extension == m_extensions.end() ||
+        std::ranges::find(extension->manifest->permissions, kListen, &ext::Permission::name) ==
+            extension->manifest->permissions.end()) {
+        return false;
+    }
+    settings::ExtensionStates states = m_settings.extensions();
+    const auto state = states.find(key);
+    if (state == states.end() || !state->second.enabled) {
+        return false;
+    }
+    std::vector<std::string>& granted = state->second.granted;
+    const bool has = std::ranges::find(granted, kListen) != granted.end();
+    if (has == on) {
+        return true;
+    }
+    if (on) {
+        granted.emplace_back(kListen);
+    } else {
+        std::erase(granted, std::string(kListen));
+    }
+    m_settings.setExtensions(states);
+    emit extensionsChanged();
+    return true;
 }
 
 QVariantList ExtensionHost::tours() const

@@ -15,6 +15,7 @@ Positions are ratios of the phone picture: (0, 0) is the top left corner and (1,
 - [`ui`](ui.md): Messages, questions and drawings in the phone's mirror window.
 - [`input`](input.md): What the user holds and points at, readable only while the phone's mirror window is in front.
 - [`hardware`](hardware.md): Serial ports, USB HID devices and Bluetooth LE devices the user allows. Every logic, your own too, can only open the devices the user ticked; the logic of an extension also needs the permission hardware.
+- [`net`](net.md): Connections from programs on this computer over HTTP on 127.0.0.1; the logic of an extension needs the permission network.listen.
 - [`window`](window.md): The phone's mirror window.
 - [`vision`](vision.md): Finding pictures in the phone's picture: the next frame, or the picture already shown when none comes within 0.25 s.
 - [`res`](res.md): The named points, regions and paths of the profile, kept in res/resources.json by the vision workbench.
@@ -701,6 +702,16 @@ Keys and axes that logic sends into the phone's key mapping, made by input.sourc
 | `press(key: string): void` | Presses a key of the source, named with 1 to 32 letters, digits, _ or -; it stays down until release() or until the logic stops. |
 | `release(key: string): void` | Lets go of a key of the source. |
 | `axis(key: string, x: number, y?: number): void` | Moves an axis of the source to x and y, each from -1 to 1 (y is 0 when left out); bound to a stick it pushes the stick, and 0, 0 lets it go. |
+
+### NetServer
+
+An HTTP server on 127.0.0.1 made by net.listen().
+
+| Member | Description |
+|---|---|
+| `readonly port: number` | The port it listens on. |
+| `readonly isOpen: boolean` | Whether it still takes requests. |
+| `close(): void` | Stops taking requests and frees the port. |
 
 ## Types
 
@@ -1646,6 +1657,30 @@ wait asks whoever holds the hardware to let it go and waits up to 3 seconds for 
 
 ```ts
 type HardwareClaimOptions = { readonly wait?: boolean; readonly onWanted?: (by: string) => boolean | Promise<boolean> };
+```
+
+### NetListenOptions
+
+Up to 16 sites, such as "https://example.com", whose pages may call the server from a browser; pages from the server itself and local files always may.
+
+```ts
+type NetListenOptions = { readonly origins?: readonly string[] };
+```
+
+### NetRequest
+
+A request to a server of net.listen(): the path without the query, the query and headers (names in lowercase), and the body as text, bytes or parsed JSON. Bodies are up to 1 MiB.
+
+```ts
+type NetRequest = { readonly method: string; readonly path: string; readonly query: Readonly<Record<string, string>>; readonly headers: Readonly<Record<string, string>>; readonly text: string; readonly bytes: Uint8Array; json(): unknown };
+```
+
+### NetAnswer
+
+The answer to a request: a status (200 by default), headers, and text, JSON or bytes as the body; a text alone answers 200 with it, and nothing answers 204. The answer must come within 10 seconds.
+
+```ts
+type NetAnswer = { readonly status?: number; readonly headers?: Readonly<Record<string, string>>; readonly text?: string; readonly json?: unknown; readonly bytes?: HardwareBytes } | string | void;
 ```
 
 ### HardwareBytes

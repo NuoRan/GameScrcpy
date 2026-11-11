@@ -1010,6 +1010,50 @@ Item {
                 }
             }
 
+            RowLayout {
+                objectName: "localConnections"
+                Layout.fillWidth: true
+                visible: detailsDialog.entry.localConnections !== undefined
+                spacing: Theme.space.sm
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.space.xxs
+
+                    Text {
+                        Layout.fillWidth: true
+                        textFormat: Text.PlainText
+                        text: qsTr("Accept connections from programs on this computer")
+                        color: Theme.colors.textPrimary
+                        font.pixelSize: Theme.type.caption.size
+                        wrapMode: Text.Wrap
+                    }
+
+                    Text {
+                        readonly property var open: LocalServers.ports[detailsDialog.entry.id] ?? []
+
+                        Layout.fillWidth: true
+                        textFormat: Text.PlainText
+                        text: open.length > 0 ? qsTr("Listening on %1").arg(open.map(port => "127.0.0.1:" + port).join(", "))
+                                              : qsTr("Not listening now")
+                        color: Theme.colors.textTertiary
+                        font.pixelSize: Theme.type.caption.size
+                        wrapMode: Text.Wrap
+                    }
+                }
+
+                Switch {
+                    objectName: "localConnectionsToggle"
+                    checked: detailsDialog.entry.localConnections === true
+                    Accessible.name: qsTr("Accept connections from programs on this computer")
+                    onToggled: {
+                        const key = detailsDialog.entry.key
+                        ExtensionHost.setLocalConnections(detailsDialog.entry.id, checked)
+                        detailsDialog.entry = ExtensionHost.entries.find(each => each.key === key) ?? detailsDialog.entry
+                    }
+                }
+            }
+
             Flow {
                 id: tourButtons
 

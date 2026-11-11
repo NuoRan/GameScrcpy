@@ -2855,9 +2855,168 @@ inline constexpr std::array<std::string_view, 14> kPreludeParts{
         });
         return list;
     };
+    const utf8Text = (bytes) => {
+        let text = "";
+        for (let at = 0; at < bytes.length;) {
+            const first = bytes[at];
+            const size = first < 0x80 ? 1 : first >= 0xF8 ? 0 : first >= 0xF0 ? 4 : first >= 0xE0 ? 3 : first >= 0xC0 ? 2 : 0;
+            let code = size === 1 ? first : first & (0x7F >> size);
+            let good = size > 0 && at + size <= bytes.length;
+            for (let index = 1; good && index < size; ++index) {
+                good = (bytes[at + index] & 0xC0) === 0x80;
+                code = (code << 6) | (bytes[at + index] & 63);
+            }
+            if (!good || code > 0x10FFFF || (code >= 0xD800 && code <= 0xDFFF)) {
+                text += "\uFFFD";
+                at += 1;
+                continue;
+            }
+            text += String.fromCodePoint(code);
+            at += size;
+        }
+        return text;
+    };
+    const netServers = new Map();
+    const netRequest = (value) => {
+        const bytes = fromBase64(value.body);
+        let text;
+        const read = () => {
+            if (text === undefined) {
+                text = utf8Text(bytes);
+            }
+            return text;
+        };
+        return freeze({
+            method: String(value.method ?? ""),
+            path: String(value.path ?? ""),
+            query: freeze({ ...(value.query ?? {}) }),
+            headers: freeze({ ...(value.headers ?? {}) }),
+            bytes,
+            get text() {
+                return read();
+            },
+            json() {
+                return JSON.parse(read());
+            },
+        });
+    };
+    const netAnswer = (value) => {
+        if (value === undefined || value === null) {
+            return { status: 204, headers: {}, body: "" };
+        }
+        if (typeof value === "string") {
+            return { status: 200, headers: { "content-type": "text/plain; charset=utf-8" }, body: toBase64(utf8Of(value)) };
+        }
+        if (typeof value !== "object") {
+            throw new TypeError("GS-API-101 a handler answers with an object, a text or nothing");
+        }
+        const status = value.status ?? 200;
+        if (!Number.isInteger(status) || status < 100 || status > 599) {
+            throw new RangeError("GS-API-101 the status of an answer is a whole number from 100 to 599");
+        }
+        const headers = {};
+        for (const [name, given] of Object.entries(value.headers ?? {})) {
+            headers[name] = String(given);
+        }
+        const type = (kind) => {
+            if (!Object.keys(headers).some((name) => name.toLowerCase() === "content-type")) {
+                headers["content-type"] = kind;
+            }
+        };
+        let bytes = new Uint8Array(0);
+        if (value.json !== undefined) {
+            bytes = utf8Of(JSON.stringify(value.json));
+            type("application/json; charset=utf-8");
+        } else if (value.bytes !== undefined) {
+            bytes = hardwareBytes(value.bytes, "the bytes of an answer");
+            type("application/octet-stream");
+        } else if (value.text !== undefined) {
+            bytes = utf8Of(String(value.text));
+            type("text/plain; charset=utf-8");
+        }
+        return { status, headers, body: toBase64(bytes) };
+    };
+    class NetServer {
+        #state;
+        constructor(token, state) {
+            if (token !== world) {
+                throw new TypeError("Illegal constructor");
+            }
+            this.#state = state;
+        }
+        get port() {
+            return this.#state.port;
+        }
+        get isOpen() {
+            return this.#state.open;
+        }
+        close() {
+            const state = this.#state;
+            if (!state.open) {
+                return;
+            }
+            state.open = false;
+            state.listener.active = false;
+            netServers.delete(state.handle);
+            host.call("net.close", JSON.stringify({ handle: state.handle }));
+        }
+    }
+    defineProperty(NetServer.prototype, Symbol.toStringTag, { value: "NetServer" });
+    freeze(NetServer.prototype);
+    serviceEvents.set("net", (handle, value) => {
+        const state = netServers.get(handle);
+        if (state === undefined || value === null || typeof value !== "object") {
+            return;
+        }
+        if (value.type === "closed") {
+            state.open = false;
+            state.listener.active = false;
+            netServers.delete(handle);
+        } else if (value.type === "request") {
+            react(state.listener, { id: Number(value.request), request: netRequest(value) });
+        }
+    });
+    const netLibrary = {
+        "net.listen": function listen(port, handler, options) {
+            if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+                throw new RangeError("GS-API-101 the port is a whole number from 1024 to 65535");
+            }
+            if (typeof handler !== "function") {
+                throw new TypeError("GS-API-008 the handler must be a function");
+            }
+            if (options !== undefined && options !== null && typeof options !== "object") {
+                throw new TypeError("GS-API-101 the options must be an object");
+            }
+            const origins = options?.origins ?? [];
+            if (!Array.isArray(origins) || origins.length > 16 || !origins.every((each) => typeof each === "string")) {
+                throw new TypeError("GS-API-101 origins is a list of at most 16 texts such as \"https://example.com\"");
+            }
+            return host.request("net.listen", JSON.stringify({ port, origins })).then((made) => {
+                const state = { handle: String(made?.handle ?? ""), port: Number(made?.port ?? port), open: true,
+                    listener: null };
+                state.listener = makeListener(async ({ id, request }) => {
+                    const send = (answer) => host.call("net.respond", JSON.stringify({ handle: state.handle,
+                        request: id, ...answer }));
+                    let answer;
+                    try {
+                        answer = netAnswer(await handler(request));
+                    } catch (error) {
+                        send({ status: 500, headers: {}, body: "" });
+                        throw error;
+                    }
+                    send(answer);
+                }, { again: "parallel" }, "net.listen(" + port + ")");
+                netServers.set(state.handle, state);
+                const server = freeze(new NetServer(world, state));
+                own(() => server.close());
+                return server;
+            });
+        },
+    };
 )js",
     R"js(    const library = {
         ...hardwareLibrary,
+        ...netLibrary,
         every(intervalMs, handler, options) {
             return timed(intervalOf(intervalMs), handler, options, "every(" + intervalMs + ")", true);
         },

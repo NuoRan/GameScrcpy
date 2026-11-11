@@ -441,6 +441,7 @@ if(GS_BUILD_APP)
             unit/app/KeymapPlaytestTests.cpp
             unit/app/LatencyMeterTests.cpp
             unit/app/LibusbBuildTests.cpp
+            unit/app/LocalServersTests.cpp
             unit/app/LogFileTests.cpp
             unit/app/LogicReferencesTests.cpp
             unit/app/McpRelayTests.cpp
@@ -633,6 +634,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/KeymapBackgrounds.h"
             "${PROJECT_SOURCE_DIR}/src/app/LatencyMeter.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/LatencyMeter.h"
+            "${PROJECT_SOURCE_DIR}/src/app/LocalServers.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/LocalServers.h"
             "${PROJECT_SOURCE_DIR}/src/app/LogFile.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/LogFile.h"
             "${PROJECT_SOURCE_DIR}/src/app/LogicReferences.cpp"

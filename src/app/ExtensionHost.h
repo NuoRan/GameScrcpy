@@ -134,8 +134,11 @@ public:
     [[nodiscard]] std::string diagnosticsText() const;
     [[nodiscard]] std::vector<std::filesystem::path> crashFolders() const;
 
+    [[nodiscard]] bool localConnections(std::string_view id) const;
+
     Q_INVOKABLE QVariantList globalAddOns(const QString& id) const;
     Q_INVOKABLE void clearHealth(const QString& id);
+    Q_INVOKABLE bool setLocalConnections(const QString& id, bool on);
     Q_INVOKABLE bool setGlobalAddOn(const QString& id, const QString& name, bool on);
     Q_INVOKABLE bool setGlobalAddOnParam(const QString& id, const QString& name, const QString& key,
                                          const QString& json);

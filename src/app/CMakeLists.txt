@@ -306,6 +306,8 @@ qt_add_qml_module(GameScrcpy
         KeymapBackgrounds.h
         LatencyMeter.cpp
         LatencyMeter.h
+        LocalServers.cpp
+        LocalServers.h
         LogFile.cpp
         LogFile.h
         LogicReferences.cpp

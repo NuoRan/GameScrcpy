@@ -1300,6 +1300,23 @@
       ]
     },
     {
+      "name": "net",
+      "functions": [
+        {
+          "name": "listen",
+          "signature": "net.listen(port: number, handler: (request: NetRequest) => NetAnswer | Promise<NetAnswer>, options?: NetListenOptions): Promise<NetServer>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-100",
+            "GS-API-101",
+            "GS-API-102"
+          ]
+        }
+      ]
+    },
+    {
       "name": "window",
       "functions": [
         {
@@ -2883,6 +2900,14 @@
         "release(key: string): void",
         "axis(key: string, x: number, y?: number): void"
       ]
+    },
+    {
+      "name": "NetServer",
+      "members": [
+        "readonly port: number",
+        "readonly isOpen: boolean",
+        "close(): void"
+      ]
     }
   ],
   "types": [
@@ -3357,6 +3382,18 @@
     {
       "name": "HardwareClaimOptions",
       "definition": "{ readonly wait?: boolean; readonly onWanted?: (by: string) => boolean | Promise<boolean> }"
+    },
+    {
+      "name": "NetListenOptions",
+      "definition": "{ readonly origins?: readonly string[] }"
+    },
+    {
+      "name": "NetRequest",
+      "definition": "{ readonly method: string; readonly path: string; readonly query: Readonly<Record<string, string>>; readonly headers: Readonly<Record<string, string>>; readonly text: string; readonly bytes: Uint8Array; json(): unknown }"
+    },
+    {
+      "name": "NetAnswer",
+      "definition": "{ readonly status?: number; readonly headers?: Readonly<Record<string, string>>; readonly text?: string; readonly json?: unknown; readonly bytes?: HardwareBytes } | string | void"
     },
     {
       "name": "HardwareBytes",

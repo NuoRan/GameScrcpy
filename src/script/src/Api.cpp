@@ -3783,6 +3783,32 @@ constexpr Function kHardware[] = {
      "hardware.release(\"serial:COM9\");", nullptr, 0, kHardwareClaimFailures},
 };
 
+constexpr Param kNetListenParams[] = {
+    {"port", "number", "The port on 127.0.0.1, from 1024 to 65535."},
+    {"handler", "(request: NetRequest) => NetAnswer | Promise<NetAnswer>",
+     "Answers one request; it runs as a task of its own for each request, several at a time."},
+    {"options", "NetListenOptions", "Web pages of other sites that may call it from a browser.", true},
+};
+constexpr Failure kNetListenFailures[] = {
+    {"GS-API-100", "the logic belongs to an extension whose manifest does not ask for the permission network.listen, "
+                   "or local connections are turned off for it in its details",
+     "Add \"network.listen\" to the permissions in the extension's manifest, or turn local connections on."},
+    {"GS-API-101", "the port is not from 1024 to 65535, or an origin is not written as https://host",
+     "Pass a port from 1024 to 65535 and origins such as \"https://example.com\"."},
+    {"GS-API-102", "another program uses the port, or the extension listens on 4 ports already",
+     "Pick another port, or close a server you no longer need."},
+};
+
+constexpr Function kNet[] = {
+    {"listen", kNetListenParams, "Promise<NetServer>",
+     "Opens an HTTP server on 127.0.0.1 that programs on this computer, such as Stream Deck or OBS, can call; nothing "
+     "from other computers can reach it. Each request goes to the handler, which answers with an object, a text or "
+     "nothing (204); a handler that throws answers 500. A server opened in a task closes when the task ends, one "
+     "opened at the top level when the logic stops.",
+     "await net.listen(8765, (request) => ({ json: { path: request.path, query: request.query } }));", nullptr, 0,
+     kNetListenFailures},
+};
+
 constexpr Param kAiAskParams[] = {
     {"question", "string", "What to ask, up to 4000 characters."},
     {"options", "AiAskOptions", "A picture of the phone to send along, and how long to wait for the answer.", true},
@@ -3859,6 +3885,10 @@ constexpr Namespace kNamespaces[] = {
      "Serial ports, USB HID devices and Bluetooth LE devices the user allows. Every logic, your own too, can only "
      "open the devices the user ticked; the logic of an extension also needs the permission hardware.",
      kHardware},
+    {"net",
+     "Connections from programs on this computer over HTTP on 127.0.0.1; the logic of an extension needs the "
+     "permission network.listen.",
+     kNet},
     {"window", "The phone's mirror window.", kWindow},
     {"vision", "Finding pictures in the phone's picture: the next frame, or the picture already shown when none comes "
                "within 0.25 s.",
@@ -4254,6 +4284,20 @@ constexpr Type kTypes[] = {
      "{ readonly wait?: boolean; readonly onWanted?: (by: string) => boolean | Promise<boolean> }",
      "wait asks whoever holds the hardware to let it go and waits up to 3 seconds for it. onWanted is called with the "
      "name of whoever wants the hardware this logic holds; return true to let it go, and it is released for them."},
+    {"NetListenOptions", "{ readonly origins?: readonly string[] }",
+     "Up to 16 sites, such as \"https://example.com\", whose pages may call the server from a browser; pages from "
+     "the server itself and local files always may."},
+    {"NetRequest",
+     "{ readonly method: string; readonly path: string; readonly query: Readonly<Record<string, string>>; "
+     "readonly headers: Readonly<Record<string, string>>; readonly text: string; readonly bytes: Uint8Array; "
+     "json(): unknown }",
+     "A request to a server of net.listen(): the path without the query, the query and headers (names in lowercase), "
+     "and the body as text, bytes or parsed JSON. Bodies are up to 1 MiB."},
+    {"NetAnswer",
+     "{ readonly status?: number; readonly headers?: Readonly<Record<string, string>>; readonly text?: string; "
+     "readonly json?: unknown; readonly bytes?: HardwareBytes } | string | void",
+     "The answer to a request: a status (200 by default), headers, and text, JSON or bytes as the body; a text alone "
+     "answers 200 with it, and nothing answers 204. The answer must come within 10 seconds."},
     {"HardwareBytes", "Uint8Array | ArrayBuffer | ArrayBufferView | readonly number[]",
      "Bytes to send: a Uint8Array, another typed array or a list of numbers from 0 to 255."},
     {"SerialOptions",
@@ -5062,6 +5106,12 @@ constexpr Member kInputSourceMembers[] = {
      "deck.axis(\"knob\", 0.5, -0.25);"},
 };
 
+constexpr Member kNetServerMembers[] = {
+    {"port", "readonly port: number", "The port it listens on.", "log.info(server.port);"},
+    {"isOpen", "readonly isOpen: boolean", "Whether it still takes requests.", "if (!server.isOpen) return;"},
+    {"close", "close(): void", "Stops taking requests and frees the port.", "server.close();"},
+};
+
 constexpr Interface kInterfaces[] = {
     {"Component", "A component of the profile in use. Every type below has these members too.", kComponentMembers},
     {"Hint", "The key hint of a component on the picture; changes last until the script stops.", kHintMembers},
@@ -5167,6 +5217,7 @@ constexpr Interface kInterfaces[] = {
      "HardwareDevice"},
     {"InputSource", "Keys and axes that logic sends into the phone's key mapping, made by input.source().",
      kInputSourceMembers},
+    {"NetServer", "An HTTP server on 127.0.0.1 made by net.listen().", kNetServerMembers},
 };
 
 constexpr std::string_view kBuiltInClassDoc =

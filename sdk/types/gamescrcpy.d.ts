@@ -352,6 +352,15 @@ type HardwareInfo = { readonly id: string; readonly kind: HardwareKind; readonly
 /** wait asks whoever holds the hardware to let it go and waits up to 3 seconds for it. onWanted is called with the name of whoever wants the hardware this logic holds; return true to let it go, and it is released for them. */
 type HardwareClaimOptions = { readonly wait?: boolean; readonly onWanted?: (by: string) => boolean | Promise<boolean> };
 
+/** Up to 16 sites, such as "https://example.com", whose pages may call the server from a browser; pages from the server itself and local files always may. */
+type NetListenOptions = { readonly origins?: readonly string[] };
+
+/** A request to a server of net.listen(): the path without the query, the query and headers (names in lowercase), and the body as text, bytes or parsed JSON. Bodies are up to 1 MiB. */
+type NetRequest = { readonly method: string; readonly path: string; readonly query: Readonly<Record<string, string>>; readonly headers: Readonly<Record<string, string>>; readonly text: string; readonly bytes: Uint8Array; json(): unknown };
+
+/** The answer to a request: a status (200 by default), headers, and text, JSON or bytes as the body; a text alone answers 200 with it, and nothing answers 204. The answer must come within 10 seconds. */
+type NetAnswer = { readonly status?: number; readonly headers?: Readonly<Record<string, string>>; readonly text?: string; readonly json?: unknown; readonly bytes?: HardwareBytes } | string | void;
+
 /** Bytes to send: a Uint8Array, another typed array or a list of numbers from 0 to 255. */
 type HardwareBytes = Uint8Array | ArrayBuffer | ArrayBufferView | readonly number[];
 
@@ -2169,6 +2178,27 @@ interface InputSource {
     axis(key: string, x: number, y?: number): void;
 }
 
+/** An HTTP server on 127.0.0.1 made by net.listen(). */
+interface NetServer {
+    /**
+     * The port it listens on.
+     * @example log.info(server.port);
+     */
+    readonly port: number;
+
+    /**
+     * Whether it still takes requests.
+     * @example if (!server.isOpen) return;
+     */
+    readonly isOpen: boolean;
+
+    /**
+     * Stops taking requests and frees the port.
+     * @example server.close();
+     */
+    close(): void;
+}
+
 /**
  * Waits without blocking other tasks. Rejects with an AbortError when the task is cancelled.
  * @param ms How long to wait, in milliseconds (0 to 2147483647).
@@ -3448,6 +3478,22 @@ declare namespace hardware {
     function release(resource: string): void;
 }
 
+/** Connections from programs on this computer over HTTP on 127.0.0.1; the logic of an extension needs the permission network.listen. */
+declare namespace net {
+    /**
+     * Opens an HTTP server on 127.0.0.1 that programs on this computer, such as Stream Deck or OBS, can call; nothing from other computers can reach it. Each request goes to the handler, which answers with an object, a text or nothing (204); a handler that throws answers 500. A server opened in a task closes when the task ends, one opened at the top level when the logic stops.
+     * @param port The port on 127.0.0.1, from 1024 to 65535.
+     * @param handler Answers one request; it runs as a task of its own for each request, several at a time.
+     * @param options Web pages of other sites that may call it from a browser.
+     * @throws GS-API-100 when the logic belongs to an extension whose manifest does not ask for the permission network.listen, or local connections are turned off for it in its details. Add "network.listen" to the permissions in the extension's manifest, or turn local connections on.
+     * @throws GS-API-101 when the port is not from 1024 to 65535, or an origin is not written as https://host. Pass a port from 1024 to 65535 and origins such as "https://example.com".
+     * @throws GS-API-102 when another program uses the port, or the extension listens on 4 ports already. Pick another port, or close a server you no longer need.
+     * @since 1 (stable)
+     * @example await net.listen(8765, (request) => ({ json: { path: request.path, query: request.query } }));
+     */
+    function listen(port: number, handler: (request: NetRequest) => NetAnswer | Promise<NetAnswer>, options?: NetListenOptions): Promise<NetServer>;
+}
+
 /** The phone's mirror window. */
 declare namespace window {
     /**
@@ -4498,6 +4544,7 @@ declare module "gamescrcpy" {
     export import ui = globalThis.ui;
     export import input = globalThis.input;
     export import hardware = globalThis.hardware;
+    export import net = globalThis.net;
     export import window = globalThis.window;
     export import vision = globalThis.vision;
     export import res = globalThis.res;

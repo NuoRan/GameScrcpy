@@ -6565,6 +6565,18 @@
         <translation>%1 · %2</translation>
     </message>
     <message>
+        <source>Accept connections from programs on this computer</source>
+        <translation>接受本机程序的连接</translation>
+    </message>
+    <message>
+        <source>Listening on %1</source>
+        <translation>正在监听 %1</translation>
+    </message>
+    <message>
+        <source>Not listening now</source>
+        <translation>现在没有在监听</translation>
+    </message>
+    <message>
         <source>Tour: %1</source>
         <translation>引导：%1</translation>
     </message>
@@ -13130,6 +13142,10 @@
         <translation>用户允许的串口、USB HID 设备和蓝牙 LE 设备。每份逻辑（包括你自己的）都只能打开用户勾选的设备；扩展的逻辑还需要权限 hardware。</translation>
     </message>
     <message>
+        <source>Connections from programs on this computer over HTTP on 127.0.0.1; the logic of an extension needs the permission network.listen.</source>
+        <translation>本机程序经 127.0.0.1 上的 HTTP 发来的连接；扩展的逻辑需要权限 network.listen。</translation>
+    </message>
+    <message>
         <source>The phone&apos;s mirror window.</source>
         <translation>手机的投屏窗口。</translation>
     </message>
@@ -14150,6 +14166,22 @@
         <translation>把输入源的一个轴移到 x、y（各为 -1～1，省略 y 时为 0）；绑定到摇杆时会推动摇杆，0, 0 表示松开。</translation>
     </message>
     <message>
+        <source>An HTTP server on 127.0.0.1 made by net.listen().</source>
+        <translation>net.listen() 在 127.0.0.1 上开的 HTTP 服务。</translation>
+    </message>
+    <message>
+        <source>The port it listens on.</source>
+        <translation>它监听的端口。</translation>
+    </message>
+    <message>
+        <source>Whether it still takes requests.</source>
+        <translation>它是否还在接收请求。</translation>
+    </message>
+    <message>
+        <source>Stops taking requests and frees the port.</source>
+        <translation>不再接收请求，并放开端口。</translation>
+    </message>
+    <message>
         <source>The settings of a running task, as chosen on the Tasks page; the task declares them in static params.</source>
         <translation>正在运行的任务的设置，按任务页里填的；任务在 static params 里声明它们。</translation>
     </message>
@@ -14480,6 +14512,18 @@
     <message>
         <source>wait asks whoever holds the hardware to let it go and waits up to 3 seconds for it. onWanted is called with the name of whoever wants the hardware this logic holds; return true to let it go, and it is released for them.</source>
         <translation>wait 会请占用这件硬件的一方放手，并最多等它 3 秒。别人想用这份逻辑占着的硬件时会调用 onWanted，参数是对方的名字；返回 true 就放手，硬件随即交给对方。</translation>
+    </message>
+    <message>
+        <source>Up to 16 sites, such as &quot;https://example.com&quot;, whose pages may call the server from a browser; pages from the server itself and local files always may.</source>
+        <translation>最多 16 个网站的网页可以在浏览器里调用这个服务，网站写成 &quot;https://example.com&quot; 这样；服务自己的网页和本地文件总是可以。</translation>
+    </message>
+    <message>
+        <source>A request to a server of net.listen(): the path without the query, the query and headers (names in lowercase), and the body as text, bytes or parsed JSON. Bodies are up to 1 MiB.</source>
+        <translation>发给 net.listen() 服务的请求：不含查询的路径、查询参数与请求头（名称为小写），以及文字、字节或解析后的 JSON 形式的正文。正文最多 1 MiB。</translation>
+    </message>
+    <message>
+        <source>The answer to a request: a status (200 by default), headers, and text, JSON or bytes as the body; a text alone answers 200 with it, and nothing answers 204. The answer must come within 10 seconds.</source>
+        <translation>对请求的回答：状态码（默认 200）、响应头，以及文字、JSON 或字节形式的正文；只给一段文字就以 200 回答它，什么都不给就回答 204。回答要在 10 秒内给出。</translation>
     </message>
     <message>
         <source>Bytes to send: a Uint8Array, another typed array or a list of numbers from 0 to 255.</source>
@@ -16044,6 +16088,46 @@
     <message>
         <source>The hardware, named as for hardware.claim().</source>
         <translation>硬件，命名方式与 hardware.claim() 相同。</translation>
+    </message>
+    <message>
+        <source>Opens an HTTP server on 127.0.0.1 that programs on this computer, such as Stream Deck or OBS, can call; nothing from other computers can reach it. Each request goes to the handler, which answers with an object, a text or nothing (204); a handler that throws answers 500. A server opened in a task closes when the task ends, one opened at the top level when the logic stops.</source>
+        <translation>在 127.0.0.1 上开一个 HTTP 服务，让本机的程序（例如 Stream Deck 或 OBS）调用；别的电脑连不上它。每个请求交给 handler，它用一个对象、一段文字或什么都不给（204）来回答；handler 抛错就回答 500。在任务里开的服务随任务结束关闭，在顶层开的在逻辑停止时关闭。</translation>
+    </message>
+    <message>
+        <source>The port on 127.0.0.1, from 1024 to 65535.</source>
+        <translation>127.0.0.1 上的端口，1024 到 65535。</translation>
+    </message>
+    <message>
+        <source>Answers one request; it runs as a task of its own for each request, several at a time.</source>
+        <translation>回答一个请求；每个请求各自作为一个任务运行，可以同时有好几个。</translation>
+    </message>
+    <message>
+        <source>Web pages of other sites that may call it from a browser.</source>
+        <translation>可以在浏览器里调用它的其他网站的网页。</translation>
+    </message>
+    <message>
+        <source>Add &quot;network.listen&quot; to the permissions in the extension&apos;s manifest, or turn local connections on.</source>
+        <translation>在扩展清单的 permissions 里加上 &quot;network.listen&quot;，或者把本机连接打开。</translation>
+    </message>
+    <message>
+        <source>the logic belongs to an extension whose manifest does not ask for the permission network.listen, or local connections are turned off for it in its details</source>
+        <translation>这份逻辑所属的扩展在清单里没有申请权限 network.listen，或者在它的详情里关掉了本机连接</translation>
+    </message>
+    <message>
+        <source>Pass a port from 1024 to 65535 and origins such as &quot;https://example.com&quot;.</source>
+        <translation>传 1024 到 65535 的端口，来源写成 &quot;https://example.com&quot; 这样。</translation>
+    </message>
+    <message>
+        <source>the port is not from 1024 to 65535, or an origin is not written as https://host</source>
+        <translation>端口不在 1024 到 65535 之间，或者某个来源没有写成 https://host 的样子</translation>
+    </message>
+    <message>
+        <source>Pick another port, or close a server you no longer need.</source>
+        <translation>换一个端口，或者关掉不再需要的服务。</translation>
+    </message>
+    <message>
+        <source>another program uses the port, or the extension listens on 4 ports already</source>
+        <translation>别的程序占用了这个端口，或者这个扩展已经在监听 4 个端口</translation>
     </message>
     <message>
         <source>the region is outside the picture</source>
@@ -21532,6 +21616,10 @@
     <message>
         <source>Add devices to the devices page</source>
         <translation>在设备页添加设备</translation>
+    </message>
+    <message>
+        <source>Accept connections from programs on this computer</source>
+        <translation>接受本机程序的连接</translation>
     </message>
     <message>
         <source>Its script %1 is not in the extension</source>

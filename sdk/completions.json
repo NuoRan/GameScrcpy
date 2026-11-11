@@ -1029,6 +1029,20 @@
     "insertText": "hardware.release(${1:resource})"
   },
   {
+    "label": "net",
+    "kind": "namespace",
+    "detail": "net",
+    "documentation": "Connections from programs on this computer over HTTP on 127.0.0.1; the logic of an extension needs the permission network.listen.",
+    "insertText": "net"
+  },
+  {
+    "label": "net.listen",
+    "kind": "function",
+    "detail": "net.listen(port: number, handler: (request: NetRequest) => NetAnswer | Promise<NetAnswer>, options?: NetListenOptions): Promise<NetServer>",
+    "documentation": "Opens an HTTP server on 127.0.0.1 that programs on this computer, such as Stream Deck or OBS, can call; nothing from other computers can reach it. Each request goes to the handler, which answers with an object, a text or nothing (204); a handler that throws answers 500. A server opened in a task closes when the task ends, one opened at the top level when the logic stops.",
+    "insertText": "net.listen(${1:port}, ${2:handler})"
+  },
+  {
     "label": "window",
     "kind": "namespace",
     "detail": "window",
@@ -3577,6 +3591,27 @@
     "insertText": "axis(${1})"
   },
   {
+    "label": "NetServer.port",
+    "kind": "property",
+    "detail": "readonly port: number",
+    "documentation": "The port it listens on.",
+    "insertText": "port"
+  },
+  {
+    "label": "NetServer.isOpen",
+    "kind": "property",
+    "detail": "readonly isOpen: boolean",
+    "documentation": "Whether it still takes requests.",
+    "insertText": "isOpen"
+  },
+  {
+    "label": "NetServer.close",
+    "kind": "method",
+    "detail": "close(): void",
+    "documentation": "Stops taking requests and frees the port.",
+    "insertText": "close(${1})"
+  },
+  {
     "label": "AbortSignal",
     "kind": "type",
     "detail": "type AbortSignal",
@@ -4401,6 +4436,27 @@
     "detail": "type HardwareClaimOptions",
     "documentation": "wait asks whoever holds the hardware to let it go and waits up to 3 seconds for it. onWanted is called with the name of whoever wants the hardware this logic holds; return true to let it go, and it is released for them.",
     "insertText": "HardwareClaimOptions"
+  },
+  {
+    "label": "NetListenOptions",
+    "kind": "type",
+    "detail": "type NetListenOptions",
+    "documentation": "Up to 16 sites, such as \"https://example.com\", whose pages may call the server from a browser; pages from the server itself and local files always may.",
+    "insertText": "NetListenOptions"
+  },
+  {
+    "label": "NetRequest",
+    "kind": "type",
+    "detail": "type NetRequest",
+    "documentation": "A request to a server of net.listen(): the path without the query, the query and headers (names in lowercase), and the body as text, bytes or parsed JSON. Bodies are up to 1 MiB.",
+    "insertText": "NetRequest"
+  },
+  {
+    "label": "NetAnswer",
+    "kind": "type",
+    "detail": "type NetAnswer",
+    "documentation": "The answer to a request: a status (200 by default), headers, and text, JSON or bytes as the body; a text alone answers 200 with it, and nothing answers 204. The answer must come within 10 seconds.",
+    "insertText": "NetAnswer"
   },
   {
     "label": "HardwareBytes",

@@ -19,6 +19,7 @@
 #include "HardwareAccess.h"
 #include "HardwareClaims.h"
 #include "HelpLibrary.h"
+#include "LocalServers.h"
 #include "InputReadGrants.h"
 #include "JsSequence.h"
 #include "LogFile.h"
@@ -431,6 +432,9 @@ int main(int argc, char* argv[])
                                      data / "hardware-grants.json");
     hardware.follow(extensions);
     hardware.offerServices();
+    gs::app::LocalServers localServers(nullptr);
+    localServers.follow(extensions);
+    localServers.offerServices();
     gs::app::NativeJobs nativeJobs(*extensions.native());
     nativeJobs.offerServices();
     gs::app::NativeEvents nativeEvents(*extensions.native());
