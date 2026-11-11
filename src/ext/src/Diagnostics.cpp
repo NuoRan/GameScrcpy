@@ -187,6 +187,8 @@ std::string_view codeName(Code code) noexcept
         return "tour-target-invalid";
     case Code::SpeechEngineInvalid:
         return "speech-engine-invalid";
+    case Code::InputNameInvalid:
+        return "input-name-invalid";
     }
     return "unknown";
 }
@@ -413,6 +415,10 @@ std::string_view fixHint(Code code) noexcept
         return "A speech engine names a say job taking text, voice (strings), rate and volume (numbers), a listen job "
                "taking phrases (json), language (string) and confidence (number), and a voices node without "
                "parameters that returns json; it needs at least say or listen.";
+    case Code::InputNameInvalid:
+        return "Name an input source with a lowercase letter followed by lowercase letters and digits, and its slots "
+               "with letters, digits, _ and -, 32 characters each at most; profiles bind a slot as "
+               "Ext.<extension id>.<source>.<slot>.";
     }
     return "";
 }

@@ -349,6 +349,106 @@ private:
     std::thread m_thread;
 };
 
+class InputGate
+{
+public:
+    enum class Verdict : std::uint8_t { Pass, Same, Refused, Dropped, FirstDropped };
+
+    explicit InputGate(std::vector<DeclaredInput> declared)
+        : m_declared(std::move(declared))
+        , m_sources(m_declared.size())
+    {
+        for (std::size_t index = 0; index < m_declared.size(); ++index) {
+            m_sources[index].readings.resize(m_declared[index].slotList.size());
+        }
+    }
+
+    InputGate(const InputGate&) = delete;
+    InputGate& operator=(const InputGate&) = delete;
+
+    void offer(std::string_view source)
+    {
+        const std::scoped_lock lock(m_mutex);
+        for (std::size_t index = 0; index < m_declared.size(); ++index) {
+            if (m_declared[index].source == source) {
+                m_sources[index].offered = true;
+            }
+        }
+    }
+
+    [[nodiscard]] Verdict pass(std::string_view source, std::string_view slot, double x, double& y)
+    {
+        const auto declared = std::ranges::find(m_declared, source, &DeclaredInput::source);
+        if (declared == m_declared.end()) {
+            return Verdict::Refused;
+        }
+        const auto found = std::ranges::find(declared->slotList, slot, &InputSlot::name);
+        if (found == declared->slotList.end() || !fits(found->kind, x, y)) {
+            return Verdict::Refused;
+        }
+        if (found->kind != InputSlotKind::Stick) {
+            y = 0.0;
+        }
+        const Clock::time_point now = Clock::now();
+        const std::scoped_lock lock(m_mutex);
+        Source& state = m_sources[static_cast<std::size_t>(declared - m_declared.begin())];
+        if (!state.offered) {
+            return Verdict::Refused;
+        }
+        Reading& last = state.readings[static_cast<std::size_t>(found - declared->slotList.begin())];
+        if (last.x == x && last.y == y) {
+            return Verdict::Same;
+        }
+        if (now - state.window >= kWindow) {
+            state.window = now;
+            state.count = 0;
+        }
+        if (state.count >= kMostInputEventsPerSecond && (x != 0.0 || y != 0.0)) {
+            const bool first = !state.warned;
+            state.warned = true;
+            return first ? Verdict::FirstDropped : Verdict::Dropped;
+        }
+        ++state.count;
+        last = {x, y};
+        return Verdict::Pass;
+    }
+
+private:
+    using Clock = std::chrono::steady_clock;
+    static constexpr std::chrono::seconds kWindow{1};
+
+    struct Reading {
+        double x = 0.0;
+        double y = 0.0;
+    };
+
+    struct Source {
+        Clock::time_point window{};
+        std::size_t count = 0;
+        bool offered = false;
+        bool warned = false;
+        std::vector<Reading> readings;
+    };
+
+    [[nodiscard]] static bool fits(InputSlotKind kind, double x, double y) noexcept
+    {
+        const auto unit = [](double value) { return value >= -1.0 && value <= 1.0; };
+        switch (kind) {
+        case InputSlotKind::Button:
+            return x == 0.0 || x == 1.0;
+        case InputSlotKind::Axis:
+            return unit(x);
+        case InputSlotKind::Stick:
+            return unit(x) && unit(y);
+        }
+        return false;
+    }
+
+    std::vector<DeclaredInput> m_declared;
+    std::mutex m_mutex;
+    std::vector<Source> m_sources;
+};
+
 nlohmann::json settingsOf(std::string_view text)
 {
     nlohmann::json parsed = nlohmann::json::parse(text, nullptr, false);
@@ -393,6 +493,7 @@ struct InProcessModule::Impl {
             }
         }))
         , settings(settingsOf(options.settings))
+        , inputGate(options.inputs)
     {
     }
 
@@ -516,6 +617,7 @@ struct InProcessModule::Impl {
     std::mutex heardMutex;
     std::set<std::string, std::less<>> heard;
     std::unique_ptr<EventPump> pump;
+    InputGate inputGate;
 };
 
 namespace {
@@ -647,6 +749,9 @@ int32_t hostSupports(void*, const char* feature)
         return 0;
     }
     const std::string_view name(feature, strnlen(feature, kMostNameBytes));
+    if (name == "input-sources") {
+        return 1;
+    }
     return name == "jobs" || name == "events" || name == "settings" || name == "claims" || name == "job-output" ||
                    name == "app-events"
                ? 1
@@ -765,6 +870,42 @@ int32_t hostEventsSubscribe(void* context, const char* topic, size_t size, uint3
     }
     if (changed && impl.services != nullptr) {
         impl.services->listening(name, on != 0);
+    }
+    return GS_EXT_OK;
+}
+
+int32_t hostInputEvent(void* context, const char* source, size_t sourceSize, const char* slot, size_t slotSize,
+                       double x, double y, uint64_t timeUs)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if (source == nullptr || slot == nullptr || sourceSize == 0 || sourceSize > kMostInputNameBytes || slotSize == 0 ||
+        slotSize > kMostInputNameBytes) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (!impl.allows(kInputPermission)) {
+        return GS_EXT_DENIED;
+    }
+    const std::string_view name(source, sourceSize);
+    const std::string_view key(slot, slotSize);
+    switch (impl.inputGate.pass(name, key, x, y)) {
+    case InputGate::Verdict::Refused:
+        return GS_EXT_BAD_ARGUMENT;
+    case InputGate::Verdict::Same:
+        return GS_EXT_OK;
+    case InputGate::Verdict::FirstDropped:
+        if (impl.services != nullptr) {
+            impl.services->log(GS_EXT_LOG_WARNING, "the input source " + std::string(name) + " sent more than " +
+                                                       std::to_string(kMostInputEventsPerSecond) +
+                                                       " events in a second; the ones over that are dropped");
+        }
+        return GS_EXT_FAILED;
+    case InputGate::Verdict::Dropped:
+        return GS_EXT_FAILED;
+    case InputGate::Verdict::Pass:
+        break;
+    }
+    if (impl.services != nullptr) {
+        impl.services->inputEvent(name, key, x, y, timeUs != 0 ? timeUs : hostNow(context));
     }
     return GS_EXT_OK;
 }
@@ -1097,6 +1238,22 @@ std::string addProvider(InProcessModule::Impl& impl, const gs_ext_contribution& 
     return {};
 }
 
+std::string addInputSource(InProcessModule::Impl& impl, const gs_ext_contribution& entry,
+                           std::set<std::string, std::less<>>& names)
+{
+    gs_ext_input_source source{};
+    std::string name;
+    if (!copied(entry.data, source)) {
+        return "an input source has no data";
+    }
+    if (std::string problem = named("input source", source.name, entry, names, name); !problem.empty()) {
+        return problem;
+    }
+    impl.inputGate.offer(name);
+    impl.info.inputSources.push_back({.name = name});
+    return {};
+}
+
 std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
 {
     if (!copied(plugin, impl.described)) {
@@ -1138,6 +1295,8 @@ std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
             problem = addJob(impl, entry, names);
         } else if (kind == GS_EXT_KIND_DEVICE_PROVIDER) {
             problem = addProvider(impl, entry, names);
+        } else if (kind == GS_EXT_KIND_INPUT_SOURCE) {
+            problem = addInputSource(impl, entry, names);
         } else if (kind.empty()) {
             problem = "contribution " + std::to_string(index + 1) + " has no kind";
         } else if (impl.services != nullptr) {
@@ -1153,6 +1312,9 @@ std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
         impl.nativeJobs.size() > kMostJobs || impl.providers.size() > kMostProviders) {
         return "the DLL offers more than 8 touch methods, 64 nodes, 32 attachments, 32 behaviors, 32 jobs or 8 "
                "device providers";
+    }
+    if (impl.info.inputSources.size() > kMostInputSources) {
+        return "the DLL offers more than 8 input sources";
     }
     return {};
 }
@@ -1212,6 +1374,7 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
     impl->host.release = &hostRelease;
     impl->host.job_output = &hostJobOutput;
     impl->host.events_subscribe = &hostEventsSubscribe;
+    impl->host.input_event = &hostInputEvent;
     const gs_ext_plugin* plugin = nullptr;
     const int32_t status = entry(&impl->host, &plugin);
     impl->entered = status == GS_EXT_OK;

@@ -116,6 +116,8 @@ Item {
             lines.push(qsTr("Components: %1").arg(dll.behaviors.join(qsTr(", ", "list separator"))))
         if ((dll.speechEngines ?? []).length > 0)
             lines.push(qsTr("Speech engines: %1").arg(dll.speechEngines.join(qsTr(", ", "list separator"))))
+        if ((dll.inputSources ?? []).length > 0)
+            lines.push(qsTr("Input devices: %1").arg(dll.inputSources.join(qsTr(", ", "list separator"))))
         lines.push(dll.ownProcess
                    ? qsTr("Its DLL runs in a process of its own; when that stops three times within a minute, the "
                           + "extension is turned off.")

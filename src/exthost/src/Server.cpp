@@ -174,6 +174,17 @@ public:
         send(detail::Kind::Subscribe, 0, out.bytes());
     }
 
+    void inputEvent(std::string_view source, std::string_view slot, double x, double y, std::uint64_t at) override
+    {
+        detail::WireWriter out;
+        out.text(source);
+        out.text(slot);
+        out.f64(x);
+        out.f64(y);
+        out.u64(at);
+        send(detail::Kind::InputEvent, 0, out.bytes());
+    }
+
 private:
     void pump(std::uint64_t id, std::chrono::steady_clock::time_point deadline)
     {
@@ -457,6 +468,7 @@ struct Start {
     std::string store;
     std::vector<std::string> granted;
     std::string settings;
+    std::vector<DeclaredInput> inputs;
 };
 
 std::optional<Start> startOf(const detail::Message& message)
@@ -478,6 +490,9 @@ std::optional<Start> startOf(const detail::Message& message)
         start.granted.push_back(std::move(permission));
     }
     if (!in.text(start.settings, kMostSettingsBytes)) {
+        return std::nullopt;
+    }
+    if (!in.inputs(start.inputs)) {
         return std::nullopt;
     }
     return in.done() ? std::optional<Start>(std::move(start)) : std::nullopt;
@@ -697,7 +712,8 @@ int serve(int argc, wchar_t** argv)
                                                                      .store = pathOf(start->store),
                                                                      .granted = start->granted,
                                                                      .services = &link,
-                                                                     .settings = start->settings},
+                                                                     .settings = start->settings,
+                                                                     .inputs = start->inputs},
                                                                     problem);
     if (!module) {
         detail::WireWriter out;

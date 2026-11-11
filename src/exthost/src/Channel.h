@@ -52,6 +52,7 @@ enum class Kind : std::uint32_t {
     ClaimWanted,
     Subscribe,
     AppEvent,
+    InputEvent,
 };
 
 struct Message {

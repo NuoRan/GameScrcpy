@@ -1065,6 +1065,53 @@ void HardwareAccess::releaseInputs(std::uint64_t logic)
     }
 }
 
+void HardwareAccess::provideInput(const QString& extension, const QString& name, bool button, double x, double y)
+{
+    input::DeviceAction action = input::DeviceAction::Axis;
+    if (button) {
+        action = x != 0.0 ? input::DeviceAction::Down : input::DeviceAction::Up;
+    }
+    const input::Vec2 value = button ? input::Vec2{} : input::Vec2{x, y};
+    if (action == input::DeviceAction::Down ||
+        (action == input::DeviceAction::Axis && (std::abs(value.x) >= 0.5 || std::abs(value.y) >= 0.5))) {
+        emit inputSeen(name);
+    }
+    std::map<QString, HeldInput>& held = m_provided[extension];
+    const auto found = held.find(name);
+    const QString serial = found != held.end() ? found->second.serial : m_front ? m_front() : QString();
+    const std::optional<input::InputSource> source = input::knownSource(name.toStdString());
+    const bool fed = !serial.isEmpty() && m_feed && source.has_value();
+    if (action == input::DeviceAction::Up || (action == input::DeviceAction::Axis && value == input::Vec2{})) {
+        held.erase(name);
+    } else if (fed) {
+        held.insert_or_assign(name, HeldInput{serial, *source, action == input::DeviceAction::Axis});
+    }
+    if (held.empty()) {
+        m_provided.erase(extension);
+    }
+    if (fed) {
+        m_feed(serial, input::DeviceEvent{*source, action, value});
+    }
+}
+
+void HardwareAccess::endProvidedInput(const QString& extension)
+{
+    const auto found = m_provided.find(extension);
+    if (found == m_provided.end()) {
+        return;
+    }
+    const std::map<QString, HeldInput> held = std::move(found->second);
+    m_provided.erase(found);
+    if (!m_feed) {
+        return;
+    }
+    for (const auto& entry : held) {
+        const HeldInput& pressed = entry.second;
+        m_feed(pressed.serial,
+               input::DeviceEvent{pressed.source, pressed.axis ? input::DeviceAction::Axis : input::DeviceAction::Up, {}});
+    }
+}
+
 void HardwareAccess::closeHandle(const QString& handle, const QString& reason, const QString& message, bool tellLogic)
 {
     auto node = m_handles.extract(handle);

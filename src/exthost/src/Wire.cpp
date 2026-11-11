@@ -85,6 +85,10 @@ void WireWriter::info(const ModuleInfo& info)
         text(provider.name);
         u32(provider.acts ? 1U : 0U);
     }
+    u32(static_cast<std::uint32_t>(info.inputSources.size()));
+    for (const InputSourceInfo& source : info.inputSources) {
+        text(source.name);
+    }
 }
 
 void WireWriter::event(const InputEvent& event)
@@ -118,6 +122,19 @@ void WireWriter::answer(const StepOutput& answer)
     u32(static_cast<std::uint32_t>(events));
     for (std::size_t index = 0; index < events; ++index) {
         event(answer.events[index]);
+    }
+}
+
+void WireWriter::inputs(const std::vector<DeclaredInput>& declared)
+{
+    u32(static_cast<std::uint32_t>(declared.size()));
+    for (const DeclaredInput& source : declared) {
+        text(source.source);
+        u32(static_cast<std::uint32_t>(source.slotList.size()));
+        for (const InputSlot& slot : source.slotList) {
+            text(slot.name);
+            u32(static_cast<std::uint32_t>(slot.kind));
+        }
     }
 }
 
@@ -268,6 +285,17 @@ bool WireReader::info(ModuleInfo& out)
         provider.acts = acts != 0;
         out.providers.push_back(std::move(provider));
     }
+    std::uint32_t sources = 0;
+    if (!u32(sources) || sources > kMostInputSources) {
+        return false;
+    }
+    for (std::uint32_t index = 0; index < sources; ++index) {
+        InputSourceInfo source;
+        if (!text(source.name, kMostNameBytes)) {
+            return false;
+        }
+        out.inputSources.push_back(std::move(source));
+    }
     return true;
 }
 
@@ -317,6 +345,33 @@ bool WireReader::answer(StepOutput& out)
             return false;
         }
         out.events.push_back(made);
+    }
+    return true;
+}
+
+bool WireReader::inputs(std::vector<DeclaredInput>& out)
+{
+    std::uint32_t sources = 0;
+    if (!u32(sources) || sources > kMostInputSources) {
+        return false;
+    }
+    for (std::uint32_t index = 0; index < sources; ++index) {
+        DeclaredInput source;
+        std::uint32_t slotCount = 0;
+        if (!text(source.source, kMostInputNameBytes) || !u32(slotCount) || slotCount > kMostInputSlots) {
+            return false;
+        }
+        for (std::uint32_t at = 0; at < slotCount; ++at) {
+            InputSlot slot;
+            std::uint32_t kind = 0;
+            if (!text(slot.name, kMostInputNameBytes) || !u32(kind) ||
+                kind > static_cast<std::uint32_t>(InputSlotKind::Stick)) {
+                return false;
+            }
+            slot.kind = static_cast<InputSlotKind>(kind);
+            source.slotList.push_back(std::move(slot));
+        }
+        out.push_back(std::move(source));
     }
     return true;
 }

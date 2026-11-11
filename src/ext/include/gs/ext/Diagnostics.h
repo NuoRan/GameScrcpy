@@ -100,6 +100,7 @@ enum class Code : std::uint8_t {
     NativeModuleFailed,
     TourTargetInvalid,
     SpeechEngineInvalid,
+    InputNameInvalid,
 };
 
 struct Diagnostic {

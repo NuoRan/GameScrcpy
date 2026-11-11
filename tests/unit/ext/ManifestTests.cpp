@@ -736,6 +736,91 @@ TEST_CASE("ADR-0112: a speech engine names jobs and a node of the extension that
     CHECK_FALSE(fixHint(Code::SpeechEngineInvalid).empty());
 }
 
+TEST_CASE("ADR-0112: native input sources load with their slots, survive a save and a load, and need names that "
+          "bindings can use, kinds that exist, at least one slot and the permission input.provide")
+{
+    Json json = nativeBase();
+    json["contributes"]["native"]["inputSources"] =
+        Json::array({{{"name", "pedal2"},
+                      {"title", "Foot pedal"},
+                      {"slots", Json::array({{{"name", "left"}, {"kind", "button"}, {"title", "Left"}},
+                                             {{"name", "Press_2-x"}, {"kind", "axis"}},
+                                             {{"name", "tilt"}, {"kind", "stick"}, {"title", "Tilt"}}})}}});
+    json["permissions"].push_back({{"name", "input.provide"}, {"reason", "Sends the pedal to the key mapping."}});
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    REQUIRE(loaded.manifest.contributes.native.has_value());
+    const std::vector<NativeInputSource>& sources = loaded.manifest.contributes.native->inputSources;
+    REQUIRE(sources.size() == 1);
+    CHECK(sources[0].name == "pedal2");
+    CHECK(sources[0].title == "Foot pedal");
+    CHECK(sources[0].slotList ==
+          std::vector<NativeInputSlot>{{.name = "left", .kind = InputSlotKind::Button, .title = "Left"},
+                                       {.name = "Press_2-x", .kind = InputSlotKind::Axis, .title = {}},
+                                       {.name = "tilt", .kind = InputSlotKind::Stick, .title = "Tilt"}});
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+    CHECK(Json::parse(saveManifest(loaded.manifest))["contributes"]["native"]["inputSources"][0]["slots"][0]["kind"] ==
+          "button");
+
+    json["permissions"] = Json::array({{{"name", "notify"}, {"reason", "Shows when it beeps."}}});
+    Json& declared = json["contributes"]["native"]["inputSources"];
+    declared[0]["slots"][1]["kind"] = "trigger";
+    declared[0]["slots"].push_back({{"name", "left"}, {"kind", "button"}});
+    declared[0]["slots"].push_back({{"name", "a.b"}, {"kind", "button"}});
+    const Json oneSlot = Json::array({{{"name", "x"}, {"kind", "button"}}});
+    declared.push_back({{"name", "Pedal"}, {"title", "Capital"}, {"slots", oneSlot}});
+    declared.push_back({{"name", "foot-pedal"}, {"title", "Hyphen"}, {"slots", oneSlot}});
+    declared.push_back({{"name", "2pedal"}, {"title", "Digit first"}, {"slots", oneSlot}});
+    declared.push_back({{"name", "pedal2"}, {"title", "Again"}, {"slots", oneSlot}});
+    declared.push_back({{"name", "empty"}, {"title", "No slots"}});
+    declared.push_back({{"name", "abcdefghijklmnopqrstuvwxyzabcdefg"}, {"title", "Long"}, {"slots", oneSlot}});
+    loaded = load(json);
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::NativePermissionUndeclared, "$.contributes.native.inputSources"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.inputSources[0].slots[1].kind"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.native.inputSources[0].slots[3].name"));
+    CHECK(reports(loaded, Code::InputNameInvalid, "$.contributes.native.inputSources[0].slots[4].name"));
+    CHECK(reports(loaded, Code::InputNameInvalid, "$.contributes.native.inputSources[1].name"));
+    CHECK(reports(loaded, Code::InputNameInvalid, "$.contributes.native.inputSources[2].name"));
+    CHECK(reports(loaded, Code::InputNameInvalid, "$.contributes.native.inputSources[3].name"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.native.inputSources[4].name"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.native.inputSources[5].slots"));
+    CHECK(reports(loaded, Code::TooLong, "$.contributes.native.inputSources[6].name"));
+
+    json = nativeBase();
+    json["permissions"].push_back({{"name", "input.provide"}, {"reason", "Sends the pads to the key mapping."}});
+    Json many = Json::array();
+    for (int index = 0; index < 9; ++index) {
+        many.push_back({{"name", "pad" + std::to_string(index)}, {"title", "Pad"}, {"slots", oneSlot}});
+    }
+    Json slots = Json::array();
+    for (int index = 0; index < 65; ++index) {
+        slots.push_back({{"name", "s" + std::to_string(index)}, {"kind", "button"}});
+    }
+    many[0]["slots"] = slots;
+    json["contributes"]["native"]["inputSources"] = many;
+    loaded = load(json);
+    CHECK(reports(loaded, Code::TooMany, "$.contributes.native.inputSources"));
+    CHECK(reports(loaded, Code::TooMany, "$.contributes.native.inputSources[0].slots"));
+
+    const Json schema = Json::parse(manifestJsonSchema());
+    const Json source = schema["properties"]["contributes"]["properties"]["native"]["properties"]["inputSources"];
+    CHECK(source["maxItems"] == kMostInputSources);
+    CHECK(source["items"]["required"] == Json::array({"name", "title"}));
+    CHECK(source["items"]["properties"]["name"]["pattern"] == "^[a-z][a-z0-9]{0,31}$");
+    const Json slot = source["items"]["properties"]["slots"];
+    CHECK(slot["maxItems"] == kMostInputSlots);
+    CHECK(slot["items"]["required"] == Json::array({"name", "kind"}));
+    CHECK(slot["items"]["properties"]["kind"]["enum"] == Json::array({"button", "axis", "stick"}));
+    CHECK(slot["items"]["properties"]["name"]["pattern"] == "^[A-Za-z0-9_-]{1,32}$");
+    CHECK(codeName(Code::InputNameInvalid) == "input-name-invalid");
+    CHECK(std::string(fixHint(Code::InputNameInvalid)).find("Ext.<extension id>.<source>.<slot>") != std::string::npos);
+}
+
 namespace {
 
 Json panelBase()

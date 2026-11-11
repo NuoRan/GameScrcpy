@@ -75,6 +75,7 @@ std::optional<Instance> launch(const HostedOptions& options, std::string& proble
         start.text(permission);
     }
     start.text(options.settings.size() <= kMostSettingsBytes ? std::string_view(options.settings) : std::string_view());
+    start.inputs(options.inputs);
     if (!channel->toHost().write(detail::Kind::Start, 0, start.bytes())) {
         problem = "the start of gs-exthost.exe could not be written";
         return std::nullopt;
@@ -373,6 +374,18 @@ struct HostedModule::Impl {
             std::string provider;
             if (in.text(provider, kMostNameBytes) && options.devicesChanged) {
                 options.devicesChanged(provider);
+            }
+            return;
+        }
+        case detail::Kind::InputEvent: {
+            std::string source;
+            std::string slot;
+            double x = 0.0;
+            double y = 0.0;
+            std::uint64_t at = 0;
+            if (in.text(source, kMostInputNameBytes) && in.text(slot, kMostInputNameBytes) && in.f64(x) && in.f64(y) &&
+                in.u64(at) && in.done() && options.input) {
+                options.input(source, slot, x, y, at);
             }
             return;
         }

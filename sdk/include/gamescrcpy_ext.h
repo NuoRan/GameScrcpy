@@ -42,6 +42,9 @@ extern "C" {
 /* A flag of claim: ask whoever has the hardware to let it go, and wait up to 3 seconds for it. */
 #define GS_EXT_CLAIM_WAIT 1u
 
+/* A contribution whose data is a gs_ext_input_source. */
+#define GS_EXT_KIND_INPUT_SOURCE "input-source"
+
 /* What a node parameter or result holds. The names in the manifest's contributes.native are the same types. */
 enum gs_ext_type {
     /* No value: the result of a node that gives nothing back. */
@@ -202,6 +205,7 @@ typedef struct gs_ext_device_provider gs_ext_device_provider;
 typedef struct gs_ext_host gs_ext_host;
 typedef struct gs_ext_contribution gs_ext_contribution;
 typedef struct gs_ext_plugin gs_ext_plugin;
+typedef struct gs_ext_input_source gs_ext_input_source;
 
 /* A node parameter or result. It never changes in later versions. */
 struct gs_ext_value {
@@ -543,6 +547,8 @@ struct gs_ext_host {
     int32_t (*job_output)(void* context, uint64_t job, const char* json, size_t size);
     /* Asks for one of GameScrcpy's own events with on 1, or stops it with on 0; the DLL hears it in on_event. The topics are device.connected, device.disconnected, session.started, session.ended, profile.applied, app.foreground, orientation.changed, recording.started, recording.ended and window.focused, which tell what the phones and their windows do and need the permission events.app, and extension.enabled, extension.disabled and settings.changed, which every extension hears; settings.changed tells only of the extension's own settings and of GameScrcpy's language and look. events.on in the script documentation gives the JSON of each. For each topic the first 100 events in a second come at once and the rest of that second are merged into its last one. GS_EXT_BAD_ARGUMENT for a topic that is not written as one, GS_EXT_UNSUPPORTED for one this GameScrcpy does not send, GS_EXT_DENIED without the permission. */
     int32_t (*events_subscribe)(void* context, const char* topic, size_t size, uint32_t on);
+    /* Feeds a change of one of the DLL's input sources into the key mapping, where profiles bind the slot as Ext.<extension id>.<source>.<slot> and recording a key takes a press of it. source and slot name a source and one of its slots in the manifest's contributes.native.inputSources, UTF-8 not ended by a zero byte. A button gives 1 in x when it goes down and 0 when it comes up; an axis gives x from -1 to 1; a stick gives x from -1 left to 1 right and y from -1 up to 1 down; y is ignored for buttons and axes. time_us is when it happened, in microseconds of now_us, or 0 for now. It needs the permission input.provide (GS_EXT_DENIED without it) and returns GS_EXT_BAD_ARGUMENT for a source or slot the manifest does not declare or a value out of range. A value the slot has already gives GS_EXT_OK and is not passed on. Each source passes on at most 1000 events a second; the rest are dropped with GS_EXT_FAILED and one line in the log, except a slot going back to 0, which always passes. Call it from any thread; it returns at once. When the extension stops, its buttons come up and its axes go back to 0. supports("input-sources") is 1 when GameScrcpy has it. */
+    int32_t (*input_event)(void* context, const char* source, size_t source_size, const char* slot, size_t slot_size, double x, double y, uint64_t time_us);
 };
 
 /* One thing a DLL offers. */
@@ -577,6 +583,14 @@ struct gs_ext_plugin {
     int32_t (*claim_wanted)(void* context, const char* resource, size_t size, const char* by, size_t by_size);
     /* Called with each event the DLL asked for with events_subscribe: its topic and its value as UTF-8 JSON, neither ended by a zero byte. It comes on a thread of GameScrcpy that never draws the interface, one event at a time and in order; return quickly, since the next events wait and more than 256 waiting are dropped. May be NULL. */
     void (*on_event)(void* context, const char* topic, size_t topic_size, const char* json, size_t json_size);
+};
+
+/* An input source: a device of the DLL's own, such as a button pad, a pedal or a controller it reads over HID, serial or Bluetooth, whose buttons and axes the DLL feeds into the key mapping with input_event. A DLL offers at most 8, each with at most 64 slots. It needs the permission input.provide. */
+struct gs_ext_input_source {
+    /* sizeof(gs_ext_input_source) in the DLL. */
+    uint32_t size;
+    /* The name of the source in the manifest's contributes.native.inputSources, which also lists its slots: a lowercase letter followed by lowercase letters and digits, 32 at most. */
+    const char* name;
 };
 
 /* The function a native extension DLL exports. GameScrcpy calls it once after loading the DLL: set *plugin to the DLL's own description and return GS_EXT_OK, or GS_EXT_UNSUPPORTED when host->abi_version is not one the DLL supports. The description, and everything it points to, has to stay valid until unload is called; GameScrcpy never writes to it. */

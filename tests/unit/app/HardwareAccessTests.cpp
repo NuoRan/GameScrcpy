@@ -415,6 +415,59 @@ TEST_CASE("SCR-026: input from logic reaches the phone of its session or the one
     CHECK(fixture.fed.size() == 5);
 }
 
+TEST_CASE("ADR-0112: a native input source reaches the phone in front, is seen while recording a key, comes up on the "
+          "phone it went down on and lets go when its extension stops")
+{
+    Fixture fixture;
+    const QString deck = QStringLiteral("com.example.deck");
+    const QString button = QStringLiteral("Ext.com.example.deck.pad.a");
+    const QString knob = QStringLiteral("Ext.com.example.deck.pad.knob");
+    REQUIRE(gs::input::parseSource(button.toStdString()).has_value());
+    REQUIRE(gs::input::parseSource(knob.toStdString()).has_value());
+    QString front = QStringLiteral("PHONE-1");
+    fixture.access->setFeed(
+        [&fixture](const QString& serial, const gs::input::DeviceEvent& event) { fixture.fed.push_back({serial, event}); },
+        [&front] { return front; });
+
+    fixture.access->provideInput(deck, button, true, 1.0, 0.0);
+    fixture.access->provideInput(deck, knob, false, 0.75, -0.25);
+    front = QStringLiteral("PHONE-2");
+    fixture.access->provideInput(deck, knob, false, 0.25, 0.0);
+    fixture.access->provideInput(deck, button, true, 0.0, 0.0);
+    fixture.access->provideInput(deck, button, true, 1.0, 0.0);
+    REQUIRE(fixture.fed.size() == 5);
+    CHECK(fixture.fed[0].serial == QStringLiteral("PHONE-1"));
+    CHECK(fixture.fed[0].event.source == *gs::input::knownSource(button.toStdString()));
+    CHECK(fixture.fed[0].event.action == gs::input::DeviceAction::Down);
+    CHECK(fixture.fed[1].event.action == gs::input::DeviceAction::Axis);
+    CHECK(fixture.fed[1].event.value == gs::input::Vec2{0.75, -0.25});
+    CHECK(fixture.fed[2].serial == QStringLiteral("PHONE-1"));
+    CHECK(fixture.fed[2].event.value == gs::input::Vec2{0.25, 0.0});
+    CHECK(fixture.fed[3].serial == QStringLiteral("PHONE-1"));
+    CHECK(fixture.fed[3].event.action == gs::input::DeviceAction::Up);
+    CHECK(fixture.fed[4].serial == QStringLiteral("PHONE-2"));
+    CHECK(fixture.fed[4].event.action == gs::input::DeviceAction::Down);
+    CHECK(fixture.seen == QStringList{button, knob, button});
+
+    fixture.access->endProvidedInput(QStringLiteral("com.example.other"));
+    CHECK(fixture.fed.size() == 5);
+    fixture.access->endProvidedInput(deck);
+    REQUIRE(fixture.fed.size() == 7);
+    CHECK(fixture.fed[5].serial == QStringLiteral("PHONE-2"));
+    CHECK(fixture.fed[5].event.source == *gs::input::knownSource(button.toStdString()));
+    CHECK(fixture.fed[5].event.action == gs::input::DeviceAction::Up);
+    CHECK(fixture.fed[6].serial == QStringLiteral("PHONE-1"));
+    CHECK(fixture.fed[6].event.source == *gs::input::knownSource(knob.toStdString()));
+    CHECK(fixture.fed[6].event.action == gs::input::DeviceAction::Axis);
+    CHECK(fixture.fed[6].event.value == gs::input::Vec2{});
+    fixture.access->endProvidedInput(deck);
+    CHECK(fixture.fed.size() == 7);
+
+    fixture.access->provideInput(deck, QStringLiteral("Ext.com.example.deck.pad.unbound"), true, 1.0, 0.0);
+    CHECK(fixture.fed.size() == 7);
+    CHECK(fixture.seen.back() == QStringLiteral("Ext.com.example.deck.pad.unbound"));
+}
+
 TEST_CASE("SCR-026: taking a permission or a device back closes what was open and answers what was waiting")
 {
     Fixture fixture;

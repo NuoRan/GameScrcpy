@@ -2,7 +2,9 @@
 #include "ExtensionHost.h"
 #include "ExtensionModules.h"
 #include "ExtensionTouchSink.h"
+#include "HardwareAccess.h"
 #include "HardwareClaims.h"
+#include "KeyLabels.h"
 #include "NativeEvents.h"
 #include "NativeExtensions.h"
 #include "NativeJobs.h"
@@ -16,6 +18,9 @@
 #include <gs/ext/Manifest.h>
 #include <gs/exthost/Hosted.h>
 #include <gs/exthost/InProcess.h>
+#include <gs/input/DeviceEvents.h>
+#include <gs/input/InputSource.h>
+#include <gs/input/MappingEngine.h>
 #include <gs/input/Modules.h>
 #include <gs/input/Profile.h>
 #include <gs/script/Services.h>
@@ -1369,6 +1374,339 @@ TEST_CASE("ADR-0112: an extension's events reach that extension's own logic and 
     using Told = std::tuple<std::uint64_t, QString, QString, QString>;
     CHECK(told == std::vector<Told>{{3, "extEvent", "board.added", R"({"id":"b1"})"},
                                     {6, "extEvent", "board.added", R"({"id":"b1"})"}});
+}
+
+namespace {
+
+struct FedInput {
+    std::string source;
+    std::string slot;
+    double x = 0.0;
+    double y = 0.0;
+    std::uint64_t at = 0;
+
+    friend bool operator==(const FedInput&, const FedInput&) = default;
+};
+
+class InputLog final : public exthost::HostServices
+{
+public:
+    void log(int level, std::string_view text) override
+    {
+        const std::scoped_lock lock(m_mutex);
+        m_lines.push_back(std::to_string(level) + " " + std::string(text));
+    }
+
+    bool notify(std::string_view, std::string_view) override { return false; }
+
+    void inputEvent(std::string_view source, std::string_view slot, double x, double y, std::uint64_t at) override
+    {
+        add({std::string(source), std::string(slot), x, y, at});
+    }
+
+    void add(FedInput heard)
+    {
+        const std::scoped_lock lock(m_mutex);
+        m_fed.push_back(std::move(heard));
+    }
+
+    [[nodiscard]] std::vector<FedInput> fed()
+    {
+        const std::scoped_lock lock(m_mutex);
+        return m_fed;
+    }
+
+    [[nodiscard]] std::vector<std::string> lines()
+    {
+        const std::scoped_lock lock(m_mutex);
+        return m_lines;
+    }
+
+private:
+    std::mutex m_mutex;
+    std::vector<FedInput> m_fed;
+    std::vector<std::string> m_lines;
+};
+
+std::vector<exthost::DeclaredInput> padInputs()
+{
+    return {{.source = "pad",
+             .slotList = {{.name = "a", .kind = exthost::InputSlotKind::Button},
+                          {.name = "knob", .kind = exthost::InputSlotKind::Axis},
+                          {.name = "stick", .kind = exthost::InputSlotKind::Stick}}},
+            {.source = "other", .slotList = {{.name = "b", .kind = exthost::InputSlotKind::Button}}}};
+}
+
+class Presses final : public input::TouchFrameSink, public input::EngineListener
+{
+public:
+    bool trySend(const protocol::TouchFrame&) override { return true; }
+    void pointerState(input::PointerState) override {}
+    void notice(input::EngineNotice) override {}
+    void liveChanged(const std::vector<bool>&) override {}
+    void controlPressed(std::string_view id, bool down) override { presses.emplace_back(id, down); }
+
+    std::vector<std::pair<std::string, bool>> presses;
+};
+
+void checkProvidedInput(bool official)
+{
+    ApplicationScope application;
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.native/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    const input::LoadResult profile = input::loadProfile(
+        R"({"format":"gamescrcpy.profile","version":3,"controls":[)"
+        R"({"id":"jump","type":"hold","offset":[0.3,0.2],"inputs":{"press":"Ext.gstest.native.pad.a"}}]})");
+    REQUIRE(profile.ok());
+    Presses presses;
+    input::MappingEngine engine(profile.profile,
+                                input::EngineConfig{.screen = {.width = 2400, .height = 1080},
+                                                    .refreshHz = 60.0,
+                                                    .pacingTick = Microseconds{0}},
+                                presses, presses);
+    Microseconds now{0};
+    QStringList phones;
+    QStringList seen;
+    app::HardwareAccess access(nullptr, {});
+    access.setFeed(
+        [&](const QString& serial, const input::DeviceEvent& event) {
+            phones.append(serial);
+            now += Microseconds{1000};
+            input::deliver(event, engine, now);
+        },
+        [] { return QStringLiteral("PHONE"); });
+    QObject::connect(&access, &app::HardwareAccess::inputSeen, [&seen](const QString& name) { seen.append(name); });
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    QObject::connect(&registry, &app::NativeExtensions::inputEvent, &access, &app::HardwareAccess::provideInput);
+    QObject::connect(&registry, &app::NativeExtensions::inputsEnded, &access, &app::HardwareAccess::endProvidedInput);
+    app::NativeWanted wanted = testWanted(folder);
+    wanted.official = official;
+    wanted.native.nodes = {{.name = "sendInput",
+                            .params = {{"source", "string"}, {"slot", "string"}, {"x", "number"}, {"y", "number"},
+                                       {"at", "number"}},
+                            .returns = "number",
+                            .description = {},
+                            .permissions = {}},
+                           {.name = "crash", .params = {}, .returns = {}, .description = {}, .permissions = {}}};
+    wanted.native.inputSources = {{.name = "pad",
+                                   .title = "Test pad",
+                                   .slotList = {{.name = "a", .kind = ext::InputSlotKind::Button, .title = "Button A"},
+                                                {.name = "stick", .kind = ext::InputSlotKind::Stick, .title = {}}}}};
+    const auto text = [](const char* value) { return script::NodeValue{.type = script::NodeType::String, .text = value}; };
+    const auto number = [](double value) {
+        return script::NodeValue{.type = script::NodeType::Number, .number = value};
+    };
+    const auto send = [&](const char* slot, double x) {
+        script::NodeAnswer answer;
+        REQUIRE(eventually([&] {
+            QCoreApplication::processEvents();
+            answer = registry.call("gstest.native", "sendInput",
+                                   {text("pad"), text(slot), number(x), number(0), number(0)});
+            return answer.code.empty();
+        }));
+        return answer.value.number;
+    };
+    const auto pressed = [&](std::size_t count) {
+        return eventually([&] {
+            QCoreApplication::processEvents();
+            return presses.presses.size() == count;
+        });
+    };
+    using Press = std::pair<std::string, bool>;
+
+    registry.apply({wanted});
+    CHECK(send("a", 1) == GS_EXT_DENIED);
+    for (int round = 0; round < 20; ++round) {
+        QCoreApplication::processEvents();
+    }
+    CHECK(presses.presses.empty());
+    CHECK(seen.isEmpty());
+
+    wanted.granted = {"input.provide"};
+    registry.apply({wanted});
+    REQUIRE(eventually([&] {
+        QCoreApplication::processEvents();
+        return registry.inputTitles().contains("Ext.gstest.native.pad.a");
+    }));
+    CHECK(registry.inputTitles().at("Ext.gstest.native.pad.a") ==
+          app::ExtensionInputTitle{.source = QStringLiteral("Test pad"), .slot = QStringLiteral("Button A")});
+    CHECK(registry.inputTitles().at("Ext.gstest.native.pad.stick").slot == QStringLiteral("stick"));
+    const std::optional<input::Chord> chord = input::parseChord("Ext.gstest.native.pad.a");
+    REQUIRE(chord.has_value());
+    CHECK(app::keyLabel(*chord).text == QStringLiteral("Test pad \u00B7 Button A"));
+
+    CHECK(send("a", 1) == GS_EXT_OK);
+    REQUIRE(pressed(1));
+    CHECK(presses.presses[0] == Press{"jump", true});
+    CHECK(seen == QStringList{QStringLiteral("Ext.gstest.native.pad.a")});
+    CHECK(phones == QStringList{QStringLiteral("PHONE")});
+    CHECK(send("a", 0) == GS_EXT_OK);
+    REQUIRE(pressed(2));
+    CHECK(presses.presses[1] == Press{"jump", false});
+
+    CHECK(send("a", 1) == GS_EXT_OK);
+    REQUIRE(pressed(3));
+    if (!official) {
+        static_cast<void>(registry.call("gstest.native", "crash", {}));
+        REQUIRE(pressed(4));
+        CHECK(presses.presses[3] == Press{"jump", false});
+        CHECK(send("a", 1) == GS_EXT_OK);
+        REQUIRE(pressed(5));
+    }
+    registry.apply({});
+    REQUIRE(presses.presses.size() == (official ? 4U : 6U));
+    CHECK(presses.presses.back() == Press{"jump", false});
+    CHECK(registry.inputTitles().empty());
+}
+
+}
+
+TEST_CASE("ADR-0112: a DLL feeds the buttons, axes and sticks of its input sources in GameScrcpy and in "
+          "gs-exthost.exe; slots the manifest does not declare and values out of range are refused, and a source "
+          "passes 1000 events a second")
+{
+    const auto text = [](std::string value) { return textValue(exthost::ValueType::String, std::move(value)); };
+    const auto send = [&text](exthost::Module& module, const char* source, const char* slot, double x, double y,
+                              double at) {
+        const exthost::CallResult sent = callNode(
+            module, "sendInput", {text(source), text(slot), numberValue(x), numberValue(y), numberValue(at)});
+        REQUIRE_MESSAGE(sent.ok(), sent.problem);
+        return sent.value.number;
+    };
+    Scratch scratch;
+    std::string problem;
+    InputLog inside;
+    const std::unique_ptr<exthost::InProcessModule> loaded =
+        exthost::InProcessModule::load({.dll = kTestDll,
+                                        .store = scratch / "inside.json",
+                                        .granted = {"input.provide"},
+                                        .services = &inside,
+                                        .inputs = padInputs()},
+                                       problem);
+    REQUIRE_MESSAGE(loaded != nullptr, problem);
+    InputLog outside;
+    exthost::HostedOptions options = hostedOptions(scratch);
+    options.granted = {"input.provide"};
+    options.log = [&outside](int level, const std::string& line) { outside.log(level, line); };
+    options.inputs = padInputs();
+    options.input = [&outside](const std::string& source, const std::string& slot, double x, double y,
+                               std::uint64_t at) { outside.add({source, slot, x, y, at}); };
+    const std::unique_ptr<exthost::HostedModule> hosted = exthost::HostedModule::start(std::move(options), problem);
+    REQUIRE_MESSAGE(hosted != nullptr, problem);
+    const std::array<std::pair<exthost::Module*, InputLog*>, 2> modules{
+        {{loaded.get(), &inside}, {hosted.get(), &outside}}};
+    for (const auto& [module, heard] : modules) {
+        CAPTURE(module == loaded.get());
+        CHECK(module->info().inputSources == std::vector<exthost::InputSourceInfo>{{.name = "pad"}});
+        CHECK(callNode(*module, "supports", {text("input-sources")}).value.flag);
+        CHECK(send(*module, "pad", "a", 1, 0, 1234) == GS_EXT_OK);
+        CHECK(send(*module, "pad", "a", 1, 0, 1235) == GS_EXT_OK);
+        CHECK(send(*module, "pad", "knob", -0.25, 0.75, 1236) == GS_EXT_OK);
+        CHECK(send(*module, "pad", "stick", 0.5, -1, 1237) == GS_EXT_OK);
+        CHECK(send(*module, "pad", "a", 0, 0, 0) == GS_EXT_OK);
+        CHECK(send(*module, "pad", "nope", 1, 0, 0) == GS_EXT_BAD_ARGUMENT);
+        CHECK(send(*module, "other", "b", 1, 0, 0) == GS_EXT_BAD_ARGUMENT);
+        CHECK(send(*module, "missing", "a", 1, 0, 0) == GS_EXT_BAD_ARGUMENT);
+        CHECK(send(*module, "pad", "a", 0.5, 0, 0) == GS_EXT_BAD_ARGUMENT);
+        CHECK(send(*module, "pad", "knob", 1.5, 0, 0) == GS_EXT_BAD_ARGUMENT);
+        CHECK(send(*module, "pad", "stick", 0, -2, 0) == GS_EXT_BAD_ARGUMENT);
+        REQUIRE(eventually([&] { return heard->fed().size() == 4; }));
+        std::vector<FedInput> fed = heard->fed();
+        CHECK(fed[0] == FedInput{"pad", "a", 1.0, 0.0, 1234});
+        CHECK(fed[1] == FedInput{"pad", "knob", -0.25, 0.0, 1236});
+        CHECK(fed[2] == FedInput{"pad", "stick", 0.5, -1.0, 1237});
+        CHECK(fed[3].slot == "a");
+        CHECK(fed[3].x == 0.0);
+        CHECK(fed[3].at > 0);
+
+        const exthost::CallResult burst =
+            callNode(*module, "sendInputs", {text("pad"), text("knob"), numberValue(1500)});
+        REQUIRE_MESSAGE(burst.ok(), burst.problem);
+        const auto passed = static_cast<std::size_t>(burst.value.number);
+        CHECK(passed >= 996);
+        CHECK(passed < 1500);
+        CHECK(send(*module, "pad", "a", 1, 0, 0) == GS_EXT_FAILED);
+        CHECK(send(*module, "pad", "knob", 0, 0, 0) == GS_EXT_OK);
+        REQUIRE(eventually([&] {
+            const std::vector<FedInput> now = heard->fed();
+            return now.size() >= 5 + 996 && now.back().slot == "knob" && now.back().x == 0.0;
+        }));
+        fed = heard->fed();
+        const std::size_t through = fed.size() - 5;
+        CHECK(through >= 996);
+        CHECK(through <= passed);
+        const std::vector<std::string> lines = heard->lines();
+        CHECK(std::ranges::count_if(lines, [](const std::string& line) {
+                  return line.starts_with("1 ") && line.find("pad sent more than 1000 events") != std::string::npos;
+              }) == 1);
+    }
+}
+
+TEST_CASE("ADR-0112: a binding Ext.gstest.native.pad.a holds its control while the DLL's button is down and lets go "
+          "when it comes up, when gs-exthost.exe stops or when the extension stops")
+{
+    SUBCASE("inside GameScrcpy")
+    {
+        checkProvidedInput(true);
+    }
+    SUBCASE("in gs-exthost.exe")
+    {
+        checkProvidedInput(false);
+    }
+}
+
+TEST_CASE("ADR-0112: the extension host lists an extension's input devices and names their slots on key caps by "
+          "their titles in the language of the interface")
+{
+    ApplicationScope application;
+    Scratch scratch;
+    const fs::path builtin = scratch / "builtin";
+    const fs::path folder = builtin / "gamescrcpy.pedal-probe/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    writeFile(folder / "manifest.json", R"({
+  "schemaVersion": 1,
+  "id": "gamescrcpy.pedal-probe",
+  "version": "1.0.0",
+  "name": "Pedal probe",
+  "license": "Apache-2.0",
+  "requires": {"native": "^1.0"},
+  "contributes": {"native": {"dll": "native.dll", "inputSources": [
+    {"name": "pad", "title": "Test pad", "slots": [{"name": "a", "kind": "button", "title": "Button A"},
+                                                   {"name": "stick", "kind": "stick"}]}
+  ]}},
+  "permissions": [{"name": "input.provide", "reason": "Sends the pad to the key mapping."}],
+  "l10n": {"zh_CN": {"inputSources.pad.title": "测试手柄", "inputSources.pad.slots.a.title": "A 键"}}
+})");
+    writeFile(scratch / "data/settings.json",
+              R"({"format": "gamescrcpy.settings", "version": 1, "general": {"language": "zh_CN"}})");
+    app::AppSettings settings(scratch / "data");
+    app::ExtensionHost host(settings, {.user = scratch / "user", .builtin = builtin, .hostProgram = kProgram});
+    host.start(false);
+    REQUIRE(host.extensions().size() == 1);
+    INFO(listed(host.extensions()[0].diagnostics));
+    REQUIRE(host.setEnabled("gamescrcpy.pedal-probe", true));
+    CHECK(host.problems().empty());
+    const QVariantMap entry = host.entries()[0].toMap();
+    CHECK(entry.value(QStringLiteral("native")).toMap().value(QStringLiteral("inputSources")).toStringList() ==
+          QStringList{QStringLiteral("测试手柄")});
+    const QVariantList permissions = entry.value(QStringLiteral("permissions")).toList();
+    REQUIRE(permissions.size() == 1);
+    CHECK(permissions[0].toMap().value(QStringLiteral("name")).toString() == QStringLiteral("input.provide"));
+    const app::ExtensionInputTitles titles = host.native()->inputTitles();
+    REQUIRE(titles.size() == 2);
+    CHECK(titles.at("Ext.gamescrcpy.pedal-probe.pad.a") ==
+          app::ExtensionInputTitle{.source = QStringLiteral("测试手柄"), .slot = QStringLiteral("A 键")});
+    CHECK(titles.at("Ext.gamescrcpy.pedal-probe.pad.stick") ==
+          app::ExtensionInputTitle{.source = QStringLiteral("测试手柄"), .slot = QStringLiteral("stick")});
+    const std::optional<input::Chord> chord = input::parseChord("Ext.gamescrcpy.pedal-probe.pad.a");
+    REQUIRE(chord.has_value());
+    CHECK(app::keyLabel(*chord).text == QStringLiteral("测试手柄 \u00B7 A 键"));
+    REQUIRE(host.setEnabled("gamescrcpy.pedal-probe", false));
+    CHECK(host.native()->inputTitles().empty());
+    CHECK(app::keyLabel(*chord).text == QStringLiteral("pad \u00B7 a"));
 }
 
 TEST_CASE("ADR-0112: a DLL made for interface version 1 is not loaded and the message says to build it again")

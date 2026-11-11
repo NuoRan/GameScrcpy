@@ -7,6 +7,7 @@
 #include <gs/base/Log.h>
 #include <gs/exthost/Hosted.h>
 #include <gs/exthost/InProcess.h>
+#include <gs/input/InputSource.h>
 #include <gs/platform/TrayNotice.h>
 
 #include <nlohmann/json.hpp>
@@ -34,6 +35,9 @@ static_assert(static_cast<int>(script::NodeType::Region) == static_cast<int>(ext
 static_assert(static_cast<int>(script::NodeType::Color) == static_cast<int>(exthost::ValueType::Color));
 static_assert(static_cast<int>(script::NodeType::Duration) == static_cast<int>(exthost::ValueType::Duration));
 static_assert(static_cast<int>(script::NodeType::Json) == static_cast<int>(exthost::ValueType::Json));
+static_assert(static_cast<int>(ext::InputSlotKind::Button) == static_cast<int>(exthost::InputSlotKind::Button));
+static_assert(static_cast<int>(ext::InputSlotKind::Axis) == static_cast<int>(exthost::InputSlotKind::Axis));
+static_assert(static_cast<int>(ext::InputSlotKind::Stick) == static_cast<int>(exthost::InputSlotKind::Stick));
 
 namespace {
 
@@ -89,6 +93,19 @@ nlohmann::json partOf(const nlohmann::json& parsed, const char* name)
 {
     return parsed.is_object() && parsed.contains(name) && parsed.at(name).is_object() ? parsed.at(name)
                                                                                       : nlohmann::json::object();
+}
+
+std::vector<exthost::DeclaredInput> declaredInputs(const ext::NativeContribution& native)
+{
+    std::vector<exthost::DeclaredInput> declared;
+    for (const ext::NativeInputSource& source : native.inputSources) {
+        exthost::DeclaredInput made{.source = source.name, .slotList = {}};
+        for (const ext::NativeInputSlot& slot : source.slotList) {
+            made.slotList.push_back({.name = slot.name, .kind = static_cast<exthost::InputSlotKind>(slot.kind)});
+        }
+        declared.push_back(std::move(made));
+    }
+    return declared;
 }
 
 constexpr std::array<std::string_view, 4> kDeviceStates{"ready", "busy", "problem", "offline"};
@@ -248,6 +265,14 @@ struct NativeExtensions::Shared {
         post([id](NativeExtensions& owner) { owner.refreshProviders(id); });
     }
 
+    void input(const std::string& id, std::uint64_t loadNumber, std::string_view source, std::string_view slot,
+               double x, double y)
+    {
+        post([id, loadNumber, from = std::string(source), key = std::string(slot), x, y](NativeExtensions& owner) {
+            owner.deliverInput(id, loadNumber, from, key, x, y);
+        });
+    }
+
     void lose(const std::string& id, std::uint64_t session)
     {
         std::shared_ptr<ModuleTouchPort> port;
@@ -273,6 +298,7 @@ struct NativeExtensions::Shared {
 namespace {
 
 std::atomic<std::uint64_t> g_lastHolder{0};
+std::atomic<std::uint64_t> g_lastLoadNumber{0};
 
 struct ModuleSlot {
     std::mutex mutex;
@@ -305,11 +331,13 @@ void releaseClaims(const std::string& holder)
 class EntryServices final : public exthost::HostServices
 {
 public:
-    EntryServices(std::string id, QString name, std::weak_ptr<NativeExtensions::Shared> shared, ClaimHolder claimer)
+    EntryServices(std::string id, QString name, std::weak_ptr<NativeExtensions::Shared> shared, ClaimHolder claimer,
+                  std::uint64_t loadNumber)
         : m_id(std::move(id))
         , m_name(std::move(name))
         , m_shared(std::move(shared))
         , m_claimer(std::move(claimer))
+        , m_loadNumber(loadNumber)
     {
     }
 
@@ -352,11 +380,19 @@ public:
         }
     }
 
+    void inputEvent(std::string_view source, std::string_view slot, double x, double y, std::uint64_t) override
+    {
+        if (const std::shared_ptr<NativeExtensions::Shared> shared = m_shared.lock()) {
+            shared->input(m_id, m_loadNumber, source, slot, x, y);
+        }
+    }
+
 private:
     std::string m_id;
     QString m_name;
     std::weak_ptr<NativeExtensions::Shared> m_shared;
     ClaimHolder m_claimer;
+    std::uint64_t m_loadNumber = 0;
 };
 
 }
@@ -372,6 +408,8 @@ struct NativeExtensions::Entry {
     std::vector<std::optional<std::size_t>> jobIndex;
     std::vector<std::optional<std::size_t>> providerIndex;
     bool pending = false;
+    std::uint64_t loadNumber = 0;
+    std::vector<std::optional<std::size_t>> inputIndex;
 };
 
 namespace {
@@ -457,6 +495,18 @@ void matchEntry(NativeExtensions::Entry& entry)
                                       where + ".behaviors[" + std::to_string(index) + "]", behavior.name});
         }
     }
+    for (std::size_t index = 0; index < wanted.native.inputSources.size(); ++index) {
+        const ext::NativeInputSource& source = wanted.native.inputSources[index];
+        const auto found = std::ranges::find(info.inputSources, source.name, &exthost::InputSourceInfo::name);
+        const bool fits = found != info.inputSources.end();
+        entry.inputIndex.push_back(
+            fits ? std::optional<std::size_t>(static_cast<std::size_t>(found - info.inputSources.begin()))
+                 : std::nullopt);
+        if (!fits) {
+            entry.problems.push_back({ext::Severity::Warning, ext::Code::NativeMismatch,
+                                      where + ".inputSources[" + std::to_string(index) + "]", source.name});
+        }
+    }
     log::info(kCategory, "{}: the DLL is loaded {}", wanted.id,
               wanted.official ? "inside GameScrcpy" : "in its own process");
 }
@@ -471,6 +521,7 @@ NativeExtensions::NativeExtensions(NativeOptions options, QObject* parent)
     m_shared->owner = this;
     m_modules = makeModules();
     s_instance = this;
+    connect(this, &NativeExtensions::crashed, this, [this](const QString& id) { emit inputsEnded(id); });
 }
 
 NativeExtensions::~NativeExtensions()
@@ -499,6 +550,7 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
 {
     auto entry = std::make_shared<Entry>();
     entry->wanted = wanted;
+    entry->loadNumber = ++g_lastLoadNumber;
     const std::string where = "$[\"" + wanted.id + "\"].contributes.native";
     const std::filesystem::path dll = wanted.directory / pathOf(wanted.native.dll);
     const std::filesystem::path store =
@@ -510,13 +562,15 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
                                   return slot->wanted(resource, by);
                               }};
     if (wanted.official) {
-        auto services = std::make_shared<EntryServices>(wanted.id, wanted.name, m_shared, claimer);
+        auto services =
+            std::make_shared<EntryServices>(wanted.id, wanted.name, m_shared, claimer, entry->loadNumber);
         std::unique_ptr<exthost::InProcessModule> module =
             exthost::InProcessModule::load({.dll = dll,
                                             .store = store,
                                             .granted = wanted.granted,
                                             .services = services.get(),
-                                            .settings = wanted.settings},
+                                            .settings = wanted.settings,
+                                            .inputs = declaredInputs(wanted.native)},
                                            problem);
         if (module != nullptr) {
             entry->module = std::shared_ptr<exthost::Module>(module.release(), [services, holder](exthost::Module* done) {
@@ -550,6 +604,13 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
         options.devicesChanged = [shared, id](const std::string&) {
             if (const std::shared_ptr<Shared> alive = shared.lock()) {
                 alive->devicesChanged(id);
+            }
+        };
+        options.inputs = declaredInputs(wanted.native);
+        options.input = [shared, id, loadNumber = entry->loadNumber](const std::string& from, const std::string& key,
+                                                                     double x, double y, std::uint64_t) {
+            if (const std::shared_ptr<Shared> alive = shared.lock()) {
+                alive->input(id, loadNumber, from, key, x, y);
             }
         };
         options.claim = [claimer](const std::string& resource, bool wait,
@@ -650,6 +711,7 @@ void NativeExtensions::matchLate(const exthost::Module* module)
         const std::scoped_lock lock(m_mutex);
         m_modules.swap(modules);
     }
+    setExtensionInputTitles(inputTitles());
     emit changed();
     refreshProviders();
 }
@@ -710,6 +772,16 @@ void NativeExtensions::apply(std::vector<NativeWanted> wanted)
         const std::scoped_lock lock(m_mutex);
         m_modules.swap(modules);
     }
+    const std::vector<std::shared_ptr<Entry>> current = entries();
+    for (const std::shared_ptr<Entry>& was : previous) {
+        if (!was->wanted.native.inputSources.empty() &&
+            std::ranges::none_of(current, [&was](const std::shared_ptr<Entry>& now) {
+                return now->loadNumber == was->loadNumber;
+            })) {
+            emit inputsEnded(QString::fromStdString(was->wanted.id));
+        }
+    }
+    setExtensionInputTitles(inputTitles());
     if (nodes() != nodesBefore || touchMethods() != methodsBefore || attachmentList() != attachmentsBefore ||
         behaviorList() != behaviorsBefore || moduleKeys() != modulesBefore) {
         emit changed();
@@ -1356,6 +1428,67 @@ void NativeExtensions::noteTrouble(const ModuleNotice& notice)
     log::warning(kCategory, "{}: its attachments or behaviors failed {} times within 10 seconds, so it was turned off",
                  notice.extension, kFaultLimit);
     emit modulesFailed(textOf(notice.extension), name);
+}
+
+void NativeExtensions::deliverInput(const std::string& id, std::uint64_t loadNumber, const std::string& source,
+                                    const std::string& slot, double x, double y)
+{
+    std::shared_ptr<Entry> entry;
+    for (const std::shared_ptr<Entry>& each : entries()) {
+        if (each->wanted.id == id && each->loadNumber == loadNumber) {
+            entry = each;
+            break;
+        }
+    }
+    if (entry == nullptr || entry->module == nullptr || entry->pending ||
+        std::ranges::find(entry->wanted.granted, ext::kInputPermission) == entry->wanted.granted.end()) {
+        return;
+    }
+    const std::vector<ext::NativeInputSource>& sources = entry->wanted.native.inputSources;
+    const auto found = std::ranges::find(sources, source, &ext::NativeInputSource::name);
+    const auto index = static_cast<std::size_t>(found - sources.begin());
+    if (found == sources.end() || index >= entry->inputIndex.size() || !entry->inputIndex[index]) {
+        return;
+    }
+    const auto declared = std::ranges::find(found->slotList, slot, &ext::NativeInputSlot::name);
+    if (declared == found->slotList.end()) {
+        return;
+    }
+    const auto unit = [](double value) { return value >= -1.0 && value <= 1.0; };
+    const bool button = declared->kind == ext::InputSlotKind::Button;
+    const bool stick = declared->kind == ext::InputSlotKind::Stick;
+    if (button ? (x != 0.0 && x != 1.0) : (!unit(x) || (stick && !unit(y)))) {
+        return;
+    }
+    emit inputEvent(textOf(id), textOf(input::extensionInputName(id, source, slot)), button, x, stick ? y : 0.0);
+}
+
+ExtensionInputTitles NativeExtensions::inputTitles() const
+{
+    ExtensionInputTitles titles;
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        if (entry->module == nullptr) {
+            continue;
+        }
+        const NativeWanted& wanted = entry->wanted;
+        for (std::size_t index = 0; index < wanted.native.inputSources.size(); ++index) {
+            if (index >= entry->inputIndex.size() || !entry->inputIndex[index]) {
+                continue;
+            }
+            const ext::NativeInputSource& source = wanted.native.inputSources[index];
+            const NativeTexts texts = index < wanted.inputTexts.size() ? wanted.inputTexts[index] : NativeTexts{};
+            const QString sourceTitle = texts.title.isEmpty() ? textOf(source.title) : texts.title;
+            for (std::size_t at = 0; at < source.slotList.size(); ++at) {
+                const ext::NativeInputSlot& slot = source.slotList[at];
+                const QString slotTitle = at < texts.slotTitles.size() && !texts.slotTitles[at].isEmpty()
+                                              ? texts.slotTitles[at]
+                                              : textOf(slot.title.empty() ? slot.name : slot.title);
+                titles.insert_or_assign(input::extensionInputName(wanted.id, source.name, slot.name),
+                                        ExtensionInputTitle{.source = sourceTitle, .slot = slotTitle});
+            }
+        }
+    }
+    return titles;
 }
 
 }

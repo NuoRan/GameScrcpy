@@ -120,6 +120,34 @@ struct ProviderInfo {
     friend bool operator==(const ProviderInfo&, const ProviderInfo&) = default;
 };
 
+inline constexpr std::size_t kMostInputSources = 8;
+inline constexpr std::size_t kMostInputSlots = 64;
+inline constexpr std::size_t kMostInputNameBytes = 32;
+inline constexpr std::size_t kMostInputEventsPerSecond = 1000;
+inline constexpr std::string_view kInputPermission = "input.provide";
+
+enum class InputSlotKind : std::uint8_t { Button, Axis, Stick };
+
+struct InputSourceInfo {
+    std::string name;
+
+    friend bool operator==(const InputSourceInfo&, const InputSourceInfo&) = default;
+};
+
+struct InputSlot {
+    std::string name;
+    InputSlotKind kind = InputSlotKind::Button;
+
+    friend bool operator==(const InputSlot&, const InputSlot&) = default;
+};
+
+struct DeclaredInput {
+    std::string source;
+    std::vector<InputSlot> slotList;
+
+    friend bool operator==(const DeclaredInput&, const DeclaredInput&) = default;
+};
+
 struct JobEvents {
     std::function<void(double fraction, std::string text)> progress;
     std::function<void(int level, std::string text)> log;
@@ -158,6 +186,7 @@ struct ModuleInfo {
     std::vector<BehaviorInfo> behaviors;
     std::vector<JobInfo> jobs;
     std::vector<ProviderInfo> providers;
+    std::vector<InputSourceInfo> inputSources;
 
     friend bool operator==(const ModuleInfo&, const ModuleInfo&) = default;
 };
@@ -281,6 +310,7 @@ public:
     [[nodiscard]] virtual ClaimResult claim(std::string_view, bool) { return ClaimResult::Unsupported; }
     virtual void release(std::string_view) {}
     virtual void listening(std::string_view, bool) {}
+    virtual void inputEvent(std::string_view, std::string_view, double, double, std::uint64_t) {}
 };
 
 class Module

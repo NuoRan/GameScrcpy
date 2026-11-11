@@ -8,6 +8,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <vector>
 
 namespace gs::exthost::detail {
 
@@ -24,6 +25,7 @@ public:
     void event(const InputEvent& event);
     void command(const TouchCommand& command);
     void answer(const StepOutput& answer);
+    void inputs(const std::vector<DeclaredInput>& declared);
 
     [[nodiscard]] const std::string& bytes() const noexcept { return m_bytes; }
 
@@ -58,6 +60,7 @@ public:
     [[nodiscard]] bool event(InputEvent& out);
     [[nodiscard]] bool command(TouchCommand& out);
     [[nodiscard]] bool answer(StepOutput& out);
+    [[nodiscard]] bool inputs(std::vector<DeclaredInput>& out);
     [[nodiscard]] bool done() const noexcept { return m_at == m_bytes.size(); }
 
 private:

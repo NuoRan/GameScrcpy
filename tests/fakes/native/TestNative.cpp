@@ -338,6 +338,29 @@ int32_t lastSpoken(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
     return giveText(result, GS_EXT_TYPE_JSON, spoken);
 }
 
+int32_t sendInput(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number = g_host->input_event(g_host->context, args[0].text, args[0].size, args[1].text, args[1].size,
+                                               args[2].number, args[3].number, static_cast<uint64_t>(args[4].number));
+    return GS_EXT_OK;
+}
+
+int32_t sendInputs(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    int passed = 0;
+    for (int count = 0; count < static_cast<int>(args[2].number); ++count) {
+        const double x = count % 2 == 0 ? 0.5 : -0.5;
+        if (g_host->input_event(g_host->context, args[0].text, args[0].size, args[1].text, args[1].size, x, 0.0, 0) ==
+            GS_EXT_OK) {
+            ++passed;
+        }
+    }
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number = passed;
+    return GS_EXT_OK;
+}
+
 int32_t claimWanted(void*, const char* resource, size_t size, const char* by, size_t bySize)
 {
     bool yields = false;
@@ -479,6 +502,9 @@ const uint32_t kMirrored[] = {GS_EXT_TYPE_POINT, GS_EXT_TYPE_REGION, GS_EXT_TYPE
                               GS_EXT_TYPE_DURATION, GS_EXT_TYPE_JSON, GS_EXT_TYPE_BOOLEAN};
 const uint32_t kStringAndFlag[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_BOOLEAN};
 const uint32_t kOneFlag[] = {GS_EXT_TYPE_BOOLEAN};
+const uint32_t kInputEvent[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING, GS_EXT_TYPE_NUMBER, GS_EXT_TYPE_NUMBER,
+                                GS_EXT_TYPE_NUMBER};
+const uint32_t kInputBurst[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING, GS_EXT_TYPE_NUMBER};
 
 const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "add", kTwoNumbers, 2, GS_EXT_TYPE_NUMBER, nullptr, &add},
@@ -509,9 +535,13 @@ const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "lastSpoken", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &lastSpoken},
     {sizeof(gs_ext_node), "subscribe", kStringAndFlag, 2, GS_EXT_TYPE_NUMBER, nullptr, &subscribeNode},
     {sizeof(gs_ext_node), "heard", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &heardNode},
+    {sizeof(gs_ext_node), "sendInput", kInputEvent, 5, GS_EXT_TYPE_NUMBER, nullptr, &sendInput},
+    {sizeof(gs_ext_node), "sendInputs", kInputBurst, 3, GS_EXT_TYPE_NUMBER, nullptr, &sendInputs},
 };
 
 const gs_ext_device_provider kBoxes = {sizeof(gs_ext_device_provider), "boxes", nullptr, &listBoxes, &actOnBox};
+
+const gs_ext_input_source kPad = {sizeof(gs_ext_input_source), "pad"};
 
 const gs_ext_touch_method kRecorder = {
     sizeof(gs_ext_touch_method), "recorder", 4,          1,         1,           nullptr,    &openTouch,
@@ -894,6 +924,9 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "lastSpoken", &kNodes[25]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_JOB, "speak", &kSpeak},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_JOB, "hear", &kHear},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "sendInput", &kNodes[28]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "sendInputs", &kNodes[29]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_INPUT_SOURCE, "pad", &kPad},
 };
 
 const gs_ext_plugin kPlugin = {

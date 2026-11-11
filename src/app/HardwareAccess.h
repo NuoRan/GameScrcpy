@@ -88,6 +88,8 @@ public:
     void request(const LogicCaller& caller, std::string_view service, quint64 id, const QString& json);
     void drop(const LogicCaller& caller, quint64 id);
     void endLogic(std::uint64_t logic);
+    void provideInput(const QString& extension, const QString& name, bool button, double x, double y);
+    void endProvidedInput(const QString& extension);
 
     [[nodiscard]] QVariantMap picker() const;
     [[nodiscard]] QVariantMap grantMap() const;
@@ -187,6 +189,7 @@ private:
     std::map<QString, Opening> m_openings;
     std::map<QString, Handle> m_handles;
     std::map<std::uint64_t, std::map<QString, HeldInput>> m_held;
+    std::map<QString, std::map<QString, HeldInput>> m_provided;
     std::set<std::uint64_t> m_endedLogic;
     std::uint64_t m_lastHandle = 0;
     bool m_scanning = false;

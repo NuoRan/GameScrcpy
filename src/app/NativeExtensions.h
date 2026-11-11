@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ExtensionModules.h"
+#include "KeyLabels.h"
 #include "ProvidedDevice.h"
 #include "TouchMethods.h"
 
@@ -56,6 +57,7 @@ struct NativeWanted {
     std::vector<NativeTexts> attachmentTexts;
     std::vector<NativeTexts> behaviorTexts;
     std::string settings;
+    std::vector<NativeTexts> inputTexts;
 };
 
 [[nodiscard]] std::string nativeTouchOptions(std::string_view snapshot, std::string_view phone,
@@ -141,6 +143,7 @@ public:
     [[nodiscard]] QVariantList behaviorList() const;
     [[nodiscard]] std::shared_ptr<ExtensionModules> moduleFactory() const;
     [[nodiscard]] input::ModuleCatalog moduleCatalog() const;
+    [[nodiscard]] ExtensionInputTitles inputTitles() const;
 
     struct Entry;
     struct Shared;
@@ -154,6 +157,8 @@ signals:
     void modulesFailed(const QString& id, const QString& name);
     void extensionEvent(const QString& id, const QString& topic, const QString& json);
     void providedChanged();
+    void inputEvent(const QString& extension, const QString& name, bool button, double x, double y);
+    void inputsEnded(const QString& extension);
 
 private:
     [[nodiscard]] std::shared_ptr<Entry> load(const NativeWanted& wanted) const;
@@ -164,6 +169,8 @@ private:
     [[nodiscard]] std::shared_ptr<ExtensionModules> makeModules() const;
     [[nodiscard]] std::vector<std::pair<std::string, const exthost::Module*>> moduleKeys() const;
     void noteTrouble(const ModuleNotice& notice);
+    void deliverInput(const std::string& id, std::uint64_t loadNumber, const std::string& source,
+                      const std::string& slot, double x, double y);
 
     static inline std::atomic<NativeExtensions*> s_instance{nullptr};
 

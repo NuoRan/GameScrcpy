@@ -170,6 +170,18 @@ bool validPanelName(std::string_view text) noexcept
            std::ranges::all_of(text, [](char c) { return lowerOrDigit(c) || c == '-'; });
 }
 
+bool validInputSourceName(std::string_view text) noexcept
+{
+    return !text.empty() && text.size() <= kMaxInputNameLength && text.front() >= 'a' && text.front() <= 'z' &&
+           std::ranges::all_of(text, lowerOrDigit);
+}
+
+bool validInputSlotName(std::string_view text) noexcept
+{
+    return !text.empty() && text.size() <= kMaxInputNameLength &&
+           std::ranges::all_of(text, [](char c) { return letter(c) || digit(c) || c == '_' || c == '-'; });
+}
+
 bool validHost(std::string_view text)
 {
     std::string_view host = text;
@@ -225,6 +237,10 @@ bool matches(TextFormat format, std::string_view text)
         return validScriptName(text);
     case TextFormat::PanelName:
         return validPanelName(text);
+    case TextFormat::InputSourceName:
+        return validInputSourceName(text);
+    case TextFormat::InputSlotName:
+        return validInputSlotName(text);
     }
     return false;
 }
@@ -258,6 +274,9 @@ Code invalidCode(TextFormat format) noexcept
         return Code::ScriptNameInvalid;
     case TextFormat::PanelName:
         return Code::PanelNameInvalid;
+    case TextFormat::InputSourceName:
+    case TextFormat::InputSlotName:
+        return Code::InputNameInvalid;
     case TextFormat::Plain:
     case TextFormat::PermissionName:
         break;
@@ -384,6 +403,16 @@ std::pair<std::string_view, std::string_view> identity(const NativeSpeechEngine&
     return {"name", entry.name};
 }
 
+std::pair<std::string_view, std::string_view> identity(const NativeInputSlot& entry)
+{
+    return {"name", entry.name};
+}
+
+std::pair<std::string_view, std::string_view> identity(const NativeInputSource& entry)
+{
+    return {"name", entry.name};
+}
+
 std::pair<std::string_view, std::string_view> identity(const DeclaredParam& entry)
 {
     return {"key", entry.key};
@@ -498,6 +527,15 @@ void checkEntry(const NativeSpeechEngine& engine, const std::string& path, Conte
         if (!written) {
             context.report(Severity::Error, Code::OutOfRange, indexed(path + ".languages", index), language);
         }
+    }
+}
+
+void checkEntry(const NativeInputSlot&, const std::string&, Context&) {}
+
+void checkEntry(const NativeInputSource& source, const std::string& path, Context& context)
+{
+    if (source.slotList.empty()) {
+        context.report(Severity::Error, Code::MissingField, path + ".slots");
     }
 }
 
@@ -1658,6 +1696,12 @@ Json stringSchema(std::size_t maxLength, TextFormat format, bool required = fals
     case TextFormat::PanelName:
         schema["pattern"] = "^[a-z0-9-]{1,32}$";
         break;
+    case TextFormat::InputSourceName:
+        schema["pattern"] = "^[a-z][a-z0-9]{0,31}$";
+        break;
+    case TextFormat::InputSlotName:
+        schema["pattern"] = "^[A-Za-z0-9_-]{1,32}$";
+        break;
     case TextFormat::PermissionName: {
         Json names = Json::array();
         for (const std::string_view permission : kPermissionNames) {
@@ -1955,6 +1999,11 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
                 (voices == native.nodes.end() || !voices->params.empty() || voices->returns != "json")) {
                 context.report(Severity::Error, Code::SpeechEngineInvalid, at + ".voices", declared.voices);
             }
+        }
+        if (!contributes.native->inputSources.empty() &&
+            std::ranges::find(manifest.permissions, kInputPermission, &Permission::name) == manifest.permissions.end()) {
+            context.report(Severity::Error, Code::NativePermissionUndeclared, "$.contributes.native.inputSources",
+                           std::string(kInputPermission));
         }
     }
     if (!manifest.id.empty() && manifest.dependencies.contains(manifest.id)) {

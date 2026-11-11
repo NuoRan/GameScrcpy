@@ -19,6 +19,7 @@ struct InProcessOptions {
     HostServices* services = nullptr;
     std::chrono::microseconds budget = kNodeBudget;
     std::string settings;
+    std::vector<DeclaredInput> inputs;
 };
 
 class InProcessModule final : public Module

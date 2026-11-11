@@ -124,6 +124,17 @@ TEST_CASE("ADR-0107: an extension's capabilities say what it adds, and a native 
     }
 }
 
+TEST_CASE("ADR-0112: an extension whose DLL feeds input devices into the key mapping shows as hardware")
+{
+    Look look;
+    const QVariantMap pedal = nativeEntry(
+        QStringLiteral("alice.pedal"),
+        {{QStringLiteral("inputSources"), QVariantList{QStringLiteral("Foot pedal")}},
+         {QStringLiteral("nodes"), QVariantList{}}});
+    CHECK(look.capabilities(pedal) == QStringList{QStringLiteral("hardware")});
+    CHECK(look.lead(pedal) == QStringLiteral("hardware"));
+}
+
 TEST_CASE("ADR-0107: an extension card offers Settings only when the extension is loaded and has parameters, "
           "devices it may use or is the ESP32 touch box")
 {

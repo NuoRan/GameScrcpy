@@ -434,6 +434,9 @@ QString permissionTitle(std::string_view name)
     if (name == "events.app") {
         return ExtensionHost::tr("Know what happens on every phone and window");
     }
+    if (name == "input.provide") {
+        return ExtensionHost::tr("Feed the buttons of home-made devices into the key mapping");
+    }
     return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
 }
 
@@ -838,6 +841,16 @@ NativeWanted ExtensionHost::nativeWanted(const Extension& extension) const
         wanted.behaviorTexts.push_back(textsOf("behaviors." + behavior.name + ".", behavior.title, behavior.description,
                                                behavior.params, behavior.slotList));
     }
+    for (const ext::NativeInputSource& source : wanted.native.inputSources) {
+        const std::string prefix = "inputSources." + source.name + ".";
+        NativeTexts texts;
+        texts.title = extensionText(manifest, prefix + "title", source.title, language);
+        for (const ext::NativeInputSlot& slot : source.slotList) {
+            texts.slotTitles.push_back(extensionText(manifest, prefix + "slots." + slot.name + ".title",
+                                                     slot.title.empty() ? slot.name : slot.title, language));
+        }
+        wanted.inputTexts.push_back(std::move(texts));
+    }
     return wanted;
 }
 
@@ -1178,12 +1191,18 @@ QVariantList ExtensionHost::entries() const
                     speechEngines.append(
                         extensionText(manifest, "speechEngines." + engine.name + ".title", engine.title, language));
                 }
+                QStringList inputSources;
+                for (const ext::NativeInputSource& source : manifest.contributes.native->inputSources) {
+                    inputSources.append(
+                        extensionText(manifest, "inputSources." + source.name + ".title", source.title, language));
+                }
                 row.insert(QStringLiteral("native"),
                            QVariantMap{{QStringLiteral("touchMethods"), methods},
                                        {QStringLiteral("nodes"), nodes},
                                        {QStringLiteral("attachments"), attachments},
                                        {QStringLiteral("behaviors"), behaviors},
                                        {QStringLiteral("speechEngines"), speechEngines},
+                                       {QStringLiteral("inputSources"), inputSources},
                                        {QStringLiteral("ownProcess"),
                                         !(extension->builtin && manifest.id.starts_with(ext::kReservedIdPrefix))}});
             }

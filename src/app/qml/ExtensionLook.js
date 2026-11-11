@@ -16,6 +16,8 @@ function capabilities(entry) {
         }
         if ((native.touchMethods ?? []).length > 0)
             add("hardware")
+        if ((native.inputSources ?? []).length > 0)
+            add("hardware")
         if ((native.attachments ?? []).length > 0 || (native.behaviors ?? []).length > 0)
             add("component")
         if ((native.nodes ?? []).length > 0)

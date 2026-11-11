@@ -109,3 +109,34 @@ TEST_CASE("ADR-0112: every struct a DLL fills in or that holds arrays starts wit
     CHECK(header.find("    GS_EXT_SLOT_AXIS1 = 2,\n") != std::string::npos);
     CHECK(header.find("    GS_EXT_INPUT_WHEEL = 5,\n") != std::string::npos);
 }
+
+TEST_CASE("ADR-0112: the C header offers input sources: their contribution kind, a struct that starts with its size "
+          "and input_event at the end of the host table")
+{
+    const std::string header = generatedHeader();
+    CHECK(header.find("#define GS_EXT_KIND_INPUT_SOURCE \"input-source\"\n") != std::string::npos);
+    const std::size_t declared = header.find("typedef struct gs_ext_input_source gs_ext_input_source;\n");
+    const std::size_t defined = header.find("struct gs_ext_input_source {\n");
+    REQUIRE(declared != std::string::npos);
+    REQUIRE(defined != std::string::npos);
+    CHECK(declared < defined);
+    const std::size_t firstField = header.find(";\n", defined);
+    const std::size_t size = header.find("    uint32_t size;\n", defined);
+    CHECK(size + std::string_view("    uint32_t size").size() == firstField);
+    CHECK(header.find("    const char* name;\n", defined) < header.find("};\n", defined));
+
+    const std::size_t host = header.find("struct gs_ext_host {\n");
+    REQUIRE(host != std::string::npos);
+    const std::size_t hostEnd = header.find("};\n", host);
+    const std::size_t release = header.find("    int32_t (*release)(void* context, const char* resource, size_t size);\n",
+                                            host);
+    const std::size_t inputEvent = header.find(
+        "    int32_t (*input_event)(void* context, const char* source, size_t source_size, const char* slot, "
+        "size_t slot_size, double x, double y, uint64_t time_us);\n",
+        host);
+    REQUIRE(release != std::string::npos);
+    REQUIRE(inputEvent != std::string::npos);
+    CHECK(release < inputEvent);
+    CHECK(inputEvent < hostEnd);
+    CHECK(header.find("input.provide", host) < hostEnd);
+}

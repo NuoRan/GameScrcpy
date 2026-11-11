@@ -41,6 +41,8 @@ struct HostedOptions {
     std::function<void()> stopped;
     std::function<void()> ready;
     std::function<void(const std::string& problem)> notReady;
+    std::vector<DeclaredInput> inputs;
+    std::function<void(const std::string& source, const std::string& slot, double x, double y, std::uint64_t at)> input;
 };
 
 class HostedModule final : public Module

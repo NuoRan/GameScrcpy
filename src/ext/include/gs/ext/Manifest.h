@@ -33,10 +33,10 @@ inline constexpr std::array<std::string_view, 12> kExtensionPointNames{"profile"
 inline constexpr std::array<std::string_view, 8> kNativeTypeNames{"boolean", "number", "string",   "point",
                                                                   "region",  "color",  "duration", "json"};
 
-inline constexpr std::array<std::string_view, 17> kPermissionNames{
+inline constexpr std::array<std::string_view, 18> kPermissionNames{
     "device.input", "device.screen", "device.clipboard", "device.apps", "devices.other", "mapping",
     "notify",       "network",       "files.pick",       "files.paths", "input.read",    "hardware",
-    "ai",           "devices.provide", "network.listen", "speech.listen", "events.app"};
+    "ai",           "devices.provide", "network.listen", "speech.listen", "events.app", "input.provide"};
 inline constexpr std::size_t kMaxComponentNameLength = 48;
 inline constexpr std::string_view kNeverGrantedPermission = "adb.shell";
 
@@ -55,7 +55,9 @@ enum class TextFormat : std::uint8_t {
     NativeType,
     SigningKey,
     ScriptName,
-    PanelName
+    PanelName,
+    InputSourceName,
+    InputSlotName
 };
 
 struct TextRule {
@@ -385,6 +387,47 @@ struct NativeSpeechEngine {
     friend bool operator==(const NativeSpeechEngine&, const NativeSpeechEngine&) = default;
 };
 
+inline constexpr std::size_t kMostInputSources = 8;
+inline constexpr std::size_t kMostInputSlots = 64;
+inline constexpr std::size_t kMaxInputNameLength = 32;
+inline constexpr std::string_view kInputPermission = "input.provide";
+enum class InputSlotKind : std::uint8_t { Button, Axis, Stick };
+inline constexpr std::array<std::string_view, 3> kInputSlotKindNames{"button", "axis", "stick"};
+
+struct NativeInputSlot {
+    std::string name;
+    InputSlotKind kind = InputSlotKind::Button;
+    std::string title;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name,
+               {.required = true, .maxLength = kMaxInputNameLength, .format = TextFormat::InputSlotName});
+        v.choice("kind", m.kind, kInputSlotKindNames, true);
+        v.text("title", m.title, {.maxLength = 40});
+    }
+
+    friend bool operator==(const NativeInputSlot&, const NativeInputSlot&) = default;
+};
+
+struct NativeInputSource {
+    std::string name;
+    std::string title;
+    std::vector<NativeInputSlot> slotList;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name,
+               {.required = true, .maxLength = kMaxInputNameLength, .format = TextFormat::InputSourceName});
+        v.text("title", m.title, {.required = true, .maxLength = 40});
+        v.objectList("slots", m.slotList, kMostInputSlots);
+    }
+
+    friend bool operator==(const NativeInputSource&, const NativeInputSource&) = default;
+};
+
 struct NativeContribution {
     std::string dll;
     std::vector<NativeTouchMethod> touchMethods;
@@ -394,6 +437,7 @@ struct NativeContribution {
     std::vector<NativeJob> jobs;
     std::vector<NativeDeviceProvider> deviceProviders;
     std::vector<NativeSpeechEngine> speechEngines;
+    std::vector<NativeInputSource> inputSources;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -406,6 +450,7 @@ struct NativeContribution {
         v.objectList("jobs", m.jobs, kMostNativeJobs);
         v.objectList("deviceProviders", m.deviceProviders, kMostDeviceProviders);
         v.objectList("speechEngines", m.speechEngines, kMostSpeechEngines);
+        v.objectList("inputSources", m.inputSources, kMostInputSources);
     }
 
     friend bool operator==(const NativeContribution&, const NativeContribution&) = default;

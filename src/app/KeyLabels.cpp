@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <array>
+#include <mutex>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -155,8 +156,27 @@ QString mouseHint(std::string_view name)
     return mouseText(name);
 }
 
+struct InputTitleTable {
+    std::mutex mutex;
+    ExtensionInputTitles titles;
+};
+
+InputTitleTable& inputTitleTable()
+{
+    static InputTitleTable table;
+    return table;
+}
+
 QString extensionText(std::string_view name)
 {
+    {
+        InputTitleTable& table = inputTitleTable();
+        const std::scoped_lock lock(table.mutex);
+        if (const auto titled = table.titles.find(name); titled != table.titles.end()) {
+            return QCoreApplication::translate("KeyLabels", "%1 \u00B7 %2")
+                .arg(titled->second.source, titled->second.slot);
+        }
+    }
     const std::optional<input::ExtensionInput> parts = input::splitExtensionInput(name);
     if (!parts) {
         return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
@@ -223,6 +243,13 @@ KeyLabel keyLabel(const input::Chord& chord)
         break;
     }
     return {prefix + keyboardText(chord.source, name), false};
+}
+
+void setExtensionInputTitles(ExtensionInputTitles titles)
+{
+    InputTitleTable& table = inputTitleTable();
+    const std::scoped_lock lock(table.mutex);
+    table.titles = std::move(titles);
 }
 
 }

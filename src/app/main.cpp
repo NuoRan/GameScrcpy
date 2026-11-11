@@ -30,6 +30,7 @@
 #include "McpTools.h"
 #include "MirrorWindow.h"
 #include "NativeEvents.h"
+#include "NativeExtensions.h"
 #include "NativeJobs.h"
 #include "OfflineNetwork.h"
 #include "ProfileLibrary.h"
@@ -485,6 +486,10 @@ int main(int argc, char* argv[])
                                 const gs::input::DeviceEvent& event) { devices.feedInput(serial, event); },
                      [&devices] { return devices.focusedPhone(); });
     const auto detachHardware = qScopeGuard([&hardware] { hardware.setFeed({}, {}); });
+    QObject::connect(extensions.native(), &gs::app::NativeExtensions::inputEvent, &hardware,
+                     &gs::app::HardwareAccess::provideInput);
+    QObject::connect(extensions.native(), &gs::app::NativeExtensions::inputsEnded, &hardware,
+                     &gs::app::HardwareAccess::endProvidedInput);
     if (parser.isSet(touch)) {
         if (const QString backend = parser.value(touch); backend == u"uhid"_s) {
             devices.forceTouchBackend(gs::app::TouchBackend::Uhid);

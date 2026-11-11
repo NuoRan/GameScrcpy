@@ -6431,6 +6431,10 @@
         <translation>语音引擎：%1</translation>
     </message>
     <message>
+        <source>Input devices: %1</source>
+        <translation>输入设备：%1</translation>
+    </message>
+    <message>
         <source>Its DLL runs in a process of its own; when that stops three times within a minute, the extension is turned off.</source>
         <translation>它的 DLL 在单独的进程里运行；这个进程一分钟内停止三次，扩展就会被关闭。</translation>
     </message>
@@ -21895,6 +21899,10 @@
     <message>
         <source>Know what happens on every phone and window</source>
         <translation>知道所有手机与窗口的动静</translation>
+    </message>
+    <message>
+        <source>Feed the buttons of home-made devices into the key mapping</source>
+        <translation>把自制设备的按键送进键位</translation>
     </message>
     <message>
         <source>Its script %1 is not in the extension</source>
