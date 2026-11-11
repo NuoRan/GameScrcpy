@@ -339,6 +339,34 @@ TEST_CASE("frame snapshots: NV12 pictures in memory, formats the decoder does no
     CHECK(snapshots.counters().made == 2);
 }
 
+TEST_CASE("ADR-0112: watchers hear of every frame offered, before anything is asked for, until they stop watching")
+{
+    const FramePtr picture = pictureWithSquare(AV_PIX_FMT_YUV420P, 32, 18, 8, 8);
+    FrameSnapshots snapshots;
+    int first = 0;
+    int second = 0;
+    const std::uint64_t one = snapshots.watch([&first] { ++first; });
+    const std::uint64_t two = snapshots.watch([&second] { ++second; });
+    CHECK(one != two);
+    snapshots.offer(*picture, 10, 1);
+    snapshots.offer(*picture, 20, 1);
+    CHECK(first == 2);
+    CHECK(second == 2);
+    CHECK(snapshots.counters().made == 0);
+    const auto kept = snapshots.capture(true);
+    REQUIRE(kept != nullptr);
+    CHECK(kept->frame == snapshots.offered());
+    CHECK(kept->ptsUs == 20);
+    snapshots.unwatch(one);
+    snapshots.offer(*picture, 30, 1);
+    CHECK(first == 2);
+    CHECK(second == 3);
+    snapshots.unwatch(two);
+    snapshots.unwatch(two);
+    snapshots.offer(*picture, 40, 1);
+    CHECK(second == 3);
+}
+
 TEST_CASE("frame snapshots: one snapshot serves several template searches without another copy")
 {
     const FramePtr picture = noisyPicture(320, 240);

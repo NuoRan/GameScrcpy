@@ -197,6 +197,7 @@ gs_add_unit_test(gs_script_tests
         unit/script/InputReadTests.cpp
         unit/script/LoadMeterTests.cpp
         unit/script/LogicHostTests.cpp
+        unit/script/MediaApiTests.cpp
         unit/script/ModulePathTests.cpp
         unit/script/NativeHeaderTests.cpp
         unit/script/ReportTests.cpp
@@ -456,6 +457,7 @@ if(GS_BUILD_APP)
             unit/app/McpServerTests.cpp
             unit/app/McpTestSupport.h
             unit/app/McpToolsTests.cpp
+            unit/app/MediaFramesTests.cpp
             unit/app/NativeExtensionTests.cpp
             unit/app/NativeMediaTests.cpp
             unit/app/OfflineNetworkTests.cpp
@@ -678,6 +680,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/McpTools.h"
             "${PROJECT_SOURCE_DIR}/src/app/McpTrace.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/McpTrace.h"
+            "${PROJECT_SOURCE_DIR}/src/app/MediaFrames.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/MediaFrames.h"
             "${PROJECT_SOURCE_DIR}/src/app/OfflineNetwork.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/OfflineNetwork.h"
             "${PROJECT_SOURCE_DIR}/src/app/PhoneFiles.cpp"

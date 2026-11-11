@@ -43,6 +43,7 @@ class FrameSnapshots
 {
 public:
     using Listener = std::function<void(const std::shared_ptr<const LumaSnapshot>&)>;
+    using Watcher = std::function<void()>;
 
     explicit FrameSnapshots(ID3D11Device* device = nullptr, int depth = 3);
     ~FrameSnapshots();
@@ -63,6 +64,8 @@ public:
     [[nodiscard]] std::uint64_t offered() const noexcept;
     [[nodiscard]] std::shared_ptr<const LumaSnapshot> latest() const;
     [[nodiscard]] SnapshotCounters counters() const;
+    [[nodiscard]] std::uint64_t watch(Watcher watcher);
+    void unwatch(std::uint64_t watcher);
 
 private:
     struct State;

@@ -29,6 +29,8 @@
 #include <string_view>
 #include <vector>
 
+class QImage;
+
 namespace gs::script {
 class LogicHost;
 }
@@ -169,6 +171,8 @@ public:
     void answer(quint64 request, const QString& json);
     void refuse(quint64 request, const QString& message);
     void tell(const QString& kind, const QString& id, const QString& json);
+    [[nodiscard]] std::uint64_t keepFrame(const QImage& picture, script::PictureSize source, quint64 frames);
+    void forgetFrames(quint64 frames);
     void allowInput();
     [[nodiscard]] const LogicCaller& caller() const noexcept { return m_caller; }
     [[nodiscard]] bool task() const noexcept { return m_source.task; }

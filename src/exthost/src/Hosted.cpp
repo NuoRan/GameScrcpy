@@ -2,10 +2,12 @@
 
 #include "Channel.h"
 #include "MediaRing.h"
+#include "TapSection.h"
 #include "Wire.h"
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <condition_variable>
 #include <deque>
 #include <map>
@@ -31,6 +33,12 @@ std::string utf8(const std::filesystem::path& path)
 {
     const std::u8string text = path.u8string();
     return {reinterpret_cast<const char*>(text.data()), text.size()};
+}
+
+bool drawable(const Shape& shape)
+{
+    return std::isfinite(shape.x) && std::isfinite(shape.y) && std::isfinite(shape.x2) && std::isfinite(shape.y2) &&
+           validUtf8(shape.text);
 }
 
 std::wstring quoted(const std::filesystem::path& path)
@@ -219,6 +227,45 @@ struct HostedModule::Impl {
         if (!channel->toHost().write(detail::Kind::InstanceOpen, id, payload.bytes())) {
             return false;
         }
+        remote.generation = generation;
+        remote.opened = true;
+        return true;
+    }
+
+    struct TapRemote {
+        std::uint32_t index = 0;
+        TapOpen info;
+        TapEvents events;
+        std::shared_ptr<detail::TapSection> section;
+        std::uint64_t generation = 0;
+        bool opened = false;
+        bool failed = false;
+    };
+
+    bool openTapRemote(std::uint64_t id, TapRemote& remote)
+    {
+        if (state != State::Ready || !channel || process == nullptr || remote.section == nullptr) {
+            return false;
+        }
+        HANDLE copy = nullptr;
+        if (DuplicateHandle(GetCurrentProcess(), remote.section->mapping(), process, &copy, 0, FALSE,
+                            DUPLICATE_SAME_ACCESS) == FALSE) {
+            return false;
+        }
+        remote.section->clear();
+        detail::WireWriter payload;
+        payload.u32(remote.index);
+        payload.text(remote.info.device);
+        payload.u32(remote.info.width);
+        payload.u32(remote.info.height);
+        payload.u32(remote.info.rotation);
+        payload.u64(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(copy)));
+        payload.u64(remote.section->bytes());
+        if (!channel->toHost().write(detail::Kind::TapOpen, id, payload.bytes())) {
+            DuplicateHandle(process, copy, nullptr, nullptr, 0, FALSE, DUPLICATE_CLOSE_SOURCE);
+            return false;
+        }
+        SetEvent(channel->toHostEvent());
         remote.generation = generation;
         remote.opened = true;
         return true;
@@ -637,6 +684,46 @@ struct HostedModule::Impl {
             }
             return;
         }
+        case detail::Kind::TapOverlay: {
+            std::vector<Shape> shapes;
+            if (!in.shapes(shapes) || !in.done()) {
+                return;
+            }
+            std::erase_if(shapes, [](const Shape& shape) { return !drawable(shape); });
+            std::function<void(std::vector<Shape>)> overlay;
+            {
+                const std::scoped_lock lock(mutex);
+                const auto found = taps.find(message.id);
+                if (found == taps.end() || found->second.generation != generation) {
+                    return;
+                }
+                overlay = found->second.events.overlay;
+            }
+            if (overlay) {
+                overlay(uniqueShapes(std::move(shapes)));
+            }
+            return;
+        }
+        case detail::Kind::TapFailed: {
+            std::string why;
+            if (!in.text(why, 4096) || why.empty()) {
+                why = "the frame tap did not start";
+            }
+            std::function<void(std::string)> failed;
+            {
+                const std::scoped_lock lock(mutex);
+                const auto found = taps.find(message.id);
+                if (found == taps.end()) {
+                    return;
+                }
+                found->second.failed = true;
+                failed = found->second.events.failed;
+            }
+            if (failed) {
+                failed(std::move(why));
+            }
+            return;
+        }
         default:
             return;
         }
@@ -781,6 +868,7 @@ struct HostedModule::Impl {
         bool failedLate = false;
         std::string why;
         std::set<std::string> dropped;
+        std::vector<std::function<void(std::vector<Shape>)>> cleared;
         DWORD code = 0;
         {
             const std::scoped_lock lock(mutex);
@@ -796,6 +884,12 @@ struct HostedModule::Impl {
             heard.clear();
             if (closing || state == State::Stopped) {
                 return;
+            }
+            for (auto& [id, tap] : taps) {
+                tap.opened = false;
+                if (tap.events.overlay) {
+                    cleared.push_back(tap.events.overlay);
+                }
             }
             for (auto& [id, answer] : answers) {
                 if (!answer) {
@@ -832,6 +926,9 @@ struct HostedModule::Impl {
             }
         }
         changed.notify_all();
+        for (const auto& overlay : cleared) {
+            overlay({});
+        }
         if (options.crashed) {
             options.crashed(static_cast<std::uint32_t>(code));
         }
@@ -990,6 +1087,8 @@ struct HostedModule::Impl {
     std::set<std::string, std::less<>> heard;
     std::map<std::uint64_t, std::shared_ptr<detail::StreamBox>> sources;
     std::map<std::uint64_t, std::shared_ptr<detail::SinkBox>> sinks;
+    std::map<std::uint64_t, TapRemote> taps;
+    std::uint64_t nextTap = 0;
     std::jthread reader;
 };
 
@@ -1412,6 +1511,78 @@ bool HostedModule::claimWanted(std::string_view resource, std::string_view by)
     payload.text(resource);
     payload.text(by);
     return m_impl->ask(detail::Kind::ClaimWanted, payload, "the extension", kClaimWantedWait).ok();
+}
+
+std::uint64_t HostedModule::openTap(std::size_t tap, const TapOpen& info, TapEvents events)
+{
+    Impl& d = *m_impl;
+    if (tap >= d.info.frameTaps.size() || info.device.size() > kMostDeviceBytes) {
+        return 0;
+    }
+    std::shared_ptr<detail::TapSection> section = detail::TapSection::create(info.width, info.height);
+    if (section == nullptr) {
+        return 0;
+    }
+    const std::scoped_lock lock(d.mutex);
+    if (d.state == Impl::State::Stopped) {
+        return 0;
+    }
+    const std::uint64_t id = ++d.nextTap;
+    Impl::TapRemote& remote = d.taps[id];
+    remote.index = static_cast<std::uint32_t>(tap);
+    remote.info = info;
+    remote.events = std::move(events);
+    remote.section = std::move(section);
+    static_cast<void>(d.openTapRemote(id, remote));
+    return id;
+}
+
+bool HostedModule::offerFrame(std::uint64_t tap, const TapFrame& frame)
+{
+    Impl& d = *m_impl;
+    if (!validTapFrame(frame)) {
+        return false;
+    }
+    std::shared_ptr<detail::TapSection> section;
+    {
+        const std::scoped_lock lock(d.mutex);
+        const auto found = d.taps.find(tap);
+        if (found == d.taps.end() || found->second.failed) {
+            return false;
+        }
+        if (d.state != Impl::State::Ready || !d.channel) {
+            return true;
+        }
+        Impl::TapRemote& remote = found->second;
+        if ((!remote.opened || remote.generation != d.generation) && !d.openTapRemote(tap, remote)) {
+            return true;
+        }
+        section = remote.section;
+    }
+    if (!section->put(frame)) {
+        return true;
+    }
+    const std::scoped_lock lock(d.mutex);
+    if (d.channel && d.taps.contains(tap) && d.channel->toHost().write(detail::Kind::TapFrame, tap, {})) {
+        SetEvent(d.channel->toHostEvent());
+    }
+    return true;
+}
+
+void HostedModule::closeTap(std::uint64_t tap)
+{
+    Impl& d = *m_impl;
+    const std::scoped_lock lock(d.mutex);
+    const auto found = d.taps.find(tap);
+    if (found == d.taps.end()) {
+        return;
+    }
+    const bool live = found->second.opened && found->second.generation == d.generation &&
+                      d.state == Impl::State::Ready && d.channel;
+    if (live && d.channel->toHost().write(detail::Kind::TapClose, tap, {})) {
+        SetEvent(d.channel->toHostEvent());
+    }
+    d.taps.erase(found);
 }
 
 int HostedModule::crashes() const

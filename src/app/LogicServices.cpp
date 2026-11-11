@@ -158,4 +158,18 @@ bool LogicServices::refuse(std::uint64_t logic, quint64 id, const QString& messa
     return true;
 }
 
+std::uint64_t LogicServices::keepFrame(std::uint64_t logic, const QImage& picture, script::PictureSize source,
+                                       quint64 frames) const
+{
+    ScriptRuntime* runtime = runtimeOf(logic);
+    return runtime != nullptr ? runtime->keepFrame(picture, source, frames) : 0;
+}
+
+void LogicServices::forgetFrames(std::uint64_t logic, quint64 frames) const
+{
+    if (ScriptRuntime* runtime = runtimeOf(logic)) {
+        runtime->forgetFrames(frames);
+    }
+}
+
 }

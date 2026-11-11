@@ -13,6 +13,7 @@ Item {
         layer.erase(id)
         drawings.append({
             drawingId: id,
+            group: "",
             kind: shown.kind ?? "box",
             fx: shown.x ?? 0,
             fy: shown.y ?? 0,
@@ -35,7 +36,46 @@ Item {
     }
 
     function clear() {
-        drawings.clear()
+        for (let i = drawings.count - 1; i >= 0; --i) {
+            if (drawings.get(i).group === "")
+                drawings.remove(i)
+        }
+    }
+
+    function setOverlay(group: string, shapes: var) {
+        const wanted = new Map()
+        for (const shape of shapes)
+            wanted.set(group + "/" + shape.id, shape)
+        for (let i = drawings.count - 1; i >= 0; --i) {
+            const entry = drawings.get(i)
+            if (entry.group !== group)
+                continue
+            const next = wanted.get(entry.drawingId)
+            if (next === undefined) {
+                drawings.remove(i)
+            } else {
+                drawings.set(i, layer.rowOf(entry.drawingId, group, next))
+                wanted.delete(entry.drawingId)
+            }
+        }
+        for (const [id, shape] of wanted)
+            drawings.append(layer.rowOf(id, group, shape))
+    }
+
+    function rowOf(id: string, group: string, shown: var): var {
+        return {
+            drawingId: id,
+            group: group,
+            kind: shown.kind ?? "box",
+            fx: shown.x ?? 0,
+            fy: shown.y ?? 0,
+            fw: shown.width ?? 0,
+            fh: shown.height ?? 0,
+            label: shown.text ?? "",
+            tone: shown.color ?? "accent",
+            image: "",
+            extension: shown.extension ?? ""
+        }
     }
 
     function setProgress(source: string, title: string, value: real) {
@@ -82,11 +122,13 @@ Item {
             required property string tone
             required property string image
             required property string extension
-            readonly property string tagText: shape.extension === "" ? shape.label
+            readonly property string tagText: shape.line ? ""
+                                              : shape.extension === "" ? shape.label
                                               : shape.label === "" ? shape.extension
                                               : qsTr("%1 · %2").arg(shape.extension).arg(shape.label)
             readonly property bool mark: shape.kind === "mark"
             readonly property bool area: shape.kind === "box" || shape.kind === "image"
+            readonly property bool line: shape.kind === "line"
 
             x: layer.picture.x + shape.fx * layer.picture.width - (shape.mark ? ring.width / 2 : 0)
             y: layer.picture.y + shape.fy * layer.picture.height - (shape.mark ? ring.height / 2 : 0)
@@ -109,6 +151,23 @@ Item {
                 color: "transparent"
                 border.width: shape.kind === "image" ? Theme.size.stroke : 2
                 border.color: layer.colorOf(shape.tone)
+            }
+
+            Rectangle {
+                id: stroke
+
+                readonly property real dx: shape.fw * layer.picture.width
+                readonly property real dy: shape.fh * layer.picture.height
+
+                objectName: "scriptDrawingLine"
+                visible: shape.line
+                width: Math.sqrt(stroke.dx * stroke.dx + stroke.dy * stroke.dy)
+                height: Theme.space.xxs
+                y: -height / 2
+                transformOrigin: Item.Left
+                rotation: Math.atan2(stroke.dy, stroke.dx) * 180 / Math.PI
+                antialiasing: true
+                color: layer.colorOf(shape.tone)
             }
 
             Rectangle {

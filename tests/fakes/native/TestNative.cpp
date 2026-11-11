@@ -444,6 +444,72 @@ void joinServiceCalls()
     }
 }
 
+struct TapBook {
+    int opened = 0;
+    int closed = 0;
+    int frames = 0;
+    bool refuse = false;
+    double pauseMs = 0.0;
+    std::string device;
+    uint32_t width = 0;
+    uint32_t height = 0;
+    uint32_t rotation = 0;
+    uint32_t frameWidth = 0;
+    uint32_t frameHeight = 0;
+    uint32_t stride = 0;
+    std::string first = "[]";
+    std::vector<uint64_t> times;
+};
+
+TapBook g_tap;
+
+int32_t tapStats(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    std::string out;
+    {
+        const std::scoped_lock lock(g_mutex);
+        out = "{\"opened\":" + std::to_string(g_tap.opened) + ",\"closed\":" + std::to_string(g_tap.closed) +
+              ",\"frames\":" + std::to_string(g_tap.frames) + ",\"device\":";
+        appendText(out, g_tap.device.data(), g_tap.device.size());
+        out += ",\"width\":" + std::to_string(g_tap.width) + ",\"height\":" + std::to_string(g_tap.height) +
+               ",\"rotation\":" + std::to_string(g_tap.rotation) + ",\"frameWidth\":" + std::to_string(g_tap.frameWidth) +
+               ",\"frameHeight\":" + std::to_string(g_tap.frameHeight) + ",\"stride\":" + std::to_string(g_tap.stride) +
+               ",\"first\":" + g_tap.first + ",\"times\":[";
+        for (size_t index = 0; index < g_tap.times.size(); ++index) {
+            out += (index == 0 ? "" : ",") + std::to_string(g_tap.times[index]);
+        }
+        out += "]}";
+    }
+    return giveText(result, GS_EXT_TYPE_JSON, out);
+}
+
+int32_t tapReset(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    {
+        const std::scoped_lock lock(g_mutex);
+        g_tap = TapBook{};
+    }
+    return giveFlag(result, true);
+}
+
+int32_t tapPause(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    {
+        const std::scoped_lock lock(g_mutex);
+        g_tap.pauseMs = args[0].number;
+    }
+    return giveFlag(result, true);
+}
+
+int32_t tapRefuse(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    {
+        const std::scoped_lock lock(g_mutex);
+        g_tap.refuse = args[0].number != 0.0;
+    }
+    return giveFlag(result, true);
+}
+
 int32_t claimWanted(void*, const char* resource, size_t size, const char* by, size_t bySize)
 {
     bool yields = false;
@@ -837,6 +903,7 @@ const uint32_t kOneFlag[] = {GS_EXT_TYPE_BOOLEAN};
 const uint32_t kInputEvent[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING, GS_EXT_TYPE_NUMBER, GS_EXT_TYPE_NUMBER,
                                 GS_EXT_TYPE_NUMBER};
 const uint32_t kInputBurst[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING, GS_EXT_TYPE_NUMBER};
+const uint32_t kOneNumber[] = {GS_EXT_TYPE_NUMBER};
 
 const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "add", kTwoNumbers, 2, GS_EXT_TYPE_NUMBER, nullptr, &add},
@@ -878,6 +945,10 @@ const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "lastOpen", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &lastOpen},
     {sizeof(gs_ext_node), "closedStreams", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &closedStreams},
     {sizeof(gs_ext_node), "setPhones", kOneJson, 1, GS_EXT_TYPE_NUMBER, nullptr, &setPhones},
+    {sizeof(gs_ext_node), "tapStats", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &tapStats},
+    {sizeof(gs_ext_node), "tapReset", nullptr, 0, GS_EXT_TYPE_BOOLEAN, nullptr, &tapReset},
+    {sizeof(gs_ext_node), "tapPause", kOneNumber, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &tapPause},
+    {sizeof(gs_ext_node), "tapRefuse", kOneNumber, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &tapRefuse},
 };
 
 const gs_ext_transport kLoop = {sizeof(gs_ext_transport), "loop",    nullptr,   &loopDiscover,
@@ -1554,6 +1625,65 @@ const gs_ext_media_sink kCollector = {sizeof(gs_ext_media_sink), "collector", nu
                                       &collectAudio, &closeCollector};
 const gs_ext_recording_exporter kCopy = {sizeof(gs_ext_recording_exporter), "copy", nullptr, &startCopy, &cancelCopy};
 
+int32_t counterOpen(void*, const gs_ext_tap_open* info, void** state)
+{
+    const std::scoped_lock lock(g_mutex);
+    if (g_tap.refuse) {
+        return GS_EXT_FAILED;
+    }
+    ++g_tap.opened;
+    g_tap.device = info->device != nullptr ? info->device : "";
+    g_tap.width = info->width;
+    g_tap.height = info->height;
+    g_tap.rotation = info->rotation;
+    *state = &g_tap;
+    return GS_EXT_OK;
+}
+
+int32_t counterFrame(void*, const gs_ext_frame* frame, gs_ext_overlay* overlay)
+{
+    double pause = 0.0;
+    {
+        const std::scoped_lock lock(g_mutex);
+        ++g_tap.frames;
+        g_tap.frameWidth = frame->width;
+        g_tap.frameHeight = frame->height;
+        g_tap.stride = frame->stride;
+        g_tap.times.push_back(frame->time_us);
+        const auto* pixel = static_cast<const unsigned char*>(frame->pixels);
+        g_tap.first = "[" + std::to_string(pixel[0]) + "," + std::to_string(pixel[1]) + "," + std::to_string(pixel[2]) +
+                      "," + std::to_string(pixel[3]) + "]";
+        pause = g_tap.pauseMs;
+    }
+    if (pause > 0.0) {
+        Sleep(static_cast<DWORD>(pause));
+    }
+    if (overlay->capacity < 1) {
+        return GS_EXT_FAILED;
+    }
+    gs_ext_shape& box = overlay->shapes[0];
+    box.kind = GS_EXT_SHAPE_RECT;
+    box.color = GS_EXT_COLOR_GOOD;
+    box.id = 1;
+    box.x = 0.1;
+    box.y = 0.2;
+    box.x2 = 0.3;
+    box.y2 = 0.4;
+    box.text = "box";
+    box.text_size = 3;
+    overlay->count = 1;
+    return GS_EXT_OK;
+}
+
+void counterClose(void*)
+{
+    const std::scoped_lock lock(g_mutex);
+    ++g_tap.closed;
+}
+
+const gs_ext_frame_tap kCounter = {sizeof(gs_ext_frame_tap), "counter", nullptr, &counterOpen, &counterFrame,
+                                   &counterClose};
+
 const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_TOUCH_METHOD, "recorder", &kRecorder},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "add", &kNodes[0]},
@@ -1611,6 +1741,11 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_AUDIO_SOURCE, "tone", &kTone},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_MEDIA_SINK, "collector", &kCollector},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_RECORDING_EXPORTER, "copy", &kCopy},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "tapStats", &kNodes[39]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "tapReset", &kNodes[40]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "tapPause", &kNodes[41]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "tapRefuse", &kNodes[42]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_FRAME_TAP, "counter", &kCounter},
 };
 
 const gs_ext_plugin kPlugin = {

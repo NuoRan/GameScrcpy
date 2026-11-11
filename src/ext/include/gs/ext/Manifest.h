@@ -34,11 +34,11 @@ inline constexpr std::array<std::string_view, 12> kExtensionPointNames{"profile"
 inline constexpr std::array<std::string_view, 8> kNativeTypeNames{"boolean", "number", "string",   "point",
                                                                   "region",  "color",  "duration", "json"};
 
-inline constexpr std::array<std::string_view, 21> kPermissionNames{
+inline constexpr std::array<std::string_view, 22> kPermissionNames{
     "device.input", "device.screen", "device.clipboard", "device.apps", "devices.other", "mapping",
     "notify",       "network",       "files.pick",       "files.paths", "input.read",    "hardware",
     "ai",           "devices.provide", "network.listen", "speech.listen", "events.app", "input.provide",
-    "transport",    "media.capture",   "media.output"};
+    "transport",    "media.capture",   "media.output",   "media.read"};
 inline constexpr std::size_t kMaxComponentNameLength = 48;
 inline constexpr std::string_view kNeverGrantedPermission = "adb.shell";
 
@@ -544,6 +544,32 @@ struct NativeRecordingExporter {
     friend bool operator==(const NativeRecordingExporter&, const NativeRecordingExporter&) = default;
 };
 
+inline constexpr std::size_t kMostFrameTaps = 8;
+inline constexpr std::int64_t kMostTapFps = 60;
+inline constexpr std::int64_t kDefaultTapFps = 30;
+inline constexpr std::int64_t kLeastTapSize = 64;
+inline constexpr std::int64_t kMostTapSize = 3840;
+inline constexpr std::int64_t kDefaultTapSize = 1280;
+inline constexpr std::string_view kMediaReadPermission = "media.read";
+
+struct NativeFrameTap {
+    std::string name;
+    std::string title;
+    std::optional<std::int64_t> fps;
+    std::optional<std::int64_t> size;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+        v.text("title", m.title, {.required = true, .maxLength = 40});
+        v.integer("fps", m.fps, 1, kMostTapFps);
+        v.integer("size", m.size, kLeastTapSize, kMostTapSize);
+    }
+
+    friend bool operator==(const NativeFrameTap&, const NativeFrameTap&) = default;
+};
+
 struct NativeContribution {
     std::string dll;
     TextMap dlls;
@@ -560,6 +586,7 @@ struct NativeContribution {
     std::vector<NativeAudioSource> audioSources;
     std::vector<NativeMediaSink> mediaSinks;
     std::vector<NativeRecordingExporter> recordingExporters;
+    std::vector<NativeFrameTap> frameTaps;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -582,6 +609,7 @@ struct NativeContribution {
         v.objectList("audioSources", m.audioSources, kMostMediaSources);
         v.objectList("mediaSinks", m.mediaSinks, kMostMediaSinks);
         v.objectList("recordingExporters", m.recordingExporters, kMostRecordingExporters);
+        v.objectList("frameTaps", m.frameTaps, kMostFrameTaps);
     }
 
     friend bool operator==(const NativeContribution&, const NativeContribution&) = default;

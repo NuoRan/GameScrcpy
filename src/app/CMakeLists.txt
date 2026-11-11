@@ -339,6 +339,8 @@ qt_add_qml_module(GameScrcpy
         McpTools.h
         McpTrace.cpp
         McpTrace.h
+        MediaFrames.cpp
+        MediaFrames.h
         MediaOffers.h
         MediaSinks.cpp
         MediaSinks.h

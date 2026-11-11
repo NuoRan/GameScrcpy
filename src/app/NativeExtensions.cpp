@@ -491,6 +491,7 @@ struct NativeExtensions::Entry {
     std::vector<std::optional<std::size_t>> audioIndex;
     std::vector<std::optional<std::size_t>> sinkIndex;
     std::vector<std::optional<std::size_t>> exporterIndex;
+    std::vector<std::optional<std::size_t>> tapIndex;
 };
 
 namespace {
@@ -575,6 +576,17 @@ void matchEntry(NativeExtensions::Entry& entry)
         if (!fits) {
             entry.problems.push_back({ext::Severity::Warning, ext::Code::NativeMismatch,
                                       where + ".transports[" + std::to_string(index) + "]", transport.name});
+        }
+    }
+    for (std::size_t index = 0; index < wanted.native.frameTaps.size(); ++index) {
+        const ext::NativeFrameTap& tap = wanted.native.frameTaps[index];
+        const auto found = std::ranges::find(info.frameTaps, tap.name, &exthost::FrameTapInfo::name);
+        const bool fits = found != info.frameTaps.end();
+        entry.tapIndex.push_back(
+            fits ? std::optional<std::size_t>(static_cast<std::size_t>(found - info.frameTaps.begin())) : std::nullopt);
+        if (!fits) {
+            entry.problems.push_back({ext::Severity::Warning, ext::Code::NativeMismatch,
+                                      where + ".frameTaps[" + std::to_string(index) + "]", tap.name});
         }
     }
     for (std::size_t index = 0; index < wanted.native.attachments.size(); ++index) {
@@ -1126,6 +1138,36 @@ std::shared_ptr<session::PhoneStreams> NativeExtensions::phoneStreams(
         break;
     }
     return makePhoneStreams(std::move(route), m_changes, std::move(package));
+}
+
+std::vector<FrameTapSource> NativeExtensions::frameTaps() const
+{
+    std::vector<FrameTapSource> list;
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        const NativeWanted& wanted = entry->wanted;
+        if (entry->module == nullptr || entry->pending || !entry->module->working() ||
+            std::ranges::find(wanted.granted, ext::kMediaReadPermission) == wanted.granted.end()) {
+            continue;
+        }
+        for (std::size_t index = 0; index < wanted.native.frameTaps.size(); ++index) {
+            if (index >= entry->tapIndex.size() || !entry->tapIndex[index]) {
+                continue;
+            }
+            const ext::NativeFrameTap& tap = wanted.native.frameTaps[index];
+            list.push_back({.extension = wanted.id,
+                            .extensionName = wanted.name,
+                            .name = tap.name,
+                            .title = index < wanted.tapTitles.size() && !wanted.tapTitles[index].isEmpty()
+                                         ? wanted.tapTitles[index]
+                                         : QString::fromStdString(tap.title),
+                            .fps = static_cast<int>(tap.fps.value_or(ext::kDefaultTapFps)),
+                            .size = static_cast<int>(tap.size.value_or(ext::kDefaultTapSize)),
+                            .module = entry->module,
+                            .identity = entry->module.get(),
+                            .index = *entry->tapIndex[index]});
+        }
+    }
+    return list;
 }
 
 void NativeExtensions::setGlobals(GlobalChoices globals)

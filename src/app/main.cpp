@@ -30,6 +30,7 @@
 #include "McpDrafts.h"
 #include "McpServer.h"
 #include "McpTools.h"
+#include "MediaFrames.h"
 #include "MediaSinks.h"
 #include "MirrorWindow.h"
 #include "NativeEvents.h"
@@ -458,6 +459,10 @@ int main(int argc, char* argv[])
     gs::app::LocalServers localServers(nullptr);
     localServers.follow(extensions);
     localServers.offerServices();
+    gs::app::MediaFrames mediaFrames(nullptr);
+    mediaFrames.setSettings(&settings);
+    mediaFrames.follow(extensions);
+    mediaFrames.offerServices();
     gs::app::NativeJobs nativeJobs(*extensions.native());
     nativeJobs.offerServices();
     gs::app::SpeechEngines speechEngines(nullptr);
@@ -522,6 +527,47 @@ int main(int argc, char* argv[])
     QObject::connect(&extensions, &gs::app::ExtensionHost::scriptsChanged, &extensionLogic,
                      [&extensionLogic, &extensions] { extensionLogic.setScripts(extensions.scripts()); });
     devices.setExtensionLogic(&extensionLogic);
+    mediaFrames.setSources(
+        {.phones =
+             [&devices] {
+                 std::vector<gs::app::FramePhone> phones;
+                 for (const QVariant& item : devices.mirrors()) {
+                     const QString serial = item.toMap().value(u"serial"_s).toString();
+                     std::shared_ptr<gs::media::FrameSnapshots> snapshots = devices.snapshotsOf(serial);
+                     if (snapshots == nullptr) {
+                         continue;
+                     }
+                     const std::optional<gs::app::DeviceFacts> facts = devices.facts(serial);
+                     const std::optional<gs::script::DeviceInfo> info = devices.deviceInfo(serial);
+                     phones.push_back({.serial = serial,
+                                       .deviceKey = facts && !facts->deviceId.isEmpty() ? facts->deviceId : serial,
+                                       .snapshots = std::move(snapshots),
+                                       .rotation = info ? info->rotation : 0});
+                 }
+                 return phones;
+             },
+         .taps = [&extensions] { return extensions.native()->frameTaps(); },
+         .overlay =
+             [](const QString& serial, const QString& group, const QVariantList& shapes) {
+                 for (QWindow* window : QGuiApplication::topLevelWindows()) {
+                     if (auto* mirror = qobject_cast<gs::app::MirrorWindow*>(window);
+                         mirror != nullptr && mirror->serial() == serial) {
+                         mirror->setOverlay(group, shapes);
+                     }
+                 }
+             }});
+    QObject::connect(&devices, &gs::app::DeviceManager::mirrorsChanged, &mediaFrames, &gs::app::MediaFrames::sync);
+    QObject::connect(&devices, &QAbstractItemModel::dataChanged, &mediaFrames,
+                     [&mediaFrames](const QModelIndex&, const QModelIndex&, const QList<int>& roles) {
+                         if (roles.isEmpty() || std::ranges::any_of(roles, [](int role) {
+                                 return role != gs::app::DeviceManager::StatsRole &&
+                                        role != gs::app::DeviceManager::ThumbnailRole;
+                             })) {
+                             mediaFrames.sync();
+                         }
+                     });
+    QObject::connect(extensions.native(), &gs::app::NativeExtensions::changed, &mediaFrames,
+                     &gs::app::MediaFrames::sync);
     hardware.setFeed([&devices](const QString& serial,
                                 const gs::input::DeviceEvent& event) { devices.feedInput(serial, event); },
                      [&devices] { return devices.focusedPhone(); });

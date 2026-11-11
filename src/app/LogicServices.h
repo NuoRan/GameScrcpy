@@ -15,6 +15,8 @@
 #include <utility>
 #include <vector>
 
+class QImage;
+
 namespace gs::app {
 
 class ScriptRuntime;
@@ -55,6 +57,9 @@ public:
     [[nodiscard]] bool tell(std::uint64_t logic, const QString& kind, const QString& id, const QString& json) const;
     [[nodiscard]] bool answer(std::uint64_t logic, quint64 id, const QString& json) const;
     [[nodiscard]] bool refuse(std::uint64_t logic, quint64 id, const QString& message) const;
+    [[nodiscard]] std::uint64_t keepFrame(std::uint64_t logic, const QImage& picture, script::PictureSize source,
+                                          quint64 frames) const;
+    void forgetFrames(std::uint64_t logic, quint64 frames) const;
 
 signals:
     void logicStarted(quint64 logic);

@@ -63,6 +63,9 @@ extern "C" {
 /* The rate of all sound that goes between a DLL and GameScrcpy, in frames a second. */
 #define GS_EXT_SOUND_RATE 48000
 
+/* A contribution whose data is a gs_ext_frame_tap. */
+#define GS_EXT_KIND_FRAME_TAP "frame-tap"
+
 /* What a node parameter or result holds. The names in the manifest's contributes.native are the same types. */
 enum gs_ext_type {
     /* No value: the result of a node that gives nothing back. */
@@ -219,6 +222,38 @@ enum gs_ext_sample_format {
     GS_EXT_SAMPLE_F32 = 2,
 };
 
+/* How the pixels of a gs_ext_frame are laid out. */
+enum gs_ext_frame_format {
+    /* pixels holds 4 bytes for each pixel, blue, green, red and 255, in rows from the top that start stride bytes apart. */
+    GS_EXT_FRAME_BGRA = 0,
+};
+
+/* What a gs_ext_shape draws. */
+enum gs_ext_shape_kind {
+    /* The outline of a rectangle with corners at x, y and x2, y2. */
+    GS_EXT_SHAPE_RECT = 0,
+    /* A line from x, y to x2, y2. */
+    GS_EXT_SHAPE_LINE = 1,
+    /* A ring around the point x, y; x2 and y2 are not used. */
+    GS_EXT_SHAPE_POINT = 2,
+    /* The text on a small plate whose top left corner is at x, y; x2 and y2 are not used. */
+    GS_EXT_SHAPE_TEXT = 3,
+};
+
+/* The color of a gs_ext_shape: the colors that logic draws with. */
+enum gs_ext_shape_color {
+    /* The accent color of the theme. */
+    GS_EXT_COLOR_ACCENT = 0,
+    /* The color the theme uses for success. */
+    GS_EXT_COLOR_GOOD = 1,
+    /* The color the theme uses for warnings. */
+    GS_EXT_COLOR_WARN = 2,
+    /* The color the theme uses for problems. */
+    GS_EXT_COLOR_BAD = 3,
+    /* White. */
+    GS_EXT_COLOR_WHITE = 4,
+};
+
 typedef struct gs_ext_value gs_ext_value;
 typedef struct gs_ext_result gs_ext_result;
 typedef struct gs_ext_contact gs_ext_contact;
@@ -238,6 +273,11 @@ typedef struct gs_ext_job gs_ext_job;
 typedef struct gs_ext_device_provider gs_ext_device_provider;
 typedef struct gs_ext_stream_open gs_ext_stream_open;
 typedef struct gs_ext_transport gs_ext_transport;
+typedef struct gs_ext_tap_open gs_ext_tap_open;
+typedef struct gs_ext_frame gs_ext_frame;
+typedef struct gs_ext_shape gs_ext_shape;
+typedef struct gs_ext_overlay gs_ext_overlay;
+typedef struct gs_ext_frame_tap gs_ext_frame_tap;
 typedef struct gs_ext_host gs_ext_host;
 typedef struct gs_ext_contribution gs_ext_contribution;
 typedef struct gs_ext_plugin gs_ext_plugin;
@@ -574,6 +614,90 @@ struct gs_ext_transport {
     void (*close)(void* context, uint64_t stream);
 };
 
+/* The phone a frame tap starts reading. */
+struct gs_ext_tap_open {
+    /* sizeof(gs_ext_tap_open) in GameScrcpy. */
+    uint32_t size;
+    /* The phone's serial number, UTF-8 ended by a zero byte. */
+    const char* device;
+    /* The width in pixels of the frames the tap gets. */
+    uint32_t width;
+    /* The height in pixels of the frames the tap gets. */
+    uint32_t height;
+    /* How far the picture is turned from the phone's natural orientation, in quarter turns from 0 to 3. When the picture turns or changes size, GameScrcpy closes the tap and opens it again. */
+    uint32_t rotation;
+};
+
+/* One frame of the mirrored picture. */
+struct gs_ext_frame {
+    /* sizeof(gs_ext_frame) in GameScrcpy. */
+    uint32_t size;
+    /* How the picture is given, one of gs_ext_frame_format; a later version may add formats, such as a texture on the graphics card, for a tap that asks for them. */
+    uint32_t format;
+    /* The picture, read-only and valid until frame returns; copy what you need to keep. */
+    const void* pixels;
+    /* How many bytes apart the rows start, at least 4 * width. */
+    uint32_t stride;
+    /* The width in pixels of the picture as shown, made smaller so that its long side is at most the size in the manifest. */
+    uint32_t width;
+    /* The height in pixels. */
+    uint32_t height;
+    /* When the phone, or the capture card, made the frame, in microseconds of its own clock: only the time between two frames means something. */
+    uint64_t time_us;
+};
+
+/* One shape that a frame tap draws over the picture. It never changes in later versions. */
+struct gs_ext_shape {
+    /* What it draws, one of gs_ext_shape_kind. */
+    uint32_t kind;
+    /* Its color, one of gs_ext_shape_color; another number draws it in the accent color. */
+    uint32_t color;
+    /* A number of the DLL's choosing, such as the object it marks: a shape with the id of one shown before takes its place, and of two shapes with the same id in one overlay only the last is drawn. */
+    uint32_t id;
+    /* The position, as a ratio of the frame width: 0 left, 1 right. */
+    double x;
+    /* The position, as a ratio of the frame height: 0 top, 1 bottom. */
+    double y;
+    /* The other corner of a rectangle or the other end of a line, as a ratio of the width. */
+    double x2;
+    /* The other corner of a rectangle or the other end of a line, as a ratio of the height. */
+    double y2;
+    /* UTF-8 text, not ended by a zero byte: what a GS_EXT_SHAPE_TEXT shape shows, or a label next to a rectangle or a point; lines show none. GameScrcpy copies up to 64 bytes before frame returns. May be NULL. */
+    const char* text;
+    /* How many bytes text has. */
+    size_t text_size;
+};
+
+/* Where a frame tap puts the shapes to draw over the picture. */
+struct gs_ext_overlay {
+    /* sizeof(gs_ext_overlay) in GameScrcpy. */
+    uint32_t size;
+    /* Room for capacity shapes. */
+    gs_ext_shape* shapes;
+    /* How many shapes fit: 256. */
+    uint32_t capacity;
+    /* How many shapes there are. It starts at 0: the shapes of each frame take the place of all shapes shown before, so give them again with every frame, and leave 0 to show nothing. */
+    uint32_t count;
+    /* It starts at 0; set it to 1 to leave the shapes shown before as they are, for example for a frame the DLL skipped. */
+    uint32_t keep;
+};
+
+/* A frame tap: reads the mirrored picture of each phone where the user turns it on in the More menu of the mirror window, and draws shapes over it. It needs the permission media.read. The calls for one state come one at a time. */
+struct gs_ext_frame_tap {
+    /* sizeof(gs_ext_frame_tap) in the DLL. */
+    uint32_t size;
+    /* The name of the frame tap in the manifest's contributes.native.frameTaps. */
+    const char* name;
+    /* Passed back to open. */
+    void* context;
+    /* Starts reading the picture of one phone; keep what you need in *state. Anything but GS_EXT_OK leaves the tap off on that phone until the user turns it on again or the phone connects again. */
+    int32_t (*open)(void* context, const gs_ext_tap_open* info, void** state);
+    /* One frame of the picture, at most as many a second as the manifest's fps. It is called on a thread of GameScrcpy's own for the tap and may take its time: one newer frame waits meanwhile, and a frame that comes after it takes its place. Put the shapes to draw over the picture into overlay; anything but GS_EXT_OK leaves the shapes shown before as they are. */
+    int32_t (*frame)(void* state, const gs_ext_frame* frame, gs_ext_overlay* overlay);
+    /* Stops reading, after the last frame: the user turned the tap off, the phone went away or the extension stops. Free the state; GameScrcpy takes the shapes away. */
+    void (*close)(void* state);
+};
+
 /* What GameScrcpy gives a DLL. */
 struct gs_ext_host {
     /* sizeof(gs_ext_host) in GameScrcpy; later versions only add functions at the end. */
@@ -598,7 +722,7 @@ struct gs_ext_host {
     int32_t (*set_text)(gs_ext_result* result, uint32_t type, const char* text, size_t size);
     /* Says why a node failed; the script that called it gets the text in its error. */
     int32_t (*set_error)(gs_ext_result* result, const char* text, size_t size);
-    /* 1 when this GameScrcpy has the feature, such as "jobs", "events", "settings", "claims", "job-output", "app-events", "transports" or "media", otherwise 0; ask before using a function that a later version added. */
+    /* 1 when this GameScrcpy has the feature, such as "jobs", "events", "settings", "claims", "job-output", "app-events", "transports", "media" or "frame-taps", otherwise 0; ask before using a function that a later version added. */
     int32_t (*supports)(void* context, const char* feature);
     /* Tells how far a job got: fraction from 0 to 1, or -1 when it cannot tell, and a short UTF-8 line about the step it is on. GameScrcpy passes on at most 20 a second and drops the others in between. */
     int32_t (*job_progress)(void* context, uint64_t job, double fraction, const char* text, size_t size);
@@ -666,7 +790,7 @@ struct gs_ext_plugin {
     uint32_t abi_version;
     /* Passed back to unload. */
     void* context;
-    /* How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments, 32 behaviors, 32 jobs, 8 device providers, 8 transports, 8 video sources, 8 audio sources, 8 media sinks and 8 recording exporters. */
+    /* How many contributions there are: at most 8 touch methods, 64 nodes, 32 attachments, 32 behaviors, 32 jobs, 8 device providers, 8 transports, 8 video sources, 8 audio sources, 8 media sinks, 8 recording exporters and 8 frame taps. */
     uint32_t contribution_count;
     /* What the DLL offers. */
     const gs_ext_contribution* contributions;

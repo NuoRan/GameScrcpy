@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <set>
 
 namespace gs::exthost {
 
@@ -68,6 +69,27 @@ bool validResource(std::string_view resource) noexcept
                    return (given >= 'A' && given <= 'Z' ? static_cast<char>(given - 'A' + 'a') : given) == wanted;
                });
     });
+}
+
+bool validTapFrame(const TapFrame& frame) noexcept
+{
+    constexpr std::uint32_t kMostStride = 4 * kMostTapSide + 4096;
+    return frame.pixels != nullptr && frame.width >= 1 && frame.height >= 1 && frame.width <= kMostTapSide &&
+           frame.height <= kMostTapSide && frame.stride >= 4 * frame.width && frame.stride <= kMostStride;
+}
+
+std::vector<Shape> uniqueShapes(std::vector<Shape> shapes)
+{
+    std::set<std::uint32_t> seen;
+    std::vector<Shape> kept;
+    kept.reserve(shapes.size());
+    for (auto shape = shapes.rbegin(); shape != shapes.rend(); ++shape) {
+        if (seen.insert(shape->id).second) {
+            kept.push_back(std::move(*shape));
+        }
+    }
+    std::ranges::reverse(kept);
+    return kept;
 }
 
 bool validUtf8(std::string_view text) noexcept

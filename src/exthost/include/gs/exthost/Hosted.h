@@ -97,6 +97,9 @@ public:
     void closeSink(std::uint64_t sink) override;
     [[nodiscard]] std::uint64_t startExport(std::size_t exporter, std::string_view input, std::string_view output,
                                             JobEvents events) override;
+    [[nodiscard]] std::uint64_t openTap(std::size_t tap, const TapOpen& info, TapEvents events) override;
+    [[nodiscard]] bool offerFrame(std::uint64_t tap, const TapFrame& frame) override;
+    void closeTap(std::uint64_t tap) override;
 
     [[nodiscard]] int crashes() const;
     [[nodiscard]] bool waitReady(std::chrono::milliseconds limit) const;

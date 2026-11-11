@@ -2388,6 +2388,26 @@
           ]
         }
       ]
+    },
+    {
+      "name": "media",
+      "functions": [
+        {
+          "name": "frames",
+          "signature": "media.frames(handler: (frame: TaskContext & { readonly image: CapturedImage; readonly time: number }) => void | Promise<void>, options?: MediaFrameOptions): Subscription",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-008",
+            "GS-API-120",
+            "GS-API-121",
+            "GS-API-122",
+            "GS-API-072",
+            "GS-API-073"
+          ]
+        }
+      ]
     }
   ],
   "interfaces": [
@@ -3533,6 +3553,10 @@
     {
       "name": "AiAskOptions",
       "definition": "{ readonly picture?: boolean | Region | RegionName; readonly timeoutMs?: number }"
+    },
+    {
+      "name": "MediaFrameOptions",
+      "definition": "{ readonly fps?: number; readonly size?: number; readonly region?: Region }"
     }
   ]
 }

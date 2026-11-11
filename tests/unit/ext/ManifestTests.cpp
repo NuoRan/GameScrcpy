@@ -929,6 +929,68 @@ TEST_CASE("ADR-0112: native transports load with their titles and icons, survive
     CHECK(transport["properties"]["name"]["pattern"] == "^[a-z][A-Za-z0-9]*$");
 }
 
+TEST_CASE("ADR-0112: native frame taps load with their rate and size, survive a save and a load, are checked and "
+          "need the permission media.read")
+{
+    Json json = nativeBase();
+    json["contributes"]["native"]["frameTaps"] =
+        Json::array({{{"name", "detector"}, {"title", "Find enemies"}, {"fps", 60}, {"size", 3840}},
+                     {{"name", "reader"}, {"title", "Read the score"}}});
+    json["permissions"].push_back({{"name", "media.read"}, {"reason", "Finds enemies in the picture."}});
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    REQUIRE(loaded.manifest.contributes.native.has_value());
+    const std::vector<NativeFrameTap>& taps = loaded.manifest.contributes.native->frameTaps;
+    REQUIRE(taps.size() == 2);
+    CHECK(taps[0] == NativeFrameTap{.name = "detector", .title = "Find enemies", .fps = 60, .size = 3840});
+    CHECK(taps[1].name == "reader");
+    CHECK_FALSE(taps[1].fps.has_value());
+    CHECK_FALSE(taps[1].size.has_value());
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+
+    json["permissions"] = Json::array({{{"name", "notify"}, {"reason", "Shows when it beeps."}}});
+    json["contributes"]["native"]["frameTaps"][0]["fps"] = 0;
+    json["contributes"]["native"]["frameTaps"][1]["size"] = 4000;
+    json["contributes"]["native"]["frameTaps"].push_back({{"name", "detector"}, {"title", "Again"}});
+    json["contributes"]["native"]["frameTaps"].push_back({{"name", "Bad"}, {"title", "Bad"}, {"fps", 61}, {"size", 63}});
+    json["contributes"]["native"]["frameTaps"].push_back({{"name", "slow"}, {"fps", 2.5}});
+    loaded = load(json);
+    INFO(listed(loaded));
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::NativePermissionUndeclared, "$.contributes.native.frameTaps"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.frameTaps[0].fps"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.frameTaps[1].size"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.native.frameTaps[2].name"));
+    CHECK(reports(loaded, Code::NativeNameInvalid, "$.contributes.native.frameTaps[3].name"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.frameTaps[3].fps"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.frameTaps[3].size"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.native.frameTaps[4].title"));
+    CHECK(reports(loaded, Code::WrongType, "$.contributes.native.frameTaps[4].fps"));
+
+    json = nativeBase();
+    json["contributes"]["native"]["frameTaps"] = Json::array();
+    for (int index = 0; index < 9; ++index) {
+        json["contributes"]["native"]["frameTaps"].push_back(
+            {{"name", "tap" + std::to_string(index)}, {"title", "Tap"}});
+    }
+    json["permissions"].push_back({{"name", "media.read"}, {"reason", "Reads the picture."}});
+    loaded = load(json);
+    CHECK(reports(loaded, Code::TooMany, "$.contributes.native.frameTaps"));
+
+    const Json schema = Json::parse(manifestJsonSchema());
+    const Json tap = schema["properties"]["contributes"]["properties"]["native"]["properties"]["frameTaps"]["items"];
+    CHECK(tap["required"] == Json::array({"name", "title"}));
+    CHECK(tap["properties"]["fps"]["minimum"] == 1);
+    CHECK(tap["properties"]["fps"]["maximum"] == kMostTapFps);
+    CHECK(tap["properties"]["size"]["minimum"] == kLeastTapSize);
+    CHECK(tap["properties"]["size"]["maximum"] == kMostTapSize);
+    CHECK(std::ranges::find(kPermissionNames, std::string_view("media.read")) != kPermissionNames.end());
+}
+
 namespace {
 
 Json panelBase()

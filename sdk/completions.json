@@ -1757,6 +1757,20 @@
     "insertText": "ai.ask(${1:question})"
   },
   {
+    "label": "media",
+    "kind": "namespace",
+    "detail": "media",
+    "documentation": "The phone's picture as frames, for analysis and AI; the logic of an extension needs the permission media.read.",
+    "insertText": "media"
+  },
+  {
+    "label": "media.frames",
+    "kind": "function",
+    "detail": "media.frames(handler: (frame: TaskContext & { readonly image: CapturedImage; readonly time: number }) => void | Promise<void>, options?: MediaFrameOptions): Subscription",
+    "documentation": "Hands the phone's picture to a handler: the frame shown when it starts, then new ones, at most fps a second (2 by default), made smaller so that the long side is at most size pixels (640 by default), and cut to region when one is given. The image is a CapturedImage as vision.capture() gives; it stays usable while its handler runs and until two newer frames came. Frames taken in a task stop when the task ends, ones taken at the top level when the logic stops.",
+    "insertText": "media.frames(${1:handler})"
+  },
+  {
     "label": "ui.menu.on",
     "kind": "function",
     "detail": "ui.menu.on(type: \"select\", handler: (event: UiEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
@@ -4653,5 +4667,12 @@
     "detail": "type AiAskOptions",
     "documentation": "What ai.ask() sends along and how long it waits: picture true for the whole phone picture, a region or the name of one for that part of it, false or nothing for no picture; timeoutMs from 1000 to 120000 milliseconds, 60000 by default.",
     "insertText": "AiAskOptions"
+  },
+  {
+    "label": "MediaFrameOptions",
+    "kind": "type",
+    "detail": "type MediaFrameOptions",
+    "documentation": "How media.frames() takes frames: at most fps a second, from 0.1 to 10 (2 by default); the long side at most size pixels, a whole number from 64 to 1920 (640 by default); only region, a part of the picture in ratios, when it is given.",
+    "insertText": "MediaFrameOptions"
   }
 ]

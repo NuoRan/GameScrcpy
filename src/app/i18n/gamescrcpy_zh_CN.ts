@@ -6458,6 +6458,10 @@
         <translation>可把录像导出为：%1</translation>
     </message>
     <message>
+        <source>Picture readers: %1</source>
+        <translation>读取画面：%1</translation>
+    </message>
+    <message>
         <source>Its DLL runs in a process of its own; when that stops three times within a minute, the extension is turned off.</source>
         <translation>它的 DLL 在单独的进程里运行；这个进程一分钟内停止三次，扩展就会被关闭。</translation>
     </message>
@@ -10989,6 +10993,10 @@
         <translation>扩展面板</translation>
     </message>
     <message>
+        <source>Extensions reading the picture</source>
+        <translation>读取画面的扩展</translation>
+    </message>
+    <message>
         <source>Vision workbench</source>
         <translation>识图工作台</translation>
     </message>
@@ -13273,6 +13281,10 @@
         <translation>逻辑向“设置 &gt; AI”里配好的 AI 服务提问；只有那里的“允许逻辑调用 AI”打开时才能用。</translation>
     </message>
     <message>
+        <source>The phone&apos;s picture as frames, for analysis and AI; the logic of an extension needs the permission media.read.</source>
+        <translation>以帧的形式取得手机画面，供分析与 AI 使用；扩展的逻辑需要权限 media.read。</translation>
+    </message>
+    <message>
         <source>A component of the profile in use. Every type below has these members too.</source>
         <translation>当前方案里的一个组件。下面各类组件也都有这些成员。</translation>
     </message>
@@ -14725,6 +14737,10 @@
         <translation>ai.ask() 随问题发什么、等多久：picture 为 true 发整个手机画面，为区域或区域名发那一块，为 false 或不写就不发画面；timeoutMs 为 1000 到 120000 毫秒，默认 60000。</translation>
     </message>
     <message>
+        <source>How media.frames() takes frames: at most fps a second, from 0.1 to 10 (2 by default); the long side at most size pixels, a whole number from 64 to 1920 (640 by default); only region, a part of the picture in ratios, when it is given.</source>
+        <translation>media.frames() 怎样取帧：每秒最多 fps 帧，0.1～10（默认 2）；长边最多 size 像素，64～1920 的整数（默认 640）；给了 region（按比例表示的一块画面）时只取这一块。</translation>
+    </message>
+    <message>
         <source>Runs a handler again and again, waiting intervalMs before each run.</source>
         <translation>反复执行处理函数，每次之前等 intervalMs。</translation>
     </message>
@@ -14879,6 +14895,58 @@
     <message>
         <source>the topic is not 1 to 64 lowercase letters, digits, dots and dashes, after an extension id and a colon or alone</source>
         <translation>主题不是 1～64 个小写字母、数字、点和短横线（单独写，或写在扩展 id 和冒号之后）</translation>
+    </message>
+    <message>
+        <source>Hands the phone&apos;s picture to a handler: the frame shown when it starts, then new ones, at most fps a second (2 by default), made smaller so that the long side is at most size pixels (640 by default), and cut to region when one is given. The image is a CapturedImage as vision.capture() gives; it stays usable while its handler runs and until two newer frames came. Frames taken in a task stop when the task ends, ones taken at the top level when the logic stops.</source>
+        <translation>把手机画面交给处理函数：先是开始时显示的那一帧，之后是新的帧，每秒最多 fps 帧（默认 2），缩小到长边最多 size 像素（默认 640），给了 region 时裁成这一块。图像是 CapturedImage，与 vision.capture() 给的一样；在它的处理函数运行期间、以及又来了两帧更新的帧之前都可以用。在任务里取的帧随任务结束而停止，在顶层取的随逻辑停止而停止。</translation>
+    </message>
+    <message>
+        <source>Runs as a task for each frame with its picture and the time the phone made it, in milliseconds of the phone&apos;s own clock; a frame that comes while it still runs is left out.</source>
+        <translation>每一帧作为一个任务运行，收到它的画面和手机生成它的时间（手机自己时钟的毫秒数）；它还在运行时来的帧会被跳过。</translation>
+    </message>
+    <message>
+        <source>How often, how large and which part of the picture.</source>
+        <translation>多久取一次、取多大，以及取画面的哪一部分。</translation>
+    </message>
+    <message>
+        <source>Pass fps from 0.1 to 10, size from 64 to 1920 and a region in ratios from 0 to 1.</source>
+        <translation>传 0.1 到 10 的 fps、64 到 1920 的 size，以及用 0 到 1 的比例表示的 region。</translation>
+    </message>
+    <message>
+        <source>fps is not from 0.1 to 10, size is not a whole number from 64 to 1920, or the region is not a part of the picture</source>
+        <translation>fps 不在 0.1 到 10 之间，size 不是 64 到 1920 的整数，或者 region 不在画面之内</translation>
+    </message>
+    <message>
+        <source>Take frames on a phone whose picture is shown.</source>
+        <translation>在显示着画面的手机上取帧。</translation>
+    </message>
+    <message>
+        <source>the phone shows no picture, such as a touch box without a capture card</source>
+        <translation>这台手机没有画面，例如没有采集卡的触控盒</translation>
+    </message>
+    <message>
+        <source>Dispose a subscription it no longer needs.</source>
+        <translation>释放不再需要的订阅。</translation>
+    </message>
+    <message>
+        <source>this logic takes frames with 4 subscriptions already</source>
+        <translation>这份逻辑已经用 4 个订阅在取帧</translation>
+    </message>
+    <message>
+        <source>Add &quot;media.read&quot; to the permissions in the extension&apos;s manifest, with a reason.</source>
+        <translation>在扩展清单的 permissions 里加上 &quot;media.read&quot; 并写明理由。</translation>
+    </message>
+    <message>
+        <source>the logic belongs to an extension whose manifest does not ask for the permission media.read</source>
+        <translation>这份逻辑所属的扩展在清单里没有申请权限 media.read</translation>
+    </message>
+    <message>
+        <source>Take frames in a session script.</source>
+        <translation>改在会话脚本里取帧。</translation>
+    </message>
+    <message>
+        <source>the logic has no phone, such as the app script of an extension</source>
+        <translation>这份逻辑没有手机，例如扩展的 app 脚本</translation>
     </message>
     <message>
         <source>What to run for each event; value is what came with it.</source>
@@ -22082,6 +22150,10 @@
     <message>
         <source>Send the picture or the sound elsewhere</source>
         <translation>把画面或声音送到别处</translation>
+    </message>
+    <message>
+        <source>Read the mirrored picture and sound</source>
+        <translation>读取投屏的画面与声音</translation>
     </message>
     <message>
         <source>Its script %1 is not in the extension</source>

@@ -26,6 +26,7 @@ public:
     void command(const TouchCommand& command);
     void answer(const StepOutput& answer);
     void inputs(const std::vector<DeclaredInput>& declared);
+    void shapes(const std::vector<Shape>& shapes);
 
     [[nodiscard]] const std::string& bytes() const noexcept { return m_bytes; }
 
@@ -61,6 +62,7 @@ public:
     [[nodiscard]] bool command(TouchCommand& out);
     [[nodiscard]] bool answer(StepOutput& out);
     [[nodiscard]] bool inputs(std::vector<DeclaredInput>& out);
+    [[nodiscard]] bool shapes(std::vector<Shape>& out);
     [[nodiscard]] bool done() const noexcept { return m_at == m_bytes.size(); }
 
 private:

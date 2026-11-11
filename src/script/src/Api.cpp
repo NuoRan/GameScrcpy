@@ -4036,6 +4036,38 @@ constexpr Function kEvents[] = {
      kEventsOnFailures},
 };
 
+constexpr Param kMediaFramesParams[] = {
+    {"handler",
+     "(frame: TaskContext & { readonly image: CapturedImage; readonly time: number }) => void | Promise<void>",
+     "Runs as a task for each frame with its picture and the time the phone made it, in milliseconds of the phone's "
+     "own clock; a frame that comes while it still runs is left out."},
+    {"options", "MediaFrameOptions", "How often, how large and which part of the picture.", true},
+};
+constexpr Failure kMediaFramesFailures[] = {
+    {"GS-API-008", "the handler is not a function", "Pass a function."},
+    {"GS-API-120",
+     "fps is not from 0.1 to 10, size is not a whole number from 64 to 1920, or the region is not a part of the "
+     "picture",
+     "Pass fps from 0.1 to 10, size from 64 to 1920 and a region in ratios from 0 to 1."},
+    {"GS-API-121", "the phone shows no picture, such as a touch box without a capture card",
+     "Take frames on a phone whose picture is shown."},
+    {"GS-API-122", "this logic takes frames with 4 subscriptions already", "Dispose a subscription it no longer needs."},
+    {"GS-API-072", "the logic belongs to an extension whose manifest does not ask for the permission media.read",
+     "Add \"media.read\" to the permissions in the extension's manifest, with a reason."},
+    {"GS-API-073", "the logic has no phone, such as the app script of an extension", "Take frames in a session script."},
+};
+
+constexpr Function kMedia[] = {
+    {"frames", kMediaFramesParams, "Subscription",
+     "Hands the phone's picture to a handler: the frame shown when it starts, then new ones, at most fps a second (2 "
+     "by default), made smaller so that the long side is at most size pixels (640 by default), and cut to region when "
+     "one is given. The image is a CapturedImage as vision.capture() gives; it stays usable while its handler runs "
+     "and until two newer frames came. Frames taken in a task stop when the task ends, ones taken at the top level "
+     "when the logic stops.",
+     "media.frames(({ image, time }) => log.info(time, image.width, image.height), { fps: 1, size: 320 });", nullptr,
+     0, kMediaFramesFailures},
+};
+
 constexpr Namespace kNamespaces[] = {
     {"log", "Lines in the script console, with the task that wrote them.", kLog},
     {"time", "The script clock.", kTime},
@@ -4086,6 +4118,9 @@ constexpr Namespace kNamespaces[] = {
      "Questions from logic to the AI service set up in Settings, AI; they work only while Let logic call AI "
      "is on there.",
      kAi},
+    {"media", "The phone's picture as frames, for analysis and AI; the logic of an extension needs the permission "
+              "media.read.",
+     kMedia},
 };
 
 constexpr Namespace kAttached[] = {
@@ -4533,6 +4568,10 @@ constexpr Type kTypes[] = {
      "What ai.ask() sends along and how long it waits: picture true for the whole phone picture, a region or the name "
      "of one for that part of it, false or nothing for no picture; timeoutMs from 1000 to 120000 milliseconds, 60000 by "
      "default."},
+    {"MediaFrameOptions", "{ readonly fps?: number; readonly size?: number; readonly region?: Region }",
+     "How media.frames() takes frames: at most fps a second, from 0.1 to 10 (2 by default); the long side at most size "
+     "pixels, a whole number from 64 to 1920 (640 by default); only region, a part of the picture in ratios, when it "
+     "is given."},
 };
 
 constexpr std::string_view kTouchStartDoc = "Starts a task each time it puts a finger on the screen.";

@@ -179,3 +179,28 @@ TEST_CASE("ADR-0112: the media contributions, their pictures and sound and the h
     }
     CHECK(std::ranges::all_of(header, [](char c) { return static_cast<unsigned char>(c) < 0x80; }));
 }
+
+TEST_CASE("ADR-0112: the C header describes frame taps: their kind, the frame with its format, the overlay of shapes "
+          "and their colors")
+{
+    const std::string header = generatedHeader();
+    CHECK(header.find("#define GS_EXT_KIND_FRAME_TAP \"frame-tap\"\n") != std::string::npos);
+    for (const std::string_view structure : {"gs_ext_tap_open", "gs_ext_frame", "gs_ext_overlay", "gs_ext_frame_tap"}) {
+        CAPTURE(structure);
+        const std::size_t defined = header.find("struct " + std::string(structure) + " {\n");
+        REQUIRE(defined != std::string::npos);
+        const std::size_t firstField = header.find(";\n", defined);
+        const std::size_t size = header.find("    uint32_t size;\n", defined);
+        CHECK(size + std::string_view("    uint32_t size").size() == firstField);
+    }
+    const std::size_t shape = header.find("struct gs_ext_shape {\n");
+    REQUIRE(shape != std::string::npos);
+    const std::size_t doc = header.rfind("/*", shape);
+    CHECK(header.substr(doc, shape - doc).find("never changes in later versions") != std::string::npos);
+    CHECK(header.find("    uint32_t format;\n") != std::string::npos);
+    CHECK(header.find("    GS_EXT_FRAME_BGRA = 0,\n") != std::string::npos);
+    CHECK(header.find("    GS_EXT_SHAPE_TEXT = 3,\n") != std::string::npos);
+    CHECK(header.find("    GS_EXT_COLOR_WHITE = 4,\n") != std::string::npos);
+    CHECK(header.find("int32_t (*frame)(void* state, const gs_ext_frame* frame, gs_ext_overlay* overlay);") !=
+          std::string::npos);
+}

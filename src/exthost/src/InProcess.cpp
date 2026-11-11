@@ -11,7 +11,9 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
+#include <cmath>
 #include <condition_variable>
 #include <cstddef>
 #include <cstring>
@@ -21,6 +23,7 @@
 #include <mutex>
 #include <optional>
 #include <set>
+#include <span>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -58,6 +61,10 @@ static_assert(static_cast<int>(PixelFormat::Nv12) == GS_EXT_PIXEL_NV12);
 static_assert(static_cast<int>(SampleFormat::S16) == GS_EXT_SAMPLE_S16);
 static_assert(static_cast<int>(SampleFormat::F32) == GS_EXT_SAMPLE_F32);
 static_assert(kSoundRate == static_cast<std::uint32_t>(GS_EXT_SOUND_RATE));
+static_assert(static_cast<int>(ShapeKind::Rect) == GS_EXT_SHAPE_RECT);
+static_assert(static_cast<int>(ShapeKind::Line) == GS_EXT_SHAPE_LINE);
+static_assert(static_cast<int>(ShapeKind::Point) == GS_EXT_SHAPE_POINT);
+static_assert(static_cast<int>(ShapeKind::Text) == GS_EXT_SHAPE_TEXT);
 
 namespace {
 
@@ -517,6 +524,7 @@ struct InProcessModule::Impl {
         pump.reset();
         endJobs();
         endStreams();
+        endTaps();
         {
             const std::scoped_lock lock(touchMutex);
             for (const auto& [id, session] : sessions) {
@@ -638,6 +646,47 @@ struct InProcessModule::Impl {
         }
     }
 
+    struct Tap {
+        std::size_t index = 0;
+        void* state = nullptr;
+        TapEvents events;
+        std::mutex mutex;
+        std::condition_variable wake;
+        std::vector<std::uint8_t> waiting;
+        std::vector<std::uint8_t> reading;
+        TapFrame frame;
+        bool fresh = false;
+        bool closing = false;
+        std::atomic<bool> done{false};
+        std::jthread worker;
+    };
+
+    void endTaps()
+    {
+        std::vector<std::shared_ptr<Tap>> ending;
+        {
+            const std::scoped_lock lock(tapMutex);
+            for (const auto& [id, tap] : taps) {
+                ending.push_back(tap);
+            }
+            taps.clear();
+            ending.insert(ending.end(), closedTaps.begin(), closedTaps.end());
+            closedTaps.clear();
+        }
+        for (const std::shared_ptr<Tap>& tap : ending) {
+            {
+                const std::scoped_lock lock(tap->mutex);
+                tap->closing = true;
+            }
+            tap->wake.notify_all();
+        }
+        for (const std::shared_ptr<Tap>& tap : ending) {
+            if (tap->worker.joinable()) {
+                tap->worker.join();
+            }
+        }
+    }
+
     void endJobs()
     {
         std::vector<std::tuple<std::uint64_t, std::size_t, bool>> running;
@@ -699,6 +748,11 @@ struct InProcessModule::Impl {
     std::map<std::uint64_t, OpenStream> streams;
     bool streamsEnded = false;
     std::mutex transportMutex;
+    std::vector<gs_ext_frame_tap> nativeTaps;
+    std::mutex tapMutex;
+    std::map<std::uint64_t, std::shared_ptr<Tap>> taps;
+    std::vector<std::shared_ptr<Tap>> closedTaps;
+    std::uint64_t nextTap = 0;
     std::mutex jobMutex;
     std::condition_variable jobsEnded;
     std::map<std::uint64_t, Job> jobs;
@@ -864,7 +918,8 @@ int32_t hostSupports(void*, const char* feature)
         return 0;
     }
     const std::string_view name(feature, strnlen(feature, kMostNameBytes));
-    if (name == "input-sources" || name == "services" || name == "transports" || name == "media") {
+    if (name == "input-sources" || name == "services" || name == "transports" || name == "media" ||
+        name == "frame-taps") {
         return 1;
     }
     return name == "jobs" || name == "events" || name == "settings" || name == "claims" || name == "job-output" ||
@@ -1673,6 +1728,101 @@ std::string addExporter(InProcessModule::Impl& impl, const gs_ext_contribution& 
     return {};
 }
 
+std::string addFrameTap(InProcessModule::Impl& impl, const gs_ext_contribution& entry,
+                        std::set<std::string, std::less<>>& names)
+{
+    gs_ext_frame_tap tap{};
+    std::string name;
+    if (!copied(entry.data, tap)) {
+        return "a frame tap has no data";
+    }
+    if (std::string problem = named("frame tap", tap.name, entry, names, name); !problem.empty()) {
+        return problem;
+    }
+    if (tap.open == nullptr || tap.frame == nullptr || tap.close == nullptr) {
+        return "the frame tap " + name + " lacks open, frame or close";
+    }
+    impl.nativeTaps.push_back(tap);
+    impl.info.frameTaps.push_back({.name = name});
+    return {};
+}
+
+double ratioOf(double value)
+{
+    return std::clamp(value, -1.0, 2.0);
+}
+
+std::vector<Shape> shapesOf(std::span<const gs_ext_shape> made)
+{
+    std::vector<Shape> shapes;
+    shapes.reserve(made.size());
+    for (const gs_ext_shape& each : made) {
+        if (each.kind > GS_EXT_SHAPE_TEXT || !std::isfinite(each.x) || !std::isfinite(each.y) ||
+            !std::isfinite(each.x2) || !std::isfinite(each.y2)) {
+            continue;
+        }
+        const std::uint32_t color =
+            each.color <= GS_EXT_COLOR_WHITE ? each.color : static_cast<std::uint32_t>(GS_EXT_COLOR_ACCENT);
+        Shape shape{.kind = static_cast<ShapeKind>(each.kind),
+                    .color = color,
+                    .id = each.id,
+                    .x = ratioOf(each.x),
+                    .y = ratioOf(each.y),
+                    .x2 = ratioOf(each.x2),
+                    .y2 = ratioOf(each.y2),
+                    .text = {}};
+        if (each.text != nullptr && each.text_size > 0) {
+            shape.text = lineOf(each.text, each.text_size, kMostShapeTextBytes);
+        }
+        shapes.push_back(std::move(shape));
+    }
+    return uniqueShapes(std::move(shapes));
+}
+
+void runTap(const gs_ext_frame_tap& entry, InProcessModule::Impl::Tap& tap)
+{
+    std::vector<gs_ext_shape> room(kMostShapes);
+    std::vector<Shape> shown;
+    for (;;) {
+        TapFrame frame;
+        {
+            std::unique_lock lock(tap.mutex);
+            tap.wake.wait(lock, [&tap] { return tap.fresh || tap.closing; });
+            if (tap.closing) {
+                break;
+            }
+            std::swap(tap.waiting, tap.reading);
+            frame = tap.frame;
+            tap.fresh = false;
+        }
+        gs_ext_frame native{};
+        native.size = sizeof(gs_ext_frame);
+        native.format = GS_EXT_FRAME_BGRA;
+        native.pixels = tap.reading.data();
+        native.stride = frame.stride;
+        native.width = frame.width;
+        native.height = frame.height;
+        native.time_us = frame.timeUs;
+        gs_ext_overlay overlay{};
+        overlay.size = sizeof(gs_ext_overlay);
+        overlay.shapes = room.data();
+        overlay.capacity = static_cast<std::uint32_t>(room.size());
+        if (entry.frame(tap.state, &native, &overlay) != GS_EXT_OK || overlay.keep != 0 ||
+            overlay.count > overlay.capacity) {
+            continue;
+        }
+        std::vector<Shape> shapes = shapesOf(std::span<const gs_ext_shape>(room.data(), overlay.count));
+        if (shapes != shown) {
+            shown = shapes;
+            if (tap.events.overlay) {
+                tap.events.overlay(std::move(shapes));
+            }
+        }
+    }
+    entry.close(tap.state);
+    tap.done = true;
+}
+
 std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
 {
     if (!copied(plugin, impl.described)) {
@@ -1726,6 +1876,8 @@ std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
             problem = addSink(impl, entry, names);
         } else if (kind == GS_EXT_KIND_RECORDING_EXPORTER) {
             problem = addExporter(impl, entry, names);
+        } else if (kind == GS_EXT_KIND_FRAME_TAP) {
+            problem = addFrameTap(impl, entry, names);
         } else if (kind.empty()) {
             problem = "contribution " + std::to_string(index + 1) + " has no kind";
         } else if (impl.services != nullptr) {
@@ -1738,9 +1890,10 @@ std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
     }
     if (impl.touchMethods.size() > kMostTouchMethods || impl.nodes.size() > kMostNodes ||
         impl.attachments.size() > kMostModuleAttachments || impl.behaviors.size() > kMostModuleBehaviors ||
-        impl.nativeJobs.size() > kMostJobs || impl.providers.size() > kMostProviders) {
-        return "the DLL offers more than 8 touch methods, 64 nodes, 32 attachments, 32 behaviors, 32 jobs or 8 "
-               "device providers";
+        impl.nativeJobs.size() > kMostJobs || impl.providers.size() > kMostProviders ||
+        impl.nativeTaps.size() > kMostFrameTaps) {
+        return "the DLL offers more than 8 touch methods, 64 nodes, 32 attachments, 32 behaviors, 32 jobs, 8 "
+               "device providers or 8 frame taps";
     }
     if (impl.info.inputSources.size() > kMostInputSources) {
         return "the DLL offers more than 8 input sources";
@@ -2678,6 +2831,94 @@ std::uint64_t InProcessModule::startExport(std::size_t exporter, std::string_vie
         }
     }
     return id;
+}
+
+std::uint64_t InProcessModule::openTap(std::size_t tap, const TapOpen& info, TapEvents events)
+{
+    Impl& d = *m_impl;
+    if (tap >= d.nativeTaps.size() || info.width < 1 || info.height < 1 || info.width > kMostTapSide ||
+        info.height > kMostTapSide || info.device.size() > kMostDeviceBytes) {
+        return 0;
+    }
+    const gs_ext_frame_tap& entry = d.nativeTaps[tap];
+    gs_ext_tap_open open{};
+    open.size = sizeof(gs_ext_tap_open);
+    open.device = info.device.c_str();
+    open.width = info.width;
+    open.height = info.height;
+    open.rotation = info.rotation & 3U;
+    void* state = nullptr;
+    if (entry.open(entry.context, &open, &state) != GS_EXT_OK) {
+        return 0;
+    }
+    auto made = std::make_shared<Impl::Tap>();
+    made->index = tap;
+    made->state = state;
+    made->events = std::move(events);
+    Impl::Tap* running = made.get();
+    made->worker = std::jthread([&entry, running] { runTap(entry, *running); });
+    const std::scoped_lock lock(d.tapMutex);
+    std::erase_if(d.closedTaps, [](const std::shared_ptr<Impl::Tap>& closed) { return closed->done.load(); });
+    const std::uint64_t id = ++d.nextTap;
+    d.taps.emplace(id, std::move(made));
+    return id;
+}
+
+bool InProcessModule::offerFrame(std::uint64_t tap, const TapFrame& frame)
+{
+    Impl& d = *m_impl;
+    if (!validTapFrame(frame)) {
+        return false;
+    }
+    std::shared_ptr<Impl::Tap> found;
+    {
+        const std::scoped_lock lock(d.tapMutex);
+        if (const auto open = d.taps.find(tap); open != d.taps.end()) {
+            found = open->second;
+        }
+    }
+    if (found == nullptr) {
+        return false;
+    }
+    const std::size_t row = std::size_t{4} * frame.width;
+    {
+        const std::scoped_lock lock(found->mutex);
+        if (found->closing) {
+            return false;
+        }
+        found->waiting.resize(row * frame.height);
+        for (std::uint32_t line = 0; line < frame.height; ++line) {
+            std::memcpy(found->waiting.data() + line * row, frame.pixels + static_cast<std::size_t>(line) * frame.stride,
+                        row);
+        }
+        found->frame = frame;
+        found->frame.pixels = nullptr;
+        found->frame.stride = static_cast<std::uint32_t>(row);
+        found->fresh = true;
+    }
+    found->wake.notify_one();
+    return true;
+}
+
+void InProcessModule::closeTap(std::uint64_t tap)
+{
+    Impl& d = *m_impl;
+    std::shared_ptr<Impl::Tap> found;
+    {
+        const std::scoped_lock lock(d.tapMutex);
+        const auto open = d.taps.find(tap);
+        if (open == d.taps.end()) {
+            return;
+        }
+        found = open->second;
+        d.taps.erase(open);
+        d.closedTaps.push_back(found);
+    }
+    {
+        const std::scoped_lock lock(found->mutex);
+        found->closing = true;
+    }
+    found->wake.notify_all();
 }
 
 }

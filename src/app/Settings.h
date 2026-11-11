@@ -1028,6 +1028,8 @@ struct DeviceSettings {
     static constexpr std::int64_t kMaxScreenSide = 16384;
     static constexpr std::size_t kMaxCompanionHex = 64;
     static constexpr std::size_t kMaxCompanionSecret = 2048;
+    static constexpr std::size_t kMaxFrameTaps = 64;
+    static constexpr std::size_t kMaxFrameTapLength = 129;
 
     Transport transport = Transport::Default;
     std::string profile;
@@ -1042,6 +1044,7 @@ struct DeviceSettings {
     std::string companionKey;
     std::string companionPc;
     CaptureSettings capture;
+    std::vector<std::string> frameTaps;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -1059,6 +1062,7 @@ struct DeviceSettings {
         v.text("companionKey", m.companionKey, kMaxCompanionSecret);
         v.text("companionPc", m.companionPc, kMaxCompanionHex);
         v.object("capture", m.capture);
+        v.textList("frameTaps", m.frameTaps, kMaxFrameTaps, kMaxFrameTapLength);
     }
 
     friend bool operator==(const DeviceSettings&, const DeviceSettings&) = default;

@@ -18,6 +18,7 @@ constexpr std::string_view kMapping = "mapping";
 constexpr std::string_view kRead = "input.read";
 constexpr std::string_view kNotify = "notify";
 constexpr std::string_view kAi = "ai";
+constexpr std::string_view kMediaRead = "media.read";
 
 struct Named {
     std::string_view name;
@@ -105,6 +106,7 @@ constexpr std::string_view kMappingEvents[] = {"control", "state", "enabled", "s
 
 constexpr Named kChannelServices[] = {
     {"ai.ask", {kAi, false}},
+    {"media.frames", {kMediaRead, true}},
 };
 
 }

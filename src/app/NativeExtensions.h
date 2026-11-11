@@ -65,6 +65,19 @@ struct NativeWanted {
     std::vector<QString> audioSourceTitles;
     std::vector<QString> sinkTitles;
     std::vector<QString> exporterTitles;
+    std::vector<QString> tapTitles;
+};
+
+struct FrameTapSource {
+    std::string extension;
+    QString extensionName;
+    std::string name;
+    QString title;
+    int fps = static_cast<int>(ext::kDefaultTapFps);
+    int size = static_cast<int>(ext::kDefaultTapSize);
+    std::weak_ptr<exthost::Module> module;
+    const exthost::Module* identity = nullptr;
+    std::size_t index = 0;
 };
 
 [[nodiscard]] std::string nativeTouchOptions(std::string_view snapshot, std::string_view phone,
@@ -142,6 +155,7 @@ public:
     void refreshTransports(std::string_view extension = {});
     [[nodiscard]] std::shared_ptr<session::PhoneStreams>
     phoneStreams(const TransportPhone& phone, std::shared_ptr<const session::ServerPackage> package) const;
+    [[nodiscard]] std::vector<FrameTapSource> frameTaps() const;
 
     [[nodiscard]] std::unique_ptr<ExtensionTouch> openTouch(std::string_view key, std::string_view device,
                                                              ControlSink& injection,

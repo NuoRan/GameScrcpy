@@ -87,6 +87,7 @@ public:
     void draw(quint64 id, const QVariantMap& drawing);
     void erase(quint64 id);
     void clearDrawings();
+    void setOverlay(const QString& group, const QVariantList& shapes);
     void setScriptProgress(const QString& source, const QString& title, double value);
     void clearScriptProgress(const QString& source);
     void changeHint(const QString& id, const QVariantMap& change);

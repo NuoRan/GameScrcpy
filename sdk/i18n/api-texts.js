@@ -28,6 +28,7 @@ QT_TRANSLATE_NOOP("ScriptApi", "Properties a component made in logic declares in
 QT_TRANSLATE_NOOP("ScriptApi", "Tools that the app script of an extension offers to AI clients over the local MCP connection.");
 QT_TRANSLATE_NOOP("ScriptApi", "Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends to the extension's own logic and panels and to the logic of the extensions that depend on it.");
 QT_TRANSLATE_NOOP("ScriptApi", "Questions from logic to the AI service set up in Settings, AI; they work only while Let logic call AI is on there.");
+QT_TRANSLATE_NOOP("ScriptApi", "The phone's picture as frames, for analysis and AI; the logic of an extension needs the permission media.read.");
 QT_TRANSLATE_NOOP("ScriptApi", "Objects");
 QT_TRANSLATE_NOOP("ScriptApi", "A component of the profile in use. Every type below has these members too.");
 QT_TRANSLATE_NOOP("ScriptApi", "Description");
@@ -456,6 +457,7 @@ QT_TRANSLATE_NOOP("ScriptApi", "What onReport receives: the report id and the by
 QT_TRANSLATE_NOOP("ScriptApi", "What a subscription receives: the service and characteristic UUIDs, written in full, and the new value.");
 QT_TRANSLATE_NOOP("ScriptApi", "Why a device closed by itself: it went away, Windows reported an error, or the permission to use it was taken back.");
 QT_TRANSLATE_NOOP("ScriptApi", "What ai.ask() sends along and how long it waits: picture true for the whole phone picture, a region or the name of one for that part of it, false or nothing for no picture; timeoutMs from 1000 to 120000 milliseconds, 60000 by default.");
+QT_TRANSLATE_NOOP("ScriptApi", "How media.frames() takes frames: at most fps a second, from 0.1 to 10 (2 by default); the long side at most size pixels, a whole number from 64 to 1920 (640 by default); only region, a part of the picture in ratios, when it is given.");
 QT_TRANSLATE_NOOP("ScriptApi", "Waits without blocking other tasks. Rejects with an AbortError when the task is cancelled.");
 QT_TRANSLATE_NOOP("ScriptApi", "Type");
 QT_TRANSLATE_NOOP("ScriptApi", "Parameter");
@@ -1040,3 +1042,16 @@ QT_TRANSLATE_NOOP("ScriptApi", "Add \"ai\" to the permissions in the extension's
 QT_TRANSLATE_NOOP("ScriptApi", "the logic belongs to an extension whose manifest does not ask for the permission ai");
 QT_TRANSLATE_NOOP("ScriptApi", "Ask without a picture, or from a session script.");
 QT_TRANSLATE_NOOP("ScriptApi", "a picture is asked for by logic that has no phone, such as the app script of an extension");
+QT_TRANSLATE_NOOP("ScriptApi", "Hands the phone's picture to a handler: the frame shown when it starts, then new ones, at most fps a second (2 by default), made smaller so that the long side is at most size pixels (640 by default), and cut to region when one is given. The image is a CapturedImage as vision.capture() gives; it stays usable while its handler runs and until two newer frames came. Frames taken in a task stop when the task ends, ones taken at the top level when the logic stops.");
+QT_TRANSLATE_NOOP("ScriptApi", "Runs as a task for each frame with its picture and the time the phone made it, in milliseconds of the phone's own clock; a frame that comes while it still runs is left out.");
+QT_TRANSLATE_NOOP("ScriptApi", "How often, how large and which part of the picture.");
+QT_TRANSLATE_NOOP("ScriptApi", "Pass fps from 0.1 to 10, size from 64 to 1920 and a region in ratios from 0 to 1.");
+QT_TRANSLATE_NOOP("ScriptApi", "fps is not from 0.1 to 10, size is not a whole number from 64 to 1920, or the region is not a part of the picture");
+QT_TRANSLATE_NOOP("ScriptApi", "Take frames on a phone whose picture is shown.");
+QT_TRANSLATE_NOOP("ScriptApi", "the phone shows no picture, such as a touch box without a capture card");
+QT_TRANSLATE_NOOP("ScriptApi", "Dispose a subscription it no longer needs.");
+QT_TRANSLATE_NOOP("ScriptApi", "this logic takes frames with 4 subscriptions already");
+QT_TRANSLATE_NOOP("ScriptApi", "Add \"media.read\" to the permissions in the extension's manifest, with a reason.");
+QT_TRANSLATE_NOOP("ScriptApi", "the logic belongs to an extension whose manifest does not ask for the permission media.read");
+QT_TRANSLATE_NOOP("ScriptApi", "Take frames in a session script.");
+QT_TRANSLATE_NOOP("ScriptApi", "the logic has no phone, such as the app script of an extension");

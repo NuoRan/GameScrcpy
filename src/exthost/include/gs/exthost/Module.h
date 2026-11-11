@@ -238,6 +238,55 @@ struct ExporterInfo {
     friend bool operator==(const ExporterInfo&, const ExporterInfo&) = default;
 };
 
+inline constexpr std::size_t kMostFrameTaps = 8;
+inline constexpr std::size_t kMostShapes = 256;
+inline constexpr std::size_t kMostShapeTextBytes = 64;
+inline constexpr std::uint32_t kMostTapSide = 3840;
+
+struct FrameTapInfo {
+    std::string name;
+
+    friend bool operator==(const FrameTapInfo&, const FrameTapInfo&) = default;
+};
+
+enum class ShapeKind : std::uint8_t { Rect, Line, Point, Text };
+
+struct Shape {
+    ShapeKind kind = ShapeKind::Rect;
+    std::uint32_t color = 0;
+    std::uint32_t id = 0;
+    double x = 0.0;
+    double y = 0.0;
+    double x2 = 0.0;
+    double y2 = 0.0;
+    std::string text;
+
+    friend bool operator==(const Shape&, const Shape&) = default;
+};
+
+struct TapOpen {
+    std::string device;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::uint32_t rotation = 0;
+};
+
+struct TapFrame {
+    const std::uint8_t* pixels = nullptr;
+    std::uint32_t stride = 0;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::uint64_t timeUs = 0;
+};
+
+struct TapEvents {
+    std::function<void(std::vector<Shape> shapes)> overlay;
+    std::function<void(std::string problem)> failed;
+};
+
+[[nodiscard]] bool validTapFrame(const TapFrame& frame) noexcept;
+[[nodiscard]] std::vector<Shape> uniqueShapes(std::vector<Shape> shapes);
+
 struct ModuleInfo {
     std::vector<TouchMethodInfo> touchMethods;
     std::vector<NodeInfo> nodes;
@@ -251,6 +300,7 @@ struct ModuleInfo {
     std::vector<MediaInfo> audioSources;
     std::vector<SinkInfo> sinks;
     std::vector<ExporterInfo> exporters;
+    std::vector<FrameTapInfo> frameTaps;
 
     friend bool operator==(const ModuleInfo&, const ModuleInfo&) = default;
 };
@@ -432,6 +482,9 @@ public:
     {
         return 0;
     }
+    [[nodiscard]] virtual std::uint64_t openTap(std::size_t, const TapOpen&, TapEvents) { return 0; }
+    [[nodiscard]] virtual bool offerFrame(std::uint64_t, const TapFrame&) { return false; }
+    virtual void closeTap(std::uint64_t) {}
 };
 
 }

@@ -16,6 +16,7 @@ extern "C" {
 #include <cmath>
 #include <cstddef>
 #include <cstring>
+#include <map>
 #include <mutex>
 #include <utility>
 
@@ -177,6 +178,17 @@ struct FrameSnapshots::State {
     std::mutex cropMutex;
     std::array<double, 4> crop{0.0, 0.0, 1.0, 1.0};
     bool cropped = false;
+    std::mutex watchMutex;
+    std::map<std::uint64_t, Watcher> watchers;
+    std::uint64_t lastWatcher = 0;
+
+    void tell()
+    {
+        const std::scoped_lock lock(watchMutex);
+        for (const auto& [id, watcher] : watchers) {
+            watcher();
+        }
+    }
 
     void count(std::uint64_t SnapshotCounters::* field)
     {
@@ -411,6 +423,7 @@ void FrameSnapshots::offer(const AVFrame& frame, std::int64_t ptsUs, std::uint16
     meta.width = region.width;
     meta.height = region.height;
     state.keep(frame, meta, region);
+    state.tell();
     if (state.wanted.load(std::memory_order_acquire) == 0) {
         return;
     }
@@ -538,6 +551,20 @@ SnapshotCounters FrameSnapshots::counters() const
 {
     const std::scoped_lock lock(m_state->mutex);
     return m_state->counters;
+}
+
+std::uint64_t FrameSnapshots::watch(Watcher watcher)
+{
+    const std::scoped_lock lock(m_state->watchMutex);
+    const std::uint64_t id = ++m_state->lastWatcher;
+    m_state->watchers.emplace(id, std::move(watcher));
+    return id;
+}
+
+void FrameSnapshots::unwatch(std::uint64_t watcher)
+{
+    const std::scoped_lock lock(m_state->watchMutex);
+    m_state->watchers.erase(watcher);
 }
 
 std::vector<std::uint8_t> rgbOf(const LumaSnapshot& shot, int left, int top, int width, int height)

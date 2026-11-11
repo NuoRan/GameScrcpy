@@ -74,6 +74,11 @@ enum class Kind : std::uint32_t {
     SinkOpen,
     SinkClose,
     ExportStart,
+    TapOpen,
+    TapFrame,
+    TapClose,
+    TapOverlay,
+    TapFailed,
 };
 
 struct Message {

@@ -658,6 +658,7 @@ public:
         QImage picture;
         QByteArray png;
         script::PictureSize source;
+        quint64 frames = 0;
     };
 
     std::optional<Captured> captured(std::uint64_t capture)
@@ -665,6 +666,21 @@ public:
         const std::scoped_lock lock(m_capturesMutex);
         const auto found = m_captures.find(capture);
         return found == m_captures.end() ? std::nullopt : std::optional<Captured>(found->second);
+    }
+
+    std::uint64_t keepFrame(QImage picture, script::PictureSize source, quint64 frames)
+    {
+        const std::scoped_lock lock(m_capturesMutex);
+        const std::uint64_t capture = ++m_lastCapture;
+        m_captures.emplace(capture, Captured{.picture = std::move(picture), .png = {}, .source = source, .frames = frames});
+        keepNewest(frames, kMostFrames);
+        return capture;
+    }
+
+    void forgetFrames(quint64 frames)
+    {
+        const std::scoped_lock lock(m_capturesMutex);
+        std::erase_if(m_captures, [frames](const auto& entry) { return entry.second.frames == frames; });
     }
 
     [[nodiscard]] const std::filesystem::path& folder() const noexcept { return m_folder; }
@@ -696,6 +712,7 @@ private:
     static constexpr auto kFreshFrameGrace = std::chrono::milliseconds(250);
     static constexpr std::size_t kMostPatterns = 64;
     static constexpr std::size_t kMostCaptures = script::kMostCaptures;
+    static constexpr std::size_t kMostFrames = 2;
     static constexpr std::size_t kMostGlances = script::kMostChangeLooks;
 
     struct Request {
@@ -997,21 +1014,34 @@ private:
             std::memcpy(picture.scanLine(y), rgb.data() + row * static_cast<std::size_t>(y), row);
         }
         QByteArray png = pngOf(picture);
-        const std::uint64_t capture = ++m_lastCapture;
+        std::uint64_t capture = 0;
         {
             const std::scoped_lock lock(m_capturesMutex);
+            capture = ++m_lastCapture;
             m_captures.emplace(capture, Captured{.picture = std::move(picture),
                                                  .png = std::move(png),
                                                  .source = {shot.width, shot.height}});
-            while (m_captures.size() > kMostCaptures) {
-                m_captures.erase(m_captures.begin());
-            }
+            keepNewest(0, kMostCaptures);
         }
         const double w = shot.width;
         const double h = shot.height;
         m_answer(id, std::format(R"({{"capture":{},"x":{},"y":{},"width":{},"height":{},"pixelWidth":{},"pixelHeight":{}}})",
                                  capture, area.x / w, area.y / h, area.width / w, area.height / h, area.width,
                                  area.height));
+    }
+
+    void keepNewest(quint64 frames, std::size_t most)
+    {
+        auto count = static_cast<std::size_t>(
+            std::ranges::count_if(m_captures, [frames](const auto& entry) { return entry.second.frames == frames; }));
+        for (auto entry = m_captures.begin(); entry != m_captures.end() && count > most;) {
+            if (entry->second.frames == frames) {
+                entry = m_captures.erase(entry);
+                --count;
+            } else {
+                ++entry;
+            }
+        }
     }
 
     std::string saveNow(std::uint64_t capture, const std::string& name)
@@ -1022,7 +1052,8 @@ private:
                                "images",
                                capture, kMostCaptures);
         }
-        if (kept->png.isEmpty() || m_folder.empty()) {
+        const QByteArray png = kept->png.isEmpty() ? pngOf(kept->picture) : kept->png;
+        if (png.isEmpty() || m_folder.empty()) {
             return "GS-API-038 the image cannot be saved here";
         }
         const std::filesystem::path res = m_folder / L"res";
@@ -1051,7 +1082,7 @@ private:
             error ? error
                   : platform::writeFileAtomically(
                         res / QString::fromStdString(file).toStdWString(),
-                        std::string_view(kept->png.constData(), static_cast<std::size_t>(kept->png.size())));
+                        std::string_view(png.constData(), static_cast<std::size_t>(png.size())));
         if (written) {
             return platform::fileBusy(written) ? "GS-API-038 the image cannot be saved: another program is using res/"
                                                : "GS-API-038 the image cannot be saved: res/ cannot be written";
@@ -2233,9 +2264,11 @@ public:
             if (drawing.capture == 0) {
                 file = QUrl::fromLocalFile(pathText(m_seer->folder() / QString::fromStdString(drawing.image).toStdWString()))
                            .toString();
-            } else if (const std::optional<Seer::Captured> kept = m_seer->captured(drawing.capture);
-                       kept && !kept->png.isEmpty()) {
-                png = kept->png;
+            } else if (const std::optional<Seer::Captured> kept = m_seer->captured(drawing.capture); kept) {
+                png = kept->png.isEmpty() ? Seer::pngOf(kept->picture) : kept->png;
+                if (png.isEmpty()) {
+                    return;
+                }
             } else {
                 return;
             }
@@ -2896,6 +2929,18 @@ void ScriptRuntime::refuse(quint64 request, const QString& message)
 void ScriptRuntime::tell(const QString& kind, const QString& id, const QString& json)
 {
     m_link->tell(kind.toStdString(), id.toStdString(), json.toStdString());
+}
+
+std::uint64_t ScriptRuntime::keepFrame(const QImage& picture, script::PictureSize source, quint64 frames)
+{
+    return m_seer != nullptr ? m_seer->keepFrame(picture, source, frames) : 0;
+}
+
+void ScriptRuntime::forgetFrames(quint64 frames)
+{
+    if (m_seer != nullptr) {
+        m_seer->forgetFrames(frames);
+    }
 }
 
 void ScriptRuntime::allowInput()

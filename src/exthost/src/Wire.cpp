@@ -109,6 +109,10 @@ void WireWriter::info(const ModuleInfo& info)
     for (const ExporterInfo& exporter : info.exporters) {
         text(exporter.name);
     }
+    u32(static_cast<std::uint32_t>(info.frameTaps.size()));
+    for (const FrameTapInfo& tap : info.frameTaps) {
+        text(tap.name);
+    }
 }
 
 void WireWriter::event(const InputEvent& event)
@@ -155,6 +159,23 @@ void WireWriter::inputs(const std::vector<DeclaredInput>& declared)
             text(slot.name);
             u32(static_cast<std::uint32_t>(slot.kind));
         }
+    }
+}
+
+void WireWriter::shapes(const std::vector<Shape>& shapes)
+{
+    const std::size_t count = std::min(shapes.size(), kMostShapes);
+    u32(static_cast<std::uint32_t>(count));
+    for (std::size_t index = 0; index < count; ++index) {
+        const Shape& shape = shapes[index];
+        u32(static_cast<std::uint32_t>(shape.kind));
+        u32(shape.color);
+        u32(shape.id);
+        f64(shape.x);
+        f64(shape.y);
+        f64(shape.x2);
+        f64(shape.y2);
+        text(std::string_view(shape.text).substr(0, kMostShapeTextBytes));
     }
 }
 
@@ -366,6 +387,17 @@ bool WireReader::info(ModuleInfo& out)
         }
         out.exporters.push_back(std::move(exporter));
     }
+    std::uint32_t taps = 0;
+    if (!u32(taps) || taps > kMostFrameTaps) {
+        return false;
+    }
+    for (std::uint32_t index = 0; index < taps; ++index) {
+        FrameTapInfo tap;
+        if (!text(tap.name, kMostNameBytes)) {
+            return false;
+        }
+        out.frameTaps.push_back(std::move(tap));
+    }
     return true;
 }
 
@@ -442,6 +474,26 @@ bool WireReader::inputs(std::vector<DeclaredInput>& out)
             source.slotList.push_back(std::move(slot));
         }
         out.push_back(std::move(source));
+    }
+    return true;
+}
+
+bool WireReader::shapes(std::vector<Shape>& out)
+{
+    std::uint32_t count = 0;
+    if (!u32(count) || count > kMostShapes) {
+        return false;
+    }
+    for (std::uint32_t index = 0; index < count; ++index) {
+        Shape shape;
+        std::uint32_t kind = 0;
+        if (!u32(kind) || kind > static_cast<std::uint32_t>(ShapeKind::Text) || !u32(shape.color) || !u32(shape.id) ||
+            !f64(shape.x) || !f64(shape.y) || !f64(shape.x2) || !f64(shape.y2) ||
+            !text(shape.text, kMostShapeTextBytes)) {
+            return false;
+        }
+        shape.kind = static_cast<ShapeKind>(kind);
+        out.push_back(std::move(shape));
     }
     return true;
 }

@@ -8,7 +8,7 @@ namespace gs::script::detail {
 
 inline constexpr std::string_view kPreludeName = "<gs>";
 
-inline constexpr std::array<std::string_view, 16> kPreludeParts{
+inline constexpr std::array<std::string_view, 17> kPreludeParts{
     R"js(((host) => {
     "use strict";
     const defineProperty = Object.defineProperty;
@@ -3239,11 +3239,115 @@ inline constexpr std::array<std::string_view, 16> kPreludeParts{
     });
     const servicesLibrary = {};
 )js",
+    R"js(    const mediaStreams = new Map();
+    const mediaDone = (state) => {
+        if (state.handle !== "") {
+            host.call("media.done", JSON.stringify({ handle: state.handle }));
+        }
+    };
+    const mediaEnd = (state) => {
+        if (!state.active) {
+            return;
+        }
+        state.active = false;
+        state.listener.active = false;
+        state.listener.queued.length = 0;
+        if (state.handle !== "") {
+            mediaStreams.delete(state.handle);
+            host.call("media.close", JSON.stringify({ handle: state.handle }));
+        }
+    };
+    serviceEvents.set("media", (handle, value) => {
+        const state = mediaStreams.get(handle);
+        if (state === undefined || value === null || typeof value !== "object") {
+            return;
+        }
+        if (value.type === "closed") {
+            state.active = false;
+            state.listener.active = false;
+            mediaStreams.delete(handle);
+            return;
+        }
+        if (value.type !== "frame") {
+            return;
+        }
+        if (!state.listener.active || state.listener.running.size > 0) {
+            mediaDone(state);
+            return;
+        }
+        react(state.listener, { image: capturedImage(value.image ?? {}), time: Number(value.time ?? 0) });
+        if (state.listener.running.size === 0) {
+            mediaDone(state);
+        }
+    });
+    const mediaFrameOptions = (options) => {
+        if (options === undefined || options === null) {
+            return { fps: 2, size: 640, region: null };
+        }
+        if (typeof options !== "object") {
+            throw new TypeError("GS-API-120 the options must be an object such as { fps: 2, size: 640 }");
+        }
+        const fps = options.fps ?? 2;
+        if (typeof fps !== "number" || !(fps >= 0.1 && fps <= 10)) {
+            throw new RangeError("GS-API-120 fps is a number from 0.1 to 10");
+        }
+        const size = options.size ?? 640;
+        if (!Number.isInteger(size) || size < 64 || size > 1920) {
+            throw new RangeError("GS-API-120 size is a whole number of pixels from 64 to 1920");
+        }
+        const given = options.region;
+        if (given === undefined || given === null) {
+            return { fps, size, region: null };
+        }
+        const finite = typeof given === "object" &&
+            [given.x, given.y, given.width, given.height].every((value) => typeof value === "number" && Number.isFinite(value));
+        if (!finite || given.x < 0 || given.y < 0 || given.width <= 0 || given.height <= 0 ||
+            given.x + given.width > 1 + 1e-9 || given.y + given.height > 1 + 1e-9) {
+            throw new RangeError("GS-API-120 the region is a part of the picture, in ratios from 0 to 1");
+        }
+        return { fps, size, region: { x: given.x, y: given.y, width: given.width, height: given.height } };
+    };
+    const mediaLibrary = {
+        "media.frames": function frames(handler, options) {
+            if (typeof handler !== "function") {
+                throw new TypeError("GS-API-008 the handler must be a function");
+            }
+            const ask = mediaFrameOptions(options);
+            const state = { handle: "", active: true, listener: null };
+            state.listener = makeListener(async (extra) => {
+                try {
+                    await handler(extra);
+                } finally {
+                    mediaDone(state);
+                }
+            }, { again: "ignore" }, "media.frames");
+            host.request("media.frames", JSON.stringify(ask)).then((made) => {
+                const handle = String(made?.handle ?? "");
+                if (!state.active) {
+                    if (handle !== "") {
+                        host.call("media.close", JSON.stringify({ handle }));
+                    }
+                    return;
+                }
+                state.handle = handle;
+                mediaStreams.set(handle, state);
+            }, (error) => {
+                state.active = false;
+                state.listener.active = false;
+                Promise.reject(error);
+            });
+            const dispose = () => mediaEnd(state);
+            own(dispose);
+            return disposable(dispose);
+        },
+    };
+)js",
     R"js(    const library = {
         ...hardwareLibrary,
         ...netLibrary,
         ...speechLibrary,
         ...servicesLibrary,
+        ...mediaLibrary,
         every(intervalMs, handler, options) {
             return timed(intervalOf(intervalMs), handler, options, "every(" + intervalMs + ")", true);
         },

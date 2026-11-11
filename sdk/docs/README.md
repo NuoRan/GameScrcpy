@@ -30,6 +30,7 @@ Positions are ratios of the phone picture: (0, 0) is the top left corner and (1,
 - [`mcp`](mcp.md): Tools that the app script of an extension offers to AI clients over the local MCP connection.
 - [`events`](events.md): Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends to the extension's own logic and panels and to the logic of the extensions that depend on it.
 - [`ai`](ai.md): Questions from logic to the AI service set up in Settings, AI; they work only while Let logic call AI is on there.
+- [`media`](media.md): The phone's picture as frames, for analysis and AI; the logic of an extension needs the permission media.read.
 
 ## Objects
 
@@ -1840,4 +1841,12 @@ What ai.ask() sends along and how long it waits: picture true for the whole phon
 
 ```ts
 type AiAskOptions = { readonly picture?: boolean | Region | RegionName; readonly timeoutMs?: number };
+```
+
+### MediaFrameOptions
+
+How media.frames() takes frames: at most fps a second, from 0.1 to 10 (2 by default); the long side at most size pixels, a whole number from 64 to 1920 (640 by default); only region, a part of the picture in ratios, when it is given.
+
+```ts
+type MediaFrameOptions = { readonly fps?: number; readonly size?: number; readonly region?: Region };
 ```

@@ -368,6 +368,192 @@ TEST_CASE("ADR-0112: jobs of someone else's DLL run through gs-exthost.exe the s
     CHECK(stranded.wait() == std::pair<bool, std::string>{false, "the extension's process stopped before the job ended"});
 }
 
+namespace {
+
+struct TapWatch {
+    std::mutex mutex;
+    std::condition_variable changed;
+    std::vector<std::vector<exthost::Shape>> overlays;
+    std::vector<std::string> failures;
+
+    exthost::TapEvents events()
+    {
+        return {.overlay =
+                    [this](std::vector<exthost::Shape> shapes) {
+                        {
+                            const std::scoped_lock lock(mutex);
+                            overlays.push_back(std::move(shapes));
+                        }
+                        changed.notify_all();
+                    },
+                .failed =
+                    [this](std::string problem) {
+                        {
+                            const std::scoped_lock lock(mutex);
+                            failures.push_back(std::move(problem));
+                        }
+                        changed.notify_all();
+                    }};
+    }
+
+    bool waitFor(const std::function<bool()>& done)
+    {
+        std::unique_lock lock(mutex);
+        return changed.wait_for(lock, 20s, done);
+    }
+};
+
+nlohmann::json tapStats(exthost::Module& module)
+{
+    const exthost::CallResult stats = callNode(module, "tapStats");
+    REQUIRE_MESSAGE(stats.ok(), stats.problem);
+    return nlohmann::json::parse(stats.value.text);
+}
+
+std::vector<std::uint8_t> tapPicture(std::uint32_t width, std::uint32_t height, std::uint32_t stride)
+{
+    std::vector<std::uint8_t> pixels(static_cast<std::size_t>(stride) * height, 0);
+    for (std::uint32_t y = 0; y < height; ++y) {
+        for (std::uint32_t x = 0; x < width; ++x) {
+            std::uint8_t* pixel = pixels.data() + static_cast<std::size_t>(y) * stride + std::size_t{4} * x;
+            pixel[0] = 10;
+            pixel[1] = 20;
+            pixel[2] = 30;
+            pixel[3] = 255;
+        }
+    }
+    return pixels;
+}
+
+void checkTaps(exthost::Module& module)
+{
+    REQUIRE(module.info().frameTaps.size() == 1);
+    CHECK(module.info().frameTaps[0].name == "counter");
+    REQUIRE(callNode(module, "tapReset").ok());
+    constexpr std::uint32_t kStride = 64 * 4 + 16;
+    const std::vector<std::uint8_t> pixels = tapPicture(64, 36, kStride);
+    const auto frameAt = [&pixels](std::uint64_t timeUs) {
+        return exthost::TapFrame{.pixels = pixels.data(), .stride = kStride, .width = 64, .height = 36, .timeUs = timeUs};
+    };
+    const auto framesSeen = [&module](int count) {
+        return eventually([&module, count] { return tapStats(module)["frames"].get<int>() >= count; });
+    };
+
+    TapWatch watch;
+    const std::uint64_t tap = module.openTap(0, {.device = "phone-1", .width = 64, .height = 36, .rotation = 1}, watch.events());
+    REQUIRE(tap != 0);
+    CHECK(module.offerFrame(tap, frameAt(1000)));
+    REQUIRE(watch.waitFor([&watch] { return !watch.overlays.empty(); }));
+    {
+        const std::scoped_lock lock(watch.mutex);
+        REQUIRE(watch.overlays[0].size() == 1);
+        const exthost::Shape& box = watch.overlays[0][0];
+        CHECK(box.kind == exthost::ShapeKind::Rect);
+        CHECK(box.color == GS_EXT_COLOR_GOOD);
+        CHECK(box.id == 1);
+        CHECK(box.x == doctest::Approx(0.1));
+        CHECK(box.y == doctest::Approx(0.2));
+        CHECK(box.x2 == doctest::Approx(0.3));
+        CHECK(box.y2 == doctest::Approx(0.4));
+        CHECK(box.text == "box");
+    }
+    nlohmann::json stats = tapStats(module);
+    CHECK(stats["opened"] == 1);
+    CHECK(stats["device"] == "phone-1");
+    CHECK(stats["width"] == 64);
+    CHECK(stats["height"] == 36);
+    CHECK(stats["rotation"] == 1);
+    CHECK(stats["frameWidth"] == 64);
+    CHECK(stats["frameHeight"] == 36);
+    CHECK(stats["stride"] == 64 * 4);
+    CHECK(stats["first"] == nlohmann::json::array({10, 20, 30, 255}));
+    CHECK(stats["times"] == nlohmann::json::array({1000}));
+
+    CHECK(module.offerFrame(tap, frameAt(2000)));
+    REQUIRE(framesSeen(2));
+    {
+        const std::scoped_lock lock(watch.mutex);
+        CHECK(watch.overlays.size() == 1);
+    }
+
+    REQUIRE(callNode(module, "tapPause", {numberValue(400)}).ok());
+    CHECK(module.offerFrame(tap, frameAt(3000)));
+    REQUIRE(framesSeen(3));
+    for (const std::uint64_t timeUs : {std::uint64_t{4000}, std::uint64_t{5000}, std::uint64_t{6000}}) {
+        CHECK(module.offerFrame(tap, frameAt(timeUs)));
+    }
+    REQUIRE(framesSeen(4));
+    REQUIRE(callNode(module, "tapPause", {numberValue(0)}).ok());
+    CHECK(tapStats(module)["times"] == nlohmann::json::array({1000, 2000, 3000, 6000}));
+
+    module.closeTap(tap);
+    REQUIRE(eventually([&module] { return tapStats(module)["closed"].get<int>() == 1; }));
+    CHECK_FALSE(module.offerFrame(tap, frameAt(7000)));
+    CHECK(tapStats(module)["frames"] == 4);
+
+    CHECK_FALSE(module.offerFrame(tap + 1000, frameAt(8000)));
+    CHECK(module.openTap(0, {.device = "phone-1", .width = 0, .height = 36, .rotation = 0}, {}) == 0);
+    CHECK(module.openTap(1, {.device = "phone-1", .width = 64, .height = 36, .rotation = 0}, {}) == 0);
+
+    REQUIRE(callNode(module, "tapRefuse", {numberValue(1)}).ok());
+    TapWatch refused;
+    const std::uint64_t again =
+        module.openTap(0, {.device = "phone-2", .width = 64, .height = 36, .rotation = 0}, refused.events());
+    if (again != 0) {
+        REQUIRE(refused.waitFor([&refused] { return !refused.failures.empty(); }));
+        CHECK_FALSE(module.offerFrame(again, frameAt(9000)));
+        module.closeTap(again);
+    }
+    REQUIRE(callNode(module, "tapRefuse", {numberValue(0)}).ok());
+    CHECK(tapStats(module)["opened"] == 1);
+}
+
+}
+
+TEST_CASE("ADR-0112: a frame tap in GameScrcpy gets frames of the right size and stride, gives its overlay back once "
+          "it changes, gets only the latest frame while it is busy and stops when it is closed")
+{
+    Scratch scratch;
+    std::string problem;
+    const std::unique_ptr<exthost::InProcessModule> module =
+        exthost::InProcessModule::load({.dll = kTestDll, .store = scratch / "store.json"}, problem);
+    REQUIRE_MESSAGE(module != nullptr, problem);
+    checkTaps(*module);
+    CHECK(callNode(*module, "supports", {textValue(exthost::ValueType::String, "frame-taps")}).value.flag);
+}
+
+TEST_CASE("ADR-0112: a frame tap in gs-exthost.exe gets its frames through a shared section of its own the same way, "
+          "a refused tap says so, and a crash takes its overlay away")
+{
+    Scratch scratch;
+    std::string problem;
+    const std::unique_ptr<exthost::HostedModule> module = exthost::HostedModule::start(hostedOptions(scratch), problem);
+    REQUIRE_MESSAGE(module != nullptr, problem);
+    REQUIRE(module->waitReady(20s));
+    checkTaps(*module);
+
+    TapWatch watch;
+    const std::vector<std::uint8_t> pixels = tapPicture(64, 36, 64 * 4);
+    const exthost::TapFrame frame{.pixels = pixels.data(), .stride = 64 * 4, .width = 64, .height = 36, .timeUs = 1};
+    const std::uint64_t tap =
+        module->openTap(0, {.device = "phone-3", .width = 64, .height = 36, .rotation = 0}, watch.events());
+    REQUIRE(tap != 0);
+    CHECK(module->offerFrame(tap, frame));
+    REQUIRE(watch.waitFor([&watch] { return !watch.overlays.empty(); }));
+    crashOnce(*module, 1);
+    REQUIRE(watch.waitFor([&watch] { return watch.overlays.size() >= 2; }));
+    {
+        const std::scoped_lock lock(watch.mutex);
+        CHECK(watch.overlays[1].empty());
+    }
+    REQUIRE(module->waitReady(20s));
+    REQUIRE(callNode(*module, "tapReset").ok());
+    CHECK(module->offerFrame(tap, frame));
+    REQUIRE(eventually([&module] { return tapStats(*module)["frames"].get<int>() >= 1; }));
+    CHECK(tapStats(*module)["opened"] == 1);
+    module->closeTap(tap);
+}
+
 TEST_CASE("ADR-0112: a script starts a job by name with checked arguments, hears its progress and gets its result; "
           "a cancelled or failing job says so, and a job ends with its script")
 {

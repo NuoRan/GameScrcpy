@@ -439,6 +439,11 @@ std::pair<std::string_view, std::string_view> identity(const NativeRecordingExpo
     return {"name", entry.name};
 }
 
+std::pair<std::string_view, std::string_view> identity(const NativeFrameTap& entry)
+{
+    return {"name", entry.name};
+}
+
 std::pair<std::string_view, std::string_view> identity(const DeclaredParam& entry)
 {
     return {"key", entry.key};
@@ -617,6 +622,8 @@ void checkEntry(const NativeRecordingExporter& exporter, const std::string& path
                        "lowercase letters and digits without the dot, not gsrec");
     }
 }
+
+void checkEntry(const NativeFrameTap&, const std::string&, Context&) {}
 
 void checkEntry(const NativeContribution& native, const std::string& path, Context& context)
 {
@@ -2171,6 +2178,12 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
                 context.report(Severity::Error, Code::NativePermissionUndeclared,
                                "$.contributes.native." + std::string(key), std::string(needed));
             }
+        }
+        if (!contributes.native->frameTaps.empty() &&
+            std::ranges::find(manifest.permissions, kMediaReadPermission, &Permission::name) ==
+                manifest.permissions.end()) {
+            context.report(Severity::Error, Code::NativePermissionUndeclared, "$.contributes.native.frameTaps",
+                           std::string(kMediaReadPermission));
         }
     }
     for (std::size_t index = 0; index < contributes.services.size(); ++index) {

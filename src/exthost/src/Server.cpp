@@ -2,6 +2,7 @@
 
 #include "Channel.h"
 #include "MediaRing.h"
+#include "TapSection.h"
 #include "Wire.h"
 
 #include "gs/exthost/InProcess.h"
@@ -980,6 +981,145 @@ private:
     std::map<std::uint64_t, std::uint64_t> m_sinks;
 };
 
+class Taps
+{
+public:
+    Taps(Module& module, Link& link)
+        : m_module(module)
+        , m_link(link)
+        , m_thread([this] { run(); })
+    {
+    }
+
+    ~Taps()
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_stopping = true;
+        }
+        m_wake.notify_all();
+    }
+
+    Taps(const Taps&) = delete;
+    Taps& operator=(const Taps&) = delete;
+
+    void push(detail::Message message)
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_queue.push_back(std::move(message));
+        }
+        m_wake.notify_one();
+    }
+
+private:
+    struct Open {
+        std::uint64_t local = 0;
+        std::unique_ptr<detail::TapSection> section;
+    };
+
+    void run()
+    {
+        for (;;) {
+            detail::Message message;
+            {
+                std::unique_lock lock(m_mutex);
+                m_wake.wait(lock, [this] { return m_stopping || !m_queue.empty(); });
+                if (m_stopping) {
+                    break;
+                }
+                message = std::move(m_queue.front());
+                m_queue.pop_front();
+            }
+            serve(message);
+        }
+        for (const auto& [id, entry] : m_open) {
+            m_module.closeTap(entry.local);
+        }
+        m_open.clear();
+    }
+
+    void serve(const detail::Message& message)
+    {
+        if (message.kind == detail::Kind::TapOpen) {
+            begin(message);
+            return;
+        }
+        const auto found = m_open.find(message.id);
+        if (found == m_open.end()) {
+            return;
+        }
+        if (message.kind == detail::Kind::TapClose) {
+            m_module.closeTap(found->second.local);
+            m_open.erase(found);
+            return;
+        }
+        TapFrame frame;
+        if (const std::optional<std::size_t> slot = found->second.section->take(frame)) {
+            static_cast<void>(m_module.offerFrame(found->second.local, frame));
+            found->second.section->done(*slot);
+        }
+    }
+
+    void begin(const detail::Message& message)
+    {
+        detail::WireReader in(message.payload);
+        std::uint32_t index = 0;
+        TapOpen info;
+        std::uint64_t handle = 0;
+        std::uint64_t bytes = 0;
+        const bool good = in.u32(index) && in.text(info.device, kMostDeviceBytes) && in.u32(info.width) &&
+                          in.u32(info.height) && in.u32(info.rotation) && in.u64(handle) && in.u64(bytes) && in.done();
+        std::unique_ptr<detail::TapSection> section =
+            good ? detail::TapSection::open(reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(handle)), bytes)
+                 : nullptr;
+        const std::uint64_t id = message.id;
+        if (section == nullptr) {
+            fail(id, "the picture for the frame tap could not be shared");
+            return;
+        }
+        Link& link = m_link;
+        const std::uint64_t local =
+            m_module.openTap(index, info,
+                             TapEvents{.overlay =
+                                           [&link, id](std::vector<Shape> shapes) {
+                                               detail::WireWriter out;
+                                               out.shapes(shapes);
+                                               link.send(detail::Kind::TapOverlay, id, out.bytes());
+                                           },
+                                       .failed =
+                                           [&link, id](std::string problem) {
+                                               detail::WireWriter out;
+                                               out.text(problem);
+                                               link.send(detail::Kind::TapFailed, id, out.bytes());
+                                           }});
+        if (local == 0) {
+            fail(id, "the frame tap did not start");
+            return;
+        }
+        if (const auto previous = m_open.find(id); previous != m_open.end()) {
+            m_module.closeTap(previous->second.local);
+        }
+        m_open.insert_or_assign(id, Open{.local = local, .section = std::move(section)});
+    }
+
+    void fail(std::uint64_t id, std::string_view why)
+    {
+        detail::WireWriter out;
+        out.text(why);
+        m_link.send(detail::Kind::TapFailed, id, out.bytes());
+    }
+
+    Module& m_module;
+    Link& m_link;
+    std::mutex m_mutex;
+    std::condition_variable m_wake;
+    std::deque<detail::Message> m_queue;
+    bool m_stopping = false;
+    std::map<std::uint64_t, Open> m_open;
+    std::jthread m_thread;
+};
+
 struct Start {
     std::string dll;
     std::string store;
@@ -1250,6 +1390,7 @@ int serve(int argc, wchar_t** argv)
         Worker claims(*module, link);
         Streams streams(*module, link);
         MediaStreams media(*module, link);
+        Taps taps(*module, link);
         std::map<std::uint64_t, std::uint64_t> sessions;
         std::map<std::uint64_t, std::uint64_t> instances;
         bool running = true;
@@ -1276,6 +1417,9 @@ int serve(int argc, wchar_t** argv)
                 link.serviceAnswered(message);
             } else if (message.kind == detail::Kind::ClaimWanted) {
                 claims.push(std::move(message));
+            } else if (message.kind == detail::Kind::TapOpen || message.kind == detail::Kind::TapFrame ||
+                       message.kind == detail::Kind::TapClose) {
+                taps.push(std::move(message));
             } else if (message.kind == detail::Kind::Call || message.kind == detail::Kind::DeviceList ||
                        message.kind == detail::Kind::DeviceAct || message.kind == detail::Kind::TransportDiscover) {
                 worker.push(std::move(message));

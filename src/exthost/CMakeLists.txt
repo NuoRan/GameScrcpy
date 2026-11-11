@@ -14,6 +14,8 @@ add_library(gs_exthost STATIC
     src/Server.cpp
     src/Store.cpp
     src/Store.h
+    src/TapSection.cpp
+    src/TapSection.h
     src/Wire.cpp
     src/Wire.h
 )

@@ -114,6 +114,7 @@ Item {
     readonly property var extensionMenus: ExtensionPanels.menus.filter(group => group.device === overlay.serial
                                                                                 && group.where === "menu")
     readonly property var toolbarButtons: overlay.extensionPanels.filter(entry => entry.where === "toolbar")
+    readonly property var frameTaps: MediaFrames.taps.filter(entry => entry.device === overlay.serial)
 
     signal pictureFocusWanted()
 
@@ -191,6 +192,10 @@ Item {
 
     function clearDrawings() {
         scriptDrawings.clear()
+    }
+
+    function setOverlay(group, shapes) {
+        scriptDrawings.setOverlay(group, shapes)
     }
 
     function setProgress(source, title, value) {
@@ -1541,6 +1546,49 @@ Item {
                     onObjectAdded: (index, object) => {
                         for (let at = 0; at < moreMenu.count; ++at) {
                             if (moreMenu.itemAt(at) === panelsInMore) {
+                                moreMenu.insertItem(at + 1 + index, object)
+                                return
+                            }
+                        }
+                        moreMenu.addItem(object)
+                    }
+                    onObjectRemoved: (index, object) => moreMenu.removeItem(object)
+                }
+                MenuSeparator {
+                    visible: overlay.frameTaps.length > 0
+                    height: visible ? implicitHeight : 0
+                }
+                MenuLabel {
+                    id: frameTapsLabel
+
+                    objectName: "frameTapsLabel"
+                    text: qsTr("Extensions reading the picture")
+                    visible: overlay.frameTaps.length > 0
+                }
+                Instantiator {
+                    model: overlay.frameTaps.length
+
+                    delegate: MenuItem {
+                        id: frameTapItem
+
+                        required property int index
+                        readonly property var tapEntry: overlay.frameTaps[frameTapItem.index] ?? null
+
+                        objectName: "frameTapInMore"
+                        text: frameTapItem.tapEntry !== null ? frameTapItem.tapEntry.title : ""
+                        shortcut: frameTapItem.tapEntry !== null ? frameTapItem.tapEntry.extensionName : ""
+                        choice: true
+                        chosen: frameTapItem.tapEntry !== null && frameTapItem.tapEntry.on === true
+                        onTriggered: {
+                            const wanted = frameTapItem.tapEntry
+                            if (wanted !== null)
+                                MediaFrames.setTapOn(overlay.serial, wanted.key, wanted.on !== true)
+                        }
+                    }
+
+                    onObjectAdded: (index, object) => {
+                        for (let at = 0; at < moreMenu.count; ++at) {
+                            if (moreMenu.itemAt(at) === frameTapsLabel) {
                                 moreMenu.insertItem(at + 1 + index, object)
                                 return
                             }

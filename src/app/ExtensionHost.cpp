@@ -466,6 +466,9 @@ QString permissionTitle(std::string_view name)
     if (name == ext::kMediaOutputPermission) {
         return ExtensionHost::tr("Send the picture or the sound elsewhere");
     }
+    if (name == "media.read") {
+        return ExtensionHost::tr("Read the mirrored picture and sound");
+    }
     return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
 }
 
@@ -951,6 +954,9 @@ NativeWanted ExtensionHost::nativeWanted(const Extension& extension) const
         wanted.exporterTitles.push_back(
             extensionText(manifest, "recordingExporters." + exporter.name + ".title", exporter.title, language));
     }
+    for (const ext::NativeFrameTap& tap : wanted.native.frameTaps) {
+        wanted.tapTitles.push_back(extensionText(manifest, "frameTaps." + tap.name + ".title", tap.title, language));
+    }
     return wanted;
 }
 
@@ -1315,6 +1321,10 @@ QVariantList ExtensionHost::entries() const
                     transports.append(
                         extensionText(manifest, "transports." + transport.name + ".title", transport.title, language));
                 }
+                QStringList taps;
+                for (const ext::NativeFrameTap& tap : manifest.contributes.native->frameTaps) {
+                    taps.append(extensionText(manifest, "frameTaps." + tap.name + ".title", tap.title, language));
+                }
                 row.insert(QStringLiteral("native"),
                            QVariantMap{{QStringLiteral("touchMethods"), methods},
                                        {QStringLiteral("nodes"), nodes},
@@ -1323,6 +1333,7 @@ QVariantList ExtensionHost::entries() const
                                        {QStringLiteral("speechEngines"), speechEngines},
                                        {QStringLiteral("inputSources"), inputSources},
                                        {QStringLiteral("transports"), transports},
+                                       {QStringLiteral("frameTaps"), taps},
                                        {QStringLiteral("ownProcess"),
                                         !(extension->builtin && manifest.id.starts_with(ext::kReservedIdPrefix))},
                                        {QStringLiteral("architectures"), architectures}});

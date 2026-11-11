@@ -1196,6 +1196,14 @@ void MirrorWindow::clearDrawings()
     }
 }
 
+void MirrorWindow::setOverlay(const QString& group, const QVariantList& shapes)
+{
+    if (m_overlay != nullptr) {
+        QMetaObject::invokeMethod(m_overlay.data(), "setOverlay", Q_ARG(QVariant, QVariant(group)),
+                                  Q_ARG(QVariant, QVariant(shapes)));
+    }
+}
+
 void MirrorWindow::setScriptProgress(const QString& source, const QString& title, double value)
 {
     if (m_overlay != nullptr) {

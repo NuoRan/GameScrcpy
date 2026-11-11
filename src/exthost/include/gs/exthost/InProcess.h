@@ -85,6 +85,9 @@ public:
     [[nodiscard]] std::shared_ptr<MediaStream> openSourceWith(MediaKind kind, std::size_t source, std::string_view id,
                                                               std::string_view params, SourceHooks hooks);
     [[nodiscard]] std::uint64_t attachSink(std::size_t sink, std::shared_ptr<detail::SinkBox> box);
+    [[nodiscard]] std::uint64_t openTap(std::size_t tap, const TapOpen& info, TapEvents events) override;
+    [[nodiscard]] bool offerFrame(std::uint64_t tap, const TapFrame& frame) override;
+    void closeTap(std::uint64_t tap) override;
 
     struct Impl;
 
