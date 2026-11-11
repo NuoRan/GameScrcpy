@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AiDrafts.h"
+#include "AiProviders.h"
 #include "AiService.h"
 #include "Settings.h"
 
@@ -10,8 +11,11 @@
 #include <QPointer>
 #include <QString>
 #include <QStringList>
+#include <QVariantList>
+#include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
+#include <map>
 #include <memory>
 #include <optional>
 
@@ -45,6 +49,11 @@ class AiAssistant final : public QObject
     Q_PROPERTY(QString modelsState READ modelsState NOTIFY modelsChanged FINAL)
     Q_PROPERTY(QString modelsProblem READ modelsProblem NOTIFY modelsChanged FINAL)
     Q_PROPERTY(QVariantMap defaultChoice READ defaultChoice NOTIFY setupChanged FINAL)
+    Q_PROPERTY(QVariantList providers READ providerList NOTIFY providersChanged FINAL)
+    Q_PROPERTY(QString providerId READ providerId NOTIFY setupChanged FINAL)
+    Q_PROPERTY(QString providerTitle READ providerTitle NOTIFY setupChanged FINAL)
+    Q_PROPERTY(bool providerMissing READ providerMissing NOTIFY setupChanged FINAL)
+    Q_PROPERTY(QVariantMap modelNames READ modelNames NOTIFY modelsChanged FINAL)
 
 public:
     static constexpr QLatin1StringView kKeyPrefix{"GameScrcpy/ai/"};
@@ -73,6 +82,13 @@ public:
     [[nodiscard]] QString modelsState() const { return m_modelsState; }
     [[nodiscard]] QString modelsProblem() const { return m_modelsProblem; }
     [[nodiscard]] QVariantMap defaultChoice() const { return aiChoiceMap(defaults()); }
+    [[nodiscard]] QVariantList providerList() const;
+    [[nodiscard]] QString providerId() const;
+    [[nodiscard]] QString providerTitle() const;
+    [[nodiscard]] bool providerMissing() const;
+    [[nodiscard]] QVariantMap modelNames() const { return m_modelNames; }
+    [[nodiscard]] QString unavailable() const;
+    void setProviders(AiProviders* providers);
 
     Q_INVOKABLE bool saveKey(const QString& key);
     Q_INVOKABLE bool forgetKey();
@@ -82,6 +98,7 @@ public:
     Q_INVOKABLE void openSettings();
     Q_INVOKABLE QVariantMap traits(const QString& model) const;
     Q_INVOKABLE void makeDefault(const QVariantMap& choice);
+    Q_INVOKABLE bool chooseProvider(const QString& id);
 
     [[nodiscard]] AiChoice defaults() const;
     [[nodiscard]] std::optional<AiConnection> connection() const;
@@ -96,13 +113,18 @@ signals:
     void explanationChanged();
     void modelsChanged();
     void settingsWanted();
+    void providersChanged();
 
 private:
     void settingsChanged();
+    void providersUpdated();
     void readKey();
     void setTest(const QString& state, const QString& message);
     [[nodiscard]] settings::Assistant setup() const;
     [[nodiscard]] AiKind kind() const;
+    [[nodiscard]] const AiProviderInfo* chosenProvider() const;
+    [[nodiscard]] AiModelTraits providerTraits(const QString& model) const;
+    [[nodiscard]] std::unique_ptr<AiProvider> makeProvider(const AiConnection& target);
 
     static inline AiAssistant* s_instance = nullptr;
 
@@ -122,6 +144,9 @@ private:
     QString m_modelsState;
     QString m_modelsProblem;
     QPointer<QNetworkReply> m_modelsReply;
+    QPointer<AiProviders> m_providers;
+    std::map<QString, AiModelTraits> m_providerTraits;
+    QVariantMap m_modelNames;
     bool m_hasKey = false;
     bool m_explain = true;
     bool m_explained = false;

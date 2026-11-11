@@ -1,5 +1,6 @@
 #include "AiAssistant.h"
 #include "AiChats.h"
+#include "AiProviders.h"
 #include "AiScripts.h"
 #include "AppCatalog.h"
 #include "AppCommandHost.h"
@@ -481,6 +482,9 @@ int main(int argc, char* argv[])
         parser.isSet(smokeTest) ? gs::platform::SpeechOutput::Nowhere : gs::platform::SpeechOutput::Speakers));
     speechEngines.follow(extensions, nativeJobs);
     speechEngines.offerServices();
+    gs::app::AiProviders aiProviders(data / "ai-requests");
+    aiProviders.use(*extensions.native(), nativeJobs);
+    aiProviders.follow(extensions);
     gs::app::NativeEvents nativeEvents(*extensions.native());
     gs::app::AppEvents appEvents;
     gs::app::ExtensionServices extensionServices(nullptr);
@@ -676,6 +680,7 @@ int main(int argc, char* argv[])
     gs::app::McpServer mcp(settings, mcpTools, mcpDrafts, mcpClock);
     QObject::connect(&mcpTools, &gs::app::McpTools::toolsChanged, &mcp, &gs::app::McpServer::announceTools);
     gs::app::AiAssistant assistant(settings);
+    assistant.setProviders(&aiProviders);
     gs::app::AiChats chats(
         [&assistant](const gs::app::AiChoice& choice) { return assistant.provider(true, choice); },
         &assistant.tools(), &help, data / "ai-chats");

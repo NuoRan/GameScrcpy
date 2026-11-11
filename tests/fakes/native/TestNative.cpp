@@ -36,6 +36,7 @@ bool g_yield = false;
 std::string g_wanted;
 std::string g_spoken = "null";
 std::string g_heard;
+std::string g_aiRequest = "null";
 
 void appendNumber(std::string& out, double value)
 {
@@ -342,6 +343,24 @@ int32_t lastSpoken(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
         spoken = g_spoken;
     }
     return giveText(result, GS_EXT_TYPE_JSON, spoken);
+}
+
+int32_t aiModelsNode(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    return giveText(result, GS_EXT_TYPE_JSON,
+                    R"([{"id":"tiny","name":"Tiny test model","traits":{"think":true,"efforts":["high","low","huge"],)"
+                    R"("thinkingEffort":true}},{"id":"plain","name":"Plain test model"},{"name":"no id"},)"
+                    R"({"id":"tiny","name":"Again"}])");
+}
+
+int32_t lastAiRequest(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    std::string request;
+    {
+        const std::scoped_lock lock(g_mutex);
+        request = g_aiRequest;
+    }
+    return giveText(result, GS_EXT_TYPE_JSON, request);
 }
 
 int32_t sendInput(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
@@ -949,6 +968,8 @@ const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "tapReset", nullptr, 0, GS_EXT_TYPE_BOOLEAN, nullptr, &tapReset},
     {sizeof(gs_ext_node), "tapPause", kOneNumber, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &tapPause},
     {sizeof(gs_ext_node), "tapRefuse", kOneNumber, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &tapRefuse},
+    {sizeof(gs_ext_node), "aiModels", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &aiModelsNode},
+    {sizeof(gs_ext_node), "lastAiRequest", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &lastAiRequest},
 };
 
 const gs_ext_transport kLoop = {sizeof(gs_ext_transport), "loop",    nullptr,   &loopDiscover,
@@ -1261,6 +1282,89 @@ int32_t hearStart(void*, uint64_t job, const char* args, size_t size)
         }
         untilStopped(stop);
         sayJob(job, false, "stopped");
+    });
+    return GS_EXT_OK;
+}
+
+std::string requestFileOf(const std::string& args)
+{
+    constexpr std::string_view kKey = "\"file\":\"";
+    const size_t at = args.find(kKey);
+    if (at == std::string::npos) {
+        return {};
+    }
+    std::string path;
+    for (size_t index = at + kKey.size(); index < args.size() && args[index] != '"'; ++index) {
+        if (args[index] == '\\' && index + 1 < args.size()) {
+            ++index;
+        }
+        path += args[index];
+    }
+    const int wide = MultiByteToWideChar(CP_UTF8, 0, path.data(), static_cast<int>(path.size()), nullptr, 0);
+    std::wstring name(static_cast<size_t>(wide), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, path.data(), static_cast<int>(path.size()), name.data(), wide);
+    const HANDLE file = CreateFileW(name.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_DELETE, nullptr,
+                                    OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (file == INVALID_HANDLE_VALUE) {
+        return {};
+    }
+    std::string contents;
+    char buffer[4096] = {};
+    DWORD got = 0;
+    while (ReadFile(file, buffer, static_cast<DWORD>(sizeof(buffer)), &got, nullptr) && got > 0) {
+        contents.append(buffer, got);
+    }
+    CloseHandle(file);
+    return contents;
+}
+
+void outputPart(uint64_t job, const char* json)
+{
+    g_host->job_output(g_host->context, job, json, std::strlen(json));
+}
+
+int32_t aiChatStart(void*, uint64_t job, const char* args, size_t size)
+{
+    const std::string text(args, size);
+    const std::string spilled = requestFileOf(text);
+    {
+        const std::scoped_lock lock(g_mutex);
+        g_aiRequest = "{\"args\":" + text + ",\"file\":" + (spilled.empty() ? std::string("null") : spilled) + "}";
+    }
+    const std::string request = spilled.empty() ? text : spilled;
+    const auto asked = [&request](const char* words) {
+        return request.find(std::string("\"text\":\"") + words + "\"") != std::string::npos;
+    };
+    const bool fails = asked("fail");
+    const bool junk = asked("junk");
+    const bool calls = asked("call");
+    const bool waits = asked("wait");
+    bookJob(job, [job, fails, junk, calls, waits](const std::shared_ptr<std::atomic<bool>>& stop) {
+        if (fails) {
+            sayJob(job, false, "the test provider fails on purpose");
+            return;
+        }
+        if (junk) {
+            sayJob(job, true, "[1,2]");
+            return;
+        }
+        if (calls) {
+            outputPart(job, R"({"toolCall":{"id":"call_7","name":"read_help"}})");
+            sayJob(job, true,
+                   R"({"text":"","toolCalls":[{"id":"call_7","name":"read_help",)"
+                   R"("arguments":{"topic":"connect"}}],"stop":"tool_use"})");
+            return;
+        }
+        if (waits) {
+            outputPart(job, R"({"text":"Hold on"})");
+            untilStopped(stop);
+            sayJob(job, false, "stopped");
+            return;
+        }
+        outputPart(job, R"({"thinking":"Thinking.","text":"Hello "})");
+        outputPart(job, R"({"text":"there."})");
+        sayJob(job, true,
+               R"({"text":"Hello there.","thinking":"Thinking.","stop":"end","usage":{"input":12,"output":3}})");
     });
     return GS_EXT_OK;
 }
@@ -1600,6 +1704,7 @@ const gs_ext_job kCount = {sizeof(gs_ext_job), "count", nullptr, &countStart, &c
 const gs_ext_job kRefuse = {sizeof(gs_ext_job), "refuse", nullptr, &refuseStart, &refuseCancel};
 const gs_ext_job kSpeak = {sizeof(gs_ext_job), "speak", nullptr, &speakStart, &countCancel};
 const gs_ext_job kHear = {sizeof(gs_ext_job), "hear", nullptr, &hearStart, &countCancel};
+const gs_ext_job kAiChat = {sizeof(gs_ext_job), "aiChat", nullptr, &aiChatStart, &countCancel};
 
 const gs_ext_attachment kShift = {
     sizeof(gs_ext_attachment), "shift", nullptr, &shiftStart, &shiftInput, &shiftOutput, &shiftWake, &shiftReset,
@@ -1746,6 +1851,9 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "tapPause", &kNodes[41]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "tapRefuse", &kNodes[42]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_FRAME_TAP, "counter", &kCounter},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "aiModels", &kNodes[43]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "lastAiRequest", &kNodes[44]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_JOB, "aiChat", &kAiChat},
 };
 
 const gs_ext_plugin kPlugin = {

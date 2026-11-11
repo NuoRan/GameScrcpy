@@ -159,6 +159,8 @@ qt_add_qml_module(GameScrcpy
         AiDrafts.h
         AiNetwork.cpp
         AiNetwork.h
+        AiProviders.cpp
+        AiProviders.h
         AiScripts.cpp
         AiScripts.h
         AiService.cpp

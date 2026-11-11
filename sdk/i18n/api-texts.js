@@ -1044,6 +1044,8 @@ QT_TRANSLATE_NOOP("ScriptApi", "Add \"ai\" to the permissions in the extension's
 QT_TRANSLATE_NOOP("ScriptApi", "the logic belongs to an extension whose manifest does not ask for the permission ai");
 QT_TRANSLATE_NOOP("ScriptApi", "Ask without a picture, or from a session script.");
 QT_TRANSLATE_NOOP("ScriptApi", "a picture is asked for by logic that has no phone, such as the app script of an extension");
+QT_TRANSLATE_NOOP("ScriptApi", "Turn that extension on again, or choose another model service there.");
+QT_TRANSLATE_NOOP("ScriptApi", "the model service in Settings, AI, is the AI provider of an extension that is not installed, is turned off or may not provide AI");
 QT_TRANSLATE_NOOP("ScriptApi", "Hands the phone's picture to a handler: the frame shown when it starts, then new ones, at most fps a second (2 by default), made smaller so that the long side is at most size pixels (640 by default), and cut to region when one is given. The image is a CapturedImage as vision.capture() gives; it stays usable while its handler runs and until two newer frames came. Frames taken in a task stop when the task ends, ones taken at the top level when the logic stops.");
 QT_TRANSLATE_NOOP("ScriptApi", "Runs as a task for each frame with its picture and the time the phone made it, in milliseconds of the phone's own clock; a frame that comes while it still runs is left out.");
 QT_TRANSLATE_NOOP("ScriptApi", "How often, how large and which part of the picture.");

@@ -34,11 +34,11 @@ inline constexpr std::array<std::string_view, 12> kExtensionPointNames{"profile"
 inline constexpr std::array<std::string_view, 8> kNativeTypeNames{"boolean", "number", "string",   "point",
                                                                   "region",  "color",  "duration", "json"};
 
-inline constexpr std::array<std::string_view, 22> kPermissionNames{
+inline constexpr std::array<std::string_view, 23> kPermissionNames{
     "device.input", "device.screen", "device.clipboard", "device.apps", "devices.other", "mapping",
     "notify",       "network",       "files.pick",       "files.paths", "input.read",    "hardware",
     "ai",           "devices.provide", "network.listen", "speech.listen", "events.app", "input.provide",
-    "transport",    "media.capture",   "media.output",   "media.read"};
+    "transport",    "media.capture",   "media.output",   "media.read",   "ai.provide"};
 inline constexpr std::size_t kMaxComponentNameLength = 48;
 inline constexpr std::string_view kNeverGrantedPermission = "adb.shell";
 
@@ -570,6 +570,27 @@ struct NativeFrameTap {
     friend bool operator==(const NativeFrameTap&, const NativeFrameTap&) = default;
 };
 
+inline constexpr std::size_t kMostAiProviders = 4;
+inline constexpr std::string_view kAiProvidePermission = "ai.provide";
+
+struct NativeAiProvider {
+    std::string name;
+    std::string title;
+    std::string models;
+    std::string chat;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+        v.text("title", m.title, {.required = true, .maxLength = 40});
+        v.text("models", m.models, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+        v.text("chat", m.chat, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+    }
+
+    friend bool operator==(const NativeAiProvider&, const NativeAiProvider&) = default;
+};
+
 struct NativeContribution {
     std::string dll;
     TextMap dlls;
@@ -587,6 +608,7 @@ struct NativeContribution {
     std::vector<NativeMediaSink> mediaSinks;
     std::vector<NativeRecordingExporter> recordingExporters;
     std::vector<NativeFrameTap> frameTaps;
+    std::vector<NativeAiProvider> aiProviders;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -610,6 +632,7 @@ struct NativeContribution {
         v.objectList("mediaSinks", m.mediaSinks, kMostMediaSinks);
         v.objectList("recordingExporters", m.recordingExporters, kMostRecordingExporters);
         v.objectList("frameTaps", m.frameTaps, kMostFrameTaps);
+        v.objectList("aiProviders", m.aiProviders, kMostAiProviders);
     }
 
     friend bool operator==(const NativeContribution&, const NativeContribution&) = default;

@@ -408,6 +408,7 @@ if(GS_BUILD_APP)
             unit/app/AiConversationTests.cpp
             unit/app/AiDraftsTests.cpp
             unit/app/AiNetworkTests.cpp
+            unit/app/AiProvidersTests.cpp
             unit/app/AiScriptsTests.cpp
             unit/app/AiServiceTests.cpp
             unit/app/AoaTouchSinkTests.cpp
@@ -522,6 +523,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/AiDrafts.h"
             "${PROJECT_SOURCE_DIR}/src/app/AiNetwork.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/AiNetwork.h"
+            "${PROJECT_SOURCE_DIR}/src/app/AiProviders.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/AiProviders.h"
             "${PROJECT_SOURCE_DIR}/src/app/AiScripts.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/AiScripts.h"
             "${PROJECT_SOURCE_DIR}/src/app/AiService.cpp"

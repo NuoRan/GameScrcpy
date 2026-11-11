@@ -469,6 +469,9 @@ QString permissionTitle(std::string_view name)
     if (name == "media.read") {
         return ExtensionHost::tr("Read the mirrored picture and sound");
     }
+    if (name == "ai.provide") {
+        return ExtensionHost::tr("Provide AI model services");
+    }
     return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
 }
 
@@ -1346,6 +1349,11 @@ QVariantList ExtensionHost::entries() const
                 for (const ext::NativeFrameTap& tap : manifest.contributes.native->frameTaps) {
                     taps.append(extensionText(manifest, "frameTaps." + tap.name + ".title", tap.title, language));
                 }
+                QStringList aiProviders;
+                for (const ext::NativeAiProvider& provider : manifest.contributes.native->aiProviders) {
+                    aiProviders.append(
+                        extensionText(manifest, "aiProviders." + provider.name + ".title", provider.title, language));
+                }
                 row.insert(QStringLiteral("native"),
                            QVariantMap{{QStringLiteral("touchMethods"), methods},
                                        {QStringLiteral("nodes"), nodes},
@@ -1355,6 +1363,7 @@ QVariantList ExtensionHost::entries() const
                                        {QStringLiteral("inputSources"), inputSources},
                                        {QStringLiteral("transports"), transports},
                                        {QStringLiteral("frameTaps"), taps},
+                                       {QStringLiteral("aiProviders"), aiProviders},
                                        {QStringLiteral("ownProcess"),
                                         !(extension->builtin && manifest.id.starts_with(ext::kReservedIdPrefix))},
                                        {QStringLiteral("architectures"), architectures}});

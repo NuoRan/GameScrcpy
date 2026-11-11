@@ -148,7 +148,8 @@ Rectangle {
             horizontalAlignment: Text.AlignHCenter
             textFormat: Text.PlainText
             wrapMode: Text.Wrap
-            text: qsTr("It uses the model you set up in Settings > AI.")
+            text: AiAssistant.providerMissing ? AiAssistant.missing
+                                              : qsTr("It uses the model you set up in Settings > AI.")
             color: Theme.colors.textSecondary
             font.pixelSize: Theme.type.body.size
         }
@@ -1018,8 +1019,9 @@ Rectangle {
         anchors.bottom: parent.bottom
         anchors.margins: Theme.space.lg
         visible: !AiAssistant.ready && panel.conversation.count > 0
-        tone: "info"
+        tone: AiAssistant.providerMissing ? "warn" : "info"
         title: qsTr("Set up the AI assistant to go on with this conversation")
+        detail: AiAssistant.providerMissing ? AiAssistant.missing : ""
         actionText: qsTr("Open settings")
         onActionTriggered: AiAssistant.openSettings()
     }

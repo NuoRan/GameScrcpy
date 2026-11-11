@@ -29,6 +29,7 @@ Errors:
 - `GS-API-097` when the AI service failed or gave no answer within timeoutMs; the message says why. Check the service in Settings, AI, or try again later.
 - `GS-API-072` when the logic belongs to an extension whose manifest does not ask for the permission ai. Add "ai" to the permissions in the extension's manifest, with a reason.
 - `GS-API-073` when a picture is asked for by logic that has no phone, such as the app script of an extension. Ask without a picture, or from a session script.
+- `GS-API-150` when the model service in Settings, AI, is the AI provider of an extension that is not installed, is turned off or may not provide AI. Turn that extension on again, or choose another model service there.
 
 ```ts
 const answer = await ai.ask("Is a boss on the screen? Answer yes or no.", { picture: true }); if (answer?.toLowerCase().startsWith("yes")) ui.notify("A boss is here");

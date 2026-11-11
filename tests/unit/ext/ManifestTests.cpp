@@ -803,6 +803,98 @@ TEST_CASE("ADR-0112: a speech engine names jobs and a node of the extension that
     CHECK_FALSE(fixHint(Code::SpeechEngineInvalid).empty());
 }
 
+TEST_CASE("ADR-0112: an AI provider names a chat job taking one json request and a models node without parameters, "
+          "both returning json, and needs the permission ai.provide")
+{
+    Json json = nativeBase();
+    json["contributes"]["native"]["jobs"] =
+        Json::array({{{"name", "chat"},
+                      {"title", "Chat"},
+                      {"params", {{{"name", "request"}, {"type", "json"}}}},
+                      {"returns", "json"}},
+                     {{"name", "count"}, {"title", "Count"}, {"params", {{{"name", "request"}, {"type", "string"}}}},
+                      {"returns", "json"}},
+                     {{"name", "quiet"}, {"title", "Quiet"}, {"params", {{{"name", "request"}, {"type", "json"}}}}},
+                     {{"name", "wide"},
+                      {"title", "Wide"},
+                      {"params", {{{"name", "request"}, {"type", "json"}}, {{"name", "more"}, {"type", "json"}}}},
+                      {"returns", "json"}}});
+    json["contributes"]["native"]["nodes"].push_back({{"name", "models"}, {"returns", "json"}});
+    json["contributes"]["native"]["nodes"].push_back(
+        {{"name", "pick"}, {"params", {{{"name", "kind"}, {"type", "string"}}}}, {"returns", "json"}});
+    json["contributes"]["native"]["aiProviders"] =
+        Json::array({{{"name", "cloud"}, {"title", "Cloud AI"}, {"models", "models"}, {"chat", "chat"}},
+                     {{"name", "local"}, {"title", "Local AI"}, {"models", "models"}, {"chat", "chat"}}});
+    json["permissions"].push_back({{"name", "ai.provide"}, {"reason", "Answers the assistant with its models."}});
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    REQUIRE(loaded.manifest.contributes.native.has_value());
+    const std::vector<NativeAiProvider>& providers = loaded.manifest.contributes.native->aiProviders;
+    REQUIRE(providers.size() == 2);
+    CHECK(providers[0] == NativeAiProvider{.name = "cloud", .title = "Cloud AI", .models = "models", .chat = "chat"});
+    CHECK(providers[1].name == "local");
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+    CHECK(std::ranges::find(kPermissionNames, kAiProvidePermission) != kPermissionNames.end());
+
+    json["permissions"] = Json::array({{{"name", "notify"}, {"reason", "Shows when it beeps."}}});
+    json["contributes"]["native"]["aiProviders"] = Json::array(
+        {{{"name", "a"}, {"title", "String request"}, {"models", "now"}, {"chat", "count"}},
+         {{"name", "b"}, {"title", "No result"}, {"models", "pick"}, {"chat", "quiet"}},
+         {{"name", "c"}, {"title", "Two parameters"}, {"models", "missing"}, {"chat", "wide"}},
+         {{"name", "d"}, {"title", "Not a job"}, {"models", "models"}, {"chat", "models"}}});
+    loaded = load(json);
+    INFO(listed(loaded));
+    CHECK_FALSE(loaded.usable);
+    CHECK_FALSE(reports(loaded, Code::TooMany, "$.contributes.native.aiProviders"));
+    CHECK(reports(loaded, Code::NativePermissionUndeclared, "$.contributes.native.aiProviders"));
+    CHECK(reports(loaded, Code::AiProviderInvalid, "$.contributes.native.aiProviders[0].chat"));
+    CHECK(reports(loaded, Code::AiProviderInvalid, "$.contributes.native.aiProviders[0].models"));
+    CHECK(reports(loaded, Code::AiProviderInvalid, "$.contributes.native.aiProviders[1].chat"));
+    CHECK(reports(loaded, Code::AiProviderInvalid, "$.contributes.native.aiProviders[1].models"));
+    CHECK(reports(loaded, Code::AiProviderInvalid, "$.contributes.native.aiProviders[2].chat"));
+    CHECK(reports(loaded, Code::AiProviderInvalid, "$.contributes.native.aiProviders[2].models"));
+    CHECK(reports(loaded, Code::AiProviderInvalid, "$.contributes.native.aiProviders[3].chat"));
+    CHECK_FALSE(reports(loaded, Code::AiProviderInvalid, "$.contributes.native.aiProviders[3].models"));
+
+    json["contributes"]["native"]["aiProviders"] =
+        Json::array({{{"name", "a"}, {"title", "First"}, {"models", "models"}, {"chat", "chat"}},
+                     {{"name", "a"}, {"title", "Again"}, {"models", "models"}, {"chat", "chat"}},
+                     {{"name", "Bad"}, {"title", "Capital"}, {"models", "models"}, {"chat", "chat"}},
+                     {{"name", "e"}, {"title", "Nothing named"}}});
+    loaded = load(json);
+    INFO(listed(loaded));
+    CHECK_FALSE(loaded.usable);
+    CHECK_FALSE(reports(loaded, Code::TooMany, "$.contributes.native.aiProviders"));
+    CHECK_FALSE(reports(loaded, Code::AiProviderInvalid, "$.contributes.native.aiProviders[0].chat"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.native.aiProviders[1].name"));
+    CHECK_FALSE(reports(loaded, Code::AiProviderInvalid, "$.contributes.native.aiProviders[1].chat"));
+    CHECK(reports(loaded, Code::NativeNameInvalid, "$.contributes.native.aiProviders[2].name"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.native.aiProviders[3].models"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.native.aiProviders[3].chat"));
+    CHECK(codeName(Code::AiProviderInvalid) == "ai-provider-invalid");
+    CHECK_FALSE(fixHint(Code::AiProviderInvalid).empty());
+
+    json["contributes"]["native"]["aiProviders"] = Json::array(
+        {{{"name", "a"}, {"title", "One"}, {"models", "models"}, {"chat", "chat"}},
+         {{"name", "b"}, {"title", "Two"}, {"models", "models"}, {"chat", "chat"}},
+         {{"name", "c"}, {"title", "Three"}, {"models", "models"}, {"chat", "chat"}},
+         {{"name", "d"}, {"title", "Four"}, {"models", "models"}, {"chat", "chat"}},
+         {{"name", "e"}, {"title", "Five"}, {"models", "models"}, {"chat", "chat"}}});
+    json["permissions"].push_back({{"name", "ai.provide"}, {"reason", "Answers the assistant with its models."}});
+    loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(reports(loaded, Code::TooMany, "$.contributes.native.aiProviders"));
+
+    const Json schema = Json::parse(manifestJsonSchema());
+    const Json provider =
+        schema["properties"]["contributes"]["properties"]["native"]["properties"]["aiProviders"]["items"];
+    CHECK(provider["required"] == Json::array({"name", "title", "models", "chat"}));
+}
+
 TEST_CASE("ADR-0112: native input sources load with their slots, survive a save and a load, and need names that "
           "bindings can use, kinds that exist, at least one slot and the permission input.provide")
 {

@@ -72,6 +72,14 @@
 <context>
     <name>AiAssistant</name>
     <message>
+        <source>Choose the AI provider in Settings &gt; AI.</source>
+        <translation>在“设置 &gt; AI”里选择 AI 服务提供者。</translation>
+    </message>
+    <message>
+        <source>The AI provider %1 in Settings &gt; AI is not available: its extension is not installed, is turned off or may not provide AI.</source>
+        <translation>“设置 &gt; AI”里选的 AI 服务提供者 %1 现在用不了：提供它的扩展没有安装、已关闭，或没有提供 AI 的权限。</translation>
+    </message>
+    <message>
         <source>Choose the model in Settings &gt; AI.</source>
         <translation>在“设置 &gt; AI”里选择模型。</translation>
     </message>
@@ -94,6 +102,10 @@
     <message>
         <source>Connected: %1 answered.</source>
         <translation>已连接：%1 有回应。</translation>
+    </message>
+    <message>
+        <source>The extension did not list any models. Type the model&apos;s name above.</source>
+        <translation>扩展没有列出任何模型，请在上面填写模型名称。</translation>
     </message>
     <message>
         <source>The address is not a web address. Check it above.</source>
@@ -655,6 +667,10 @@
         <translation>取消</translation>
     </message>
     <message>
+        <source>The assistant sends something only when you send a message, and only to %1, the AI provider of an extension that you chose in Settings &gt; AI; the extension decides where it goes from there.</source>
+        <translation>只有你发送消息时，助手才会发送内容，而且只发给 %1，也就是你在“设置 &gt; AI”里选的扩展提供的 AI 服务；之后发到哪里由这个扩展决定。</translation>
+    </message>
+    <message>
         <source>The assistant sends something only when you send a message, and only to %1, the address in Settings &gt; AI.</source>
         <translation>只有你发送消息时，助手才会发送内容，而且只发到 %1，也就是“设置 &gt; AI”里填的地址。</translation>
     </message>
@@ -973,6 +989,25 @@
     </message>
 </context>
 <context>
+    <name>AiProviders</name>
+    <message>
+        <source>This AI provider is not available now.</source>
+        <translation>这个 AI 服务提供者现在用不了。</translation>
+    </message>
+    <message>
+        <source>The AI provider %1 did not answer in time. Try again.</source>
+        <translation>AI 服务提供者 %1 没有及时回答，请再试一次。</translation>
+    </message>
+    <message>
+        <source>The AI provider %1 failed: %2</source>
+        <translation>AI 服务提供者 %1 出错：%2</translation>
+    </message>
+    <message>
+        <source>The extension did not give a list of models.</source>
+        <translation>扩展没有给出模型列表。</translation>
+    </message>
+</context>
+<context>
     <name>AiService</name>
     <message>
         <source>The service answered with an error.</source>
@@ -1112,6 +1147,18 @@
         <translation>正在询问服务…</translation>
     </message>
     <message>
+        <source>%1 (%2)</source>
+        <translation>%1（%2）</translation>
+    </message>
+    <message>
+        <source>%1 (not available)</source>
+        <translation>%1（不可用）</translation>
+    </message>
+    <message>
+        <source>The extension that adds it is not installed, is turned off or may not provide AI. The assistant and logic that ask AI get an error until it is back or you choose another service.</source>
+        <translation>提供它的扩展没有安装、已关闭，或没有提供 AI 的权限。在它恢复或你换用别的服务之前，助手和调用 AI 的逻辑都会报错。</translation>
+    </message>
+    <message>
         <source>API key</source>
         <translation>API Key</translation>
     </message>
@@ -1180,12 +1227,20 @@
         <translation>保存的对话</translation>
     </message>
     <message>
+        <source>One of the models the extension lists</source>
+        <translation>扩展列出的模型之一</translation>
+    </message>
+    <message>
         <source>Show the models of this service</source>
         <translation>显示这个服务的模型</translation>
     </message>
     <message>
         <source>Get</source>
         <translation>获取</translation>
+    </message>
+    <message>
+        <source>Asks the extension which models it offers</source>
+        <translation>向扩展询问它提供哪些模型</translation>
     </message>
     <message>
         <source>Asks the service which models the key can use</source>
@@ -6490,6 +6545,10 @@
     <message>
         <source>Picture readers: %1</source>
         <translation>读取画面：%1</translation>
+    </message>
+    <message>
+        <source>AI model services: %1</source>
+        <translation>AI 模型服务：%1</translation>
     </message>
     <message>
         <source>Its DLL runs in a process of its own; when that stops three times within a minute, the extension is turned off.</source>
@@ -14967,6 +15026,14 @@
         <translation>主题不是 1～64 个小写字母、数字、点和短横线（单独写，或写在扩展 id 和冒号之后）</translation>
     </message>
     <message>
+        <source>Turn that extension on again, or choose another model service there.</source>
+        <translation>重新开启那个扩展，或在那里换用别的模型服务。</translation>
+    </message>
+    <message>
+        <source>the model service in Settings, AI, is the AI provider of an extension that is not installed, is turned off or may not provide AI</source>
+        <translation>“设置 &gt; AI”里的模型服务是某个扩展的 AI 服务提供者，而这个扩展没有安装、已关闭或没有提供 AI 的权限</translation>
+    </message>
+    <message>
         <source>Hands the phone&apos;s picture to a handler: the frame shown when it starts, then new ones, at most fps a second (2 by default), made smaller so that the long side is at most size pixels (640 by default), and cut to region when one is given. The image is a CapturedImage as vision.capture() gives; it stays usable while its handler runs and until two newer frames came. Frames taken in a task stop when the task ends, ones taken at the top level when the logic stops.</source>
         <translation>把手机画面交给处理函数：先是开始时显示的那一帧，之后是新的帧，每秒最多 fps 帧（默认 2），缩小到长边最多 size 像素（默认 640），给了 region 时裁成这一块。图像是 CapturedImage，与 vision.capture() 给的一样；在它的处理函数运行期间、以及又来了两帧更新的帧之前都可以用。在任务里取的帧随任务结束而停止，在顶层取的随逻辑停止而停止。</translation>
     </message>
@@ -18139,12 +18206,28 @@
         <translation>ai 小助手 助手 长上下文 max 百万 token 1m claude sonnet</translation>
     </message>
     <message>
-        <source>Model service</source>
-        <translation>模型服务</translation>
+        <source>AI provider</source>
+        <translation>AI 服务提供者</translation>
     </message>
     <message>
-        <source>Compatible with OpenAI covers OpenAI, DeepSeek, Qwen, Kimi, a local Ollama and many more through the Chat Completions protocol; OpenAI Responses is OpenAI&apos;s newer protocol; Anthropic is Claude. Each keeps its own address, model and API key.</source>
-        <translation>“兼容 OpenAI”经 Chat Completions 协议接 OpenAI、DeepSeek、通义千问、Kimi、本机的 Ollama 等很多服务；“OpenAI Responses”是 OpenAI 较新的协议；Anthropic 就是 Claude。每种各自记住地址、模型和 API 密钥。</translation>
+        <source>The model service an extension adds, written as the extension&apos;s id, a slash and the provider&apos;s name. It stays chosen when the extension goes away; the assistant and logic then get an error until it is back or another service is chosen.</source>
+        <translation>扩展添加的模型服务，写作扩展 id、斜杠和提供者的名字。扩展不在了也仍保持选中；这时助手和逻辑会报错，直到扩展回来或换用别的服务。</translation>
+    </message>
+    <message>
+        <source>ai assistant provider extension model service plugin</source>
+        <translation>AI 助手 提供者 扩展 模型 服务 插件</translation>
+    </message>
+    <message>
+        <source>One of the models that the extension&apos;s provider lists, as the extension names it.</source>
+        <translation>扩展的提供者列出的模型之一，名字照扩展的写法。</translation>
+    </message>
+    <message>
+        <source>ai assistant model name extension provider</source>
+        <translation>AI 助手 模型 名称 扩展 提供者</translation>
+    </message>
+    <message>
+        <source>Model service</source>
+        <translation>模型服务</translation>
     </message>
     <message>
         <source>ai assistant llm chat model service openai anthropic claude deepseek qwen kimi ollama api key</source>
@@ -18201,6 +18284,10 @@
     <message>
         <source>Deep thinking</source>
         <translation>深度思考</translation>
+    </message>
+    <message>
+        <source>Compatible with OpenAI covers OpenAI, DeepSeek, Qwen, Kimi, a local Ollama and many more through the Chat Completions protocol; OpenAI Responses is OpenAI&apos;s newer protocol; Anthropic is Claude. Each keeps its own address, model and API key. Extensions can add more services, which bring their own models.</source>
+        <translation>“兼容 OpenAI”经 Chat Completions 协议接 OpenAI、DeepSeek、通义千问、Kimi、本机的 Ollama 等很多服务；“OpenAI Responses”是 OpenAI 较新的协议；Anthropic 就是 Claude。每种各自记住地址、模型和 API 密钥。扩展还可以添加更多服务，各自带有自己的模型。</translation>
     </message>
     <message>
         <source>ESP32 serial port</source>
@@ -22313,6 +22400,10 @@
     <message>
         <source>Read the mirrored picture and sound</source>
         <translation>读取投屏的画面与声音</translation>
+    </message>
+    <message>
+        <source>Provide AI model services</source>
+        <translation>提供 AI 模型服务</translation>
     </message>
     <message>
         <source>Its script %1 is not in the extension</source>

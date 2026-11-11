@@ -80,6 +80,7 @@ struct AiChoice {
     QString effort;
     bool longContext = false;
     QString service;
+    QString provider;
 
     friend bool operator==(const AiChoice&, const AiChoice&) = default;
 };
@@ -147,7 +148,9 @@ public:
 [[nodiscard]] QUrl aiModelsEndpoint(AiKind kind, const QString& address);
 [[nodiscard]] QStringList aiModelsOf(const QByteArray& body);
 [[nodiscard]] AiModelTraits aiModelTraits(AiKind kind, const QString& model);
+[[nodiscard]] AiModelTraits aiTraitsOf(const QJsonObject& traits);
 [[nodiscard]] AiChoice aiFitted(AiKind kind, AiChoice choice);
+[[nodiscard]] AiChoice aiFitted(const AiModelTraits& traits, AiChoice choice);
 [[nodiscard]] QVariantMap aiChoiceMap(const AiChoice& choice);
 [[nodiscard]] AiChoice aiChoiceOf(const QVariantMap& map);
 [[nodiscard]] int aiThinkingBudget(const QString& effort);
@@ -200,6 +203,11 @@ struct AiThinkSplit {
 };
 
 [[nodiscard]] AiThinkSplit aiSplitThinkTags(const QString& content);
+
+[[nodiscard]] QJsonObject aiProviderRequestJson(const AiRequest& request);
+[[nodiscard]] AiDelta aiProviderDelta(const QByteArray& json);
+[[nodiscard]] AiReply aiProviderReply(const QByteArray& json, const QString& streamedText,
+                                      const QString& streamedThinking);
 
 class AiStream
 {

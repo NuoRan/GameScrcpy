@@ -11,6 +11,7 @@ SettingCard {
     id: card
 
     readonly property string service: AiAssistant.service
+    readonly property bool external: card.service === "extension"
     readonly property string modelName: String(AppSettings.values["assistant." + service + ".model"] ?? "").trim()
     readonly property var traits: AiAssistant.service !== "" ? AiAssistant.traits(card.modelName) : ({})
     readonly property var efforts: card.traits.thinkingEffort === true
@@ -26,13 +27,66 @@ SettingCard {
     iconName: "bot"
     tone: "azure"
 
-    SegmentsSetting {
+    SettingRow {
         id: serviceRow
+
+        readonly property var builtIn: ["openai", "openaiResponses", "anthropic"]
+        readonly property var labels: ({ openai: qsTr("Compatible with OpenAI"),
+                                         openaiResponses: qsTr("OpenAI Responses"), anthropic: qsTr("Anthropic") })
+        readonly property var options: {
+            const entries = serviceRow.builtIn.map(name => ({ service: name, provider: "",
+                                                              title: serviceRow.labels[name] }))
+            for (const provider of AiAssistant.providers) {
+                const label = provider.title === provider.extensionName
+                              ? provider.title : qsTr("%1 (%2)").arg(provider.title).arg(provider.extensionName)
+                entries.push({ service: "extension", provider: provider.id, title: label })
+            }
+            if (card.external && AiAssistant.providerMissing)
+                entries.push({ service: "extension", provider: AiAssistant.providerId,
+                               title: qsTr("%1 (not available)").arg(AiAssistant.providerTitle) })
+            return entries
+        }
+        readonly property int chosen: serviceRow.options.findIndex(option => option.service === card.service
+                                                                   && option.provider === AiAssistant.providerId)
+        readonly property bool listed: AiAssistant.providers.length > 0 || card.external
 
         objectName: "aiService"
         path: "assistant.service"
-        labels: ({ openai: qsTr("Compatible with OpenAI"), openaiResponses: qsTr("OpenAI Responses"),
-                   anthropic: qsTr("Anthropic") })
+        relatedPaths: ["assistant.extension.provider"]
+        globalText: serviceRow.chosen >= 0 ? serviceRow.options[serviceRow.chosen].title
+                                           : String(serviceRow.globalValue ?? "")
+        fact: card.external && AiAssistant.providerMissing
+              ? qsTr("The extension that adds it is not installed, is turned off or may not provide AI. The assistant "
+                     + "and logic that ask AI get an error until it is back or you choose another service.")
+              : ""
+
+        SegmentedControl {
+            id: serviceSegments
+
+            visible: !serviceRow.listed
+            model: serviceRow.builtIn.map(name => serviceRow.labels[name])
+            currentIndex: serviceRow.builtIn.indexOf(serviceRow.value)
+            Accessible.name: serviceRow.title
+            onActivated: index => {
+                serviceRow.commit(serviceRow.builtIn[index])
+                serviceSegments.currentIndex = Qt.binding(() => serviceRow.builtIn.indexOf(serviceRow.value))
+            }
+        }
+
+        Select {
+            objectName: "aiServiceSelect"
+            visible: serviceRow.listed
+            model: serviceRow.options.map(option => option.title)
+            currentIndex: serviceRow.chosen
+            Accessible.name: serviceRow.title
+            onActivated: index => {
+                const option = serviceRow.options[index]
+                if (option.service === "extension")
+                    AiAssistant.chooseProvider(option.provider)
+                else
+                    serviceRow.commit(option.service)
+            }
+        }
     }
 
     TextRow {
@@ -40,6 +94,7 @@ SettingCard {
         path: "assistant." + card.service + ".address"
         placeholder: AiAssistant.defaultAddress
         wide: true
+        visible: matched && !card.external
     }
 
     SettingsRow {
@@ -47,7 +102,7 @@ SettingCard {
 
         objectName: "aiKey"
         width: parent ? parent.width : implicitWidth
-        visible: serviceRow.matched
+        visible: serviceRow.matched && !card.external
         divider: true
         title: qsTr("API key")
         description: qsTr("Kept in Windows Credential Manager under %1 and never shown again. A service on this "
@@ -313,8 +368,9 @@ SettingCard {
             implicitWidth: Theme.size.captureField
             rightPadding: modelField.edge + Theme.size.iconSmall + Theme.space.sm
             maximumLength: chooser.entry && chooser.entry.maxLength > 0 ? chooser.entry.maxLength : 256
-            placeholderText: card.service === "anthropic" ? qsTr("For example claude-sonnet-4-5")
-                                                           : qsTr("For example gpt-4.1 or deepseek-chat")
+            placeholderText: card.external ? qsTr("One of the models the extension lists")
+                             : card.service === "anthropic" ? qsTr("For example claude-sonnet-4-5")
+                                                            : qsTr("For example gpt-4.1 or deepseek-chat")
             text: chooser.shown(chooser.value)
             Accessible.name: chooser.title
             onEditingFinished: chooser.submit()
@@ -370,7 +426,7 @@ SettingCard {
                     delegate: MenuItem {
                         required property string modelData
 
-                        text: modelData
+                        text: AiAssistant.modelNames[modelData] ?? modelData
                         choice: true
                         chosen: modelData === card.modelName
                         onTriggered: chooser.commit(modelData)
@@ -387,7 +443,8 @@ SettingCard {
             small: true
             iconName: "refresh-cw"
             text: qsTr("Get")
-            toolTip: qsTr("Asks the service which models the key can use")
+            toolTip: card.external ? qsTr("Asks the extension which models it offers")
+                                   : qsTr("Asks the service which models the key can use")
             enabled: AiAssistant.modelsState !== "running"
             onClicked: chooser.fetch()
         }

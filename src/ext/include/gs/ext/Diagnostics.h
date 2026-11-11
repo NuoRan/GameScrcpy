@@ -113,6 +113,7 @@ enum class Code : std::uint8_t {
     SigningKeyMismatch,
     CliCommandInvalid,
     ConverterInvalid,
+    AiProviderInvalid,
 };
 
 struct Diagnostic {

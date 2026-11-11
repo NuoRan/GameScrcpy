@@ -15,7 +15,8 @@ T.AbstractButton {
     readonly property var chosen: picker.conversation.choice
     readonly property bool following: (picker.chosen.model ?? "") === ""
                                       || ((picker.chosen.service ?? "") !== ""
-                                          && picker.chosen.service !== AiAssistant.service)
+                                          && (picker.chosen.service !== AiAssistant.service
+                                              || (picker.chosen.provider ?? "") !== AiAssistant.providerId))
     readonly property var current: picker.following ? AiAssistant.defaultChoice : picker.chosen
     readonly property string model: picker.current.model ?? ""
     readonly property var traits: AiAssistant.service !== "" ? AiAssistant.traits(picker.model) : ({})
@@ -59,6 +60,8 @@ T.AbstractButton {
         for (const key in change)
             next[key] = change[key]
         next.service = AiAssistant.service
+        if (AiAssistant.providerId !== "")
+            next.provider = AiAssistant.providerId
         picker.conversation.choice = next
     }
 
@@ -217,7 +220,7 @@ T.AbstractButton {
                     implicitHeight: Theme.size.menuItem
                     horizontalPadding: Theme.space.sm
                     hoverEnabled: true
-                    text: modelData
+                    text: AiAssistant.modelNames[modelRow.modelData] ?? modelRow.modelData
                     font.pixelSize: Theme.type.label.size
                     Accessible.role: Accessible.RadioButton
                     Accessible.checked: modelRow.current

@@ -444,6 +444,11 @@ std::pair<std::string_view, std::string_view> identity(const NativeFrameTap& ent
     return {"name", entry.name};
 }
 
+std::pair<std::string_view, std::string_view> identity(const NativeAiProvider& entry)
+{
+    return {"name", entry.name};
+}
+
 std::pair<std::string_view, std::string_view> identity(const DeclaredParam& entry)
 {
     return {"key", entry.key};
@@ -639,6 +644,8 @@ void checkEntry(const NativeRecordingExporter& exporter, const std::string& path
 }
 
 void checkEntry(const NativeFrameTap&, const std::string&, Context&) {}
+
+void checkEntry(const NativeAiProvider&, const std::string&, Context&) {}
 
 void checkEntry(const NativeContribution& native, const std::string& path, Context& context)
 {
@@ -2263,6 +2270,24 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
                 manifest.permissions.end()) {
             context.report(Severity::Error, Code::NativePermissionUndeclared, "$.contributes.native.frameTaps",
                            std::string(kMediaReadPermission));
+        }
+        if (!native.aiProviders.empty() && std::ranges::find(manifest.permissions, kAiProvidePermission,
+                                                             &Permission::name) == manifest.permissions.end()) {
+            context.report(Severity::Error, Code::NativePermissionUndeclared, "$.contributes.native.aiProviders",
+                           std::string(kAiProvidePermission));
+        }
+        for (std::size_t provider = 0; provider < native.aiProviders.size(); ++provider) {
+            const NativeAiProvider& declared = native.aiProviders[provider];
+            const std::string at = indexed("$.contributes.native.aiProviders", provider);
+            const auto chat = std::ranges::find(native.jobs, declared.chat, &NativeJob::name);
+            if (!declared.chat.empty() && (!jobTakes(declared.chat, {{"request", "json"}}) || chat->returns != "json")) {
+                context.report(Severity::Error, Code::AiProviderInvalid, at + ".chat", declared.chat);
+            }
+            const auto models = std::ranges::find(native.nodes, declared.models, &NativeNode::name);
+            if (!declared.models.empty() &&
+                (models == native.nodes.end() || !models->params.empty() || models->returns != "json")) {
+                context.report(Severity::Error, Code::AiProviderInvalid, at + ".models", declared.models);
+            }
         }
     }
     for (std::size_t index = 0; index < contributes.services.size(); ++index) {

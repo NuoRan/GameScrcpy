@@ -285,7 +285,7 @@ std::size_t jobIndex(const exthost::Module& module, std::string_view name)
 
 void checkJobs(exthost::Module& module)
 {
-    REQUIRE(module.info().jobs.size() == 4);
+    REQUIRE(module.info().jobs.size() == 5);
     const std::size_t count = jobIndex(module, "count");
 
     JobWatch counted;

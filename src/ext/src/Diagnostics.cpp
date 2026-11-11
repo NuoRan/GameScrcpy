@@ -213,6 +213,8 @@ std::string_view codeName(Code code) noexcept
         return "cli-command-invalid";
     case Code::ConverterInvalid:
         return "converter-invalid";
+    case Code::AiProviderInvalid:
+        return "ai-provider-invalid";
     }
     return "unknown";
 }
@@ -480,6 +482,9 @@ std::string_view fixHint(Code code) noexcept
         return "Write from and to as profile, task, recording or a file extension of 1 to 16 lowercase letters and "
                "digits without the dot, exactly one of them a GameScrcpy format, and list in extensions the file "
                "extensions an importing converter reads, written the same way.";
+    case Code::AiProviderInvalid:
+        return "An AI provider names a chat job of the extension that takes one parameter, request (json), and "
+               "returns json, and a models node without parameters that returns json.";
     }
     return "";
 }

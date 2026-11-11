@@ -204,7 +204,8 @@ AiScriptHooks aiScriptHooks(const AppSettings& settings, AiAssistant& assistant,
                 const std::vector<std::string> granted = extensions.grantedPermissions(extension.toStdString());
                 return std::ranges::any_of(granted, [](const std::string& name) { return name == permissionName(); });
             },
-        .frames = std::move(frames)};
+        .frames = std::move(frames),
+        .unavailable = [&assistant] { return assistant.unavailable(); }};
 }
 
 AiScripts::AiScripts(AiScriptHooks hooks, const Clock& clock, QObject* parent)
@@ -353,6 +354,11 @@ QString AiScripts::refusalFor(const LogicCaller& caller, bool picture)
     if (!(m_hooks.allowed && m_hooks.allowed())) {
         return turnedOff();
     }
+    if (m_hooks.unavailable) {
+        if (QString problem = m_hooks.unavailable(); !problem.isEmpty()) {
+            return problem;
+        }
+    }
     if (!(m_hooks.ready && m_hooks.ready())) {
         return notSetUp();
     }
@@ -433,7 +439,8 @@ void AiScripts::send(const Key& key, const QByteArray& png)
     if (provider == nullptr) {
         m_pending.erase(found);
         schedule();
-        refuse(key.first, key.second, notSetUp());
+        const QString gone = m_hooks.unavailable ? m_hooks.unavailable() : QString();
+        refuse(key.first, key.second, gone.isEmpty() ? notSetUp() : gone);
         return;
     }
     AiTurn turn{.role = AiTurn::Role::User, .text = found->second.question};

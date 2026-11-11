@@ -38,6 +38,7 @@ struct AiScriptHooks {
     std::function<std::unique_ptr<AiProvider>()> provider;
     std::function<bool(const QString& extension)> permitted;
     std::function<AiFrameCapture(const QString& serial)> frames;
+    std::function<QString()> unavailable;
 };
 
 struct AiScriptReplies {

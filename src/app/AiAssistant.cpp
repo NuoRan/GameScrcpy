@@ -153,7 +153,22 @@ AiKind kindOf(const settings::Assistant& chosen)
     return AiKind::OpenAi;
 }
 
-const settings::AiEndpoint& endpointOf(const settings::Assistant& chosen)
+bool external(const settings::Assistant& chosen)
+{
+    return chosen.service == settings::AiService::Extension;
+}
+
+QString serviceOf(const settings::Assistant& chosen)
+{
+    return toQString(settings::kAiServiceNames[static_cast<std::size_t>(chosen.service)]);
+}
+
+QString extensionService()
+{
+    return toQString(settings::kAiServiceNames[static_cast<std::size_t>(settings::AiService::Extension)]);
+}
+
+settings::AiEndpoint endpointOf(const settings::Assistant& chosen)
 {
     if (chosen.service == settings::AiService::Anthropic) {
         return chosen.anthropic;
@@ -161,18 +176,29 @@ const settings::AiEndpoint& endpointOf(const settings::Assistant& chosen)
     if (chosen.service == settings::AiService::OpenAiResponses) {
         return chosen.openaiResponses;
     }
+    if (external(chosen)) {
+        return settings::AiEndpoint{.address = {},
+                                    .model = chosen.extension.model,
+                                    .thinking = chosen.extension.thinking,
+                                    .effort = chosen.extension.effort,
+                                    .longContext = chosen.extension.longContext};
+    }
     return chosen.openai;
+}
+
+QString placeOf(const settings::Assistant& chosen)
+{
+    return external(chosen) ? toQString(chosen.extension.provider) : toQString(endpointOf(chosen).address);
 }
 
 QString endpointText(const settings::Assistant& chosen)
 {
-    const settings::AiEndpoint& endpoint = endpointOf(chosen);
-    return aiServiceName(kindOf(chosen)) + u'\n' + toQString(endpoint.address) + u'\n' + toQString(endpoint.model);
+    return serviceOf(chosen) + u'\n' + placeOf(chosen) + u'\n' + toQString(endpointOf(chosen).model);
 }
 
 QString modelsKeyOf(const settings::Assistant& chosen)
 {
-    return aiServiceName(kindOf(chosen)) + u'\n' + toQString(endpointOf(chosen).address);
+    return serviceOf(chosen) + u'\n' + placeOf(chosen);
 }
 
 }
@@ -214,7 +240,7 @@ AiAssistant* AiAssistant::create(QQmlEngine*, QJSEngine*)
 
 QString AiAssistant::service() const
 {
-    return aiServiceName(kind());
+    return serviceOf(setup());
 }
 
 bool AiAssistant::ready() const
@@ -226,8 +252,23 @@ QString AiAssistant::missing() const
 {
     const settings::Assistant current = setup();
     const settings::AiEndpoint& endpoint = endpointOf(current);
+    if (external(current)) {
+        const QString id = toQString(current.extension.provider);
+        if (id.isEmpty()) {
+            return QCoreApplication::translate("AiAssistant", "Choose the AI provider in Settings > AI.");
+        }
+        if (chosenProvider() == nullptr) {
+            return QCoreApplication::translate("AiAssistant",
+                                               "The AI provider %1 in Settings > AI is not available: its extension is "
+                                               "not installed, is turned off or may not provide AI.")
+                .arg(id);
+        }
+    }
     if (toQString(endpoint.model).trimmed().isEmpty()) {
         return QCoreApplication::translate("AiAssistant", "Choose the model in Settings > AI.");
+    }
+    if (external(current)) {
+        return {};
     }
     if (!aiEndpoint(kindOf(current), toQString(endpoint.address)).isValid()) {
         return QCoreApplication::translate("AiAssistant", "The address in Settings > AI is not a web address.");
@@ -245,14 +286,90 @@ QString AiAssistant::keyTarget() const
 
 QString AiAssistant::defaultAddress() const
 {
-    return aiDefaultAddress(kind());
+    return external(setup()) ? QString() : aiDefaultAddress(kind());
 }
 
 QString AiAssistant::host() const
 {
     const settings::Assistant current = setup();
+    if (external(current)) {
+        return {};
+    }
     const QUrl url = aiEndpoint(kindOf(current), toQString(endpointOf(current).address));
     return url.isValid() ? url.host() : QString();
+}
+
+QVariantList AiAssistant::providerList() const
+{
+    QVariantList list;
+    if (m_providers == nullptr) {
+        return list;
+    }
+    for (const AiProviderInfo& info : m_providers->providers()) {
+        list.append(QVariantMap{{u"id"_s, info.id()},
+                                {u"title"_s, info.title},
+                                {u"extension"_s, info.extension},
+                                {u"extensionName"_s, info.extensionName}});
+    }
+    return list;
+}
+
+QString AiAssistant::providerId() const
+{
+    const settings::Assistant current = setup();
+    return external(current) ? toQString(current.extension.provider) : QString();
+}
+
+QString AiAssistant::providerTitle() const
+{
+    const AiProviderInfo* found = chosenProvider();
+    return found != nullptr ? found->title : providerId();
+}
+
+bool AiAssistant::providerMissing() const
+{
+    return external(setup()) && chosenProvider() == nullptr;
+}
+
+QString AiAssistant::unavailable() const
+{
+    if (!providerMissing()) {
+        return {};
+    }
+    const QString id = providerId();
+    if (id.isEmpty()) {
+        return u"GS-API-150 logic may not call AI: no AI provider is chosen in Settings > AI"_s;
+    }
+    return u"GS-API-150 the AI provider %1 chosen in Settings > AI is not available: its extension is not installed, is "
+           u"turned off or may not provide AI"_s.arg(id);
+}
+
+void AiAssistant::setProviders(AiProviders* providers)
+{
+    if (m_providers != nullptr) {
+        disconnect(m_providers.data(), nullptr, this, nullptr);
+    }
+    m_providers = providers;
+    if (providers != nullptr) {
+        connect(providers, &AiProviders::providersChanged, this, &AiAssistant::providersUpdated);
+    }
+    providersUpdated();
+}
+
+bool AiAssistant::chooseProvider(const QString& id)
+{
+    if (m_providers == nullptr || m_providers->find(id) == nullptr) {
+        return false;
+    }
+    if (toQString(setup().extension.provider) != id) {
+        const AiProviderModels listed = m_providers->models(id);
+        const QString model = listed.models.empty() ? QString() : listed.models.front().id;
+        if (!m_settings.setValue(u"assistant.extension.provider"_s, id) ||
+            !m_settings.setValue(u"assistant.extension.model"_s, model)) {
+            return false;
+        }
+    }
+    return m_settings.setValue(u"assistant.service"_s, extensionService());
 }
 
 bool AiAssistant::explanationWanted() const
@@ -320,7 +437,11 @@ void AiAssistant::testConnection()
         setTest(u"failed"_s, missing());
         return;
     }
-    m_test = makeAiProvider(m_network, *target);
+    m_test = makeProvider(*target);
+    if (m_test == nullptr) {
+        setTest(u"failed"_s, missing());
+        return;
+    }
     setTest(u"running"_s, QString());
     const QString model = target->model;
     const QPointer<AiAssistant> self(this);
@@ -348,6 +469,31 @@ void AiAssistant::fetchModels()
         m_modelsReply->abort();
     }
     const settings::Assistant current = setup();
+    if (external(current)) {
+        m_modelsKey = modelsKeyOf(current);
+        const AiProviderModels listed = m_providers != nullptr && chosenProvider() != nullptr
+                                            ? m_providers->models(providerId())
+                                            : AiProviderModels{.models = {}, .problem = missing()};
+        m_models.clear();
+        m_modelNames.clear();
+        m_providerTraits.clear();
+        for (const AiProviderModel& model : listed.models) {
+            m_models.append(model.id);
+            m_providerTraits.insert_or_assign(model.id, model.traits);
+            if (model.name != model.id) {
+                m_modelNames.insert(model.id, model.name);
+            }
+        }
+        m_modelsProblem = listed.problem;
+        if (m_modelsProblem.isEmpty() && m_models.isEmpty()) {
+            m_modelsProblem = QCoreApplication::translate(
+                "AiAssistant", "The extension did not list any models. Type the model's name above.");
+        }
+        m_modelsState = m_modelsProblem.isEmpty() ? u"done"_s : u"failed"_s;
+        emit modelsChanged();
+        emit setupChanged();
+        return;
+    }
     const AiKind chosen = kindOf(current);
     const settings::AiEndpoint& endpoint = endpointOf(current);
     const QUrl url = aiModelsEndpoint(chosen, toQString(endpoint.address));
@@ -424,6 +570,12 @@ std::optional<AiConnection> AiAssistant::connection() const
         return std::nullopt;
     }
     const settings::Assistant current = setup();
+    if (external(current)) {
+        return AiConnection{.kind = AiKind::OpenAi,
+                            .url = {},
+                            .model = toQString(current.extension.model).trimmed(),
+                            .key = {}};
+    }
     const AiKind chosen = kindOf(current);
     const settings::AiEndpoint& endpoint = endpointOf(current);
     QString key;
@@ -438,7 +590,7 @@ std::optional<AiConnection> AiAssistant::connection() const
 
 QVariantMap AiAssistant::traits(const QString& model) const
 {
-    const AiModelTraits found = aiModelTraits(kind(), model);
+    const AiModelTraits found = external(setup()) ? providerTraits(model) : aiModelTraits(kind(), model);
     return {{u"think"_s, found.think},
             {u"alwaysThinks"_s, found.alwaysThinks},
             {u"efforts"_s, found.efforts},
@@ -449,7 +601,8 @@ QVariantMap AiAssistant::traits(const QString& model) const
 void AiAssistant::makeDefault(const QVariantMap& choice)
 {
     const AiChoice wanted = aiChoiceOf(choice);
-    if (wanted.model.isEmpty() || (!wanted.service.isEmpty() && wanted.service != service())) {
+    if (wanted.model.isEmpty() || (!wanted.service.isEmpty() && wanted.service != service()) ||
+        (!wanted.provider.isEmpty() && wanted.provider != providerId())) {
         return;
     }
     const QString prefix = u"assistant."_s + service() + u'.';
@@ -471,7 +624,8 @@ AiChoice AiAssistant::defaults() const
                     .think = endpoint.thinking,
                     .effort = effort,
                     .longContext = endpoint.longContext,
-                    .service = aiServiceName(kindOf(current))};
+                    .service = serviceOf(current),
+                    .provider = external(current) ? toQString(current.extension.provider) : QString()};
 }
 
 std::optional<AiConnection> AiAssistant::chatConnection(const AiChoice& choice) const
@@ -480,8 +634,11 @@ std::optional<AiConnection> AiAssistant::chatConnection(const AiChoice& choice) 
     if (!target) {
         return std::nullopt;
     }
-    const bool own = !choice.model.isEmpty() && (choice.service.isEmpty() || choice.service == service());
-    const AiChoice wanted = aiFitted(target->kind, own ? choice : defaults());
+    const bool own = !choice.model.isEmpty() &&
+                     (choice.service.isEmpty() || (choice.service == service() && choice.provider == providerId()));
+    const AiChoice picked = own ? choice : defaults();
+    const AiChoice wanted =
+        external(setup()) ? aiFitted(providerTraits(picked.model), picked) : aiFitted(target->kind, picked);
     target->model = wanted.model;
     target->think = wanted.think;
     target->effort = wanted.effort;
@@ -492,7 +649,39 @@ std::optional<AiConnection> AiAssistant::chatConnection(const AiChoice& choice) 
 std::unique_ptr<AiProvider> AiAssistant::provider(bool chat, const AiChoice& choice)
 {
     const std::optional<AiConnection> target = chat ? chatConnection(choice) : connection();
-    return target ? makeAiProvider(m_network, *target) : nullptr;
+    return target ? makeProvider(*target) : nullptr;
+}
+
+std::unique_ptr<AiProvider> AiAssistant::makeProvider(const AiConnection& target)
+{
+    if (external(setup())) {
+        return m_providers != nullptr ? m_providers->provider(providerId(), target) : nullptr;
+    }
+    return makeAiProvider(m_network, target);
+}
+
+void AiAssistant::providersUpdated()
+{
+    emit providersChanged();
+    if (external(setup())) {
+        fetchModels();
+    }
+    emit setupChanged();
+}
+
+const AiProviderInfo* AiAssistant::chosenProvider() const
+{
+    const settings::Assistant current = setup();
+    if (!external(current) || m_providers == nullptr) {
+        return nullptr;
+    }
+    return m_providers->find(toQString(current.extension.provider));
+}
+
+AiModelTraits AiAssistant::providerTraits(const QString& model) const
+{
+    const auto found = m_providerTraits.find(model.trimmed());
+    return found != m_providerTraits.end() ? found->second : AiModelTraits{};
 }
 
 void AiAssistant::settingsChanged()
@@ -518,9 +707,14 @@ void AiAssistant::settingsChanged()
             m_modelsReply->abort();
         }
         m_models.clear();
+        m_modelNames.clear();
+        m_providerTraits.clear();
         m_modelsState.clear();
         m_modelsProblem.clear();
         emit modelsChanged();
+        if (external(current)) {
+            fetchModels();
+        }
     }
     if (current.explain != m_explain) {
         m_explain = current.explain;

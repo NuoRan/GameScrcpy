@@ -656,8 +656,9 @@ struct Mcp {
     friend bool operator==(const Mcp&, const Mcp&) = default;
 };
 
-enum class AiService : std::uint8_t { OpenAi, Anthropic, OpenAiResponses };
-inline constexpr std::array<std::string_view, 3> kAiServiceNames{"openai", "anthropic", "openaiResponses"};
+enum class AiService : std::uint8_t { OpenAi, Anthropic, OpenAiResponses, Extension };
+inline constexpr std::array<std::string_view, 4> kAiServiceNames{"openai", "anthropic", "openaiResponses",
+                                                                 "extension"};
 inline constexpr std::string_view kOpenAiAddress = "https://api.openai.com/v1";
 inline constexpr std::string_view kAnthropicAddress = "https://api.anthropic.com";
 
@@ -726,11 +727,72 @@ struct AiEndpoint {
     friend bool operator==(const AiEndpoint&, const AiEndpoint&) = default;
 };
 
+struct AiExtensionService {
+    static constexpr std::size_t kMaxProviderLength = 160;
+    static constexpr std::size_t kMaxModelLength = AiEndpoint::kMaxModelLength;
+
+    std::string provider;
+    std::string model;
+    bool thinking = false;
+    AiEffort effort = AiEffort::Automatic;
+    bool longContext = false;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("provider", m.provider, kMaxProviderLength,
+               {.title = GS_TRANSLATE_NOOP("Settings", "AI provider"),
+                .description = GS_TRANSLATE_NOOP("Settings", "The model service an extension adds, written as the "
+                                                             "extension's id, a slash and the provider's name. It "
+                                                             "stays chosen when the extension goes away; the "
+                                                             "assistant and logic then get an error until it is back "
+                                                             "or another service is chosen."),
+                .keywords = GS_TRANSLATE_NOOP("Settings", "ai assistant provider extension model service plugin"),
+                .live = true});
+        v.text("model", m.model, kMaxModelLength,
+               {.title = GS_TRANSLATE_NOOP("Settings", "Model"),
+                .description = GS_TRANSLATE_NOOP("Settings", "One of the models that the extension's provider lists, "
+                                                             "as the extension names it."),
+                .keywords = GS_TRANSLATE_NOOP("Settings", "ai assistant model name extension provider"),
+                .live = true});
+        v.boolean("thinking", m.thinking,
+                  {.title = GS_TRANSLATE_NOOP("Settings", "Deep thinking"),
+                   .description = GS_TRANSLATE_NOOP("Settings", "New conversations let the model think before it "
+                                                                "answers, when the model can; the assistant shows the "
+                                                                "thinking above the answer. Slower and uses more of "
+                                                                "your quota."),
+                   .keywords = GS_TRANSLATE_NOOP("Settings", "ai assistant think thinking reasoning claude qwen "
+                                                             "openai slow quota"),
+                   .live = true});
+        v.choice("effort", m.effort, kAiEffortNames,
+                 {.title = GS_TRANSLATE_NOOP("Settings", "Reasoning effort"),
+                  .description = GS_TRANSLATE_NOOP("Settings", "How hard new conversations let the model think, for "
+                                                               "models that take an effort; automatic leaves it to "
+                                                               "the service. Higher is slower and uses more of your "
+                                                               "quota."),
+                  .keywords = GS_TRANSLATE_NOOP("Settings", "ai assistant reasoning effort strength minimal low "
+                                                            "medium high think gpt claude"),
+                  .live = true});
+        v.boolean("longContext", m.longContext,
+                  {.title = GS_TRANSLATE_NOOP("Settings", "Long context"),
+                   .description = GS_TRANSLATE_NOOP("Settings", "New conversations ask models that offer it for a "
+                                                                "context of a million tokens, so long conversations "
+                                                                "forget less. Costs more past the usual length, and "
+                                                                "the account must be allowed to use it."),
+                   .keywords = GS_TRANSLATE_NOOP("Settings", "ai assistant long context max million tokens 1m "
+                                                             "claude sonnet"),
+                   .live = true});
+    }
+
+    friend bool operator==(const AiExtensionService&, const AiExtensionService&) = default;
+};
+
 struct Assistant {
     AiService service = AiService::OpenAi;
     AiEndpoint openai;
     AiEndpoint anthropic;
     AiEndpoint openaiResponses;
+    AiExtensionService extension;
     bool explain = true;
     bool scripts = false;
     bool bubble = true;
@@ -745,13 +807,15 @@ struct Assistant {
                                                                "Kimi, a local Ollama and many more through the Chat "
                                                                "Completions protocol; OpenAI Responses is OpenAI's "
                                                                "newer protocol; Anthropic is Claude. Each keeps its own "
-                                                               "address, model and API key."),
+                                                               "address, model and API key. Extensions can add more "
+                                                               "services, which bring their own models."),
                   .keywords = GS_TRANSLATE_NOOP("Settings", "ai assistant llm chat model service openai anthropic "
                                                             "claude deepseek qwen kimi ollama api key"),
                   .live = true});
         v.object("openai", m.openai, Page::Assistant);
         v.object("anthropic", m.anthropic, Page::Assistant);
         v.object("openaiResponses", m.openaiResponses, Page::Assistant);
+        v.object("extension", m.extension, Page::Assistant);
         v.boolean("explain", m.explain,
                   {.title = GS_TRANSLATE_NOOP("Settings", "Explain what is sent"),
                    .description = GS_TRANSLATE_NOOP("Settings", "Before the first message, shows what the assistant "

@@ -795,6 +795,25 @@ QUrl endpointWith(AiKind kind, const QString& address, const QString& tail)
     return url;
 }
 
+QJsonObject providerPicture(const QJsonObject& item)
+{
+    return {{u"type"_s, u"image"_s}, {u"mimeType"_s, mimeOf(item)}, {u"data"_s, item.value(u"data"_s).toString()}};
+}
+
+QJsonArray providerContent(const QJsonArray& content, PictureBudget& pictures)
+{
+    QJsonArray items;
+    for (const QJsonValue& value : content) {
+        const QJsonObject item = value.toObject();
+        if (item.value(u"type"_s).toString() == u"text") {
+            items.append(textBlock(clipped(item.value(u"text"_s).toString(), kMostToolChars)));
+        } else if (isPicture(item)) {
+            items.append(pictures.take() ? providerPicture(item) : textBlock(pictures.leftOut()));
+        }
+    }
+    return items;
+}
+
 }
 
 QString aiServiceName(AiKind kind)
@@ -882,9 +901,33 @@ AiModelTraits aiModelTraits(AiKind kind, const QString& model)
     return traits;
 }
 
+AiModelTraits aiTraitsOf(const QJsonObject& traits)
+{
+    AiModelTraits read{.think = traits.value(u"think"_s).toBool(),
+                       .alwaysThinks = traits.value(u"alwaysThinks"_s).toBool(),
+                       .efforts = {},
+                       .thinkingEffort = traits.value(u"thinkingEffort"_s).toBool(),
+                       .longContext = traits.value(u"longContext"_s).toBool()};
+    QStringList listed;
+    for (const QJsonValue& value : traits.value(u"efforts"_s).toArray()) {
+        listed.append(value.toString());
+    }
+    for (const QString& level : {u"minimal"_s, u"low"_s, u"medium"_s, u"high"_s}) {
+        if (listed.contains(level)) {
+            read.efforts.append(level);
+        }
+    }
+    return read;
+}
+
 AiChoice aiFitted(AiKind kind, AiChoice choice)
 {
     const AiModelTraits traits = aiModelTraits(kind, choice.model);
+    return aiFitted(traits, std::move(choice));
+}
+
+AiChoice aiFitted(const AiModelTraits& traits, AiChoice choice)
+{
     choice.think = choice.think && traits.think;
     if (!traits.efforts.contains(choice.effort) || (traits.thinkingEffort && !choice.think)) {
         choice.effort.clear();
@@ -905,12 +948,16 @@ QVariantMap aiChoiceMap(const AiChoice& choice)
     if (!choice.service.isEmpty()) {
         map.insert(u"service"_s, choice.service);
     }
+    if (!choice.provider.isEmpty()) {
+        map.insert(u"provider"_s, choice.provider);
+    }
     return map;
 }
 
 AiChoice aiChoiceOf(const QVariantMap& map)
 {
     constexpr qsizetype kMostModelLength = 256;
+    constexpr qsizetype kMostProviderLength = 160;
     const QString model = map.value(u"model"_s).toString().trimmed().left(kMostModelLength);
     if (model.isEmpty()) {
         return {};
@@ -922,11 +969,16 @@ AiChoice aiChoiceOf(const QVariantMap& map)
     }
     const QString effort = map.value(u"effort"_s).toString();
     const QString service = map.value(u"service"_s).toString();
+    const QString provider = map.value(u"provider"_s).toString();
+    const bool provided =
+        service == toQString(settings::kAiServiceNames[static_cast<std::size_t>(settings::AiService::Extension)]) &&
+        provider.contains(u'/') && provider.size() <= kMostProviderLength;
     return AiChoice{.model = model,
                     .think = map.value(u"think"_s).toBool(),
                     .effort = efforts.contains(effort) ? effort : QString(),
                     .longContext = map.value(u"longContext"_s).toBool(),
-                    .service = services.contains(service) ? service : QString()};
+                    .service = services.contains(service) ? service : QString(),
+                    .provider = provided ? provider : QString()};
 }
 
 int aiThinkingBudget(const QString& effort)
@@ -1203,6 +1255,132 @@ AiThinkSplit aiSplitThinkTags(const QString& content)
     }
     return {.thinking = inside.first(end).toString().trimmed(),
             .text = inside.sliced(end + kClose.size()).toString().trimmed()};
+}
+
+QJsonObject aiProviderRequestJson(const AiRequest& request)
+{
+    PictureBudget pictures(request);
+    QJsonArray messages;
+    for (const AiTurn& turn : request.turns) {
+        switch (turn.role) {
+        case AiTurn::Role::User: {
+            QString text = turn.text;
+            QJsonArray attached;
+            for (const QJsonValue& value : turn.pictures) {
+                const QJsonObject item = value.toObject();
+                if (!isPicture(item)) {
+                    continue;
+                }
+                if (pictures.take()) {
+                    attached.append(providerPicture(item));
+                } else {
+                    text += u'\n' + pictures.leftOut();
+                }
+            }
+            QJsonObject message{{u"role"_s, u"user"_s}, {u"text"_s, text}};
+            if (!attached.isEmpty()) {
+                message.insert(u"pictures"_s, attached);
+            }
+            messages.append(message);
+            break;
+        }
+        case AiTurn::Role::Assistant: {
+            if (turn.text.isEmpty() && turn.calls.empty() && turn.thinkingBlocks.isEmpty()) {
+                break;
+            }
+            QJsonObject message{{u"role"_s, u"assistant"_s}, {u"text"_s, turn.text}};
+            if (!turn.calls.empty()) {
+                QJsonArray calls;
+                for (const AiToolCall& call : turn.calls) {
+                    calls.append(
+                        QJsonObject{{u"id"_s, call.id}, {u"name"_s, call.name}, {u"arguments"_s, call.arguments}});
+                }
+                message.insert(u"toolCalls"_s, calls);
+            }
+            if (!turn.thinkingBlocks.isEmpty()) {
+                message.insert(u"thinkingBlocks"_s, turn.thinkingBlocks);
+            }
+            messages.append(message);
+            break;
+        }
+        case AiTurn::Role::Tools: {
+            QJsonArray results;
+            for (const AiToolResult& result : turn.results) {
+                results.append(QJsonObject{{u"id"_s, result.id},
+                                           {u"name"_s, result.name},
+                                           {u"failed"_s, result.failed},
+                                           {u"content"_s, providerContent(result.content, pictures)}});
+            }
+            messages.append(QJsonObject{{u"role"_s, u"tools"_s}, {u"toolResults"_s, results}});
+            break;
+        }
+        }
+    }
+    QJsonArray tools;
+    for (const QJsonValue& value : request.tools) {
+        const QJsonObject tool = value.toObject();
+        tools.append(QJsonObject{{u"name"_s, tool.value(u"name"_s)},
+                                 {u"description"_s, tool.value(u"description"_s)},
+                                 {u"inputSchema"_s, schemaOf(tool)}});
+    }
+    return {{u"model"_s, request.model},
+            {u"system"_s, request.system},
+            {u"messages"_s, messages},
+            {u"tools"_s, tools},
+            {u"stream"_s, request.stream},
+            {u"maxTokens"_s, request.maxTokens > 0 ? request.maxTokens : AiRequest::kAnthropicMaxTokens},
+            {u"think"_s, request.think},
+            {u"effort"_s, request.effort},
+            {u"longContext"_s, request.longContext}};
+}
+
+AiDelta aiProviderDelta(const QByteArray& json)
+{
+    const QJsonDocument document = QJsonDocument::fromJson(json);
+    if (!document.isObject()) {
+        return {};
+    }
+    const QJsonObject delta = document.object();
+    AiDelta read{.text = delta.value(u"text"_s).toString(),
+                 .thinking = delta.value(u"thinking"_s).toString(),
+                 .calling = {}};
+    const QJsonValue call = delta.value(u"toolCall"_s);
+    const QString name = call.isObject() ? call.toObject().value(u"name"_s).toString() : call.toString();
+    if (!name.isEmpty()) {
+        read.calling.append(name);
+    }
+    return read;
+}
+
+AiReply aiProviderReply(const QByteArray& json, const QString& streamedText, const QString& streamedThinking)
+{
+    QJsonParseError error{};
+    const QJsonDocument document = QJsonDocument::fromJson(json, &error);
+    if (error.error != QJsonParseError::NoError || !document.isObject()) {
+        return AiReply{.problem = aiUnreadable()};
+    }
+    const QJsonObject root = document.object();
+    AiReply parsed;
+    parsed.text = root.contains(u"text"_s) ? root.value(u"text"_s).toString() : streamedText;
+    parsed.thinking = root.contains(u"thinking"_s) ? root.value(u"thinking"_s).toString() : streamedThinking;
+    parsed.thinkingBlocks = root.value(u"thinkingBlocks"_s).toArray();
+    for (const QJsonValue& value : root.value(u"toolCalls"_s).toArray()) {
+        const QJsonObject call = value.toObject();
+        AiToolCall read{.id = call.value(u"id"_s).toString(), .name = call.value(u"name"_s).toString()};
+        readArguments(call.value(u"arguments"_s), read);
+        if (!read.name.isEmpty()) {
+            parsed.calls.push_back(std::move(read));
+        }
+    }
+    parsed.stop = root.value(u"stop"_s).toString();
+    parsed.usage = usageOf(root.value(u"usage"_s).toObject(), u"input"_s, u"output"_s);
+    const QString problem = tidy(root.value(u"problem"_s).toString());
+    if (!problem.isEmpty()) {
+        parsed.problem = problem;
+        parsed.status = root.value(u"status"_s).toInt();
+        parsed.code = root.value(u"code"_s).toString();
+    }
+    return parsed;
 }
 
 AiDelta AiStream::feed(const AiSseEvent& event)

@@ -25,8 +25,12 @@ Dialog {
             width: parent.width
             textFormat: Text.PlainText
             wrapMode: Text.Wrap
-            text: qsTr("The assistant sends something only when you send a message, and only to %1, the address in "
-                       + "Settings > AI.").arg(AiAssistant.host)
+            text: AiAssistant.service === "extension"
+                  ? qsTr("The assistant sends something only when you send a message, and only to %1, the AI "
+                         + "provider of an extension that you chose in Settings > AI; the extension decides where it "
+                         + "goes from there.").arg(AiAssistant.providerTitle)
+                  : qsTr("The assistant sends something only when you send a message, and only to %1, the address in "
+                         + "Settings > AI.").arg(AiAssistant.host)
             color: Theme.colors.textSecondary
             font.pixelSize: Theme.type.body.size
         }

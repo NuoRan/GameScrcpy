@@ -3983,6 +3983,10 @@ constexpr Failure kAiAskFailures[] = {
      "Add \"ai\" to the permissions in the extension's manifest, with a reason."},
     {"GS-API-073", "a picture is asked for by logic that has no phone, such as the app script of an extension",
      "Ask without a picture, or from a session script."},
+    {"GS-API-150",
+     "the model service in Settings, AI, is the AI provider of an extension that is not installed, is turned off or "
+     "may not provide AI",
+     "Turn that extension on again, or choose another model service there."},
 };
 
 constexpr Function kAi[] = {
