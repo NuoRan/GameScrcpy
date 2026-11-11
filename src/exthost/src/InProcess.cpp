@@ -513,6 +513,7 @@ struct InProcessModule::Impl {
         }))
         , settings(settingsOf(options.settings))
         , inputGate(options.inputs)
+        , clock(options.clock)
     {
     }
 
@@ -787,6 +788,7 @@ struct InProcessModule::Impl {
     std::mutex sinkMutex;
     std::map<std::uint64_t, Sink> sinkStates;
     std::uint64_t nextSink = 0;
+    const Clock* clock = nullptr;
 };
 
 namespace {
@@ -840,8 +842,11 @@ void hostLog(void* context, uint32_t level, const char* text, size_t size)
                        std::string_view(text, std::min(size, kMostLogBytes)));
 }
 
-uint64_t hostNow(void*)
+uint64_t hostNow(void* context)
 {
+    if (const Clock* given = implOf(context).clock; given != nullptr) {
+        return static_cast<uint64_t>(std::max<std::int64_t>(given->now().count(), 0));
+    }
     LARGE_INTEGER counter{};
     LARGE_INTEGER frequency{};
     QueryPerformanceCounter(&counter);

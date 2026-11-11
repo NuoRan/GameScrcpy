@@ -4,6 +4,8 @@
 #include <gs/platform/AtomicFile.h>
 #include <gs/script/ApiFiles.h>
 
+#include <windows.h>
+
 #include <fstream>
 #include <iterator>
 #include <system_error>
@@ -11,6 +13,21 @@
 namespace gs::cli {
 
 namespace fs = std::filesystem;
+
+namespace {
+
+std::wstring environmentText(const wchar_t* name)
+{
+    std::wstring value(32767, L'\0');
+    const DWORD length = GetEnvironmentVariableW(name, value.data(), static_cast<DWORD>(value.size()));
+    if (length == 0 || length >= value.size()) {
+        return {};
+    }
+    value.resize(length);
+    return value;
+}
+
+}
 
 std::string utf8(const fs::path& path)
 {
@@ -96,6 +113,54 @@ std::string apiDeclarations()
         }
     }
     return {};
+}
+
+fs::path programFolder()
+{
+    std::wstring buffer(MAX_PATH, L'\0');
+    for (;;) {
+        const DWORD length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+        if (length == 0) {
+            return {};
+        }
+        if (length < buffer.size()) {
+            buffer.resize(length);
+            return fs::path(buffer).parent_path();
+        }
+        buffer.resize(buffer.size() * 2);
+    }
+}
+
+fs::path dataFolder()
+{
+    if (const std::wstring overridden = environmentText(L"GS_DATA_DIR"); !overridden.empty()) {
+        return fs::path(overridden);
+    }
+    std::error_code error;
+    if (fs::exists(programFolder() / "portable.flag", error)) {
+        return programFolder() / "data";
+    }
+    const std::wstring roaming = environmentText(L"APPDATA");
+    return roaming.empty() ? fs::path() : fs::path(roaming) / "GameScrcpy";
+}
+
+void writeTo(Stream stream, std::string_view text)
+{
+    const HANDLE handle = GetStdHandle(stream == Stream::Out ? STD_OUTPUT_HANDLE : STD_ERROR_HANDLE);
+    if (text.empty() || handle == nullptr || handle == INVALID_HANDLE_VALUE) {
+        return;
+    }
+    DWORD written = 0;
+    DWORD mode = 0;
+    if (GetConsoleMode(handle, &mode)) {
+        const int size = static_cast<int>(text.size());
+        const int length = MultiByteToWideChar(CP_UTF8, 0, text.data(), size, nullptr, 0);
+        std::wstring wide(static_cast<std::size_t>(length), L'\0');
+        MultiByteToWideChar(CP_UTF8, 0, text.data(), size, wide.data(), length);
+        WriteConsoleW(handle, wide.data(), static_cast<DWORD>(wide.size()), &written, nullptr);
+        return;
+    }
+    WriteFile(handle, text.data(), static_cast<DWORD>(text.size()), &written, nullptr);
 }
 
 }

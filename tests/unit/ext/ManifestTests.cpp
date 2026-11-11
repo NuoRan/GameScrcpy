@@ -1840,3 +1840,75 @@ TEST_CASE("ADR-0112: a media sink with a bad frame rate or size, or that takes n
     CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.recordingExporters[2].extension"));
     CHECK(reports(loaded, Code::MissingField, "$.contributes.native.recordingExporters[3].extension"));
 }
+
+TEST_CASE("ADR-0112: command-line commands name one of the native jobs and its parameters, with defaults of their "
+          "type, and survive a save and a load")
+{
+    Json json = nativeBase();
+    json["contributes"]["native"]["jobs"] = Json::array(
+        {{{"name", "flash"},
+          {"title", "Write firmware"},
+          {"params", Json::array({{{"name", "port"}, {"type", "string"}}, {{"name", "baud"}, {"type", "number"}}})}}});
+    json["contributes"]["cli"] =
+        Json::array({{{"name", "flash"},
+                      {"description", "Writes firmware to a board."},
+                      {"job", "flash"},
+                      {"params", Json::array({{{"name", "port"}, {"description", "The serial port"}},
+                                              {{"name", "baud"}, {"default", 921600}}})}}});
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    REQUIRE(loaded.manifest.contributes.cli.size() == 1);
+    const CliContribution& command = loaded.manifest.contributes.cli[0];
+    CHECK(command.name == "flash");
+    CHECK(command.description == "Writes firmware to a board.");
+    CHECK(command.job == "flash");
+    REQUIRE(command.params.size() == 2);
+    CHECK(command.params[0].name == "port");
+    CHECK(command.params[0].description == "The serial port");
+    CHECK(command.params[0].defaultValue.empty());
+    CHECK(command.params[1].defaultValue == "921600");
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+
+    json["contributes"]["cli"][0]["params"][1]["default"] = "fast";
+    json["contributes"]["cli"].push_back({{"name", "Bad Name"}, {"job", "flash"}});
+    json["contributes"]["cli"].push_back({{"name", "scan"}, {"job", "scan"}});
+    json["contributes"]["cli"].push_back(
+        {{"name", "erase"}, {"job", "flash"}, {"params", Json::array({{{"name", "speed"}}})}});
+    json["contributes"]["cli"].push_back({{"name", "flash"}, {"job", "flash"}});
+    loaded = load(json);
+    INFO(listed(loaded));
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::CliCommandInvalid, "$.contributes.cli[0].params[1].default"));
+    CHECK(reports(loaded, Code::CliCommandInvalid, "$.contributes.cli[1].name"));
+    CHECK(reports(loaded, Code::CliCommandInvalid, "$.contributes.cli[2].job"));
+    CHECK(reports(loaded, Code::CliCommandInvalid, "$.contributes.cli[3].params[0].name"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.cli[4].name"));
+    CHECK(codeName(Code::CliCommandInvalid) == "cli-command-invalid");
+    CHECK_FALSE(fixHint(Code::CliCommandInvalid).empty());
+
+    Json reserved = nativeBase();
+    reserved["contributes"]["native"]["jobs"] = Json::array(
+        {{{"name", "dump"}, {"title", "Dump"}, {"params", Json::array({{{"name", "json"}, {"type", "boolean"}}})}}});
+    reserved["contributes"]["cli"] = Json::array({{{"name", "dump"}, {"job", "dump"}}});
+    CHECK(reports(load(reserved), Code::CliCommandInvalid, "$.contributes.cli[0].job"));
+
+    Json alone = base();
+    alone["contributes"]["cli"] = Json::array({{{"name", "dump"}, {"job", "dump"}}});
+    CHECK(reports(load(alone), Code::CliCommandInvalid, "$.contributes.cli[0].job"));
+
+    Json many = nativeBase();
+    many["contributes"]["native"]["jobs"] = Json::array({{{"name", "scan"}, {"title", "Scan"}}});
+    for (int index = 0; index <= static_cast<int>(kMaxCliCommands); ++index) {
+        many["contributes"]["cli"].push_back({{"name", "scan-" + std::to_string(index)}, {"job", "scan"}});
+    }
+    CHECK(reports(load(many), Code::TooMany, "$.contributes.cli"));
+
+    const Json schema = Json::parse(manifestJsonSchema());
+    const Json cli = schema["properties"]["contributes"]["properties"]["cli"];
+    CHECK(cli["maxItems"] == kMaxCliCommands);
+    CHECK(cli["items"]["required"] == Json::array({"name", "job"}));
+}

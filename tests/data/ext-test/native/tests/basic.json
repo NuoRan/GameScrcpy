@@ -1,0 +1,21 @@
+{
+  "format": "gamescrcpy.ext-test",
+  "version": 1,
+  "name": "basic",
+  "steps": [
+    {"do": "call", "node": "add", "args": [1, 2], "expect": {"value": 3}},
+    {"do": "call", "node": "echo", "args": ["hello"], "expect": {"value": "hello"}},
+    {"do": "call", "node": "fail", "expect": {"error": "GS-API-062 the test node fails on purpose"}},
+    {"do": "call", "node": "wrongType", "expect": {"error": "GS-API-062"}},
+    {"do": "call", "node": "notify", "args": ["Done", "Counted to three"],
+     "expect": {"value": 0, "notified": [{"title": "Done", "text": "three"}]}},
+    {"do": "job", "name": "count to three", "job": "count", "args": {"steps": 3, "pause": 60, "fail": 0},
+     "expect": {"result": {"counted": 3}, "progress": [{"fraction": 0.333333, "text": "step 1"}, {"text": "step 3"}],
+                "logs": ["counting"]}},
+    {"do": "call", "node": "say", "args": ["board.added", "{\"id\": 1}"],
+     "expect": {"value": 0, "events": [{"topic": "board.added", "value": {"id": 1}}]}},
+    {"do": "wait", "ms": 5000},
+    {"do": "events"},
+    {"do": "manifest", "expect": {"value": {"id": "gstest.mock", "contributes": {"cli": [{"name": "count", "job": "count"}]}}}}
+  ]
+}

@@ -7,6 +7,7 @@
 #include <gs/base/Clock.h>
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <optional>
 #include <set>
@@ -92,6 +93,8 @@ public:
     [[nodiscard]] ServiceAnswer callService(std::string_view service, std::string_view json) override;
     void requestService(std::uint64_t request, std::string_view service, std::string_view json) override;
 
+    void setServiceHook(std::function<bool(std::string_view service)> offers,
+                        std::function<ServiceAnswer(std::string_view service, std::string_view json)> call);
     void note(std::string text);
     bool answer(std::uint64_t request, std::string_view reply);
     bool applyState(std::string_view id, bool value);
@@ -127,6 +130,8 @@ private:
     std::vector<ReplayLine> m_lines;
     std::vector<ReplayMachineState> m_machineStates;
     ReplayVision* m_vision = nullptr;
+    std::function<bool(std::string_view)> m_hookOffers;
+    std::function<ServiceAnswer(std::string_view, std::string_view)> m_hookCall;
 };
 
 struct ReplayOptions {

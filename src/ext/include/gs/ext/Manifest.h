@@ -790,6 +790,44 @@ struct ServiceContribution {
     friend bool operator==(const ServiceContribution&, const ServiceContribution&) = default;
 };
 
+inline constexpr std::size_t kMaxCliCommands = 16;
+inline constexpr std::size_t kMaxCliNameLength = 32;
+inline constexpr std::array<std::string_view, 3> kCliReservedOptions{"json", "hosted", "help"};
+
+struct CliParam {
+    std::string name;
+    std::string description;
+    std::string defaultValue;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+        v.text("description", m.description, {.maxLength = 200});
+        v.anyJson("default", m.defaultValue);
+    }
+
+    friend bool operator==(const CliParam&, const CliParam&) = default;
+};
+
+struct CliContribution {
+    std::string name;
+    std::string description;
+    std::string job;
+    std::vector<CliParam> params;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = kMaxCliNameLength});
+        v.text("description", m.description, {.maxLength = 200});
+        v.text("job", m.job, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+        v.objectList("params", m.params, 16);
+    }
+
+    friend bool operator==(const CliContribution&, const CliContribution&) = default;
+};
+
 struct Contributions {
     std::vector<FilterContribution> filters;
     std::vector<ThemeContribution> themes;
@@ -805,6 +843,7 @@ struct Contributions {
     std::vector<HelpContribution> help;
     std::vector<TourContribution> tours;
     std::vector<ServiceContribution> services;
+    std::vector<CliContribution> cli;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -823,6 +862,7 @@ struct Contributions {
         v.objectList("help", m.help, kMaxHelpTopics);
         v.objectList("tours", m.tours, kMaxTours);
         v.objectList("services", m.services, kMaxServices);
+        v.objectList("cli", m.cli, kMaxCliCommands);
     }
 
     friend bool operator==(const Contributions&, const Contributions&) = default;

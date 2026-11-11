@@ -1,0 +1,15 @@
+{
+  "name": "settings",
+  "settings": {"speed": 9600},
+  "steps": [
+    {"do": "call", "node": "setting", "args": ["speed", ""], "expect": {"value": "9600"}},
+    {"do": "call", "node": "setting", "args": ["port", "mock-phone"], "expect": {"value": "\"COM1\""}},
+    {"do": "settings", "settings": {"speed": 19200}, "deviceSettings": {"mock-phone": {"port": "COM7"}},
+     "expect": {"changed": ["speed", "port"]}},
+    {"do": "call", "node": "changedKeys", "expect": {"value": ["port", "speed"]}},
+    {"do": "call", "node": "setting", "args": ["port", "mock-phone"], "expect": {"value": "\"COM7\""}},
+    {"do": "call", "node": "setting", "args": ["port", "other-phone"], "expect": {"value": "\"COM1\""}},
+    {"do": "call", "node": "setting", "args": ["speed", ""], "expect": {"value": "19200"}},
+    {"do": "call", "node": "setting", "args": ["missing", ""], "expect": {"value": "error 4"}}
+  ]
+}

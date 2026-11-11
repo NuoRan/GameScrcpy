@@ -1,8 +1,15 @@
-add_executable(gs_cli main.cpp McpRelay.cpp McpRelay.h ScriptProject.cpp ScriptProject.h ScriptRun.cpp ScriptTools.cpp
-                      ScriptTools.h KeyTools.cpp KeyTools.h)
+add_library(gs_mockhost STATIC MockHost.cpp MockHost.h)
+target_include_directories(gs_mockhost PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(gs_mockhost PUBLIC gs::ext gs::nlohmann_json PRIVATE gs::base gs::exthost gs::platform gs::script)
+gs_apply_compiler_policy(gs_mockhost)
+
+add_executable(gs_cli main.cpp ExtCommands.cpp ExtCommands.h ExtTemplates.cpp ExtTemplates.h McpRelay.cpp McpRelay.h
+                      ScriptProject.cpp ScriptProject.h ScriptRun.cpp ScriptTools.cpp ScriptTools.h KeyTools.cpp
+                      KeyTools.h)
 set_target_properties(gs_cli PROPERTIES OUTPUT_NAME gs)
-target_link_libraries(gs_cli PRIVATE gs::base gs::ext gs::input gs::platform gs::record gs::script gs::tsstrip gs::nlohmann_json d3dcompiler)
+target_link_libraries(gs_cli PRIVATE gs_mockhost gs::base gs::ext gs::input gs::platform gs::record gs::script gs::tsstrip gs::nlohmann_json d3dcompiler)
 gs_apply_compiler_policy(gs_cli)
+add_dependencies(gs_cli gs_exthost_program)
 
 add_custom_target(gs_typescript ALL
     COMMAND "${CMAKE_COMMAND}" -E copy_directory_if_different
@@ -261,4 +268,130 @@ if(GS_BUILD_TESTS)
              COMMAND "${CMAKE_COMMAND}" "-DGS=$<TARGET_FILE:gs_cli>" "-DDLL=$<TARGET_FILE:gs_ext_pc_clock>"
                      "-DWORK=${CMAKE_CURRENT_BINARY_DIR}/architectures"
                      -P "${PROJECT_SOURCE_DIR}/cmake/NativeArchitecturesCheck.cmake")
+
+    set(gs_cli_ext_data "${PROJECT_SOURCE_DIR}/tests/data/ext-test")
+    set(gs_cli_ext_root "${CMAKE_CURRENT_BINARY_DIR}/ext-test")
+    set(gs_cli_ext_mock "${gs_cli_ext_root}/native")
+    set(gs_cli_ext_old "${gs_cli_ext_root}/old")
+    set(gs_cli_ext_expect "${PROJECT_SOURCE_DIR}/cmake/ExpectExit.cmake")
+    add_test(NAME gs_cli_ext_clean COMMAND "${CMAKE_COMMAND}" -E rm -rf "${gs_cli_ext_root}")
+    set_tests_properties(gs_cli_ext_clean PROPERTIES FIXTURES_SETUP gs_cli_ext_clean)
+    add_test(NAME gs_cli_ext_copy COMMAND "${CMAKE_COMMAND}" -E copy_directory "${gs_cli_ext_data}/native" "${gs_cli_ext_mock}")
+    add_test(NAME gs_cli_ext_copy_old COMMAND "${CMAKE_COMMAND}" -E copy_directory "${gs_cli_ext_data}/native" "${gs_cli_ext_old}")
+    set_tests_properties(gs_cli_ext_copy gs_cli_ext_copy_old PROPERTIES FIXTURES_REQUIRED gs_cli_ext_clean
+                                                                         FIXTURES_SETUP gs_cli_ext_fixture)
+    add_test(NAME gs_cli_ext_copy_dll
+             COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:gs_test_native>" "${gs_cli_ext_mock}/native.dll")
+    set_tests_properties(gs_cli_ext_copy_dll PROPERTIES FIXTURES_SETUP gs_cli_ext_fixture DEPENDS gs_cli_ext_copy)
+    add_test(NAME gs_cli_ext_copy_old_dll
+             COMMAND "${CMAKE_COMMAND}" -E copy "$<TARGET_FILE:gs_test_native_old>" "${gs_cli_ext_old}/native.dll")
+    set_tests_properties(gs_cli_ext_copy_old_dll PROPERTIES FIXTURES_SETUP gs_cli_ext_fixture DEPENDS gs_cli_ext_copy_old)
+
+    add_test(NAME gs_cli_ext_test COMMAND gs_cli ext test "${gs_cli_ext_mock}")
+    set_tests_properties(gs_cli_ext_test PROPERTIES PASS_REGULAR_EXPRESSION "\n6 passed, 0 failed\n")
+    add_test(NAME gs_cli_ext_test_exit
+             COMMAND "${CMAKE_COMMAND}" "-DGS=$<TARGET_FILE:gs_cli>" -DEXPECTED=0 -DARG1=ext -DARG2=test
+                     "-DARG3=${gs_cli_ext_mock}" -P "${gs_cli_ext_expect}")
+    add_test(NAME gs_cli_ext_test_hosted COMMAND gs_cli ext test "${gs_cli_ext_mock}" --hosted)
+    set_tests_properties(gs_cli_ext_test_hosted PROPERTIES PASS_REGULAR_EXPRESSION "\n6 passed, 0 failed\n")
+    add_test(NAME gs_cli_ext_test_hosted_json COMMAND gs_cli ext test "${gs_cli_ext_mock}" --hosted --json)
+    set_tests_properties(gs_cli_ext_test_hosted_json PROPERTIES PASS_REGULAR_EXPRESSION
+                                                                "\"where\": \"native[.]dll in gs-exthost[.]exe\"")
+    add_test(NAME gs_cli_ext_test_json COMMAND gs_cli ext test "${gs_cli_ext_mock}" --json)
+    set_tests_properties(gs_cli_ext_test_json PROPERTIES PASS_REGULAR_EXPRESSION "^{\n  \"ok\": true,")
+    add_test(NAME gs_cli_ext_test_failing
+             COMMAND gs_cli ext test "${gs_cli_ext_mock}" --test "${gs_cli_ext_data}/failing.json")
+    set_tests_properties(gs_cli_ext_test_failing PROPERTIES PASS_REGULAR_EXPRESSION
+                                                            "FAIL failing [(][^\n]*\n[^\n]*\n  FAIL  #2 ")
+    add_test(NAME gs_cli_ext_test_failing_exit
+             COMMAND "${CMAKE_COMMAND}" "-DGS=$<TARGET_FILE:gs_cli>" -DEXPECTED=1 -DARG1=ext -DARG2=test
+                     "-DARG3=${gs_cli_ext_mock}" -DARG4=--test "-DARG5=${gs_cli_ext_data}/failing.json"
+                     -P "${gs_cli_ext_expect}")
+    add_test(NAME gs_cli_ext_test_unloadable COMMAND gs_cli ext test "${gs_cli_ext_old}")
+    set_tests_properties(gs_cli_ext_test_unloadable PROPERTIES PASS_REGULAR_EXPRESSION
+                                                               "cannot be loaded: native[.]dll cannot be loaded: the DLL was made for an older GameScrcpy")
+    add_test(NAME gs_cli_ext_test_unloadable_exit
+             COMMAND "${CMAKE_COMMAND}" "-DGS=$<TARGET_FILE:gs_cli>" -DEXPECTED=2 -DARG1=ext -DARG2=test
+                     "-DARG3=${gs_cli_ext_old}" -P "${gs_cli_ext_expect}")
+    add_test(NAME gs_cli_ext_test_missing COMMAND gs_cli ext test "${gs_cli_ext_root}/nowhere")
+    set_tests_properties(gs_cli_ext_test_missing PROPERTIES PASS_REGULAR_EXPRESSION "does not exist")
+    add_test(NAME gs_cli_ext_command COMMAND gs_cli ext "${gs_cli_ext_mock}" count --steps 3)
+    set_tests_properties(gs_cli_ext_command PROPERTIES PASS_REGULAR_EXPRESSION "\"counted\": 3")
+    add_test(NAME gs_cli_ext_command_json COMMAND gs_cli ext "${gs_cli_ext_mock}" count --steps=2 --json)
+    set_tests_properties(gs_cli_ext_command_json PROPERTIES PASS_REGULAR_EXPRESSION
+                                                            "\"result\": {\n    \"counted\": 2\n  }")
+    add_test(NAME gs_cli_ext_command_hosted COMMAND gs_cli ext "${gs_cli_ext_mock}" count --steps 2 --hosted --json)
+    set_tests_properties(gs_cli_ext_command_hosted PROPERTIES PASS_REGULAR_EXPRESSION "\"counted\": 2")
+    add_test(NAME gs_cli_ext_command_help COMMAND gs_cli ext "${gs_cli_ext_mock}" --help)
+    set_tests_properties(gs_cli_ext_command_help PROPERTIES PASS_REGULAR_EXPRESSION
+                                                            "count +Counts to a number[.]\n +--steps <number>")
+    add_test(NAME gs_cli_ext_command_unknown_option COMMAND gs_cli ext "${gs_cli_ext_mock}" count --steps 1 --speed 2)
+    set_tests_properties(gs_cli_ext_command_unknown_option PROPERTIES PASS_REGULAR_EXPRESSION "count takes no --speed")
+    add_test(NAME gs_cli_ext_command_needs_option COMMAND gs_cli ext "${gs_cli_ext_mock}" count)
+    set_tests_properties(gs_cli_ext_command_needs_option PROPERTIES PASS_REGULAR_EXPRESSION "count needs --steps")
+    add_test(NAME gs_cli_ext_command_failing COMMAND gs_cli ext "${gs_cli_ext_mock}" count --steps 1 --fail 1)
+    set_tests_properties(gs_cli_ext_command_failing PROPERTIES PASS_REGULAR_EXPRESSION "GS-API-065 asked to fail")
+    add_test(NAME gs_cli_ext_command_failing_exit
+             COMMAND "${CMAKE_COMMAND}" "-DGS=$<TARGET_FILE:gs_cli>" -DEXPECTED=1 -DARG1=ext "-DARG2=${gs_cli_ext_mock}"
+                     -DARG3=count -DARG4=--steps -DARG5=1 -DARG6=--fail -DARG7=1 -P "${gs_cli_ext_expect}")
+    set_tests_properties(
+        gs_cli_ext_test gs_cli_ext_test_exit gs_cli_ext_test_hosted gs_cli_ext_test_hosted_json gs_cli_ext_test_json
+        gs_cli_ext_test_failing gs_cli_ext_test_failing_exit gs_cli_ext_test_unloadable gs_cli_ext_test_unloadable_exit
+        gs_cli_ext_command gs_cli_ext_command_json gs_cli_ext_command_hosted gs_cli_ext_command_help
+        gs_cli_ext_command_unknown_option gs_cli_ext_command_needs_option gs_cli_ext_command_failing
+        gs_cli_ext_command_failing_exit
+        PROPERTIES FIXTURES_REQUIRED gs_cli_ext_fixture)
+
+    set(gs_cli_ext_init "${CMAKE_CURRENT_BINARY_DIR}/ext-init")
+    add_test(NAME gs_cli_ext_init_clean COMMAND "${CMAKE_COMMAND}" -E rm -rf "${gs_cli_ext_init}")
+    set_tests_properties(gs_cli_ext_init_clean PROPERTIES FIXTURES_SETUP gs_cli_ext_init_clean)
+    foreach(kind IN ITEMS native script theme)
+        add_test(NAME gs_cli_ext_init_${kind}
+                 COMMAND gs_cli ext init ${kind} "${gs_cli_ext_init}/${kind}" --id gstest.init-${kind})
+        set_tests_properties(gs_cli_ext_init_${kind} PROPERTIES PASS_REGULAR_EXPRESSION "created "
+                                                                FIXTURES_REQUIRED gs_cli_ext_init_clean
+                                                                FIXTURES_SETUP gs_cli_ext_init_${kind})
+    endforeach()
+    foreach(kind IN ITEMS script theme)
+        add_test(NAME gs_cli_ext_init_${kind}_validate COMMAND gs_cli validate "${gs_cli_ext_init}/${kind}")
+        set_tests_properties(gs_cli_ext_init_${kind}_validate PROPERTIES
+                             PASS_REGULAR_EXPRESSION "gstest[.]init-${kind} 0[.]1[.]0: (ok|0 error)"
+                             FIXTURES_REQUIRED gs_cli_ext_init_${kind})
+        add_test(NAME gs_cli_ext_init_${kind}_test COMMAND gs_cli ext test "${gs_cli_ext_init}/${kind}")
+        set_tests_properties(gs_cli_ext_init_${kind}_test PROPERTIES PASS_REGULAR_EXPRESSION "\n1 passed, 0 failed\n"
+                                                                     FIXTURES_REQUIRED gs_cli_ext_init_${kind})
+    endforeach()
+    add_test(NAME gs_cli_ext_init_script_check COMMAND gs_cli check "${gs_cli_ext_init}/script")
+    set_tests_properties(gs_cli_ext_init_script_check PROPERTIES PASS_REGULAR_EXPRESSION "no problems"
+                                                                 FIXTURES_REQUIRED gs_cli_ext_init_script)
+    add_test(NAME gs_cli_ext_init_taken COMMAND gs_cli ext init theme "${gs_cli_ext_init}/theme")
+    set_tests_properties(gs_cli_ext_init_taken PROPERTIES PASS_REGULAR_EXPRESSION "is not empty"
+                                                          FIXTURES_REQUIRED gs_cli_ext_init_theme)
+    set(gs_cli_ext_init_options -G "${CMAKE_GENERATOR}" -DCMAKE_BUILD_TYPE=Release
+                                "-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}")
+    if(CMAKE_MAKE_PROGRAM)
+        list(APPEND gs_cli_ext_init_options "-DCMAKE_MAKE_PROGRAM=${CMAKE_MAKE_PROGRAM}")
+    endif()
+    if(CMAKE_GENERATOR_PLATFORM)
+        list(APPEND gs_cli_ext_init_options -A "${CMAKE_GENERATOR_PLATFORM}")
+    endif()
+    add_test(NAME gs_cli_ext_init_native_configure
+             COMMAND "${CMAKE_COMMAND}" -S "${gs_cli_ext_init}/native" -B "${gs_cli_ext_init}/native/.build"
+                     ${gs_cli_ext_init_options})
+    set_tests_properties(gs_cli_ext_init_native_configure PROPERTIES FIXTURES_REQUIRED gs_cli_ext_init_native
+                                                                     FIXTURES_SETUP gs_cli_ext_init_native_configured)
+    add_test(NAME gs_cli_ext_init_native_build
+             COMMAND "${CMAKE_COMMAND}" --build "${gs_cli_ext_init}/native/.build" --config Release)
+    set_tests_properties(gs_cli_ext_init_native_build PROPERTIES FIXTURES_REQUIRED gs_cli_ext_init_native_configured
+                                                                 FIXTURES_SETUP gs_cli_ext_init_native_built)
+    add_test(NAME gs_cli_ext_init_native_validate COMMAND gs_cli validate "${gs_cli_ext_init}/native")
+    set_tests_properties(gs_cli_ext_init_native_validate PROPERTIES
+                         PASS_REGULAR_EXPRESSION "gstest[.]init-native 0[.]1[.]0: (ok|0 error)"
+                         FIXTURES_REQUIRED gs_cli_ext_init_native_built)
+    add_test(NAME gs_cli_ext_init_native_test COMMAND gs_cli ext test "${gs_cli_ext_init}/native")
+    set_tests_properties(gs_cli_ext_init_native_test PROPERTIES PASS_REGULAR_EXPRESSION "\n1 passed, 0 failed\n"
+                                                                FIXTURES_REQUIRED gs_cli_ext_init_native_built)
+    add_test(NAME gs_cli_ext_init_native_command COMMAND gs_cli ext "${gs_cli_ext_init}/native" countdown --from 4)
+    set_tests_properties(gs_cli_ext_init_native_command PROPERTIES PASS_REGULAR_EXPRESSION "\"counted\": 4"
+                                                                   FIXTURES_REQUIRED gs_cli_ext_init_native_built)
 endif()

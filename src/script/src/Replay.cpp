@@ -201,14 +201,24 @@ std::string RecordingServices::app(std::string_view request, std::string_view js
     return "null";
 }
 
+void RecordingServices::setServiceHook(std::function<bool(std::string_view service)> offers,
+                                       std::function<ServiceAnswer(std::string_view service, std::string_view json)> call)
+{
+    m_hookOffers = std::move(offers);
+    m_hookCall = std::move(call);
+}
+
 bool RecordingServices::offersService(std::string_view service)
 {
-    return service == "panel.show" || service == "ai.ask";
+    return service == "panel.show" || service == "ai.ask" || (m_hookOffers && m_hookCall && m_hookOffers(service));
 }
 
 ServiceAnswer RecordingServices::callService(std::string_view service, std::string_view json)
 {
     if (service != "panel.show") {
+        if (m_hookOffers && m_hookCall && m_hookOffers(service)) {
+            return m_hookCall(service, json);
+        }
         return ScriptServices::callService(service, json);
     }
     const nlohmann::json value = nlohmann::json::parse(json, nullptr, false);

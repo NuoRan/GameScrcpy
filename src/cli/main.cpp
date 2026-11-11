@@ -1,5 +1,7 @@
+#include "ExtCommands.h"
 #include "KeyTools.h"
 #include "McpRelay.h"
+#include "ScriptProject.h"
 #include "ScriptTools.h"
 
 #include <gs/base/BuildInfo.h>
@@ -73,6 +75,10 @@ constexpr std::string_view kUsageText =
     "       gs run <script folder> --replay <session.json | recording.gsrec> [--until <ms>] [--seed <n>] [--json]\n"
     "       gs test <script folder> [--update] [--json]\n"
     "       gs api write|check <sdk folder>\n"
+    "       gs ext test <folder | package.gsext> [--test <file>]... [--json] [--hosted] [--official]\n"
+    "       gs ext init <native | script | theme> <folder> [--id <id>]\n"
+    "       gs ext <id | folder | package.gsext> <command> [--<param> <value>]... [--json] [--hosted]\n"
+    "       gs ext <id | folder | package.gsext> --help [--json]\n"
     "       gs mcp\n"
     "       gs --version\n"
     "--compile-timeout: seconds to wait for each shader to compile (1 to 3600, default 20)\n";
@@ -790,6 +796,9 @@ int run(int argc, wchar_t** argv, Compiler& compiler)
     if (const std::optional<int> handled = gs::cli::runKeyCommand(argc, argv)) {
         return *handled;
     }
+    if (argc >= 2 && std::wstring_view(argv[1]) == L"ext") {
+        return gs::cli::runExtCommand(std::vector<std::wstring_view>(argv + 2, argv + argc));
+    }
     if (const std::optional<int> handled = gs::cli::runScriptCommand(argc, argv)) {
         return *handled;
     }
@@ -800,25 +809,6 @@ int run(int argc, wchar_t** argv, Compiler& compiler)
     }
     compiler.limit = std::chrono::seconds(options->compileSeconds);
     return options->command == L"validate" ? validate(*options, compiler) : pack(*options, compiler);
-}
-
-void writeTo(DWORD which, const std::string& text)
-{
-    const HANDLE handle = GetStdHandle(which);
-    if (text.empty() || handle == nullptr || handle == INVALID_HANDLE_VALUE) {
-        return;
-    }
-    DWORD written = 0;
-    DWORD mode = 0;
-    if (GetConsoleMode(handle, &mode)) {
-        const int size = static_cast<int>(text.size());
-        const int length = MultiByteToWideChar(CP_UTF8, 0, text.data(), size, nullptr, 0);
-        std::wstring wide(static_cast<std::size_t>(length), L'\0');
-        MultiByteToWideChar(CP_UTF8, 0, text.data(), size, wide.data(), length);
-        WriteConsoleW(handle, wide.data(), static_cast<DWORD>(wide.size()), &written, nullptr);
-        return;
-    }
-    WriteFile(handle, text.data(), static_cast<DWORD>(text.size()), &written, nullptr);
 }
 
 bool wantsJson(int argc, wchar_t** argv)
@@ -849,8 +839,8 @@ int wmain(int argc, wchar_t** argv)
     }
     std::cout.rdbuf(outBuffer);
     std::cerr.rdbuf(errBuffer);
-    writeTo(STD_OUTPUT_HANDLE, out.str());
-    writeTo(STD_ERROR_HANDLE, err.str());
+    gs::cli::writeTo(gs::cli::Stream::Out, out.str());
+    gs::cli::writeTo(gs::cli::Stream::Error, err.str());
     if (compiler.stalled) {
         TerminateProcess(GetCurrentProcess(), static_cast<UINT>(result));
     }

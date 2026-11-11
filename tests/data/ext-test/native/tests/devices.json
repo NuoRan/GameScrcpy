@@ -1,0 +1,15 @@
+{
+  "name": "devices",
+  "steps": [
+    {"do": "call", "node": "setBoxes",
+     "args": [[{"id": "box-1", "name": "Box one", "kind": "touchBox", "summary": "USB", "state": "ready",
+                "touchMethod": "recorder", "resource": "serial:COM9", "capture": true,
+                "actions": [{"id": "flash", "title": "Flash", "job": "count"}, {"id": "disconnect", "title": "Disconnect"}]}]],
+     "expect": {"value": 0, "devicesChanged": ["boxes"]}},
+    {"do": "devices", "expect": {"count": 1, "devices": [{"id": "box-1", "state": "ready", "touchMethod": "recorder"}]}},
+    {"do": "device.act", "provider": "boxes", "device": "box-1", "action": "disconnect", "expect": {"ok": true}},
+    {"do": "call", "node": "lastAction", "expect": {"value": "box-1:disconnect"}},
+    {"do": "call", "node": "setBoxes", "args": [[{"id": "box-2", "name": "Box two", "kind": "speaker"}]]},
+    {"do": "devices", "provider": "boxes", "expect": {"problems": ["its kind is not one the manifest declares"]}}
+  ]
+}

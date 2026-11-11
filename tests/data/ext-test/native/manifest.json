@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "id": "gstest.mock",
+  "version": "1.0.0",
+  "name": "Mock host test",
+  "description": "GameScrcpy's test DLL, described for gs ext test.",
+  "authors": ["GameScrcpy"],
+  "license": "Apache-2.0",
+  "requires": {
+    "native": "^1.0"
+  },
+  "contributes": {
+    "native": {
+      "dll": "native.dll",
+      "touchMethods": [
+        {"name": "recorder", "title": "Recorder", "description": "Writes down every finger, key and text."}
+      ],
+      "nodes": [
+        {"name": "add", "params": [{"name": "a", "type": "number"}, {"name": "b", "type": "number"}], "returns": "number"},
+        {"name": "echo", "params": [{"name": "text", "type": "string"}], "returns": "string"},
+        {"name": "fail", "returns": "string"},
+        {"name": "wrongType", "returns": "string"},
+        {"name": "touches", "returns": "json"},
+        {"name": "say", "params": [{"name": "topic", "type": "string"}, {"name": "json", "type": "string"}], "returns": "number"},
+        {"name": "setting", "params": [{"name": "key", "type": "string"}, {"name": "phone", "type": "string"}], "returns": "string"},
+        {"name": "changedKeys", "returns": "json"},
+        {"name": "setBoxes", "params": [{"name": "boxes", "type": "json"}], "returns": "number"},
+        {"name": "lastAction", "returns": "string"},
+        {"name": "claim", "params": [{"name": "resource", "type": "string"}, {"name": "wait", "type": "boolean"}], "returns": "number", "permissions": ["hardware"]},
+        {"name": "release", "params": [{"name": "resource", "type": "string"}], "returns": "number", "permissions": ["hardware"]},
+        {"name": "yieldClaims", "params": [{"name": "on", "type": "boolean"}], "returns": "boolean"},
+        {"name": "notify", "params": [{"name": "title", "type": "string"}, {"name": "text", "type": "string"}], "returns": "number", "permissions": ["notify"]}
+      ],
+      "jobs": [
+        {
+          "name": "count",
+          "title": "Count",
+          "params": [{"name": "steps", "type": "number"}, {"name": "pause", "type": "number"}, {"name": "fail", "type": "number"}],
+          "returns": "json",
+          "most": 2
+        },
+        {"name": "refuse", "title": "Refuse"},
+        {
+          "name": "hear",
+          "title": "Hear",
+          "params": [{"name": "phrases", "type": "json"}, {"name": "language", "type": "string"}, {"name": "confidence", "type": "number"}]
+        }
+      ],
+      "deviceProviders": [
+        {"name": "boxes", "title": "Boxes", "kinds": ["touchBox"]}
+      ]
+    },
+    "cli": [
+      {
+        "name": "count",
+        "description": "Counts to a number.",
+        "job": "count",
+        "params": [
+          {"name": "steps", "description": "How far to count"},
+          {"name": "pause", "description": "Milliseconds between steps", "default": 0},
+          {"name": "fail", "description": "1 to fail at the end", "default": 0}
+        ]
+      }
+    ]
+  },
+  "settings": [
+    {"key": "port", "type": "text", "title": "Port", "default": "COM1", "scope": "device"},
+    {"key": "speed", "type": "integer", "title": "Speed", "default": 115200}
+  ],
+  "permissions": [
+    {"name": "notify", "reason": "Says when it is done."},
+    {"name": "hardware", "reason": "Talks to boards on serial ports."},
+    {"name": "devices.provide", "reason": "Lists its boxes on the devices page."}
+  ]
+}

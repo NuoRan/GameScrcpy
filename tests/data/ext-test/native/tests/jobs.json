@@ -1,0 +1,20 @@
+{
+  "name": "jobs",
+  "timeout": 20000,
+  "steps": [
+    {"do": "job", "job": "count", "args": {"steps": 1, "pause": 0, "fail": 1}, "expect": {"error": "GS-API-065 asked to fail"}},
+    {"do": "job", "job": "refuse", "expect": {"error": "GS-API-065 the job did not start"}},
+    {"do": "job", "id": "first", "job": "count", "args": {"steps": 1000, "pause": 20, "fail": 0}, "wait": false},
+    {"do": "job", "id": "second", "job": "count", "args": {"steps": 1000, "pause": 20, "fail": 0}, "wait": false},
+    {"do": "job", "job": "count", "args": {"steps": 1, "pause": 0, "fail": 0}, "expect": {"error": "GS-API-067"}},
+    {"do": "job.cancel", "id": "first", "expect": {"ended": false}},
+    {"do": "job.wait", "id": "first", "expect": {"error": "GS-API-066 cancelled"}},
+    {"do": "job.cancel", "id": "second"},
+    {"do": "job.wait", "id": "second", "expect": {"error": "GS-API-066"}},
+    {"do": "job", "job": "count", "args": {"steps": 3}, "expect": {"error": "GS-API-061 it needs pause"}},
+    {"do": "job", "job": "count", "args": {"steps": 2, "pause": 0, "fail": 0}, "expect": {"result": {"counted": 2}}},
+    {"do": "job", "id": "listen", "job": "hear", "args": {"phrases": ["jump", "quiet duck"], "language": "en", "confidence": 0.5}, "wait": false},
+    {"do": "job.cancel", "id": "listen"},
+    {"do": "job.wait", "id": "listen", "expect": {"error": "GS-API-066 stopped", "outputs": [{"phrase": "jump", "confidence": 0.9}, {"phrase": "quiet duck", "confidence": 0.3}]}}
+  ]
+}

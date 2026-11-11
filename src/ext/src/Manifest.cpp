@@ -504,6 +504,16 @@ std::pair<std::string_view, std::string_view> identity(const ServiceContribution
     return {"name", entry.name};
 }
 
+std::pair<std::string_view, std::string_view> identity(const CliParam& entry)
+{
+    return {"name", entry.name};
+}
+
+std::pair<std::string_view, std::string_view> identity(const CliContribution& entry)
+{
+    return {"name", entry.name};
+}
+
 std::pair<std::string_view, std::string_view> identity(const SettingDeclaration& entry)
 {
     return {"key", entry.key};
@@ -886,6 +896,40 @@ void checkEntry(const ServiceContribution& service, const std::string& path, Con
             context.report(Severity::Error, Code::ServiceSchemaInvalid, path + "." + name, problem);
         }
     }
+}
+
+void checkEntry(const CliParam&, const std::string&, Context&) {}
+
+void checkEntry(const CliContribution& command, const std::string& path, Context& context)
+{
+    if (!command.name.empty() && !hyphenatedWord(command.name)) {
+        context.report(Severity::Error, Code::CliCommandInvalid, path + ".name", command.name);
+    }
+}
+
+bool fitsNativeType(std::string_view type, const Json& value)
+{
+    const auto numeric = [&value](const char* key) { return value.contains(key) && value.at(key).is_number(); };
+    if (type == "boolean") {
+        return value.is_boolean();
+    }
+    if (type == "number" || type == "duration") {
+        return value.is_number();
+    }
+    if (type == "string") {
+        return value.is_string();
+    }
+    if (type == "color") {
+        return value.is_string() && validColor(value.get_ref<const std::string&>()) &&
+               value.get_ref<const std::string&>().size() == 7;
+    }
+    if (type == "point") {
+        return value.is_object() && numeric("x") && numeric("y");
+    }
+    if (type == "region") {
+        return value.is_object() && numeric("x") && numeric("y") && numeric("width") && numeric("height");
+    }
+    return true;
 }
 
 bool within(const SettingDeclaration& setting, double value)
@@ -2215,6 +2259,43 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
             } else if (node->params.size() != 1 || node->params[0].type != "json" || node->returns != "json") {
                 context.report(Severity::Error, Code::ServiceTargetInvalid, at + ".node",
                                "the node " + service.node + " does not take one json value and return json");
+            }
+        }
+    }
+    for (std::size_t index = 0; index < contributes.cli.size(); ++index) {
+        const CliContribution& command = contributes.cli[index];
+        const std::string at = indexed("$.contributes.cli", index);
+        const NativeJob* job = nullptr;
+        if (contributes.native) {
+            const auto found = std::ranges::find(contributes.native->jobs, command.job, &NativeJob::name);
+            job = found != contributes.native->jobs.end() ? &*found : nullptr;
+        }
+        if (job == nullptr) {
+            if (!command.job.empty()) {
+                context.report(Severity::Error, Code::CliCommandInvalid, at + ".job", command.job);
+            }
+            continue;
+        }
+        for (std::size_t option = 0; option < command.params.size(); ++option) {
+            const CliParam& given = command.params[option];
+            const std::string where = indexed(at + ".params", option);
+            const auto declared = std::ranges::find(job->params, given.name, &NativeParam::name);
+            if (declared == job->params.end()) {
+                if (!given.name.empty()) {
+                    context.report(Severity::Error, Code::CliCommandInvalid, where + ".name", given.name);
+                }
+                continue;
+            }
+            if (!given.defaultValue.empty() &&
+                !fitsNativeType(declared->type, Json::parse(given.defaultValue, nullptr, false))) {
+                context.report(Severity::Error, Code::CliCommandInvalid, where + ".default",
+                               "a " + declared->type + " belongs here");
+            }
+        }
+        for (const NativeParam& param : job->params) {
+            if (std::ranges::find(kCliReservedOptions, param.name) != kCliReservedOptions.end()) {
+                context.report(Severity::Error, Code::CliCommandInvalid, at + ".job",
+                               "--" + param.name + " is an option of gs itself; rename the job's parameter");
             }
         }
     }

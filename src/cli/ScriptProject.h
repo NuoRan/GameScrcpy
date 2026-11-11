@@ -3,6 +3,7 @@
 #include <gs/base/Expected.h>
 #include <gs/script/Services.h>
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -33,5 +34,11 @@ struct ProjectProfile {
 [[nodiscard]] std::optional<std::string> entryOf(const std::filesystem::path& folder);
 [[nodiscard]] Expected<ProjectProfile, std::vector<std::string>> loadProjectProfile(const std::filesystem::path& file);
 [[nodiscard]] std::string apiDeclarations();
+
+enum class Stream : std::uint8_t { Out, Error };
+
+[[nodiscard]] std::filesystem::path programFolder();
+[[nodiscard]] std::filesystem::path dataFolder();
+void writeTo(Stream stream, std::string_view text);
 
 }

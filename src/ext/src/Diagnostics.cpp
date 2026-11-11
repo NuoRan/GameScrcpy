@@ -209,6 +209,8 @@ std::string_view codeName(Code code) noexcept
         return "publisher-changed";
     case Code::SigningKeyMismatch:
         return "signing-key-mismatch";
+    case Code::CliCommandInvalid:
+        return "cli-command-invalid";
     }
     return "unknown";
 }
@@ -467,6 +469,11 @@ std::string_view fixHint(Code code) noexcept
                "extension and install the package again.";
     case Code::SigningKeyMismatch:
         return "Put the public key of the secret key you sign with in \"authorKey\"; gs ext keygen prints it.";
+    case Code::CliCommandInvalid:
+        return "Name the command with lowercase letters, digits and hyphens, 32 characters at most, such as \"flash\"; "
+               "let job name one of the extension's native jobs and params only that job's parameters, with defaults "
+               "of their type; json, hosted and help are options of gs itself. It runs as gs ext <extension> <name> "
+               "--<parameter> <value>.";
     }
     return "";
 }

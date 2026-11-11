@@ -1,0 +1,7 @@
+{
+  "name": "failing",
+  "steps": [
+    {"do": "call", "node": "add", "args": [1, 2], "expect": {"value": 3}},
+    {"do": "call", "node": "add", "args": [1, 2], "expect": {"value": 4}}
+  ]
+}

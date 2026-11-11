@@ -102,46 +102,6 @@ std::string logicTemplate(const ProjectProfile& profile)
     return control + ".onPress(async () => {\n    log.info(\"pressed\", " + control + ".name);\n});\n";
 }
 
-fs::path programFolder()
-{
-    std::wstring buffer(MAX_PATH, L'\0');
-    for (;;) {
-        const DWORD length = GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
-        if (length == 0) {
-            return {};
-        }
-        if (length < buffer.size()) {
-            buffer.resize(length);
-            return fs::path(buffer).parent_path();
-        }
-        buffer.resize(buffer.size() * 2);
-    }
-}
-
-std::wstring environmentText(const wchar_t* name)
-{
-    std::wstring value(32767, L'\0');
-    const DWORD length = GetEnvironmentVariableW(name, value.data(), static_cast<DWORD>(value.size()));
-    if (length == 0 || length >= value.size()) {
-        return {};
-    }
-    value.resize(length);
-    return value;
-}
-
-fs::path dataFolder()
-{
-    if (const std::wstring overridden = environmentText(L"GS_DATA_DIR"); !overridden.empty()) {
-        return fs::path(overridden);
-    }
-    std::error_code error;
-    if (fs::exists(programFolder() / "portable.flag", error)) {
-        return programFolder() / "data";
-    }
-    const std::wstring roaming = environmentText(L"APPDATA");
-    return roaming.empty() ? fs::path() : fs::path(roaming) / "GameScrcpy";
-}
-
 std::vector<script::NodeInfo> installedNodes()
 {
     std::vector<ext::Manifest> chosen;

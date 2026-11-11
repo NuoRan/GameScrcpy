@@ -111,6 +111,7 @@ enum class Code : std::uint8_t {
     SignatureMissing,
     PublisherChanged,
     SigningKeyMismatch,
+    CliCommandInvalid,
 };
 
 struct Diagnostic {

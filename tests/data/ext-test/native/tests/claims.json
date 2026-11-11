@@ -1,0 +1,20 @@
+{
+  "name": "claims",
+  "holders": [{"resource": "serial:COM9", "by": "AOA session"}],
+  "steps": [
+    {"do": "call", "node": "claim", "args": ["serial:COM9", false], "expect": {"value": 5}},
+    {"do": "call", "node": "claim", "args": ["serial:COM9", true], "expect": {"value": 5}},
+    {"do": "holder.release", "resource": "serial:COM9", "expect": {"released": true}},
+    {"do": "call", "node": "claim", "args": ["serial:COM9", false], "expect": {"value": 0}},
+    {"do": "claims", "expect": {"held": ["serial:COM9"], "holders": []}},
+    {"do": "call", "node": "yieldClaims", "args": [true], "expect": {"value": true}},
+    {"do": "claim.want", "resource": "serial:com9", "by": "Flasher",
+     "expect": {"held": true, "yielded": true, "released": true}},
+    {"do": "claims", "expect": {"held": [], "holders": [{"resource": "serial:com9", "by": "Flasher", "yields": false}]}},
+    {"do": "holder", "resource": "ble:AA:BB:CC:DD:EE:FF", "by": "Phone app", "yields": true},
+    {"do": "call", "node": "claim", "args": ["ble:AA:BB:CC:DD:EE:FF", false], "expect": {"value": 5}},
+    {"do": "call", "node": "claim", "args": ["ble:aa:bb:cc:dd:ee:ff", true], "expect": {"value": 0}},
+    {"do": "call", "node": "release", "args": ["ble:AA:BB:CC:DD:EE:FF"], "expect": {"value": 0}},
+    {"do": "claims", "expect": {"held": []}}
+  ]
+}

@@ -237,6 +237,22 @@ target_compile_definitions(gs_scripthost_tests PRIVATE
 )
 add_dependencies(gs_scripthost_tests gs_scripthost_program)
 
+gs_add_unit_test(gs_mockhost_tests
+    SOURCES
+        unit/cli/MockHostTests.cpp
+    LIBRARIES
+        gs_mockhost
+        gs::ext
+        gs::nlohmann_json
+)
+target_compile_definitions(gs_mockhost_tests PRIVATE
+    GS_EXT_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data/ext-test"
+    GS_TEST_NATIVE_DLL="$<TARGET_FILE:gs_test_native>"
+    GS_TEST_NATIVE_OLD_DLL="$<TARGET_FILE:gs_test_native_old>"
+    GS_EXTHOST_PROGRAM="$<TARGET_FILE:gs_exthost_program>"
+)
+add_dependencies(gs_mockhost_tests gs_test_native gs_test_native_old gs_exthost_program)
+
 add_test(NAME gs_cli_check_renamed_control
     COMMAND gs_cli check "${CMAKE_CURRENT_SOURCE_DIR}/data/scripts/profile-renamed")
 set_tests_properties(gs_cli_check_renamed_control PROPERTIES PASS_REGULAR_EXPRESSION

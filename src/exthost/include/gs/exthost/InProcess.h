@@ -2,6 +2,8 @@
 
 #include "gs/exthost/Module.h"
 
+#include <gs/base/Clock.h>
+
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -34,6 +36,7 @@ struct InProcessOptions {
     std::chrono::microseconds budget = kNodeBudget;
     std::string settings;
     std::vector<DeclaredInput> inputs;
+    const Clock* clock = nullptr;
 };
 
 class InProcessModule final : public Module
