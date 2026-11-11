@@ -278,6 +278,66 @@ struct Audio {
     friend bool operator==(const Audio&, const Audio&) = default;
 };
 
+inline constexpr std::string_view kSystemSpeechEngine = "system";
+
+struct Speech {
+    static constexpr std::size_t kMaxEngineLength = 160;
+    static constexpr std::size_t kMaxVoiceLength = 512;
+    static constexpr std::size_t kMaxLanguageLength = 16;
+
+    std::string engine = std::string(kSystemSpeechEngine);
+    std::string voice;
+    std::int32_t rate = 100;
+    std::int32_t volume = 100;
+    std::string listenEngine = std::string(kSystemSpeechEngine);
+    std::string language;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("engine", m.engine, kMaxEngineLength,
+               {.title = GS_TRANSLATE_NOOP("Settings", "Speech engine"),
+                .description = GS_TRANSLATE_NOOP("Settings", "What reads text aloud when logic calls speech.say: "
+                                                             "Windows, or an engine that an extension provides."),
+                .keywords = GS_TRANSLATE_NOOP("Settings", "speech say read aloud voice tts text to speech engine"),
+                .live = true});
+        v.text("voice", m.voice, kMaxVoiceLength,
+               {.title = GS_TRANSLATE_NOOP("Settings", "Voice"),
+                .description = GS_TRANSLATE_NOOP("Settings", "The voice that reads aloud; without one, the engine's "
+                                                             "own default."),
+                .keywords = GS_TRANSLATE_NOOP("Settings", "speech voice read aloud tts"),
+                .live = true});
+        v.integer("rate", m.rate, 50, 200,
+                  {.title = GS_TRANSLATE_NOOP("Settings", "Speaking rate"),
+                   .description = GS_TRANSLATE_NOOP("Settings", "How fast text is read aloud; 100% is the voice's "
+                                                                "usual pace."),
+                   .keywords = GS_TRANSLATE_NOOP("Settings", "speech rate speed fast slow tts"),
+                   .live = true});
+        v.integer("volume", m.volume, 0, 100,
+                  {.title = GS_TRANSLATE_NOOP("Settings", "Speaking volume"),
+                   .description = GS_TRANSLATE_NOOP("Settings", "How loud text is read aloud."),
+                   .keywords = GS_TRANSLATE_NOOP("Settings", "speech volume loud quiet tts"),
+                   .live = true});
+        v.text("listenEngine", m.listenEngine, kMaxEngineLength,
+               {.title = GS_TRANSLATE_NOOP("Settings", "Voice command engine"),
+                .description = GS_TRANSLATE_NOOP("Settings", "What listens for the commands of speech.listen in "
+                                                             "logic: Windows, or an engine that an extension "
+                                                             "provides."),
+                .keywords = GS_TRANSLATE_NOOP("Settings", "speech listen voice command recognition microphone "
+                                                          "engine"),
+                .live = true});
+        v.text("language", m.language, kMaxLanguageLength,
+               {.title = GS_TRANSLATE_NOOP("Settings", "Voice command language"),
+                .description = GS_TRANSLATE_NOOP("Settings", "The language voice commands are spoken in; without "
+                                                             "one, the interface's language when the engine knows "
+                                                             "it."),
+                .keywords = GS_TRANSLATE_NOOP("Settings", "speech listen voice command language chinese english"),
+                .live = true});
+    }
+
+    friend bool operator==(const Speech&, const Speech&) = default;
+};
+
 struct Keymap {
     bool autoProfile = true;
     bool hints = true;
@@ -824,6 +884,7 @@ struct Settings {
     Video video;
     Display display;
     Audio audio;
+    Speech speech;
     Keymap keymap;
     Touch touch;
     Picture picture;
@@ -852,6 +913,7 @@ struct Settings {
         v.object("video", m.video, Page::Video);
         v.object("display", m.display, Page::Video);
         v.object("audio", m.audio, Page::Audio);
+        v.object("speech", m.speech, Page::Audio);
         v.object("keymap", m.keymap, Page::Input);
         v.object("touch", m.touch, Page::Input);
         v.object("picture", m.picture, Page::Input);

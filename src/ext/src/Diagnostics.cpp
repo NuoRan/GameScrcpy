@@ -185,6 +185,8 @@ std::string_view codeName(Code code) noexcept
         return "native-module-failed";
     case Code::TourTargetInvalid:
         return "tour-target-invalid";
+    case Code::SpeechEngineInvalid:
+        return "speech-engine-invalid";
     }
     return "unknown";
 }
@@ -407,6 +409,10 @@ std::string_view fixHint(Code code) noexcept
     case Code::TourTargetInvalid:
         return "Point a step at \"card\", \"device\" (only when the extension provides devices), \"page:\" and one of "
                "its page panels or \"settings:\" and one of its settings panels, or leave the target out.";
+    case Code::SpeechEngineInvalid:
+        return "A speech engine names a say job taking text, voice (strings), rate and volume (numbers), a listen job "
+               "taking phrases (json), language (string) and confidence (number), and a voices node without "
+               "parameters that returns json; it needs at least say or listen.";
     }
     return "";
 }

@@ -36,6 +36,7 @@
 #include "QtConversions.h"
 #include "SettingsCatalog.h"
 #include "ShortcutDispatcher.h"
+#include "SpeechEngines.h"
 #include "WirelessController.h"
 
 #include <gs/adb/AdbClient.h>
@@ -46,6 +47,7 @@
 #include <gs/media/FfmpegLog.h>
 #include <gs/platform/CrashHandler.h>
 #include <gs/platform/RunningMarker.h>
+#include <gs/platform/Speech.h>
 #include <gs/platform/Thread.h>
 #include <gs/render/GraphicsDevice.h>
 
@@ -437,6 +439,21 @@ int main(int argc, char* argv[])
     localServers.offerServices();
     gs::app::NativeJobs nativeJobs(*extensions.native());
     nativeJobs.offerServices();
+    gs::app::SpeechEngines speechEngines(nullptr);
+    speechEngines.setDefaults([&settings] {
+        const gs::app::settings::Speech speech = settings.effective({}).speech;
+        return gs::app::SpeechDefaults{.engine = QString::fromStdString(speech.engine),
+                                       .voice = QString::fromStdString(speech.voice),
+                                       .rate = speech.rate / 100.0,
+                                       .volume = speech.volume / 100.0,
+                                       .listenEngine = QString::fromStdString(speech.listenEngine),
+                                       .language = QString::fromStdString(speech.language),
+                                       .interfaceLanguage = settings.interfaceLanguage().replace(u'_', u'-')};
+    });
+    speechEngines.addEngine(std::make_unique<gs::app::SystemSpeechEngine>(
+        parser.isSet(smokeTest) ? gs::platform::SpeechOutput::Nowhere : gs::platform::SpeechOutput::Speakers));
+    speechEngines.follow(extensions, nativeJobs);
+    speechEngines.offerServices();
     gs::app::NativeEvents nativeEvents(*extensions.native());
 
     const auto graphics =

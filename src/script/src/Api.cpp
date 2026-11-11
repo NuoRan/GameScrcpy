@@ -3809,6 +3809,70 @@ constexpr Function kNet[] = {
      kNetListenFailures},
 };
 
+constexpr Param kSpeechSayParams[] = {
+    {"text", "string", "What to read, 1 to 1000 characters."},
+    {"options", "SpeechSayOptions", "The engine, voice, rate and volume, and whether to cut in at once.", true},
+};
+constexpr Param kSpeechVoicesParams[] = {
+    {"options", "SpeechVoicesOptions", "The engine whose voices to list; the one in Settings when left out.", true},
+};
+constexpr Param kSpeechListenParams[] = {
+    {"phrases", "readonly string[] | null",
+     "The commands to listen for, 1 to 256 of 1 to 64 characters each; null takes any words when the engine can."},
+    {"handler", "(heard: TaskContext & SpeechHeard) => void | Promise<void>",
+     "What to run for each command heard, one after another."},
+    {"options", "SpeechListenOptions", "The engine, the language and how sure the engine must be.", true},
+};
+constexpr Failure kSpeechSayFailures[] = {
+    {"GS-API-110", "there is no such engine, it cannot read aloud, or it has no such voice",
+     "Pick an engine and a voice from speech.engines() and speech.voices(), or leave them out."},
+    {"GS-API-111",
+     "the text is not 1 to 1000 characters, rate is not from 0.5 to 2, volume is not from 0 to 1, or the logic has 32 "
+     "texts waiting already",
+     "Pass a shorter text and values in range, or wait for the texts before it."},
+    {"GS-API-112", "the engine failed; the message says why", "Try another voice or engine, or check its extension."},
+};
+constexpr Failure kSpeechVoicesFailures[] = {
+    {"GS-API-110", "there is no such engine", "Pick an engine from speech.engines()."},
+    {"GS-API-112", "the engine could not list its voices; the message says why", "Check the engine's extension."},
+};
+constexpr Failure kSpeechListenFailures[] = {
+    {"GS-API-110",
+     "there is no such engine, it cannot listen, it does not know the language, or it only listens for a list of "
+     "commands",
+     "Pick an engine and a language from speech.engines(), or pass a list of commands."},
+    {"GS-API-111",
+     "the commands are not 1 to 256 texts of 1 to 64 characters, confidence is not from 0 to 1, or the logic listens "
+     "with 8 listeners already",
+     "Pass fewer or shorter commands and values in range, or close a listener."},
+    {"GS-API-113", "the logic belongs to an extension whose manifest does not ask for the permission speech.listen",
+     "Add \"speech.listen\" to the permissions in the extension's manifest, with a reason."},
+    {"GS-API-008", "the handler is not a function", "Pass a function."},
+};
+
+constexpr Function kSpeech[] = {
+    {"say", kSpeechSayParams, "Promise<boolean>",
+     "Reads a text aloud with the engine, voice, rate and volume set in Settings, Audio, unless the options pick "
+     "others. Each engine reads one text at a time and the others wait their turn. Resolves with true once the text "
+     "has been read, and with false when it is cut off by interrupt, speech.stop(), the task being cancelled or the "
+     "logic stopping.",
+     "await speech.say(\"The boss comes in ten seconds\", { rate: 1.2 });", nullptr, 0, kSpeechSayFailures},
+    {"stop", {}, "void", "Stops what this logic is reading and drops the texts it has waiting.", "speech.stop();"},
+    {"engines", {}, "readonly SpeechEngineInfo[]",
+     "The speech engines: Windows, and those that extensions provide, with what each can do.",
+     "for (const engine of speech.engines()) log.info(engine.id, engine.say, engine.listen);"},
+    {"voices", kSpeechVoicesParams, "Promise<readonly SpeechVoice[]>", "The voices of an engine.",
+     "const voices = await speech.voices(); log.info(voices.map((voice) => voice.name).join(\", \"));", nullptr, 0,
+     kSpeechVoicesFailures},
+    {"listen", kSpeechListenParams, "Promise<SpeechListener>",
+     "Listens to the microphone for voice commands with the engine and language set in Settings, Audio, unless the "
+     "options pick others. Each command heard with at least the confidence asked for (0.6 by default) runs the "
+     "handler as a task, one after another. A listener opened in a task closes when the task ends, one opened at the "
+     "top level when the logic stops; it also closes when its engine stops, and the log says why.",
+     "await speech.listen([\"open map\", \"close bag\"], ({ phrase }) => log.info(\"heard\", phrase));", nullptr, 0,
+     kSpeechListenFailures},
+};
+
 constexpr Param kAiAskParams[] = {
     {"question", "string", "What to ask, up to 4000 characters."},
     {"options", "AiAskOptions", "A picture of the phone to send along, and how long to wait for the answer.", true},
@@ -3889,6 +3953,10 @@ constexpr Namespace kNamespaces[] = {
      "Connections from programs on this computer over HTTP on 127.0.0.1; the logic of an extension needs the "
      "permission network.listen.",
      kNet},
+    {"speech",
+     "Reading text aloud and listening for voice commands, with Windows or an engine that an extension provides; the "
+     "logic of an extension needs the permission speech.listen to listen.",
+     kSpeech},
     {"window", "The phone's mirror window.", kWindow},
     {"vision", "Finding pictures in the phone's picture: the next frame, or the picture already shown when none comes "
                "within 0.25 s.",
@@ -3981,14 +4049,16 @@ constexpr Type kTypes[] = {
     {"ExtensionJob<T>",
      "{ readonly result: Promise<T>; onProgress(listener: (fraction: number, text: string) => void): "
      "ExtensionJob<T>; onLog(listener: (level: number, text: string) => void): ExtensionJob<T>; "
+     "onOutput(listener: (value: StoreValue) => void): ExtensionJob<T>; "
      "follow(progress?: (fraction: number, text: string) => void | Promise<void>, done?: (result: T) => void | "
      "Promise<void>, failed?: (error: Error) => void | Promise<void>): Promise<void>; cancel(): void }",
      "A job that a native extension runs, such as writing firmware. result settles when it ends and throws "
      "GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 "
      "to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 "
-     "warning, 2 error; follow hears the progress, waits for the job and then runs done with the result or failed "
-     "with the error, and without failed a failure throws as result does; cancel asks it to stop. It is cancelled "
-     "when the script stops."},
+     "warning, 2 error; onOutput hears the parts of its result that it hands over while it runs, such as each device "
+     "a scan finds; follow hears the progress, waits for the job and then runs done with the result or failed with "
+     "the error, and without failed a failure throws as result does; cancel asks it to stop. It is cancelled when "
+     "the script stops."},
     {"ListenOptions", "{ readonly again?: \"ignore\" | \"restart\" | \"stop\" | \"queue\" | \"parallel\" }",
      "What happens when the event comes again while the last task it started is still running: ignore it "
      "(default), restart (cancel the running task first), stop (only cancel the running task), queue (run after "
@@ -4298,6 +4368,27 @@ constexpr Type kTypes[] = {
      "readonly json?: unknown; readonly bytes?: HardwareBytes } | string | void",
      "The answer to a request: a status (200 by default), headers, and text, JSON or bytes as the body; a text alone "
      "answers 200 with it, and nothing answers 204. The answer must come within 10 seconds."},
+    {"SpeechSayOptions",
+     "{ readonly engine?: string; readonly voice?: string; readonly rate?: number; readonly volume?: number; "
+     "readonly interrupt?: boolean }",
+     "engine is the id of an engine from speech.engines(); voice is the id or name of one of its voices; rate goes "
+     "from 0.5 to 2, 1 being the voice's usual pace, and volume from 0 to 1. interrupt cuts off what the engine is "
+     "reading and drops what waits, so that this text comes at once."},
+    {"SpeechVoicesOptions", "{ readonly engine?: string }", "The id of an engine from speech.engines()."},
+    {"SpeechListenOptions", "{ readonly engine?: string; readonly language?: string; readonly confidence?: number }",
+     "engine is the id of an engine from speech.engines() that listens; language is one of its languages, such as "
+     "\"zh-CN\" or \"en-US\"; confidence, from 0 to 1, is how sure the engine must be before the handler runs."},
+    {"SpeechHeard", "{ readonly phrase: string | null; readonly text: string; readonly confidence: number }",
+     "A command that was heard: the phrase of the list it matched (null when the engine took any words), the words "
+     "as the engine wrote them, and how sure it is, from 0 to 1."},
+    {"SpeechVoice", "{ readonly id: string; readonly name: string; readonly language: string }",
+     "A voice: the id or the name to pass as voice, and its language, such as \"zh-CN\"."},
+    {"SpeechEngineInfo",
+     "{ readonly id: string; readonly title: string; readonly say: boolean; readonly listen: boolean; "
+     "readonly dictation: boolean; readonly languages: readonly string[] }",
+     "A speech engine: \"system\" is Windows, the others are \"extension id/name\". say and listen tell what it can "
+     "do, dictation whether it takes any words rather than only a list of commands, and languages the languages it "
+     "listens in."},
     {"HardwareBytes", "Uint8Array | ArrayBuffer | ArrayBufferView | readonly number[]",
      "Bytes to send: a Uint8Array, another typed array or a list of numbers from 0 to 255."},
     {"SerialOptions",
@@ -5112,6 +5203,12 @@ constexpr Member kNetServerMembers[] = {
     {"close", "close(): void", "Stops taking requests and frees the port.", "server.close();"},
 };
 
+constexpr Member kSpeechListenerMembers[] = {
+    {"isOpen", "readonly isOpen: boolean", "Whether it still listens.", "if (!listener.isOpen) return;"},
+    {"close", "close(): void", "Stops listening; the microphone is let go once nothing else listens.",
+     "listener.close();"},
+};
+
 constexpr Interface kInterfaces[] = {
     {"Component", "A component of the profile in use. Every type below has these members too.", kComponentMembers},
     {"Hint", "The key hint of a component on the picture; changes last until the script stops.", kHintMembers},
@@ -5218,6 +5315,7 @@ constexpr Interface kInterfaces[] = {
     {"InputSource", "Keys and axes that logic sends into the phone's key mapping, made by input.source().",
      kInputSourceMembers},
     {"NetServer", "An HTTP server on 127.0.0.1 made by net.listen().", kNetServerMembers},
+    {"SpeechListener", "Voice commands listened for with speech.listen().", kSpeechListenerMembers},
 };
 
 constexpr std::string_view kBuiltInClassDoc =

@@ -397,7 +397,8 @@ struct HostedModule::Impl {
             double fraction = 0.0;
             std::uint32_t level = 0;
             std::string text;
-            if (!in.u32(type) || !in.f64(fraction) || !in.u32(level) || !in.text(text, kMostJobLineBytes)) {
+            if (!in.u32(type) || !in.f64(fraction) || !in.u32(level) ||
+                !in.text(text, type == 2 ? kMostJobOutputBytes : kMostJobLineBytes)) {
                 return;
             }
             JobEvents events;
@@ -413,6 +414,8 @@ struct HostedModule::Impl {
                 events.progress(fraction >= 0.0 && fraction <= 1.0 ? fraction : -1.0, std::move(text));
             } else if (type == 1 && events.log) {
                 events.log(static_cast<int>(std::min<std::uint32_t>(level, 2)), std::move(text));
+            } else if (type == 2 && events.output) {
+                events.output(std::move(text));
             }
             return;
         }

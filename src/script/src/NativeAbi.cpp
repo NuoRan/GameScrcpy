@@ -386,7 +386,8 @@ constexpr Field kHostFields[] = {
     {"int32_t (*set_error)(gs_ext_result* result, const char* text, size_t size)",
      "Says why a node failed; the script that called it gets the text in its error."},
     {"int32_t (*supports)(void* context, const char* feature)",
-     "1 when this GameScrcpy has the feature, such as \"jobs\", \"events\", \"settings\" or \"claims\", otherwise 0; "
+     "1 when this GameScrcpy has the feature, such as \"jobs\", \"events\", \"settings\", \"claims\" or "
+     "\"job-output\", otherwise 0; "
      "ask before using a function that a later version added."},
     {"int32_t (*job_progress)(void* context, uint64_t job, double fraction, const char* text, size_t size)",
      "Tells how far a job got: fraction from 0 to 1, or -1 when it cannot tell, and a short UTF-8 line about the step "
@@ -419,6 +420,11 @@ constexpr Field kHostFields[] = {
      "from a node, an action, a touch method or an attachment."},
     {"int32_t (*release)(void* context, const char* resource, size_t size)",
      "Lets go of hardware the extension claimed. GameScrcpy lets go of all of it when the extension stops."},
+    {"int32_t (*job_output)(void* context, uint64_t job, const char* json, size_t size)",
+     "Hands over a part of a job's result while it runs, as UTF-8 JSON of at most 64 KiB (empty for null), such as "
+     "each device a scan finds or each command a speech engine hears; the logic that started the job gets it through "
+     "job.onOutput. Up to 100 a second: GS_EXT_BUSY for the ones after that in the same second, GS_EXT_BAD_ARGUMENT "
+     "for text that is not JSON. Ask supports(\"job-output\") first."},
 };
 
 constexpr Field kContributionFields[] = {

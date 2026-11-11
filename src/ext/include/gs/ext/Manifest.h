@@ -33,10 +33,10 @@ inline constexpr std::array<std::string_view, 12> kExtensionPointNames{"profile"
 inline constexpr std::array<std::string_view, 8> kNativeTypeNames{"boolean", "number", "string",   "point",
                                                                   "region",  "color",  "duration", "json"};
 
-inline constexpr std::array<std::string_view, 15> kPermissionNames{
+inline constexpr std::array<std::string_view, 16> kPermissionNames{
     "device.input", "device.screen", "device.clipboard", "device.apps", "devices.other", "mapping",
     "notify",       "network",       "files.pick",       "files.paths", "input.read",    "hardware",
-    "ai",           "devices.provide", "network.listen"};
+    "ai",           "devices.provide", "network.listen", "speech.listen"};
 inline constexpr std::size_t kMaxComponentNameLength = 48;
 inline constexpr std::string_view kNeverGrantedPermission = "adb.shell";
 
@@ -358,6 +358,33 @@ struct NativeDeviceProvider {
     friend bool operator==(const NativeDeviceProvider&, const NativeDeviceProvider&) = default;
 };
 
+inline constexpr std::size_t kMostSpeechEngines = 4;
+inline constexpr std::string_view kSpeechListenPermission = "speech.listen";
+
+struct NativeSpeechEngine {
+    std::string name;
+    std::string title;
+    std::string say;
+    std::string voices;
+    std::string listen;
+    bool dictation = false;
+    std::vector<std::string> languages;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+        v.text("title", m.title, {.required = true, .maxLength = 40});
+        v.text("say", m.say, {.maxLength = 64, .format = TextFormat::NativeName});
+        v.text("voices", m.voices, {.maxLength = 64, .format = TextFormat::NativeName});
+        v.text("listen", m.listen, {.maxLength = 64, .format = TextFormat::NativeName});
+        v.boolean("dictation", m.dictation);
+        v.textList("languages", m.languages, {.maxItems = 32, .maxLength = 16});
+    }
+
+    friend bool operator==(const NativeSpeechEngine&, const NativeSpeechEngine&) = default;
+};
+
 struct NativeContribution {
     std::string dll;
     std::vector<NativeTouchMethod> touchMethods;
@@ -366,6 +393,7 @@ struct NativeContribution {
     std::vector<NativeBehavior> behaviors;
     std::vector<NativeJob> jobs;
     std::vector<NativeDeviceProvider> deviceProviders;
+    std::vector<NativeSpeechEngine> speechEngines;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -377,6 +405,7 @@ struct NativeContribution {
         v.objectList("behaviors", m.behaviors, kMostNativeBehaviors);
         v.objectList("jobs", m.jobs, kMostNativeJobs);
         v.objectList("deviceProviders", m.deviceProviders, kMostDeviceProviders);
+        v.objectList("speechEngines", m.speechEngines, kMostSpeechEngines);
     }
 
     friend bool operator==(const NativeContribution&, const NativeContribution&) = default;

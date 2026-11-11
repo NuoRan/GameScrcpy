@@ -7,6 +7,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <initializer_list>
 #include <limits>
 #include <set>
 #include <type_traits>
@@ -378,6 +379,11 @@ std::pair<std::string_view, std::string_view> identity(const NativeDeviceProvide
     return {"name", entry.name};
 }
 
+std::pair<std::string_view, std::string_view> identity(const NativeSpeechEngine& entry)
+{
+    return {"name", entry.name};
+}
+
 std::pair<std::string_view, std::string_view> identity(const DeclaredParam& entry)
 {
     return {"key", entry.key};
@@ -474,6 +480,23 @@ void checkEntry(const NativeDeviceProvider& provider, const std::string& path, C
     for (std::size_t index = 0; index < provider.kinds.size(); ++index) {
         if (std::ranges::find(kDeviceKindNames, provider.kinds[index]) == kDeviceKindNames.end()) {
             context.report(Severity::Error, Code::OutOfRange, indexed(path + ".kinds", index), provider.kinds[index]);
+        }
+    }
+}
+
+void checkEntry(const NativeSpeechEngine& engine, const std::string& path, Context& context)
+{
+    if (engine.say.empty() && engine.listen.empty()) {
+        context.report(Severity::Error, Code::SpeechEngineInvalid, path, engine.name);
+    }
+    for (std::size_t index = 0; index < engine.languages.size(); ++index) {
+        const std::string& language = engine.languages[index];
+        const bool written = language.size() >= 2 && std::ranges::all_of(language, [](char c) {
+                                 return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                                        c == '-';
+                             });
+        if (!written) {
+            context.report(Severity::Error, Code::OutOfRange, indexed(path + ".languages", index), language);
         }
     }
 }
@@ -1905,6 +1928,33 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
             std::ranges::find(manifest.permissions, kDevicesPermission, &Permission::name) == manifest.permissions.end()) {
             context.report(Severity::Error, Code::NativePermissionUndeclared, "$.contributes.native.deviceProviders",
                            std::string(kDevicesPermission));
+        }
+        const NativeContribution& native = *contributes.native;
+        const auto jobTakes = [&native](std::string_view name, std::initializer_list<NativeParam> wanted) {
+            const auto job = std::ranges::find(native.jobs, name, &NativeJob::name);
+            return job != native.jobs.end() && job->params.size() == wanted.size() &&
+                   std::ranges::all_of(wanted, [&job](const NativeParam& param) {
+                       return std::ranges::find(job->params, param) != job->params.end();
+                   });
+        };
+        for (std::size_t engine = 0; engine < native.speechEngines.size(); ++engine) {
+            const NativeSpeechEngine& declared = native.speechEngines[engine];
+            const std::string at = indexed("$.contributes.native.speechEngines", engine);
+            if (!declared.say.empty() && !jobTakes(declared.say, {{"text", "string"},
+                                                                  {"voice", "string"},
+                                                                  {"rate", "number"},
+                                                                  {"volume", "number"}})) {
+                context.report(Severity::Error, Code::SpeechEngineInvalid, at + ".say", declared.say);
+            }
+            if (!declared.listen.empty() &&
+                !jobTakes(declared.listen, {{"phrases", "json"}, {"language", "string"}, {"confidence", "number"}})) {
+                context.report(Severity::Error, Code::SpeechEngineInvalid, at + ".listen", declared.listen);
+            }
+            const auto voices = std::ranges::find(native.nodes, declared.voices, &NativeNode::name);
+            if (!declared.voices.empty() &&
+                (voices == native.nodes.end() || !voices->params.empty() || voices->returns != "json")) {
+                context.report(Severity::Error, Code::SpeechEngineInvalid, at + ".voices", declared.voices);
+            }
         }
     }
     if (!manifest.id.empty() && manifest.dependencies.contains(manifest.id)) {

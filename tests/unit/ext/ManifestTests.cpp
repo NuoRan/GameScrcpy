@@ -669,6 +669,73 @@ TEST_CASE("ADR-0112: native device providers load with their kinds and need the 
     CHECK(reports(loaded, Code::MissingField, "$.contributes.native.deviceProviders[2].kinds"));
 }
 
+TEST_CASE("ADR-0112: a speech engine names jobs and a node of the extension that take what GameScrcpy passes")
+{
+    Json json = nativeBase();
+    json["contributes"]["native"]["jobs"] = Json::array(
+        {{{"name", "speak"},
+          {"title", "Speak"},
+          {"params",
+           {{{"name", "text"}, {"type", "string"}},
+            {{"name", "voice"}, {"type", "string"}},
+            {{"name", "rate"}, {"type", "number"}},
+            {{"name", "volume"}, {"type", "number"}}}}},
+         {{"name", "hear"},
+          {"title", "Hear"},
+          {"params",
+           {{{"name", "confidence"}, {"type", "number"}},
+            {{"name", "phrases"}, {"type", "json"}},
+            {{"name", "language"}, {"type", "string"}}}}},
+         {{"name", "count"}, {"title", "Count"}, {"params", {{{"name", "text"}, {"type", "string"}}}}}});
+    json["contributes"]["native"]["nodes"].push_back({{"name", "voices"}, {"returns", "json"}});
+    json["contributes"]["native"]["speechEngines"] =
+        Json::array({{{"name", "robot"},
+                      {"title", "Robot voice"},
+                      {"say", "speak"},
+                      {"voices", "voices"},
+                      {"listen", "hear"},
+                      {"dictation", true},
+                      {"languages", {"en-US", "zh-CN"}}},
+                     {{"name", "ears"}, {"title", "Ears"}, {"listen", "hear"}}});
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    REQUIRE(loaded.manifest.contributes.native.has_value());
+    const std::vector<NativeSpeechEngine>& engines = loaded.manifest.contributes.native->speechEngines;
+    REQUIRE(engines.size() == 2);
+    CHECK(engines[0] == NativeSpeechEngine{.name = "robot",
+                                           .title = "Robot voice",
+                                           .say = "speak",
+                                           .voices = "voices",
+                                           .listen = "hear",
+                                           .dictation = true,
+                                           .languages = {"en-US", "zh-CN"}});
+    CHECK(engines[1].say.empty());
+    CHECK_FALSE(engines[1].dictation);
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+
+    json["contributes"]["native"]["speechEngines"] = Json::array(
+        {{{"name", "robot"}, {"title", "Again"}, {"say", "count"}, {"listen", "speak"}, {"voices", "now"}},
+         {{"name", "robot"}, {"title", "Twice"}, {"say", "missing"}, {"voices", "voices"}},
+         {{"name", "mute"}, {"title", "Mute"}, {"languages", {"zh_CN!"}}}});
+    loaded = load(json);
+    INFO(listed(loaded));
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::SpeechEngineInvalid, "$.contributes.native.speechEngines[0].say"));
+    CHECK(reports(loaded, Code::SpeechEngineInvalid, "$.contributes.native.speechEngines[0].listen"));
+    CHECK(reports(loaded, Code::SpeechEngineInvalid, "$.contributes.native.speechEngines[0].voices"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.native.speechEngines[1].name"));
+    CHECK(reports(loaded, Code::SpeechEngineInvalid, "$.contributes.native.speechEngines[1].say"));
+    CHECK_FALSE(reports(loaded, Code::SpeechEngineInvalid, "$.contributes.native.speechEngines[1].voices"));
+    CHECK(reports(loaded, Code::SpeechEngineInvalid, "$.contributes.native.speechEngines[2]"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.speechEngines[2].languages[0]"));
+    CHECK(codeName(Code::SpeechEngineInvalid) == "speech-engine-invalid");
+    CHECK_FALSE(fixHint(Code::SpeechEngineInvalid).empty());
+}
+
 namespace {
 
 Json panelBase()

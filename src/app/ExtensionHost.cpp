@@ -427,6 +427,9 @@ QString permissionTitle(std::string_view name)
     if (name == "network.listen") {
         return ExtensionHost::tr("Accept connections from programs on this computer");
     }
+    if (name == "speech.listen") {
+        return ExtensionHost::tr("Listen for voice commands you say");
+    }
     return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
 }
 
@@ -1166,11 +1169,17 @@ QVariantList ExtensionHost::entries() const
                     behaviors.append(
                         extensionText(manifest, "behaviors." + behavior.name + ".title", behavior.title, language));
                 }
+                QStringList speechEngines;
+                for (const ext::NativeSpeechEngine& engine : manifest.contributes.native->speechEngines) {
+                    speechEngines.append(
+                        extensionText(manifest, "speechEngines." + engine.name + ".title", engine.title, language));
+                }
                 row.insert(QStringLiteral("native"),
                            QVariantMap{{QStringLiteral("touchMethods"), methods},
                                        {QStringLiteral("nodes"), nodes},
                                        {QStringLiteral("attachments"), attachments},
                                        {QStringLiteral("behaviors"), behaviors},
+                                       {QStringLiteral("speechEngines"), speechEngines},
                                        {QStringLiteral("ownProcess"),
                                         !(extension->builtin && manifest.id.starts_with(ext::kReservedIdPrefix))}});
             }
@@ -2580,6 +2589,11 @@ std::vector<std::string> ExtensionHost::grantedPermissions(std::string_view id) 
         break;
     }
     return granted;
+}
+
+QString ExtensionHost::textOf(const ext::Manifest& manifest, std::string_view key, std::string_view fallback) const
+{
+    return extensionText(manifest, key, fallback, m_settings.interfaceLanguage());
 }
 
 std::optional<ext::SignatureCheck> ExtensionHost::installedSignature(std::string_view id) const

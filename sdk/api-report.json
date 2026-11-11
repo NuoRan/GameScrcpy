@@ -1317,6 +1317,63 @@
       ]
     },
     {
+      "name": "speech",
+      "functions": [
+        {
+          "name": "say",
+          "signature": "speech.say(text: string, options?: SpeechSayOptions): Promise<boolean>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-110",
+            "GS-API-111",
+            "GS-API-112"
+          ]
+        },
+        {
+          "name": "stop",
+          "signature": "speech.stop(): void",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "engines",
+          "signature": "speech.engines(): readonly SpeechEngineInfo[]",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "voices",
+          "signature": "speech.voices(options?: SpeechVoicesOptions): Promise<readonly SpeechVoice[]>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-110",
+            "GS-API-112"
+          ]
+        },
+        {
+          "name": "listen",
+          "signature": "speech.listen(phrases: readonly string[] | null, handler: (heard: TaskContext & SpeechHeard) => void | Promise<void>, options?: SpeechListenOptions): Promise<SpeechListener>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-110",
+            "GS-API-111",
+            "GS-API-113",
+            "GS-API-008"
+          ]
+        }
+      ]
+    },
+    {
       "name": "window",
       "functions": [
         {
@@ -2908,6 +2965,13 @@
         "readonly isOpen: boolean",
         "close(): void"
       ]
+    },
+    {
+      "name": "SpeechListener",
+      "members": [
+        "readonly isOpen: boolean",
+        "close(): void"
+      ]
     }
   ],
   "types": [
@@ -2997,7 +3061,7 @@
     },
     {
       "name": "ExtensionJob<T>",
-      "definition": "{ readonly result: Promise<T>; onProgress(listener: (fraction: number, text: string) => void): ExtensionJob<T>; onLog(listener: (level: number, text: string) => void): ExtensionJob<T>; follow(progress?: (fraction: number, text: string) => void | Promise<void>, done?: (result: T) => void | Promise<void>, failed?: (error: Error) => void | Promise<void>): Promise<void>; cancel(): void }"
+      "definition": "{ readonly result: Promise<T>; onProgress(listener: (fraction: number, text: string) => void): ExtensionJob<T>; onLog(listener: (level: number, text: string) => void): ExtensionJob<T>; onOutput(listener: (value: StoreValue) => void): ExtensionJob<T>; follow(progress?: (fraction: number, text: string) => void | Promise<void>, done?: (result: T) => void | Promise<void>, failed?: (error: Error) => void | Promise<void>): Promise<void>; cancel(): void }"
     },
     {
       "name": "ListenOptions",
@@ -3394,6 +3458,30 @@
     {
       "name": "NetAnswer",
       "definition": "{ readonly status?: number; readonly headers?: Readonly<Record<string, string>>; readonly text?: string; readonly json?: unknown; readonly bytes?: HardwareBytes } | string | void"
+    },
+    {
+      "name": "SpeechSayOptions",
+      "definition": "{ readonly engine?: string; readonly voice?: string; readonly rate?: number; readonly volume?: number; readonly interrupt?: boolean }"
+    },
+    {
+      "name": "SpeechVoicesOptions",
+      "definition": "{ readonly engine?: string }"
+    },
+    {
+      "name": "SpeechListenOptions",
+      "definition": "{ readonly engine?: string; readonly language?: string; readonly confidence?: number }"
+    },
+    {
+      "name": "SpeechHeard",
+      "definition": "{ readonly phrase: string | null; readonly text: string; readonly confidence: number }"
+    },
+    {
+      "name": "SpeechVoice",
+      "definition": "{ readonly id: string; readonly name: string; readonly language: string }"
+    },
+    {
+      "name": "SpeechEngineInfo",
+      "definition": "{ readonly id: string; readonly title: string; readonly say: boolean; readonly listen: boolean; readonly dictation: boolean; readonly languages: readonly string[] }"
     },
     {
       "name": "HardwareBytes",

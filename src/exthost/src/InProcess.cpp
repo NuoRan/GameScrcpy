@@ -369,6 +369,8 @@ struct InProcessModule::Impl {
         std::size_t index = 0;
         JobEvents events;
         std::chrono::steady_clock::time_point told{};
+        std::chrono::steady_clock::time_point outputSecond{};
+        std::size_t outputs = 0;
     };
 
     void endJobs()
@@ -574,7 +576,7 @@ int32_t hostSupports(void*, const char* feature)
         return 0;
     }
     const std::string_view name(feature, strnlen(feature, kMostNameBytes));
-    return name == "jobs" || name == "events" || name == "settings" || name == "claims" ? 1 : 0;
+    return name == "jobs" || name == "events" || name == "settings" || name == "claims" || name == "job-output" ? 1 : 0;
 }
 
 int32_t hostSettingGet(void* context, const char* key, size_t keySize, const char* phone, size_t phoneSize,
@@ -721,6 +723,40 @@ int32_t hostJobLog(void* context, uint64_t job, uint32_t level, const char* text
     }
     if (log) {
         log(static_cast<int>(std::min<uint32_t>(level, GS_EXT_LOG_ERROR)), lineOf(text, size, kMostJobLineBytes));
+    }
+    return GS_EXT_OK;
+}
+
+int32_t hostJobOutput(void* context, uint64_t job, const char* json, size_t size)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if ((json == nullptr && size > 0) || size > kMostJobOutputBytes) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    const std::string_view value = size == 0 ? std::string_view("null") : std::string_view(json, size);
+    if (!validUtf8(value) || !nlohmann::json::accept(value)) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    std::function<void(std::string)> output;
+    {
+        const std::scoped_lock lock(impl.jobMutex);
+        const auto found = impl.jobs.find(job);
+        if (found == impl.jobs.end()) {
+            return GS_EXT_BAD_ARGUMENT;
+        }
+        const auto now = std::chrono::steady_clock::now();
+        if (now - found->second.outputSecond >= std::chrono::seconds(1)) {
+            found->second.outputSecond = now;
+            found->second.outputs = 0;
+        }
+        if (found->second.outputs >= kMostJobOutputsPerSecond) {
+            return GS_EXT_BUSY;
+        }
+        ++found->second.outputs;
+        output = found->second.events.output;
+    }
+    if (output) {
+        output(std::string(value));
     }
     return GS_EXT_OK;
 }
@@ -1073,6 +1109,7 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
     impl->host.devices_changed = &hostDevicesChanged;
     impl->host.claim = &hostClaim;
     impl->host.release = &hostRelease;
+    impl->host.job_output = &hostJobOutput;
     const gs_ext_plugin* plugin = nullptr;
     const int32_t status = entry(&impl->host, &plugin);
     impl->entered = status == GS_EXT_OK;

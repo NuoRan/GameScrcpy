@@ -99,6 +99,7 @@ enum class Code : std::uint8_t {
     NativeTargetUnknown,
     NativeModuleFailed,
     TourTargetInvalid,
+    SpeechEngineInvalid,
 };
 
 struct Diagnostic {

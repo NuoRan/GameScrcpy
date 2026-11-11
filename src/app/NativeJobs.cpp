@@ -219,6 +219,25 @@ script::ServiceAnswer NativeJobs::startForHost(std::string_view json, HostJobEve
     return begin(0, json, std::move(events));
 }
 
+void NativeJobs::cancelForHost(std::uint64_t id)
+{
+    std::shared_ptr<exthost::Module> module;
+    std::uint64_t running = 0;
+    {
+        const std::scoped_lock lock(m_shared->mutex);
+        const auto found = m_shared->jobs.find(id);
+        if (found == m_shared->jobs.end() || !found->second.host || found->second.ended) {
+            return;
+        }
+        found->second.cancelled = true;
+        module = found->second.module.lock();
+        running = found->second.running;
+    }
+    if (module != nullptr && running != 0) {
+        module->cancelJob(running);
+    }
+}
+
 script::ServiceAnswer NativeJobs::begin(std::uint64_t logic, std::string_view json, std::optional<HostJobEvents> host)
 {
     const nlohmann::json request = nlohmann::json::parse(json, nullptr, false);
@@ -281,6 +300,12 @@ script::ServiceAnswer NativeJobs::begin(std::uint64_t logic, std::string_view js
                 if (const std::shared_ptr<Shared> shared = weak.lock()) {
                     auto [fine, said] = checkedResult(returns, worked, std::move(text));
                     shared->post([id, fine, said = std::move(said)](NativeJobs& self) { self.ended(id, fine, said); });
+                }
+            },
+        .output =
+            [weak, id](std::string json) {
+                if (const std::shared_ptr<Shared> shared = weak.lock()) {
+                    shared->post([id, json = std::move(json)](NativeJobs& self) { self.outputted(id, json); });
                 }
             }};
     const std::uint64_t running = target.module->startJob(target.index, args.dump(), std::move(events));
@@ -452,6 +477,39 @@ void NativeJobs::logged(std::uint64_t id, int level, const std::string& text)
     if (m_replies.tell) {
         m_replies.tell(logic, QStringLiteral("job"), QString::number(id),
                        QString::fromStdString(nlohmann::json{{"kind", "log"}, {"level", level}, {"text", text}}.dump()));
+    }
+}
+
+void NativeJobs::outputted(std::uint64_t id, const std::string& json)
+{
+    nlohmann::json value = nlohmann::json::parse(json, nullptr, false);
+    if (value.is_discarded()) {
+        return;
+    }
+    std::uint64_t logic = 0;
+    std::function<void(const QString&)> output;
+    bool forHost = false;
+    {
+        const std::scoped_lock lock(m_shared->mutex);
+        const auto found = m_shared->jobs.find(id);
+        if (found == m_shared->jobs.end() || found->second.ended) {
+            return;
+        }
+        logic = found->second.logic;
+        forHost = found->second.host.has_value();
+        if (forHost) {
+            output = found->second.host->output;
+        }
+    }
+    if (forHost) {
+        if (output) {
+            output(QString::fromStdString(value.dump()));
+        }
+        return;
+    }
+    if (m_replies.tell) {
+        m_replies.tell(logic, QStringLiteral("job"), QString::number(id),
+                       QString::fromStdString(nlohmann::json{{"kind", "output"}, {"value", std::move(value)}}.dump()));
     }
 }
 

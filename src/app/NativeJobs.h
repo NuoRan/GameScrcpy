@@ -28,6 +28,7 @@ struct JobReplies {
 struct HostJobEvents {
     std::function<void(double fraction, const QString& text)> progress;
     std::function<void(bool worked, const QString& text)> done;
+    std::function<void(const QString& json)> output;
 };
 
 class NativeJobs final : public QObject
@@ -45,6 +46,7 @@ public:
 
     [[nodiscard]] script::ServiceAnswer start(const LogicCaller& caller, std::string_view json);
     [[nodiscard]] script::ServiceAnswer startForHost(std::string_view json, HostJobEvents events);
+    void cancelForHost(std::uint64_t id);
     [[nodiscard]] script::ServiceAnswer cancel(const LogicCaller& caller, std::string_view json);
     void result(const LogicCaller& caller, quint64 request, const QString& json);
     void dropResult(const LogicCaller& caller, quint64 request);
@@ -58,6 +60,7 @@ private:
                                               std::optional<HostJobEvents> host);
     void progressed(std::uint64_t id, double fraction, const std::string& text);
     void logged(std::uint64_t id, int level, const std::string& text);
+    void outputted(std::uint64_t id, const std::string& json);
     void ended(std::uint64_t id, bool worked, const std::string& text);
 
     const NativeExtensions& m_extensions;

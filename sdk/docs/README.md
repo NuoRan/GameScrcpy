@@ -16,6 +16,7 @@ Positions are ratios of the phone picture: (0, 0) is the top left corner and (1,
 - [`input`](input.md): What the user holds and points at, readable only while the phone's mirror window is in front.
 - [`hardware`](hardware.md): Serial ports, USB HID devices and Bluetooth LE devices the user allows. Every logic, your own too, can only open the devices the user ticked; the logic of an extension also needs the permission hardware.
 - [`net`](net.md): Connections from programs on this computer over HTTP on 127.0.0.1; the logic of an extension needs the permission network.listen.
+- [`speech`](speech.md): Reading text aloud and listening for voice commands, with Windows or an engine that an extension provides; the logic of an extension needs the permission speech.listen to listen.
 - [`window`](window.md): The phone's mirror window.
 - [`vision`](vision.md): Finding pictures in the phone's picture: the next frame, or the picture already shown when none comes within 0.25 s.
 - [`res`](res.md): The named points, regions and paths of the profile, kept in res/resources.json by the vision workbench.
@@ -713,6 +714,15 @@ An HTTP server on 127.0.0.1 made by net.listen().
 | `readonly isOpen: boolean` | Whether it still takes requests. |
 | `close(): void` | Stops taking requests and frees the port. |
 
+### SpeechListener
+
+Voice commands listened for with speech.listen().
+
+| Member | Description |
+|---|---|
+| `readonly isOpen: boolean` | Whether it still listens. |
+| `close(): void` | Stops listening; the microphone is let go once nothing else listens. |
+
 ## Types
 
 ### AbortSignal
@@ -885,10 +895,10 @@ type StoreValue = null | boolean | number | string | StoreValue[] | { [key: stri
 
 ### ExtensionJob<T>
 
-A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; follow hears the progress, waits for the job and then runs done with the result or failed with the error, and without failed a failure throws as result does; cancel asks it to stop. It is cancelled when the script stops.
+A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; onOutput hears the parts of its result that it hands over while it runs, such as each device a scan finds; follow hears the progress, waits for the job and then runs done with the result or failed with the error, and without failed a failure throws as result does; cancel asks it to stop. It is cancelled when the script stops.
 
 ```ts
-type ExtensionJob<T> = { readonly result: Promise<T>; onProgress(listener: (fraction: number, text: string) => void): ExtensionJob<T>; onLog(listener: (level: number, text: string) => void): ExtensionJob<T>; follow(progress?: (fraction: number, text: string) => void | Promise<void>, done?: (result: T) => void | Promise<void>, failed?: (error: Error) => void | Promise<void>): Promise<void>; cancel(): void };
+type ExtensionJob<T> = { readonly result: Promise<T>; onProgress(listener: (fraction: number, text: string) => void): ExtensionJob<T>; onLog(listener: (level: number, text: string) => void): ExtensionJob<T>; onOutput(listener: (value: StoreValue) => void): ExtensionJob<T>; follow(progress?: (fraction: number, text: string) => void | Promise<void>, done?: (result: T) => void | Promise<void>, failed?: (error: Error) => void | Promise<void>): Promise<void>; cancel(): void };
 ```
 
 ### ListenOptions
@@ -1681,6 +1691,54 @@ The answer to a request: a status (200 by default), headers, and text, JSON or b
 
 ```ts
 type NetAnswer = { readonly status?: number; readonly headers?: Readonly<Record<string, string>>; readonly text?: string; readonly json?: unknown; readonly bytes?: HardwareBytes } | string | void;
+```
+
+### SpeechSayOptions
+
+engine is the id of an engine from speech.engines(); voice is the id or name of one of its voices; rate goes from 0.5 to 2, 1 being the voice's usual pace, and volume from 0 to 1. interrupt cuts off what the engine is reading and drops what waits, so that this text comes at once.
+
+```ts
+type SpeechSayOptions = { readonly engine?: string; readonly voice?: string; readonly rate?: number; readonly volume?: number; readonly interrupt?: boolean };
+```
+
+### SpeechVoicesOptions
+
+The id of an engine from speech.engines().
+
+```ts
+type SpeechVoicesOptions = { readonly engine?: string };
+```
+
+### SpeechListenOptions
+
+engine is the id of an engine from speech.engines() that listens; language is one of its languages, such as "zh-CN" or "en-US"; confidence, from 0 to 1, is how sure the engine must be before the handler runs.
+
+```ts
+type SpeechListenOptions = { readonly engine?: string; readonly language?: string; readonly confidence?: number };
+```
+
+### SpeechHeard
+
+A command that was heard: the phrase of the list it matched (null when the engine took any words), the words as the engine wrote them, and how sure it is, from 0 to 1.
+
+```ts
+type SpeechHeard = { readonly phrase: string | null; readonly text: string; readonly confidence: number };
+```
+
+### SpeechVoice
+
+A voice: the id or the name to pass as voice, and its language, such as "zh-CN".
+
+```ts
+type SpeechVoice = { readonly id: string; readonly name: string; readonly language: string };
+```
+
+### SpeechEngineInfo
+
+A speech engine: "system" is Windows, the others are "extension id/name". say and listen tell what it can do, dictation whether it takes any words rather than only a list of commands, and languages the languages it listens in.
+
+```ts
+type SpeechEngineInfo = { readonly id: string; readonly title: string; readonly say: boolean; readonly listen: boolean; readonly dictation: boolean; readonly languages: readonly string[] };
 ```
 
 ### HardwareBytes

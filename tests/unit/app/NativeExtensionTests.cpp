@@ -7,6 +7,7 @@
 #include "NativeExtensions.h"
 #include "NativeJobs.h"
 #include "ProfileEditor.h"
+#include "SpeechEngines.h"
 #include "TouchSinkFakes.h"
 
 #include "unit/ext/TestFiles.h"
@@ -226,6 +227,7 @@ struct JobWatch {
     std::vector<double> fractions;
     std::vector<std::string> lines;
     std::vector<std::string> logs;
+    std::vector<std::string> outputs;
     std::optional<std::pair<bool, std::string>> done;
 
     exthost::JobEvents events()
@@ -248,6 +250,11 @@ struct JobWatch {
                             done.emplace(worked, std::move(text));
                         }
                         changed.notify_all();
+                    },
+                .output =
+                    [this](std::string json) {
+                        const std::scoped_lock lock(mutex);
+                        outputs.push_back(std::move(json));
                     }};
     }
 
@@ -269,7 +276,7 @@ std::size_t jobIndex(const exthost::Module& module, std::string_view name)
 
 void checkJobs(exthost::Module& module)
 {
-    REQUIRE(module.info().jobs.size() == 2);
+    REQUIRE(module.info().jobs.size() == 4);
     const std::size_t count = jobIndex(module, "count");
 
     JobWatch counted;
@@ -283,6 +290,17 @@ void checkJobs(exthost::Module& module)
         CHECK(counted.fractions.back() == doctest::Approx(1.0));
         CHECK(counted.lines.front() == "step 1");
         CHECK(counted.logs == std::vector<std::string>{"counting"});
+        CHECK(counted.outputs.empty());
+    }
+
+    JobWatch handed;
+    CHECK(module.startJob(count, R"({"steps":150,"output":1})", handed.events()) != 0);
+    CHECK(handed.wait() == std::pair<bool, std::string>{true, R"({"counted":150,"busy":50})"});
+    {
+        const std::scoped_lock lock(handed.mutex);
+        REQUIRE(handed.outputs.size() == 100);
+        CHECK(handed.outputs.front() == R"({"step":1})");
+        CHECK(handed.outputs.back() == R"({"step":100})");
     }
 
     JobWatch failing;
@@ -462,6 +480,141 @@ TEST_CASE("ADR-0112: a script starts a job by name with checked arguments, hears
     CHECK(heard.refusals[4] ==
           std::pair<quint64, QString>{17, QStringLiteral("GS-API-065 the extension stopped before the job ended")});
     CHECK(jobs.running() == 0);
+}
+
+TEST_CASE("ADR-0112: an extension's speech engine reads and listens through its jobs, and a job hands over parts of "
+          "its result to the script that started it")
+{
+    ApplicationScope application;
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.native/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    app::NativeWanted wanted = testWanted(folder);
+    wanted.native.nodes = {{.name = "voices", .params = {}, .returns = "json", .description = {}, .permissions = {}},
+                           {.name = "lastSpoken", .params = {}, .returns = "json", .description = {}, .permissions = {}}};
+    wanted.native.jobs = {
+        {.name = "speak",
+         .title = "Speak",
+         .params = {{"text", "string"}, {"voice", "string"}, {"rate", "number"}, {"volume", "number"}},
+         .returns = {},
+         .description = {},
+         .permissions = {},
+         .most = std::nullopt},
+        {.name = "hear",
+         .title = "Hear",
+         .params = {{"phrases", "json"}, {"language", "string"}, {"confidence", "number"}},
+         .returns = {},
+         .description = {},
+         .permissions = {},
+         .most = std::nullopt},
+        {.name = "count",
+         .title = "Count",
+         .params = {{"steps", "number"}, {"pause", "number"}, {"fail", "number"}, {"output", "number"}},
+         .returns = "json",
+         .description = {},
+         .permissions = {},
+         .most = std::nullopt}};
+    registry.apply({wanted});
+    REQUIRE(registry.problems().empty());
+    std::vector<QString> told;
+    app::NativeJobs jobs(registry);
+    jobs.setReplies({.answer = {},
+                     .refuse = {},
+                     .tell = [&told](std::uint64_t, const QString& kind, const QString&,
+                                     const QString& json) { told.push_back(kind + u' ' + json); }});
+    const auto settled = [](const std::function<bool()>& done) {
+        const auto deadline = std::chrono::steady_clock::now() + 20s;
+        while (!done()) {
+            if (std::chrono::steady_clock::now() > deadline) {
+                return false;
+            }
+            QCoreApplication::processEvents();
+            std::this_thread::sleep_for(5ms);
+        }
+        return true;
+    };
+
+    app::ExtensionSpeechEngine engine({.extension = QStringLiteral("gstest.native"),
+                                       .name = QStringLiteral("robot"),
+                                       .title = QStringLiteral("Robot"),
+                                       .say = QStringLiteral("speak"),
+                                       .voices = QStringLiteral("voices"),
+                                       .listen = QStringLiteral("hear"),
+                                       .dictation = true,
+                                       .languages = {QStringLiteral("en-US")}},
+                                      jobs);
+    const app::SpeechEngineInfo info = engine.info();
+    CHECK(info.id == u"gstest.native/robot");
+    CHECK(info.say);
+    CHECK(info.listen);
+    CHECK(info.dictation);
+
+    std::optional<std::vector<app::SpeechVoiceInfo>> voices;
+    engine.voices([&voices](std::vector<app::SpeechVoiceInfo> found, QString problem) {
+        CHECK(problem.isEmpty());
+        voices = std::move(found);
+    });
+    REQUIRE(voices.has_value());
+    REQUIRE(voices->size() == 2);
+    CHECK((*voices)[0] == app::SpeechVoiceInfo{.id = QStringLiteral("robot"),
+                                               .name = QStringLiteral("Test robot"),
+                                               .language = QStringLiteral("en-US")});
+
+    std::optional<std::pair<bool, QString>> spoken;
+    const auto note = [&spoken](bool finished, QString problem) { spoken.emplace(finished, std::move(problem)); };
+    CHECK(engine.say({.text = QStringLiteral("hello"), .voice = QStringLiteral("robot"), .rate = 1.25, .volume = 0.5},
+                     note) != 0);
+    REQUIRE(settled([&spoken] { return spoken.has_value(); }));
+    CHECK(*spoken == std::pair<bool, QString>{true, QString()});
+    CHECK(registry.call("gstest.native", "lastSpoken", {}).value.text ==
+          R"({"rate":1.25,"text":"hello","voice":"robot","volume":0.5})");
+    spoken.reset();
+    const std::uint64_t waiting = engine.say({.text = QStringLiteral("wait")}, note);
+    REQUIRE(waiting != 0);
+    engine.stop(waiting);
+    REQUIRE(settled([&spoken] { return spoken.has_value(); }));
+    CHECK(*spoken == std::pair<bool, QString>{false, QStringLiteral("stopped")});
+
+    std::vector<app::SpeechHeardInfo> heard;
+    std::optional<QString> ended;
+    const auto hear = [&heard](app::SpeechHeardInfo got) { heard.push_back(std::move(got)); };
+    const auto end = [&ended](QString problem) { ended = std::move(problem); };
+    const std::uint64_t listening = engine.listen(
+        {.phrases = QStringList{QStringLiteral("open map"), QStringLiteral("quiet please")},
+         .language = QStringLiteral("en-US"),
+         .confidence = 0.6},
+        hear, end);
+    REQUIRE(listening != 0);
+    REQUIRE(settled([&heard] { return heard.size() == 2; }));
+    CHECK(heard[0].phrase == QStringLiteral("open map"));
+    CHECK(heard[0].text == u"open map");
+    CHECK(heard[0].confidence == doctest::Approx(0.9));
+    CHECK(heard[1].confidence == doctest::Approx(0.3));
+    engine.unlisten(listening);
+    REQUIRE(settled([&ended] { return ended.has_value(); }));
+    CHECK(*ended == u"stopped");
+
+    heard.clear();
+    ended.reset();
+    const std::uint64_t dictating =
+        engine.listen({.phrases = std::nullopt, .language = QStringLiteral("en-US"), .confidence = 0.6}, hear, end);
+    REQUIRE(settled([&heard] { return !heard.empty(); }));
+    CHECK_FALSE(heard[0].phrase.has_value());
+    CHECK(heard[0].text == u"free words");
+    engine.unlisten(dictating);
+    REQUIRE(settled([&ended] { return ended.has_value(); }));
+
+    const app::LogicCaller caller{.logic = 9};
+    const script::ServiceAnswer counted = jobs.start(
+        caller, R"({"extension":"gstest.native","job":"count","args":{"steps":3,"pause":0,"fail":0,"output":1}})");
+    REQUIRE_MESSAGE(counted.code.empty(), counted.problem);
+    const auto outputs = [&told] {
+        return std::ranges::count_if(told, [](const QString& line) { return line.contains(u"\"kind\":\"output\""); });
+    };
+    REQUIRE(settled([&outputs] { return outputs() == 3; }));
+    CHECK(std::ranges::find(told, QStringLiteral(R"(job {"kind":"output","value":{"step":2}})")) != told.end());
 }
 
 TEST_CASE("ADR-0112: the devices page starts a job with the same checks and limit as a script and hears its progress "
@@ -1000,6 +1153,8 @@ TEST_CASE("ADR-0112: a DLL claims hardware, lets it go and is asked for it, in G
     for (const auto& [module, claims] : modules) {
         CAPTURE(module == loaded.get());
         CHECK(callNode(*module, "supports", {text("claims")}).value.flag);
+        CHECK(callNode(*module, "supports", {text("job-output")}).value.flag);
+        CHECK_FALSE(callNode(*module, "supports", {text("telepathy")}).value.flag);
         CHECK(callNode(*module, "claim", {text("serial:COM9"), flag(false)}).value.number == GS_EXT_OK);
         claims->answerWith(exthost::ClaimResult::Busy);
         CHECK(callNode(*module, "claim", {text("ble:AA:BB:CC:DD:EE:FF"), flag(true)}).value.number == GS_EXT_BUSY);

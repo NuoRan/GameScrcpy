@@ -112,6 +112,7 @@ public:
     [[nodiscard]] const std::vector<ExtensionTask>& tasks() const noexcept { return m_tasks; }
     [[nodiscard]] const std::vector<ExtensionScript>& scripts() const noexcept { return m_scripts; }
     [[nodiscard]] std::vector<std::string> grantedPermissions(std::string_view id) const;
+    [[nodiscard]] QString textOf(const ext::Manifest& manifest, std::string_view key, std::string_view fallback) const;
     void setScanner(ext::NativeScanner scanner);
     [[nodiscard]] std::vector<const ext::Manifest*> settingsManifests() const;
     [[nodiscard]] QVariantMap values() const;

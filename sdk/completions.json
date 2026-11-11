@@ -1043,6 +1043,48 @@
     "insertText": "net.listen(${1:port}, ${2:handler})"
   },
   {
+    "label": "speech",
+    "kind": "namespace",
+    "detail": "speech",
+    "documentation": "Reading text aloud and listening for voice commands, with Windows or an engine that an extension provides; the logic of an extension needs the permission speech.listen to listen.",
+    "insertText": "speech"
+  },
+  {
+    "label": "speech.say",
+    "kind": "function",
+    "detail": "speech.say(text: string, options?: SpeechSayOptions): Promise<boolean>",
+    "documentation": "Reads a text aloud with the engine, voice, rate and volume set in Settings, Audio, unless the options pick others. Each engine reads one text at a time and the others wait their turn. Resolves with true once the text has been read, and with false when it is cut off by interrupt, speech.stop(), the task being cancelled or the logic stopping.",
+    "insertText": "speech.say(${1:text})"
+  },
+  {
+    "label": "speech.stop",
+    "kind": "function",
+    "detail": "speech.stop(): void",
+    "documentation": "Stops what this logic is reading and drops the texts it has waiting.",
+    "insertText": "speech.stop()"
+  },
+  {
+    "label": "speech.engines",
+    "kind": "function",
+    "detail": "speech.engines(): readonly SpeechEngineInfo[]",
+    "documentation": "The speech engines: Windows, and those that extensions provide, with what each can do.",
+    "insertText": "speech.engines()"
+  },
+  {
+    "label": "speech.voices",
+    "kind": "function",
+    "detail": "speech.voices(options?: SpeechVoicesOptions): Promise<readonly SpeechVoice[]>",
+    "documentation": "The voices of an engine.",
+    "insertText": "speech.voices()"
+  },
+  {
+    "label": "speech.listen",
+    "kind": "function",
+    "detail": "speech.listen(phrases: readonly string[] | null, handler: (heard: TaskContext & SpeechHeard) => void | Promise<void>, options?: SpeechListenOptions): Promise<SpeechListener>",
+    "documentation": "Listens to the microphone for voice commands with the engine and language set in Settings, Audio, unless the options pick others. Each command heard with at least the confidence asked for (0.6 by default) runs the handler as a task, one after another. A listener opened in a task closes when the task ends, one opened at the top level when the logic stops; it also closes when its engine stops, and the log says why.",
+    "insertText": "speech.listen(${1:phrases}, ${2:handler})"
+  },
+  {
     "label": "window",
     "kind": "namespace",
     "detail": "window",
@@ -3612,6 +3654,20 @@
     "insertText": "close(${1})"
   },
   {
+    "label": "SpeechListener.isOpen",
+    "kind": "property",
+    "detail": "readonly isOpen: boolean",
+    "documentation": "Whether it still listens.",
+    "insertText": "isOpen"
+  },
+  {
+    "label": "SpeechListener.close",
+    "kind": "method",
+    "detail": "close(): void",
+    "documentation": "Stops listening; the microphone is let go once nothing else listens.",
+    "insertText": "close(${1})"
+  },
+  {
     "label": "AbortSignal",
     "kind": "type",
     "detail": "type AbortSignal",
@@ -3762,7 +3818,7 @@
     "label": "ExtensionJob<T>",
     "kind": "type",
     "detail": "type ExtensionJob<T>",
-    "documentation": "A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; follow hears the progress, waits for the job and then runs done with the result or failed with the error, and without failed a failure throws as result does; cancel asks it to stop. It is cancelled when the script stops.",
+    "documentation": "A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; onOutput hears the parts of its result that it hands over while it runs, such as each device a scan finds; follow hears the progress, waits for the job and then runs done with the result or failed with the error, and without failed a failure throws as result does; cancel asks it to stop. It is cancelled when the script stops.",
     "insertText": "ExtensionJob<T>"
   },
   {
@@ -4457,6 +4513,48 @@
     "detail": "type NetAnswer",
     "documentation": "The answer to a request: a status (200 by default), headers, and text, JSON or bytes as the body; a text alone answers 200 with it, and nothing answers 204. The answer must come within 10 seconds.",
     "insertText": "NetAnswer"
+  },
+  {
+    "label": "SpeechSayOptions",
+    "kind": "type",
+    "detail": "type SpeechSayOptions",
+    "documentation": "engine is the id of an engine from speech.engines(); voice is the id or name of one of its voices; rate goes from 0.5 to 2, 1 being the voice's usual pace, and volume from 0 to 1. interrupt cuts off what the engine is reading and drops what waits, so that this text comes at once.",
+    "insertText": "SpeechSayOptions"
+  },
+  {
+    "label": "SpeechVoicesOptions",
+    "kind": "type",
+    "detail": "type SpeechVoicesOptions",
+    "documentation": "The id of an engine from speech.engines().",
+    "insertText": "SpeechVoicesOptions"
+  },
+  {
+    "label": "SpeechListenOptions",
+    "kind": "type",
+    "detail": "type SpeechListenOptions",
+    "documentation": "engine is the id of an engine from speech.engines() that listens; language is one of its languages, such as \"zh-CN\" or \"en-US\"; confidence, from 0 to 1, is how sure the engine must be before the handler runs.",
+    "insertText": "SpeechListenOptions"
+  },
+  {
+    "label": "SpeechHeard",
+    "kind": "type",
+    "detail": "type SpeechHeard",
+    "documentation": "A command that was heard: the phrase of the list it matched (null when the engine took any words), the words as the engine wrote them, and how sure it is, from 0 to 1.",
+    "insertText": "SpeechHeard"
+  },
+  {
+    "label": "SpeechVoice",
+    "kind": "type",
+    "detail": "type SpeechVoice",
+    "documentation": "A voice: the id or the name to pass as voice, and its language, such as \"zh-CN\".",
+    "insertText": "SpeechVoice"
+  },
+  {
+    "label": "SpeechEngineInfo",
+    "kind": "type",
+    "detail": "type SpeechEngineInfo",
+    "documentation": "A speech engine: \"system\" is Windows, the others are \"extension id/name\". say and listen tell what it can do, dictation whether it takes any words rather than only a list of commands, and languages the languages it listens in.",
+    "insertText": "SpeechEngineInfo"
   },
   {
     "label": "HardwareBytes",

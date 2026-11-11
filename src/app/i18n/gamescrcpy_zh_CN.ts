@@ -6427,6 +6427,10 @@
         <translation>组件：%1</translation>
     </message>
     <message>
+        <source>Speech engines: %1</source>
+        <translation>语音引擎：%1</translation>
+    </message>
+    <message>
         <source>Its DLL runs in a process of its own; when that stops three times within a minute, the extension is turned off.</source>
         <translation>它的 DLL 在单独的进程里运行；这个进程一分钟内停止三次，扩展就会被关闭。</translation>
     </message>
@@ -13146,6 +13150,10 @@
         <translation>本机程序经 127.0.0.1 上的 HTTP 发来的连接；扩展的逻辑需要权限 network.listen。</translation>
     </message>
     <message>
+        <source>Reading text aloud and listening for voice commands, with Windows or an engine that an extension provides; the logic of an extension needs the permission speech.listen to listen.</source>
+        <translation>用 Windows 或扩展提供的引擎朗读文字、听语音命令；扩展的逻辑要听语音命令，需要权限 speech.listen。</translation>
+    </message>
+    <message>
         <source>The phone&apos;s mirror window.</source>
         <translation>手机的投屏窗口。</translation>
     </message>
@@ -14182,6 +14190,18 @@
         <translation>不再接收请求，并放开端口。</translation>
     </message>
     <message>
+        <source>Voice commands listened for with speech.listen().</source>
+        <translation>用 speech.listen() 听的语音命令。</translation>
+    </message>
+    <message>
+        <source>Whether it still listens.</source>
+        <translation>它是否还在听。</translation>
+    </message>
+    <message>
+        <source>Stops listening; the microphone is let go once nothing else listens.</source>
+        <translation>不再听；没有别的在听时放开麦克风。</translation>
+    </message>
+    <message>
         <source>The settings of a running task, as chosen on the Tasks page; the task declares them in static params.</source>
         <translation>正在运行的任务的设置，按任务页里填的；任务在 static params 里声明它们。</translation>
     </message>
@@ -14240,6 +14260,10 @@
     <message>
         <source>What a variable holds.</source>
         <translation>变量里能放的值。</translation>
+    </message>
+    <message>
+        <source>A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; onOutput hears the parts of its result that it hands over while it runs, such as each device a scan finds; follow hears the progress, waits for the job and then runs done with the result or failed with the error, and without failed a failure throws as result does; cancel asks it to stop. It is cancelled when the script stops.</source>
+        <translation>原生扩展运行的一项任务，比如写入固件。result 在任务结束时兑现，任务失败时抛出 GS-API-065，被取消时抛出 GS-API-066；onProgress 收听任务的进度，fraction 从 0 到 1，说不准时为 -1，每秒最多 20 次；onLog 收听任务的日志行，level 0 为信息、1 为警告、2 为错误；onOutput 收听任务在运行中交出的部分结果，比如扫描时找到的每一台设备；follow 收听进度并等任务结束，然后带着结果运行 done，或带着错误运行 failed，没给 failed 时失败会像 result 一样抛出；cancel 请任务停下。脚本停止时任务会被取消。</translation>
     </message>
     <message>
         <source>The options of a control&apos;s key events: again as for other events, and consume. With consume true (the default), the profile&apos;s logic takes the key of a tap, hold, long press, turbo, swipe or multi-press control it listens to: pressing the key no longer touches the phone, and the control touches only when the logic calls it, such as with press() or tap(), a few milliseconds later than its own touch would. consume: false keeps the control&apos;s own touch, which comes before the handler runs. Only the profile&apos;s own logic takes keys: tasks, extension scripts and scripts an AI client runs only listen, the event methods a component class overrides keep the built-in touch, and other controls always keep working.</source>
@@ -14524,6 +14548,30 @@
     <message>
         <source>The answer to a request: a status (200 by default), headers, and text, JSON or bytes as the body; a text alone answers 200 with it, and nothing answers 204. The answer must come within 10 seconds.</source>
         <translation>对请求的回答：状态码（默认 200）、响应头，以及文字、JSON 或字节形式的正文；只给一段文字就以 200 回答它，什么都不给就回答 204。回答要在 10 秒内给出。</translation>
+    </message>
+    <message>
+        <source>engine is the id of an engine from speech.engines(); voice is the id or name of one of its voices; rate goes from 0.5 to 2, 1 being the voice&apos;s usual pace, and volume from 0 to 1. interrupt cuts off what the engine is reading and drops what waits, so that this text comes at once.</source>
+        <translation>engine 是 speech.engines() 里某个引擎的 id；voice 是它的某个声音的 id 或名字；rate 是语速，从 0.5 到 2，1 是这个声音平常的语速；volume 是音量，从 0 到 1。interrupt 打断引擎正在读的、清掉排队的，让这段文字马上读。</translation>
+    </message>
+    <message>
+        <source>The id of an engine from speech.engines().</source>
+        <translation>speech.engines() 里某个引擎的 id。</translation>
+    </message>
+    <message>
+        <source>engine is the id of an engine from speech.engines() that listens; language is one of its languages, such as &quot;zh-CN&quot; or &quot;en-US&quot;; confidence, from 0 to 1, is how sure the engine must be before the handler runs.</source>
+        <translation>engine 是 speech.engines() 里一个能听的引擎的 id；language 是它的语言之一，例如 &quot;zh-CN&quot; 或 &quot;en-US&quot;；confidence 从 0 到 1，是引擎要有多大把握才运行处理函数。</translation>
+    </message>
+    <message>
+        <source>A command that was heard: the phrase of the list it matched (null when the engine took any words), the words as the engine wrote them, and how sure it is, from 0 to 1.</source>
+        <translation>听到的一条命令：它对上的列表里的那条命令（引擎自由听写时为 null）、引擎写下的原话，以及引擎有多大把握，从 0 到 1。</translation>
+    </message>
+    <message>
+        <source>A voice: the id or the name to pass as voice, and its language, such as &quot;zh-CN&quot;.</source>
+        <translation>一个声音：作为 voice 传入的 id 或名字，以及它的语言，例如 &quot;zh-CN&quot;。</translation>
+    </message>
+    <message>
+        <source>A speech engine: &quot;system&quot; is Windows, the others are &quot;extension id/name&quot;. say and listen tell what it can do, dictation whether it takes any words rather than only a list of commands, and languages the languages it listens in.</source>
+        <translation>一个语音引擎：&quot;system&quot; 是 Windows，其余的是“扩展 id/名字”。say 与 listen 说明它能做什么，dictation 说明它能不能自由听写（而不只是听一组命令），languages 是它能听的语言。</translation>
     </message>
     <message>
         <source>Bytes to send: a Uint8Array, another typed array or a list of numbers from 0 to 255.</source>
@@ -15806,10 +15854,6 @@
         <translation>把它存成脚本文件夹里的模板：res/&lt;名字&gt;.png 加上 res/resources.json 里的一条，同名模板只换图片；两样都写好后兑现。逻辑不会因此重新加载。名字不合规则时抛出 GS-API-038；文件写不进去时以 GS-API-038 拒绝，这张图已经不在时以 GS-API-037 拒绝。</translation>
     </message>
     <message>
-        <source>A job that a native extension runs, such as writing firmware. result settles when it ends and throws GS-API-065 when it fails and GS-API-066 when it is cancelled; onProgress hears how far it got, fraction from 0 to 1 or -1 when it cannot tell, at most 20 times a second; onLog hears its lines, level 0 information, 1 warning, 2 error; follow hears the progress, waits for the job and then runs done with the result or failed with the error, and without failed a failure throws as result does; cancel asks it to stop. It is cancelled when the script stops.</source>
-        <translation>原生扩展运行的一项任务，比如写入固件。result 在任务结束时兑现，任务失败时抛出 GS-API-065，被取消时抛出 GS-API-066；onProgress 收听任务的进度，fraction 从 0 到 1，说不准时为 -1，每秒最多 20 次；onLog 收听任务的日志行，level 0 为信息、1 为警告、2 为错误；follow 收听进度并等任务结束，然后带着结果运行 done，或带着错误运行 failed，没给 failed 时失败会像 result 一样抛出；cancel 请任务停下。脚本停止时任务会被取消。</translation>
-    </message>
-    <message>
         <source>Where to read (a region or a region name; the whole picture by default), the language as a tag such as &quot;zh-Hans&quot; or &quot;en&quot; (by default the first Windows display language that has text recognition, otherwise the first one this computer has; findText looks for text of English letters, digits and signs with English recognition when the computer has it) and how long to wait while there is no picture yet (2000 ms by default, at most 10000).</source>
         <translation>在哪里读（区域或区域名，默认整个画面）、用哪种语言（写语言标签，如 &quot;zh-Hans&quot; 或 &quot;en&quot;；默认用 Windows 显示语言里第一个有文字识别的，没有就用这台电脑装的第一种；findText 要找的字全是英文字母、数字和符号时，电脑装了英文识别就用英文识别），以及还没有画面时等多久（默认 2000 毫秒，最多 10000）。</translation>
     </message>
@@ -16128,6 +16172,114 @@
     <message>
         <source>another program uses the port, or the extension listens on 4 ports already</source>
         <translation>别的程序占用了这个端口，或者这个扩展已经在监听 4 个端口</translation>
+    </message>
+    <message>
+        <source>Reads a text aloud with the engine, voice, rate and volume set in Settings, Audio, unless the options pick others. Each engine reads one text at a time and the others wait their turn. Resolves with true once the text has been read, and with false when it is cut off by interrupt, speech.stop(), the task being cancelled or the logic stopping.</source>
+        <translation>用“设置 &gt; 音频”里设好的引擎、声音、语速和音量朗读一段文字，options 另选的除外。每个引擎一次只读一段，其余的排队等着。读完时兑现为 true；被 interrupt、speech.stop()、任务取消或逻辑停止打断时兑现为 false。</translation>
+    </message>
+    <message>
+        <source>What to read, 1 to 1000 characters.</source>
+        <translation>要读的文字，1 到 1000 个字符。</translation>
+    </message>
+    <message>
+        <source>The engine, voice, rate and volume, and whether to cut in at once.</source>
+        <translation>引擎、声音、语速和音量，以及是否马上插进来读。</translation>
+    </message>
+    <message>
+        <source>Pick an engine and a voice from speech.engines() and speech.voices(), or leave them out.</source>
+        <translation>从 speech.engines() 和 speech.voices() 里选引擎和声音，或者不写。</translation>
+    </message>
+    <message>
+        <source>there is no such engine, it cannot read aloud, or it has no such voice</source>
+        <translation>没有这个引擎、它不能朗读，或者它没有这个声音</translation>
+    </message>
+    <message>
+        <source>Pass a shorter text and values in range, or wait for the texts before it.</source>
+        <translation>传短一些的文字和范围内的值，或者等前面的文字读完。</translation>
+    </message>
+    <message>
+        <source>the text is not 1 to 1000 characters, rate is not from 0.5 to 2, volume is not from 0 to 1, or the logic has 32 texts waiting already</source>
+        <translation>文字不是 1 到 1000 个字符、rate 不在 0.5 到 2 之间、volume 不在 0 到 1 之间，或者这份逻辑已有 32 段文字在排队</translation>
+    </message>
+    <message>
+        <source>Try another voice or engine, or check its extension.</source>
+        <translation>换一个声音或引擎，或者检查它的扩展。</translation>
+    </message>
+    <message>
+        <source>the engine failed; the message says why</source>
+        <translation>引擎出错了；消息里写着原因</translation>
+    </message>
+    <message>
+        <source>Stops what this logic is reading and drops the texts it has waiting.</source>
+        <translation>停下这份逻辑正在读的，并清掉它排队的文字。</translation>
+    </message>
+    <message>
+        <source>The speech engines: Windows, and those that extensions provide, with what each can do.</source>
+        <translation>语音引擎：Windows 和扩展提供的引擎，以及它们各自能做什么。</translation>
+    </message>
+    <message>
+        <source>The voices of an engine.</source>
+        <translation>一个引擎的声音。</translation>
+    </message>
+    <message>
+        <source>The engine whose voices to list; the one in Settings when left out.</source>
+        <translation>要列出哪个引擎的声音；不写时用设置里的。</translation>
+    </message>
+    <message>
+        <source>Pick an engine from speech.engines().</source>
+        <translation>从 speech.engines() 里选一个引擎。</translation>
+    </message>
+    <message>
+        <source>there is no such engine</source>
+        <translation>没有这个引擎</translation>
+    </message>
+    <message>
+        <source>Check the engine&apos;s extension.</source>
+        <translation>检查这个引擎所属的扩展。</translation>
+    </message>
+    <message>
+        <source>the engine could not list its voices; the message says why</source>
+        <translation>引擎没能列出它的声音；消息里写着原因</translation>
+    </message>
+    <message>
+        <source>Listens to the microphone for voice commands with the engine and language set in Settings, Audio, unless the options pick others. Each command heard with at least the confidence asked for (0.6 by default) runs the handler as a task, one after another. A listener opened in a task closes when the task ends, one opened at the top level when the logic stops; it also closes when its engine stops, and the log says why.</source>
+        <translation>用“设置 &gt; 音频”里设好的引擎和语言听麦克风里的语音命令，options 另选的除外。每听到一条把握不低于要求（默认 0.6）的命令，就把处理函数作为一个任务运行，一条接一条。在任务里开的监听随任务结束关闭，在顶层开的在逻辑停止时关闭；引擎停下时它也会关闭，日志里会写明原因。</translation>
+    </message>
+    <message>
+        <source>The commands to listen for, 1 to 256 of 1 to 64 characters each; null takes any words when the engine can.</source>
+        <translation>要听的命令，1 到 256 条，每条 1 到 64 个字符；引擎能自由听写时可以传 null，什么话都听。</translation>
+    </message>
+    <message>
+        <source>What to run for each command heard, one after another.</source>
+        <translation>每听到一条命令就运行的函数，一条接一条地处理。</translation>
+    </message>
+    <message>
+        <source>The engine, the language and how sure the engine must be.</source>
+        <translation>引擎、语言，以及引擎要有多大把握。</translation>
+    </message>
+    <message>
+        <source>Pick an engine and a language from speech.engines(), or pass a list of commands.</source>
+        <translation>从 speech.engines() 里选引擎和语言，或者传一组命令。</translation>
+    </message>
+    <message>
+        <source>there is no such engine, it cannot listen, it does not know the language, or it only listens for a list of commands</source>
+        <translation>没有这个引擎、它不能听、它不认这种语言，或者它只能听一组命令</translation>
+    </message>
+    <message>
+        <source>Pass fewer or shorter commands and values in range, or close a listener.</source>
+        <translation>传少一些或短一些的命令和范围内的值，或者关掉一个监听。</translation>
+    </message>
+    <message>
+        <source>the commands are not 1 to 256 texts of 1 to 64 characters, confidence is not from 0 to 1, or the logic listens with 8 listeners already</source>
+        <translation>命令不是 1 到 256 条、每条 1 到 64 个字符的文字，confidence 不在 0 到 1 之间，或者这份逻辑已经开着 8 个监听</translation>
+    </message>
+    <message>
+        <source>Add &quot;speech.listen&quot; to the permissions in the extension&apos;s manifest, with a reason.</source>
+        <translation>在扩展清单的 permissions 里加上 &quot;speech.listen&quot; 并写明理由。</translation>
+    </message>
+    <message>
+        <source>the logic belongs to an extension whose manifest does not ask for the permission speech.listen</source>
+        <translation>这份逻辑所属的扩展在清单里没有申请权限 speech.listen</translation>
     </message>
     <message>
         <source>the region is outside the picture</source>
@@ -17446,6 +17598,78 @@
         <translation>音频 音质 opus kbps</translation>
     </message>
     <message>
+        <source>Speech engine</source>
+        <translation>朗读引擎</translation>
+    </message>
+    <message>
+        <source>What reads text aloud when logic calls speech.say: Windows, or an engine that an extension provides.</source>
+        <translation>逻辑调用 speech.say 时用什么朗读：Windows，或扩展提供的引擎。</translation>
+    </message>
+    <message>
+        <source>speech say read aloud voice tts text to speech engine</source>
+        <translation>朗读 语音 声音 引擎 文字转语音 tts speech say</translation>
+    </message>
+    <message>
+        <source>Voice</source>
+        <translation>声音</translation>
+    </message>
+    <message>
+        <source>The voice that reads aloud; without one, the engine&apos;s own default.</source>
+        <translation>朗读用的声音；不选时用引擎自己的默认声音。</translation>
+    </message>
+    <message>
+        <source>speech voice read aloud tts</source>
+        <translation>朗读 声音 嗓音 语音 tts voice</translation>
+    </message>
+    <message>
+        <source>Speaking rate</source>
+        <translation>语速</translation>
+    </message>
+    <message>
+        <source>How fast text is read aloud; 100% is the voice&apos;s usual pace.</source>
+        <translation>朗读的快慢；100% 是这个声音平常的语速。</translation>
+    </message>
+    <message>
+        <source>speech rate speed fast slow tts</source>
+        <translation>朗读 语速 速度 快 慢 tts rate</translation>
+    </message>
+    <message>
+        <source>Speaking volume</source>
+        <translation>朗读音量</translation>
+    </message>
+    <message>
+        <source>How loud text is read aloud.</source>
+        <translation>朗读的音量大小。</translation>
+    </message>
+    <message>
+        <source>speech volume loud quiet tts</source>
+        <translation>朗读 音量 大声 小声 tts volume</translation>
+    </message>
+    <message>
+        <source>Voice command engine</source>
+        <translation>语音命令引擎</translation>
+    </message>
+    <message>
+        <source>What listens for the commands of speech.listen in logic: Windows, or an engine that an extension provides.</source>
+        <translation>逻辑里的 speech.listen 用什么听语音命令：Windows，或扩展提供的引擎。</translation>
+    </message>
+    <message>
+        <source>speech listen voice command recognition microphone engine</source>
+        <translation>语音命令 语音识别 识别 麦克风 引擎 speech listen</translation>
+    </message>
+    <message>
+        <source>Voice command language</source>
+        <translation>语音命令的语言</translation>
+    </message>
+    <message>
+        <source>The language voice commands are spoken in; without one, the interface&apos;s language when the engine knows it.</source>
+        <translation>说语音命令用的语言；不选时，引擎认得界面语言就用界面语言。</translation>
+    </message>
+    <message>
+        <source>speech listen voice command language chinese english</source>
+        <translation>语音命令 语言 中文 英文 普通话 speech listen language</translation>
+    </message>
+    <message>
         <source>Switch profiles with the game</source>
         <translation>按游戏自动切换方案</translation>
     </message>
@@ -18395,6 +18619,49 @@
     <message>
         <source>%1 · Esc restores %2</source>
         <translation>%1 · Esc 恢复为 %2</translation>
+    </message>
+</context>
+<context>
+    <name>SpeechSettings</name>
+    <message>
+        <source>Same as the interface</source>
+        <translation>与界面相同</translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <translation>%1（%2）</translation>
+    </message>
+    <message>
+        <source>Reading aloud and voice commands</source>
+        <translation>朗读与语音命令</translation>
+    </message>
+    <message>
+        <source>Used by speech.say and speech.listen in logic</source>
+        <translation>供逻辑里的 speech.say 与 speech.listen 使用</translation>
+    </message>
+    <message>
+        <source>Windows has no voice; add one under Time &amp; language, Speech.</source>
+        <translation>Windows 没有可以朗读的声音；可以在 Windows 设置的「时间和语言 → 语音」里添加。</translation>
+    </message>
+    <message>
+        <source>The engine&apos;s default</source>
+        <translation>引擎的默认声音</translation>
+    </message>
+    <message>
+        <source>Try it</source>
+        <translation>试听</translation>
+    </message>
+    <message>
+        <source>Reads a short sentence with the engine, voice, rate and volume above.</source>
+        <translation>用上面的引擎、声音、语速和音量读一句话。</translation>
+    </message>
+    <message>
+        <source>Read aloud</source>
+        <translation>朗读</translation>
+    </message>
+    <message>
+        <source>Windows has no speech recognizer; add a speech language under Time &amp; language, Speech.</source>
+        <translation>Windows 没有语音识别器；可以在 Windows 设置的「时间和语言 → 语音」里添加一种语音语言。</translation>
     </message>
 </context>
 <context>
@@ -21622,6 +21889,10 @@
         <translation>接受本机程序的连接</translation>
     </message>
     <message>
+        <source>Listen for voice commands you say</source>
+        <translation>听你说的语音命令</translation>
+    </message>
+    <message>
         <source>Its script %1 is not in the extension</source>
         <translation>扩展里没有它的脚本 %1</translation>
     </message>
@@ -22409,6 +22680,17 @@
     <message>
         <source>Restart the logic on %1</source>
         <translation>在 %1 上重新运行逻辑</translation>
+    </message>
+</context>
+<context>
+    <name>gs::app::SpeechEngines</name>
+    <message>
+        <source>This engine is not available now.</source>
+        <translation>这个引擎现在用不了。</translation>
+    </message>
+    <message>
+        <source>This is how logic reads text aloud.</source>
+        <translation>逻辑会这样朗读文字。</translation>
     </message>
 </context>
 <context>

@@ -311,7 +311,8 @@ export async function flash() {
     });
     const { onLog } = job;
     const chained = job.onProgress((fraction, text) => heard.push(fraction + " " + text))
-                       .onLog((level, text) => heard.push(level + " " + text));
+                       .onLog((level, text) => heard.push(level + " " + text))
+                       .onOutput((value) => heard.push("out " + JSON.stringify(value)));
     log.info(chained === job, onLog(() => {}) === job, typeof job.cancel, Object.isFrozen(job),
              ext.alice.netTools.flash.length);
     const value = await job.result;
@@ -333,13 +334,15 @@ export async function stop() {
     fixture.host->event("job", "5", R"({"kind":"progress","fraction":0.5,"text":"half"})");
     fixture.host->event("job", "6", R"({"kind":"log","level":2,"text":"not ours"})");
     fixture.host->event("job", "5", R"({"kind":"log","level":1,"text":"hot"})");
+    fixture.host->event("job", "5", R"({"kind":"output","value":{"board":"A"}})");
+    fixture.host->event("job", "6", R"({"kind":"output","value":"not ours"})");
     fixture.host->answer(*request, R"({"written":2})");
     const auto ended = fixture.recorder.waitFor(taskEnded(task));
     REQUIRE(ended.has_value());
     INFO(gs::script::describe(ended->report));
     CHECK(ended->report.kind == ReportKind::TaskFinished);
     CHECK(fixture.recorder.count(logged("true true function true 1")) == 1);
-    CHECK(fixture.recorder.count(logged("{\"written\":2} 0.5 half,1 hot")) == 1);
+    CHECK(fixture.recorder.count(logged("{\"written\":2} 0.5 half,1 hot,out {\"board\":\"A\"}")) == 1);
     const auto broke = fixture.recorder.waitFor(kindIs(ReportKind::UnhandledRejection));
     REQUIRE(broke.has_value());
     CHECK(broke->report.message.find("the listener broke") != std::string::npos);

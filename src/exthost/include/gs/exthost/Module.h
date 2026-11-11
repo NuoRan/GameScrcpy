@@ -124,7 +124,11 @@ struct JobEvents {
     std::function<void(double fraction, std::string text)> progress;
     std::function<void(int level, std::string text)> log;
     std::function<void(bool worked, std::string text)> done;
+    std::function<void(std::string json)> output;
 };
+
+inline constexpr std::size_t kMostJobOutputBytes = 64 * 1024;
+inline constexpr std::size_t kMostJobOutputsPerSecond = 100;
 
 inline constexpr std::size_t kMostTopicBytes = 64;
 inline constexpr std::size_t kMostEventBytes = 64 * 1024;

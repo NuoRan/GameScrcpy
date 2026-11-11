@@ -8,7 +8,7 @@ namespace gs::script::detail {
 
 inline constexpr std::string_view kPreludeName = "<gs>";
 
-inline constexpr std::array<std::string_view, 14> kPreludeParts{
+inline constexpr std::array<std::string_view, 15> kPreludeParts{
     R"js(((host) => {
     "use strict";
     const defineProperty = Object.defineProperty;
@@ -2102,7 +2102,7 @@ inline constexpr std::array<std::string_view, 14> kPreludeParts{
     const jobOf = (extension, job, args) => {
         const started = host.call("native.jobStart", JSON.stringify({ extension, job, args }));
         const id = String(started.id);
-        const listeners = { progress: [], log: [] };
+        const listeners = { progress: [], log: [], output: [] };
         jobListeners.set(id, listeners);
         const result = host.request("native.jobResult", JSON.stringify({ id }));
         result.then(() => jobListeners.delete(id), () => jobListeners.delete(id));
@@ -2117,6 +2117,12 @@ inline constexpr std::array<std::string_view, 14> kPreludeParts{
             onLog(listener) {
                 if (typeof listener === "function") {
                     listeners.log.push(listener);
+                }
+                return handle;
+            },
+            onOutput(listener) {
+                if (typeof listener === "function") {
+                    listeners.output.push(listener);
                 }
                 return handle;
             },
@@ -2162,6 +2168,8 @@ inline constexpr std::array<std::string_view, 14> kPreludeParts{
             tellJob(listeners.progress, value.fraction, value.text);
         } else if (value.kind === "log") {
             tellJob(listeners.log, value.level, value.text);
+        } else if (value.kind === "output") {
+            tellJob(listeners.output, value.value);
         }
     });
     serviceEvents.set("extEvent", (topic, value) => reactAll("extEvent:" + topic, { topic, value }));
@@ -3014,9 +3022,115 @@ inline constexpr std::array<std::string_view, 14> kPreludeParts{
         },
     };
 )js",
+    R"js(    const speechListeners = new Map();
+    const speechAsk = (options, fields) => {
+        if (options !== undefined && options !== null && typeof options !== "object") {
+            throw new TypeError("GS-API-111 the options must be an object");
+        }
+        const ask = {};
+        for (const [key, kind, low, high] of fields) {
+            const value = options?.[key];
+            if (value === undefined) {
+                continue;
+            }
+            if (typeof value !== kind) {
+                throw new TypeError("GS-API-111 " + key + " must be a " + kind);
+            }
+            if (kind === "number" && !(value >= low && value <= high)) {
+                throw new RangeError("GS-API-111 " + key + " is from " + low + " to " + high);
+            }
+            ask[key] = value;
+        }
+        return ask;
+    };
+    class SpeechListener {
+        #state;
+        constructor(token, state) {
+            if (token !== world) {
+                throw new TypeError("Illegal constructor");
+            }
+            this.#state = state;
+        }
+        get isOpen() {
+            return this.#state.open;
+        }
+        close() {
+            const state = this.#state;
+            if (!state.open) {
+                return;
+            }
+            state.open = false;
+            state.listener.active = false;
+            speechListeners.delete(state.handle);
+            host.call("speech.close", JSON.stringify({ handle: state.handle }));
+        }
+    }
+    defineProperty(SpeechListener.prototype, Symbol.toStringTag, { value: "SpeechListener" });
+    freeze(SpeechListener.prototype);
+    serviceEvents.set("speech", (handle, value) => {
+        const state = speechListeners.get(handle);
+        if (state === undefined || value === null || typeof value !== "object") {
+            return;
+        }
+        if (value.type === "closed") {
+            state.open = false;
+            state.listener.active = false;
+            speechListeners.delete(handle);
+            if (value.reason !== undefined) {
+                globalThis.log.warn("speech.listen stopped listening (" + value.reason + ")" +
+                    (value.problem ? ": " + value.problem : ""));
+            }
+        } else if (value.type === "heard") {
+            react(state.listener, { phrase: value.phrase ?? null, text: String(value.text ?? ""),
+                confidence: Number(value.confidence ?? 0) });
+        }
+    });
+    const speechLibrary = {
+        "speech.say": function say(text, options) {
+            if (typeof text !== "string" || text.trim() === "" || text.length > 1000) {
+                throw new RangeError("GS-API-111 the text to read is 1 to 1000 characters");
+            }
+            const ask = { text, ...speechAsk(options, [["engine", "string"], ["voice", "string"], ["rate", "number", 0.5, 2],
+                ["volume", "number", 0, 1], ["interrupt", "boolean"]]) };
+            return host.request("speech.say", JSON.stringify(ask)).then((finished) => finished === true);
+        },
+        "speech.stop": function stop() {
+            host.call("speech.stop", "{}");
+        },
+        "speech.engines": function engines() {
+            return freeze(host.call("speech.engines", "{}").map((engine) =>
+                freeze({ ...engine, languages: freeze([...(engine.languages ?? [])]) })));
+        },
+        "speech.voices": function voices(options) {
+            const ask = speechAsk(options, [["engine", "string"]]);
+            return host.request("speech.voices", JSON.stringify(ask)).then((list) =>
+                freeze(list.map((voice) => freeze({ ...voice }))));
+        },
+        "speech.listen": function listen(phrases, handler, options) {
+            if (phrases !== null && (!Array.isArray(phrases) || phrases.length < 1 || phrases.length > 256 ||
+                !phrases.every((phrase) => typeof phrase === "string" && phrase.trim() !== "" && phrase.trim().length <= 64))) {
+                throw new TypeError("GS-API-111 listen for 1 to 256 commands of 1 to 64 characters each, or null");
+            }
+            if (typeof handler !== "function") {
+                throw new TypeError("GS-API-008 the handler must be a function");
+            }
+            const ask = { phrases, ...speechAsk(options, [["engine", "string"], ["language", "string"],
+                ["confidence", "number", 0, 1]]) };
+            return host.request("speech.listen", JSON.stringify(ask)).then((made) => {
+                const state = { handle: String(made?.handle ?? ""), open: true, listener: null };
+                state.listener = makeListener(handler, { again: "queue" }, "speech.listen");
+                speechListeners.set(state.handle, state);
+                const listener = freeze(new SpeechListener(world, state));
+                own(() => listener.close());
+                return listener;
+            });
+        },
+    };
+)js",
     R"js(    const library = {
         ...hardwareLibrary,
         ...netLibrary,
+        ...speechLibrary,
         every(intervalMs, handler, options) {
             return timed(intervalOf(intervalMs), handler, options, "every(" + intervalMs + ")", true);
         },

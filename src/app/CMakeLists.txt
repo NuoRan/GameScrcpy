@@ -114,6 +114,7 @@ qt_add_qml_module(GameScrcpy
         qml/SetupSteps.qml
         qml/ShortcutRow.qml
         qml/SliderSetting.qml
+        qml/SpeechSettings.qml
         qml/SponsorDialog.qml
         qml/StartPanel.qml
         qml/SwitchSetting.qml
@@ -402,6 +403,8 @@ qt_add_qml_module(GameScrcpy
         ShortcutDispatcher.h
         ShortcutModel.cpp
         ShortcutModel.h
+        SpeechEngines.cpp
+        SpeechEngines.h
         ThemeTokens.h
         ThumbnailView.cpp
         ThumbnailView.h

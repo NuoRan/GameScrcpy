@@ -6,10 +6,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -26,6 +28,7 @@ std::string g_boxes = "[]";
 std::string g_acted;
 bool g_yield = false;
 std::string g_wanted;
+std::string g_spoken = "null";
 
 void appendNumber(std::string& out, double value)
 {
@@ -317,6 +320,23 @@ int32_t lastWanted(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
     return giveText(result, GS_EXT_TYPE_STRING, wanted);
 }
 
+int32_t voicesNode(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    return giveText(result, GS_EXT_TYPE_JSON,
+                    R"([{"id":"robot","name":"Test robot","language":"en-US"},)"
+                    R"({"id":"bell","name":"Test bell","language":"zh-CN"}])");
+}
+
+int32_t lastSpoken(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    std::string spoken;
+    {
+        const std::scoped_lock lock(g_mutex);
+        spoken = g_spoken;
+    }
+    return giveText(result, GS_EXT_TYPE_JSON, spoken);
+}
+
 int32_t claimWanted(void*, const char* resource, size_t size, const char* by, size_t bySize)
 {
     bool yields = false;
@@ -452,6 +472,8 @@ const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "supports", kOneString, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &supportsNode},
     {sizeof(gs_ext_node), "yieldClaims", kOneFlag, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &yieldClaims},
     {sizeof(gs_ext_node), "lastWanted", nullptr, 0, GS_EXT_TYPE_STRING, nullptr, &lastWanted},
+    {sizeof(gs_ext_node), "voices", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &voicesNode},
+    {sizeof(gs_ext_node), "lastSpoken", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &lastSpoken},
 };
 
 const gs_ext_device_provider kBoxes = {sizeof(gs_ext_device_provider), "boxes", nullptr, &listBoxes, &actOnBox};
@@ -629,11 +651,13 @@ int32_t countStart(void*, uint64_t job, const char* args, size_t size)
     const int steps = static_cast<int>(numberIn(text, "steps", 1.0));
     const auto pause = static_cast<DWORD>(numberIn(text, "pause", 0.0));
     const bool fail = numberIn(text, "fail", 0.0) != 0.0;
+    const bool output = numberIn(text, "output", 0.0) != 0.0;
     auto stop = std::make_shared<std::atomic<bool>>(false);
     JobBook& book = jobBook();
     const std::scoped_lock lock(book.mutex);
     book.stops[job] = stop;
-    book.threads.emplace_back([job, steps, pause, fail, stop] {
+    book.threads.emplace_back([job, steps, pause, fail, output, stop] {
+        int busy = 0;
         for (int step = 1; step <= steps; ++step) {
             if (stop->load()) {
                 sayJob(job, false, "cancelled");
@@ -645,9 +669,24 @@ int32_t countStart(void*, uint64_t job, const char* args, size_t size)
                 constexpr char kCounting[] = "counting";
                 g_host->job_log(g_host->context, job, GS_EXT_LOG_INFO, kCounting, sizeof(kCounting) - 1);
             }
+            if (output) {
+                const std::string value = "{\"step\":" + std::to_string(step) + "}";
+                if (g_host->job_output(g_host->context, job, value.data(), value.size()) == GS_EXT_BUSY) {
+                    ++busy;
+                }
+            }
             Sleep(pause);
         }
-        sayJob(job, !fail, fail ? std::string("asked to fail") : "{\"counted\":" + std::to_string(steps) + "}");
+        if (output) {
+            constexpr char kBroken[] = "{\"step\":";
+            if (g_host->job_output(g_host->context, job, kBroken, sizeof(kBroken) - 1) != GS_EXT_BAD_ARGUMENT) {
+                busy = -1;
+            }
+        }
+        sayJob(job, !fail,
+               fail     ? std::string("asked to fail")
+               : output ? "{\"counted\":" + std::to_string(steps) + ",\"busy\":" + std::to_string(busy) + "}"
+                        : "{\"counted\":" + std::to_string(steps) + "}");
     });
     return GS_EXT_OK;
 }
@@ -664,6 +703,86 @@ void countCancel(void*, uint64_t job)
 int32_t refuseStart(void*, uint64_t, const char*, size_t)
 {
     return GS_EXT_FAILED;
+}
+
+std::vector<std::string> phrasesIn(const std::string& args)
+{
+    std::vector<std::string> phrases;
+    constexpr std::string_view kKey = "\"phrases\":[";
+    size_t at = args.find(kKey);
+    if (at == std::string::npos) {
+        return phrases;
+    }
+    at += kKey.size();
+    while (at < args.size() && args[at] == '"') {
+        const size_t end = args.find('"', at + 1);
+        if (end == std::string::npos) {
+            break;
+        }
+        phrases.push_back(args.substr(at + 1, end - at - 1));
+        at = end + 1;
+        if (at < args.size() && args[at] == ',') {
+            ++at;
+        }
+    }
+    return phrases;
+}
+
+void untilStopped(const std::shared_ptr<std::atomic<bool>>& stop)
+{
+    while (!stop->load()) {
+        Sleep(5);
+    }
+}
+
+void bookJob(uint64_t job, std::function<void(std::shared_ptr<std::atomic<bool>>)> work)
+{
+    auto stop = std::make_shared<std::atomic<bool>>(false);
+    JobBook& book = jobBook();
+    const std::scoped_lock lock(book.mutex);
+    book.stops[job] = stop;
+    book.threads.emplace_back([work = std::move(work), stop] { work(stop); });
+}
+
+int32_t speakStart(void*, uint64_t job, const char* args, size_t size)
+{
+    const std::string text(args, size);
+    {
+        const std::scoped_lock lock(g_mutex);
+        g_spoken = text;
+    }
+    const bool waits = text.find("\"text\":\"wait\"") != std::string::npos;
+    bookJob(job, [job, waits](const std::shared_ptr<std::atomic<bool>>& stop) {
+        if (waits) {
+            untilStopped(stop);
+            sayJob(job, false, "stopped");
+            return;
+        }
+        sayJob(job, true, "null");
+    });
+    return GS_EXT_OK;
+}
+
+int32_t hearStart(void*, uint64_t job, const char* args, size_t size)
+{
+    const std::string text(args, size);
+    const std::vector<std::string> phrases = phrasesIn(text);
+    const bool free = text.find("\"phrases\":null") != std::string::npos;
+    bookJob(job, [job, phrases, free](const std::shared_ptr<std::atomic<bool>>& stop) {
+        if (free) {
+            constexpr char kHeard[] = R"({"phrase":null,"text":"free words","confidence":0.8})";
+            g_host->job_output(g_host->context, job, kHeard, sizeof(kHeard) - 1);
+        }
+        for (const std::string& phrase : phrases) {
+            const std::string confidence = phrase.starts_with("quiet") ? "0.3" : "0.9";
+            const std::string heard =
+                "{\"phrase\":\"" + phrase + "\",\"text\":\"" + phrase + "\",\"confidence\":" + confidence + "}";
+            g_host->job_output(g_host->context, job, heard.data(), heard.size());
+        }
+        untilStopped(stop);
+        sayJob(job, false, "stopped");
+    });
+    return GS_EXT_OK;
 }
 
 void refuseCancel(void*, uint64_t) {}
@@ -688,6 +807,8 @@ void unloadAll(void*)
 
 const gs_ext_job kCount = {sizeof(gs_ext_job), "count", nullptr, &countStart, &countCancel};
 const gs_ext_job kRefuse = {sizeof(gs_ext_job), "refuse", nullptr, &refuseStart, &refuseCancel};
+const gs_ext_job kSpeak = {sizeof(gs_ext_job), "speak", nullptr, &speakStart, &countCancel};
+const gs_ext_job kHear = {sizeof(gs_ext_job), "hear", nullptr, &hearStart, &countCancel};
 
 const gs_ext_attachment kShift = {
     sizeof(gs_ext_attachment), "shift", nullptr, &shiftStart, &shiftInput, &shiftOutput, &shiftWake, &shiftReset,
@@ -732,6 +853,10 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_BEHAVIOR, "tap", &kTap},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_JOB, "count", &kCount},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_JOB, "refuse", &kRefuse},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "voices", &kNodes[24]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "lastSpoken", &kNodes[25]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_JOB, "speak", &kSpeak},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_JOB, "hear", &kHear},
 };
 
 const gs_ext_plugin kPlugin = {

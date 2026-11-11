@@ -52,6 +52,7 @@ gs_add_unit_test(gs_platform_tests
         unit/platform/InputCaptureTests.cpp
         unit/platform/KeyboardLayoutTests.cpp
         unit/platform/RunningMarkerTests.cpp
+        unit/platform/SpeechTests.cpp
         unit/platform/TextReaderTests.cpp
         unit/platform/UdpSocketTests.cpp
     LIBRARIES
@@ -467,6 +468,7 @@ if(GS_BUILD_APP)
             unit/app/SettingsSearchTests.cpp
             unit/app/SettingsTests.cpp
             unit/app/SettingVariantTests.cpp
+            unit/app/SpeechEnginesTests.cpp
             unit/app/StatusProblemTests.cpp
             unit/app/SyncGroupsTests.cpp
             unit/app/SystemPanelServiceTests.cpp
@@ -701,6 +703,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/SettingVariant.h"
             "${PROJECT_SOURCE_DIR}/src/app/ShortcutModel.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/ShortcutModel.h"
+            "${PROJECT_SOURCE_DIR}/src/app/SpeechEngines.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/SpeechEngines.h"
             "${PROJECT_SOURCE_DIR}/src/app/SyncGroups.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/SyncGroups.h"
             "${PROJECT_SOURCE_DIR}/src/app/SystemPanelService.cpp"

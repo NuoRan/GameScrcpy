@@ -59,7 +59,7 @@ public:
 
     bool offersService(std::string_view name) override
     {
-        return name.starts_with("hardware.") || name.starts_with("net.");
+        return name.starts_with("hardware.") || name.starts_with("net.") || name.starts_with("speech.");
     }
 
     ServiceAnswer callService(std::string_view name, std::string_view json) override
@@ -71,6 +71,12 @@ public:
         }
         if (name == "hardware.list") {
             return {R"([{"id":"serial:a","kind":"serial","name":"Board","present":true}])", {}, {}};
+        }
+        if (name == "speech.engines") {
+            return {R"([{"id":"system","title":"Windows","say":true,"listen":true,"dictation":false,)"
+                    R"("languages":["zh-CN","en-US"]}])",
+                    {},
+                    {}};
         }
         return {"null", {}, {}};
     }
@@ -464,4 +470,96 @@ export async function serve() {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
     CHECK(closed());
+}
+
+TEST_CASE("ADR-0112: speech.say, voices and listen go through the service channel, and a listener's handler hears "
+          "each command in turn")
+{
+    Fixture fixture;
+    const ScriptId script = fixture.load(R"js(
+export async function talk() {
+    log.info("said", await speech.say("你好", { rate: 1.5, interrupt: true }));
+    const engines = speech.engines();
+    log.info("engines", engines.length, engines[0].id, engines[0].languages.join(","),
+             Object.isFrozen(engines) && Object.isFrozen(engines[0]) && Object.isFrozen(engines[0].languages));
+    const voices = await speech.voices({ engine: "system" });
+    log.info("voices", voices.length, voices[0].name, voices[0].language, Object.isFrozen(voices[0]));
+    try {
+        await speech.say("");
+    } catch (error) {
+        log.info("empty", error.message.split(" ")[0], error.name);
+    }
+    try {
+        await speech.say("x", { rate: 3 });
+    } catch (error) {
+        log.info("rate", error.message.split(" ")[0], error.name);
+    }
+    try {
+        await speech.say("x", { voice: 1 });
+    } catch (error) {
+        log.info("voice", error.message.split(" ")[0], error.name);
+    }
+    try {
+        await speech.listen([], () => {});
+    } catch (error) {
+        log.info("phrases", error.message.split(" ")[0], error.name);
+    }
+    try {
+        await speech.listen(["go"], 5);
+    } catch (error) {
+        log.info("handler", error.message.split(" ")[0], error.name);
+    }
+    speech.stop();
+    const listener = await speech.listen(["open map", "close bag"], async ({ phrase, text, confidence }) => {
+        log.info("heard", phrase, text, confidence);
+        await sleep(20);
+        log.info("handled", phrase);
+    }, { confidence: 0.5, language: "zh-CN" });
+    log.info("listening", listener.isOpen, Object.prototype.toString.call(listener));
+    await sleep(30000);
+}
+)js");
+    const TaskId task = fixture.host->start(script, "talk");
+    const Asked say = fixture.asked(0, "speech.say");
+    CHECK(say.json == R"({"text":"你好","rate":1.5,"interrupt":true})");
+    fixture.host->answer(say.id, "true");
+    const Asked voices = fixture.asked(1, "speech.voices");
+    CHECK(voices.json == R"({"engine":"system"})");
+    fixture.host->answer(voices.id, R"([{"id":"zh","name":"Huihui","language":"zh-CN"}])");
+    const Asked listen = fixture.asked(2, "speech.listen");
+    CHECK(listen.json == R"({"phrases":["open map","close bag"],"language":"zh-CN","confidence":0.5})");
+    fixture.host->answer(listen.id, R"({"handle":"s1","engine":"system","language":"zh-CN"})");
+    REQUIRE(fixture.recorder.waitFor(logged("listening true [object SpeechListener]")).has_value());
+    CHECK(fixture.recorder.count(logged("said true")) == 1);
+    CHECK(fixture.recorder.count(logged("engines 1 system zh-CN,en-US true")) == 1);
+    CHECK(fixture.recorder.count(logged("voices 1 Huihui zh-CN true")) == 1);
+    CHECK(fixture.recorder.count(logged("empty GS-API-111 RangeError")) == 1);
+    CHECK(fixture.recorder.count(logged("rate GS-API-111 RangeError")) == 1);
+    CHECK(fixture.recorder.count(logged("voice GS-API-111 TypeError")) == 1);
+    CHECK(fixture.recorder.count(logged("phrases GS-API-111 TypeError")) == 1);
+    CHECK(fixture.recorder.count(logged("handler GS-API-008 TypeError")) == 1);
+
+    fixture.host->event("speech", "s1",
+                        R"({"type":"heard","phrase":"open map","text":"open the map","confidence":0.9})");
+    fixture.host->event("speech", "s1",
+                        R"({"type":"heard","phrase":"close bag","text":"close bag","confidence":0.75})");
+    const auto firstHeard = fixture.recorder.waitFor(logged("heard open map open the map 0.9"));
+    const auto firstHandled = fixture.recorder.waitFor(logged("handled open map"));
+    const auto secondHeard = fixture.recorder.waitFor(logged("heard close bag close bag 0.75"));
+    const auto secondHandled = fixture.recorder.waitFor(logged("handled close bag"));
+    REQUIRE(firstHeard.has_value());
+    REQUIRE(firstHandled.has_value());
+    REQUIRE(secondHeard.has_value());
+    REQUIRE(secondHandled.has_value());
+    CHECK(firstHeard->index < firstHandled->index);
+    CHECK(firstHandled->index < secondHeard->index);
+    CHECK(secondHeard->index < secondHandled->index);
+
+    fixture.host->cancel(task);
+    CHECK(fixture.finish(task).kind == ReportKind::TaskCancelled);
+    const std::vector<std::string> called{"speech.engines {}", "speech.stop {}", R"(speech.close {"handle":"s1"})"};
+    for (int round = 0; round < 3000 && fixture.services->calls() != called; ++round) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    CHECK(fixture.services->calls() == called);
 }

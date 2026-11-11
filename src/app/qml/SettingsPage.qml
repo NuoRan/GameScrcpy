@@ -513,6 +513,10 @@ Item {
                         enabled: sound.value === true
                     }
                 }
+
+                SpeechSettings {
+                    objectName: "speechSettings"
+                }
             }
 
             Section {

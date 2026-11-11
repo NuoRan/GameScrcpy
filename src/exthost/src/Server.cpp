@@ -400,6 +400,15 @@ private:
                                      m_running.erase(id);
                                  }
                                  finish(id, worked, text);
+                             },
+                         .output =
+                             [&link, id](std::string json) {
+                                 detail::WireWriter out;
+                                 out.u32(2);
+                                 out.f64(0.0);
+                                 out.u32(0);
+                                 out.text(json);
+                                 link.send(detail::Kind::JobUpdate, id, out.bytes());
                              }};
         {
             const std::scoped_lock lock(m_mutex);
