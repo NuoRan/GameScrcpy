@@ -2419,6 +2419,7 @@ TEST_CASE("gs-exthost.exe starts again after a crash, and three crashes within a
     crashOnce(*module, 4);
     CHECK_FALSE(module->waitReady(20s));
     CHECK_FALSE(module->working());
+    REQUIRE(eventually([&stops] { return stops != 0; }));
     CHECK(stops == 1);
     CHECK(restarts == 3);
     const exthost::CallResult after = callNode(*module, "add", {numberValue(1), numberValue(1)});
