@@ -1073,6 +1073,45 @@ TEST_CASE("ADR-0112: when gs-exthost.exe stops, GameScrcpy lets go of what its D
     REQUIRE(eventually([&] { return releasedSoFar() == std::vector<std::string>{"hid:pad", "serial:COM9"}; }));
 }
 
+TEST_CASE("ADR-0112: a crash of gs-exthost.exe leaves a crash report in the extension's folder, and GameScrcpy hears the "
+          "exit code")
+{
+    Scratch scratch;
+    writeFile(scratch / "gamescrcpy.log", "a line of the program's log\n");
+    std::mutex mutex;
+    std::vector<std::uint32_t> codes;
+    exthost::HostedOptions options = hostedOptions(scratch);
+    options.crashes = scratch / "crashes with spaces" / "gstest.native";
+    options.logFile = scratch / "gamescrcpy.log";
+    options.crashed = [&mutex, &codes](std::uint32_t code) {
+        const std::scoped_lock lock(mutex);
+        codes.push_back(code);
+    };
+    std::string problem;
+    const std::unique_ptr<exthost::HostedModule> hosted = exthost::HostedModule::start(std::move(options), problem);
+    REQUIRE_MESSAGE(hosted != nullptr, problem);
+    crashOnce(*hosted, 1);
+    REQUIRE(eventually([&] {
+        const std::scoped_lock lock(mutex);
+        return codes.size() == 1;
+    }));
+    CHECK(codes[0] == 0xC0000005U);
+    std::vector<fs::path> folders;
+    for (const fs::directory_entry& entry : fs::directory_iterator(scratch / "crashes with spaces" / "gstest.native")) {
+        folders.push_back(entry.path());
+    }
+    REQUIRE(folders.size() == 1);
+    std::vector<std::string> files;
+    for (const fs::directory_entry& entry : fs::directory_iterator(folders[0])) {
+        files.push_back(entry.path().extension() == ".dmp" ? std::string(".dmp") : entry.path().filename().string());
+    }
+    std::ranges::sort(files);
+    CHECK(files == std::vector<std::string>{".dmp", "crash.txt", "gamescrcpy.log"});
+    const std::string summary = readFile(folders[0] / "crash.txt");
+    CHECK(summary.find("exception 0xC0000005") != std::string::npos);
+    CHECK(readFile(folders[0] / "gamescrcpy.log") == "a line of the program's log\n");
+}
+
 TEST_CASE("ADR-0112: two extensions share hardware through GameScrcpy: one waits for it and the other lets it go")
 {
     ApplicationScope application;

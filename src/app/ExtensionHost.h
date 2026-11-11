@@ -40,6 +40,7 @@ class QQmlEngine;
 namespace gs::app {
 
 class AppSettings;
+class ExtensionHealth;
 class NativeExtensions;
 class TouchMethodSource;
 struct NativeWanted;
@@ -48,6 +49,8 @@ struct ExtensionRoots {
     std::filesystem::path user;
     std::filesystem::path builtin;
     std::filesystem::path hostProgram;
+    std::filesystem::path data;
+    std::filesystem::path log;
 };
 
 [[nodiscard]] QString extensionSettingPath(std::string_view id, std::string_view key);
@@ -125,8 +128,12 @@ public:
     [[nodiscard]] QVariantList nativeAttachments() const;
     [[nodiscard]] QVariantList nativeBehaviors() const;
     [[nodiscard]] int addOnsRevision() const noexcept { return m_addOnsRevision; }
+    [[nodiscard]] const ExtensionHealth& health() const noexcept { return *m_health; }
+    [[nodiscard]] std::string diagnosticsText() const;
+    [[nodiscard]] std::vector<std::filesystem::path> crashFolders() const;
 
     Q_INVOKABLE QVariantList globalAddOns(const QString& id) const;
+    Q_INVOKABLE void clearHealth(const QString& id);
     Q_INVOKABLE bool setGlobalAddOn(const QString& id, const QString& name, bool on);
     Q_INVOKABLE bool setGlobalAddOnParam(const QString& id, const QString& name, const QString& key,
                                          const QString& json);
@@ -269,8 +276,7 @@ private:
     ext::NativeScanner m_scanner;
     bool m_installing = false;
     std::unique_ptr<NativeExtensions> m_native;
-    std::set<std::string, std::less<>> m_nativeStopped;
-    std::set<std::string, std::less<>> m_modulesFailed;
+    std::unique_ptr<ExtensionHealth> m_health;
     int m_addOnsRevision = 0;
     std::jthread m_installer;
 };

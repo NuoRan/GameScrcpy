@@ -405,7 +405,11 @@ int main(int argc, char* argv[])
                                          data / "components");
 
     gs::app::ExtensionHost extensions(
-        settings, {data / "extensions", (QCoreApplication::applicationDirPath() + u"/extensions"_s).toStdWString()});
+        settings, {.user = data / "extensions",
+                   .builtin = (QCoreApplication::applicationDirPath() + u"/extensions"_s).toStdWString(),
+                   .hostProgram = {},
+                   .data = data,
+                   .log = logFile.path()});
     extensions.start(parser.isSet(safeMode), data / "extensions.running", data / "extensions-bisect.json");
     logExtensions(extensions);
     profiles.setExtensionProfiles(extensions.profiles());

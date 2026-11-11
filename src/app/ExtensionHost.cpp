@@ -2,6 +2,7 @@
 
 #include "AmsiScan.h"
 #include "AppSettings.h"
+#include "ExtensionHealth.h"
 #include "ExtensionIcons.h"
 #include "NativeExtensions.h"
 #include "ProfileEditor.h"
@@ -244,6 +245,51 @@ std::optional<fs::path> localPath(const QString& fileOrUrl)
 QString folderName(const fs::path& directory)
 {
     return QString::fromStdWString((directory.parent_path().filename() / directory.filename()).generic_wstring());
+}
+
+std::optional<fs::path> newestFolder(const fs::path& directory, std::optional<std::chrono::minutes> within)
+{
+    std::optional<fs::path> newest;
+    std::error_code error;
+    const fs::file_time_type now = fs::file_time_type::clock::now();
+    for (fs::directory_iterator it(directory, error), end; !error && it != end; it.increment(error)) {
+        std::error_code ignored;
+        if (!it->is_directory(ignored)) {
+            continue;
+        }
+        if (within) {
+            const fs::file_time_type written = it->last_write_time(ignored);
+            if (ignored || now - written > *within) {
+                continue;
+            }
+        }
+        if (!newest || it->path().filename() > newest->filename()) {
+            newest = it->path();
+        }
+    }
+    return newest;
+}
+
+QVariantMap healthOf(const ExtensionHealth& health, std::string_view id)
+{
+    const HealthRecord* record = health.find(id);
+    if (record == nullptr) {
+        return {};
+    }
+    QVariantList events;
+    for (auto it = record->events.rbegin(); it != record->events.rend(); ++it) {
+        events.append(QVariantMap{
+            {QStringLiteral("at"), QString::fromStdString(ExtensionHealth::timeText(it->at))},
+            {QStringLiteral("version"), QString::fromStdString(it->version)},
+            {QStringLiteral("kind"), toQString(ExtensionHealth::kindName(it->kind))},
+            {QStringLiteral("code"),
+             it->code == 0 ? QString() : QStringLiteral("0x") + QString::number(it->code, 16).toUpper().rightJustified(8, u'0')},
+            {QStringLiteral("report"), QString::fromStdString(it->report)}});
+    }
+    const auto now = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
+    return {{QStringLiteral("off"), record->off ? toQString(ExtensionHealth::kindName(*record->off)) : QString()},
+            {QStringLiteral("recent"), static_cast<int>(health.crashesSince(id, now - std::chrono::days(7)))},
+            {QStringLiteral("events"), events}};
 }
 
 std::optional<std::pair<fs::path, fs::path>> folderParts(const QString& folder)
@@ -659,26 +705,53 @@ ExtensionHost::ExtensionHost(AppSettings& settings, ExtensionRoots roots, QObjec
     if (program.empty() && QCoreApplication::instance() != nullptr) {
         program = (QCoreApplication::applicationDirPath() + QStringLiteral("/gs-exthost.exe")).toStdWString();
     }
+    const fs::path crashRoot = m_roots.data.empty() ? fs::path() : m_roots.data / "crashes" / "extensions";
+    m_health = std::make_unique<ExtensionHealth>(m_roots.data.empty() ? fs::path()
+                                                                     : m_roots.data / "extension-health.json");
     m_native = std::make_unique<NativeExtensions>(
         NativeOptions{.program = program,
                       .storeRoot = m_roots.user.empty() ? fs::path() : m_roots.user / ".store",
-                      .clock = nullptr});
+                      .clock = nullptr,
+                      .crashRoot = crashRoot,
+                      .logFile = m_roots.log});
     connect(m_native.get(), &NativeExtensions::changed, this, &ExtensionHost::nativeChanged);
     connect(this, &ExtensionHost::valuesChanged, this, &ExtensionHost::settleNative);
     connect(m_native.get(), &NativeExtensions::globalsChanged, this, [this] {
         ++m_addOnsRevision;
         emit addOnsChanged();
     });
-    connect(m_native.get(), &NativeExtensions::stopped, this, [this](const QString& id, const QString& name) {
-        m_nativeStopped.insert(id.toStdString());
+    const auto note = [this, crashRoot](const std::string& id, HealthKind kind, std::uint32_t code) {
+        HealthEvent event{.at = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now()),
+                          .version = {},
+                          .kind = kind,
+                          .code = code,
+                          .report = {}};
+        for (const Extension& extension : m_extensions) {
+            if (extension.active && extension.manifest && extension.manifest->id == id) {
+                event.version = extension.manifest->version.text();
+            }
+        }
+        if (kind == HealthKind::Crashed && !crashRoot.empty()) {
+            if (const std::optional<fs::path> report = newestFolder(crashRoot / pathOf(id), std::chrono::minutes(2))) {
+                event.report = QString::fromStdWString(report->filename().wstring()).toStdString();
+            }
+        }
+        m_health->record(id, std::move(event));
+    };
+    connect(m_native.get(), &NativeExtensions::crashed, this, [this, note](const QString& id, quint32 code) {
+        note(id.toStdString(), HealthKind::Crashed, code);
+        emit extensionsChanged();
+    });
+    connect(m_native.get(), &NativeExtensions::stopped, this, [this, note](const QString& id, const QString& name) {
+        note(id.toStdString(), HealthKind::Stopped, 0);
         if (!setEnabled(id.toStdString(), false)) {
             resolve();
         }
         emit extensionsChanged();
         emit nativeStopped(name);
     });
-    connect(m_native.get(), &NativeExtensions::modulesFailed, this, [this](const QString& id, const QString& name) {
-        m_modulesFailed.insert(id.toStdString());
+    connect(m_native.get(), &NativeExtensions::modulesFailed, this, [this, note](const QString& id, const QString& name) {
+        note(id.toStdString(), HealthKind::ModulesFailed, 0);
         if (!setEnabled(id.toStdString(), false)) {
             resolve();
         }
@@ -1061,6 +1134,7 @@ QVariantList ExtensionHost::entries() const
                                                   : QString::fromStdWString(extension->directory.wstring()));
             row.insert(QStringLiteral("enabled"), !extension->superseded && state != states.end() &&
                                                       state->second.enabled && consented(manifest));
+            row.insert(QStringLiteral("health"), healthOf(*m_health, manifest.id));
             if (manifest.contributes.native) {
                 QStringList methods;
                 for (const ext::NativeTouchMethod& method : manifest.contributes.native->touchMethods) {
@@ -1110,6 +1184,58 @@ QVariantList ExtensionHost::entries() const
         rows.append(row);
     }
     return rows;
+}
+
+void ExtensionHost::clearHealth(const QString& id)
+{
+    m_health->clear(id.toStdString());
+    emit extensionsChanged();
+}
+
+std::string ExtensionHost::diagnosticsText() const
+{
+    const settings::ExtensionStates& states = m_settings.extensions();
+    nlohmann::json list = nlohmann::json::array();
+    for (const Extension& extension : m_extensions) {
+        if (!extension.manifest) {
+            list.push_back({{"folder", folderName(extension.directory).toStdString()}, {"usable", false}});
+            continue;
+        }
+        const ext::Manifest& manifest = *extension.manifest;
+        const auto state = states.find(manifest.id);
+        list.push_back({{"id", manifest.id},
+                        {"version", manifest.version.text()},
+                        {"builtin", extension.builtin},
+                        {"enabled", state != states.end() && state->second.enabled},
+                        {"active", extension.active},
+                        {"native", manifest.contributes.native.has_value()},
+                        {"granted", state != states.end() ? state->second.granted : std::vector<std::string>{}}});
+    }
+    const nlohmann::json health = nlohmann::json::parse(m_health->text(), nullptr, false);
+    return nlohmann::json{{"extensions", std::move(list)},
+                          {"health", health.is_object() && health.contains("extensions") ? health.at("extensions")
+                                                                                          : nlohmann::json::object()}}
+        .dump(2);
+}
+
+std::vector<fs::path> ExtensionHost::crashFolders() const
+{
+    std::vector<fs::path> found;
+    if (m_roots.data.empty()) {
+        return found;
+    }
+    std::error_code error;
+    for (fs::directory_iterator it(m_roots.data / "crashes" / "extensions", error), end; !error && it != end;
+         it.increment(error)) {
+        std::error_code ignored;
+        if (!it->is_directory(ignored)) {
+            continue;
+        }
+        if (std::optional<fs::path> newest = newestFolder(it->path(), std::nullopt)) {
+            found.push_back(std::move(*newest));
+        }
+    }
+    return found;
 }
 
 QVariantList ExtensionHost::themes() const
@@ -1866,8 +1992,7 @@ bool ExtensionHost::setEnabled(const std::string& id, bool enabled)
             state.granted.push_back(permission.name);
         }
         recordConsent(*manifest);
-        m_nativeStopped.erase(id);
-        m_modulesFailed.erase(id);
+        m_health->clearOff(id);
     }
     if (state == settings::ExtensionState{}) {
         states.erase(id);
@@ -2078,13 +2203,20 @@ void ExtensionHost::resolve()
     pushGlobals();
     const std::vector<ext::Diagnostic> nativeProblems = m_native->problems();
     m_problems.insert(m_problems.end(), nativeProblems.begin(), nativeProblems.end());
-    for (const std::string& id : m_nativeStopped) {
-        m_problems.push_back({ext::Severity::Warning, ext::Code::NativeCrashed, memberPath(id) + ".contributes.native",
-                              "stopped working three times within a minute"});
-    }
-    for (const std::string& id : m_modulesFailed) {
-        m_problems.push_back({ext::Severity::Warning, ext::Code::NativeModuleFailed,
-                              memberPath(id) + ".contributes.native", "failed three times within 10 seconds"});
+    std::set<std::string, std::less<>> turnedOff;
+    for (const Extension& extension : m_extensions) {
+        if (!extension.manifest || extension.superseded || !turnedOff.insert(extension.manifest->id).second) {
+            continue;
+        }
+        const HealthRecord* record = m_health->find(extension.manifest->id);
+        if (record == nullptr || !record->off) {
+            continue;
+        }
+        const bool stopped = *record->off == HealthKind::Stopped;
+        m_problems.push_back({ext::Severity::Warning, stopped ? ext::Code::NativeCrashed : ext::Code::NativeModuleFailed,
+                              memberPath(extension.manifest->id) + ".contributes.native",
+                              stopped ? "stopped working three times within a minute"
+                                      : "failed three times within 10 seconds"});
     }
     composeProfiles();
     composeLibraries();

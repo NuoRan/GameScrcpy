@@ -241,6 +241,8 @@ qt_add_qml_module(GameScrcpy
         Esp32Session.h
         ExtensionBisect.cpp
         ExtensionBisect.h
+        ExtensionHealth.cpp
+        ExtensionHealth.h
         ExtensionHelp.cpp
         ExtensionHelp.h
         ExtensionIcons.cpp

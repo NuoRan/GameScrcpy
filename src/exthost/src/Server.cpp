@@ -5,6 +5,8 @@
 
 #include "gs/exthost/InProcess.h"
 
+#include <gs/platform/CrashHandler.h>
+
 #include <chrono>
 #include <condition_variable>
 #include <cstdlib>
@@ -635,13 +637,22 @@ int serve(int argc, wchar_t** argv)
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
     std::wstring_view handles;
     DWORD parentId = 0;
+    std::filesystem::path crashes;
+    std::filesystem::path log;
     for (int index = 1; index + 1 < argc; index += 2) {
         const std::wstring_view name(argv[index]);
         if (name == L"--channel") {
             handles = argv[index + 1];
         } else if (name == L"--parent") {
             parentId = static_cast<DWORD>(std::wcstoul(argv[index + 1], nullptr, 10));
+        } else if (name == L"--crashes") {
+            crashes = argv[index + 1];
+        } else if (name == L"--log") {
+            log = argv[index + 1];
         }
+    }
+    if (!crashes.empty()) {
+        static_cast<void>(platform::installCrashHandler(crashes, log));
     }
     std::optional<detail::Channel> channel = detail::Channel::open(handles);
     if (!channel) {

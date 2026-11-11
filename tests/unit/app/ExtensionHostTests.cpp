@@ -1,4 +1,5 @@
 #include "AppSettings.h"
+#include "ExtensionHealth.h"
 #include "ExtensionHost.h"
 #include "SettingsCatalog.h"
 #include "ThemeTokens.h"
@@ -11,6 +12,7 @@
 #include <gs/input/Profile.h>
 
 #include <doctest/doctest.h>
+#include <nlohmann/json.hpp>
 
 #include <windows.h>
 
@@ -24,6 +26,7 @@
 #include <QVariantMap>
 
 #include <algorithm>
+#include <chrono>
 #include <filesystem>
 #include <fstream>
 #include <map>
@@ -762,4 +765,51 @@ TEST_CASE("a filter's textures are loaded as pictures, and one that is not a pic
     CHECK(filters[0].textures.at("Noise").size() == QSize(4, 2));
     CHECK(reports(host.problemsOf("bob.glow"), gs::ext::Code::TextureUnreadable,
                   R"($["bob.glow"].contributes.filters[0].file)"));
+}
+
+TEST_CASE("ADR-0112: why an extension was turned off is still shown after GameScrcpy starts again, until it is turned on")
+{
+    const Fixture fixture;
+    writeFile(fixture.user / "alice.slate/1.0.0/manifest.json",
+              R"({"schemaVersion": 1, "id": "alice.slate", "version": "1.0.0", "name": "Slate", "license": "MIT",
+                  "requires": {"theme": "^1.0"},
+                  "contributes": {"themes": [{"name": "Slate", "dark": {"bgBase": "#0E1116"}}]}})");
+    const auto now = std::chrono::floor<std::chrono::seconds>(std::chrono::system_clock::now());
+    writeFile(fixture.data / "extension-health.json",
+              R"({"format": "gamescrcpy.extension-health", "version": 1, "extensions": {"alice.slate": {"off": "stopped",
+                  "events": [{"at": ")" + gs::app::ExtensionHealth::timeText(now - std::chrono::hours(1)) +
+                  R"(", "version": "1.0.0", "kind": "crashed", "code": 3221225477, "report": "gs-crash-1"},
+                             {"at": ")" + gs::app::ExtensionHealth::timeText(now - std::chrono::minutes(30)) +
+                  R"(", "version": "1.0.0", "kind": "stopped"}]}}})");
+    AppSettings settings(fixture.data);
+    ExtensionHost host(settings, {.user = fixture.user, .builtin = {}, .hostProgram = {}, .data = fixture.data,
+                                  .log = {}});
+    host.start(false);
+    const auto health = [&host] {
+        const QVariantList entries = host.entries();
+        return entries.isEmpty() ? QVariantMap() : entries[0].toMap().value(QStringLiteral("health")).toMap();
+    };
+    QVariantMap shown = health();
+    CHECK(shown.value(QStringLiteral("off")).toString() == "stopped");
+    CHECK(shown.value(QStringLiteral("recent")).toInt() == 1);
+    const QVariantList events = shown.value(QStringLiteral("events")).toList();
+    REQUIRE(events.size() == 2);
+    CHECK(events[0].toMap().value(QStringLiteral("kind")).toString() == "stopped");
+    CHECK(events[1].toMap().value(QStringLiteral("code")).toString() == "0xC0000005");
+    CHECK(events[1].toMap().value(QStringLiteral("report")).toString() == "gs-crash-1");
+    CHECK(reports(host.problemsOf("alice.slate"), gs::ext::Code::NativeCrashed));
+
+    REQUIRE(host.setEnabled("alice.slate", true));
+    shown = health();
+    CHECK(shown.value(QStringLiteral("off")).toString().isEmpty());
+    CHECK(shown.value(QStringLiteral("events")).toList().size() == 2);
+    CHECK_FALSE(reports(host.problemsOf("alice.slate"), gs::ext::Code::NativeCrashed));
+    host.clearHealth(QStringLiteral("alice.slate"));
+    CHECK(health().isEmpty());
+    CHECK(gs::app::ExtensionHealth(fixture.data / "extension-health.json").find("alice.slate") == nullptr);
+    nlohmann::json diagnostics = nlohmann::json::parse(host.diagnosticsText());
+    REQUIRE(diagnostics["extensions"].size() == 1);
+    CHECK(diagnostics["extensions"][0]["id"] == "alice.slate");
+    CHECK(diagnostics["extensions"][0]["enabled"] == true);
+    CHECK(diagnostics["health"].empty());
 }

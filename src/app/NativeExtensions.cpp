@@ -568,6 +568,15 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
                 claims->release(resource, holder);
             }
         };
+        if (!m_options.crashRoot.empty()) {
+            options.crashes = m_options.crashRoot / pathOf(id);
+            options.logFile = m_options.logFile;
+        }
+        options.crashed = [shared, id](std::uint32_t code) {
+            if (const std::shared_ptr<Shared> alive = shared.lock()) {
+                alive->post([id, code](NativeExtensions& owner) { emit owner.crashed(QString::fromStdString(id), code); });
+            }
+        };
         options.touchLost = [shared, id](std::uint64_t session) {
             if (const std::shared_ptr<Shared> alive = shared.lock()) {
                 alive->lose(id, session);

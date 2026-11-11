@@ -6447,6 +6447,40 @@
         <translation>帮助</translation>
     </message>
     <message>
+        <source>Stopped working three times within a minute, so it was turned off</source>
+        <translation>一分钟内停了三次，已关闭</translation>
+    </message>
+    <message>
+        <source>Failed three times within 10 seconds, so it was turned off</source>
+        <translation>10 秒内失败三次，已关闭</translation>
+    </message>
+    <message numerus="yes">
+        <source>Stopped working %n time(s) in the last 7 days</source>
+        <translation>
+            <numerusform>最近 7 天停了 %n 次</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Turned off after its process stopped three times within a minute</source>
+        <translation>它的进程一分钟内停了三次，已被关闭</translation>
+    </message>
+    <message>
+        <source>Turned off after its attachments or behaviors failed three times within 10 seconds</source>
+        <translation>它的附件或行为 10 秒内失败三次，已被关闭</translation>
+    </message>
+    <message>
+        <source>Its process did not answer in time and was stopped</source>
+        <translation>它的进程没有及时回应，已被结束</translation>
+    </message>
+    <message>
+        <source>Its process stopped unexpectedly (%1)</source>
+        <translation>它的进程意外停止（%1）</translation>
+    </message>
+    <message>
+        <source>Its process stopped unexpectedly</source>
+        <translation>它的进程意外停止</translation>
+    </message>
+    <message>
         <source>Extensions</source>
         <translation>扩展</translation>
     </message>
@@ -6521,6 +6555,18 @@
     <message>
         <source>%1 · %2</source>
         <translation>%1 · %2</translation>
+    </message>
+    <message>
+        <source>Health</source>
+        <translation>健康状况</translation>
+    </message>
+    <message>
+        <source>Clear the record</source>
+        <translation>清除记录</translation>
+    </message>
+    <message>
+        <source>crash report %1</source>
+        <translation>崩溃报告 %1</translation>
     </message>
     <message>
         <source>Extensions add to GameScrcpy: new components, picture filters, themes, hardware such as an ESP32 board, side panels, and new blocks for profiles and logic.</source>

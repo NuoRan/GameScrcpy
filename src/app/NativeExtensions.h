@@ -88,6 +88,8 @@ struct NativeOptions {
     std::filesystem::path storeRoot;
     const Clock* clock = nullptr;
     std::chrono::milliseconds readyWait{2'000};
+    std::filesystem::path crashRoot;
+    std::filesystem::path logFile;
 };
 
 class NativeExtensions final : public QObject, public TouchMethodSource
@@ -140,6 +142,7 @@ signals:
     void changed();
     void globalsChanged();
     void stopped(const QString& id, const QString& name);
+    void crashed(const QString& id, quint32 code);
     void moduleTrouble(const QString& module, const QString& control, int kind);
     void modulesFailed(const QString& id, const QString& name);
     void extensionEvent(const QString& id, const QString& topic, const QString& json);

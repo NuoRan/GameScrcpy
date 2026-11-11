@@ -365,6 +365,40 @@ TEST_CASE("the bundle holds the system, the devices, the settings, every log and
     }
 }
 
+TEST_CASE("ADR-0112: the bundle holds the list of extensions and the newest crash of each extension's process, scrubbed")
+{
+    const TemporaryDirectory directory;
+    const std::filesystem::path crash = directory.path() / "crashes" / "extensions" / "gstest.board" / std::string(kCrash);
+    write(crash / "crash.txt", "version 2.1.0 (abc)\nexception 0xC0000005 access violation\n"
+                               "address 0x0000000000001010 native.dll+0x10\nmodule C:\\Users\\Alice\\board\\native.dll\n");
+    write(crash / "gamescrcpy.log", "2026-11-11 07:44:13.373 info     board of R58M12345AB: last words\n");
+    const Sources sources{.system = "GameScrcpy 2.1.0\n",
+                          .devices = "Pixel 7\n",
+                          .settings = {},
+                          .logs = directory.path() / "logs",
+                          .crash = std::nullopt,
+                          .extensions = R"({"extensions": [{"id": "gstest.board", "granted": ["devices.provide"]}],)"
+                                        R"( "health": {"gstest.board": {"off": "stopped"}}})",
+                          .extensionCrashes = {crash}};
+    const std::vector<Entry> found = entries(sources, secretsForTests());
+    std::vector<std::string> names;
+    for (const Entry& entry : found) {
+        names.push_back(entry.name);
+    }
+    const std::string folder = "crash-extensions/gstest.board/" + std::string(kCrash) + "/";
+    REQUIRE(names == std::vector<std::string>{"system.txt", "devices.txt", "extensions.json", folder + "crash.txt",
+                                              folder + "gamescrcpy.log"});
+    for (const Entry& entry : found) {
+        CAPTURE(entry.name);
+        for (const std::string_view leak : leaks()) {
+            CAPTURE(leak);
+            CHECK(entry.data.find(leak) == std::string::npos);
+        }
+    }
+    CHECK(found[2].data.find("devices.provide") != std::string::npos);
+    CHECK(found[3].data.find("native.dll+0x10") != std::string::npos);
+}
+
 TEST_CASE("the device list names each device with its details, state and latest metrics (REL-009)")
 {
     QStandardItemModel model;

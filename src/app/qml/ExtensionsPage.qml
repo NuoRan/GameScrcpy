@@ -170,6 +170,30 @@ Item {
         }
     }
 
+    function healthText(health: var): string {
+        if ((health.off ?? "") === "stopped")
+            return qsTr("Stopped working three times within a minute, so it was turned off")
+        if ((health.off ?? "") === "modulesFailed")
+            return qsTr("Failed three times within 10 seconds, so it was turned off")
+        if ((health.recent ?? 0) > 0)
+            return qsTr("Stopped working %n time(s) in the last 7 days", "", health.recent)
+        return ""
+    }
+
+    function eventText(event: var): string {
+        switch (event.kind) {
+        case "stopped":
+            return qsTr("Turned off after its process stopped three times within a minute")
+        case "modulesFailed":
+            return qsTr("Turned off after its attachments or behaviors failed three times within 10 seconds")
+        default:
+            if (event.code === "0x00000009")
+                return qsTr("Its process did not answer in time and was stopped")
+            return event.code !== "" ? qsTr("Its process stopped unexpectedly (%1)").arg(event.code)
+                                     : qsTr("Its process stopped unexpectedly")
+        }
+    }
+
     function byline(entry: var): string {
         const parts = []
         if (entry.authors.length > 0)
@@ -477,6 +501,8 @@ Item {
                                                             : !card.modelData.enabled ? qsTr("Off")
                                                             : !card.modelData.active && !card.failing ? qsTr("Not loaded")
                                                             : ""
+                        readonly property var health: card.modelData.health ?? ({})
+                        readonly property string healthText: page.healthText(card.health)
 
                         objectName: "extensionCard"
                         Layout.preferredWidth: page.cardWidth
@@ -636,9 +662,11 @@ Item {
                                 spacing: Theme.space.xs
 
                                 Icon {
-                                    name: card.failing ? "circle-x" : "shield"
+                                    name: card.failing ? "circle-x" : card.healthText !== "" ? "triangle-alert" : "shield"
                                     size: Theme.size.infoIcon
-                                    color: card.failing ? Theme.colors.dangerText : Theme.colors.textTertiary
+                                    color: card.failing ? Theme.colors.dangerText
+                                         : card.healthText !== "" ? Theme.colors.warningText
+                                         : Theme.colors.textTertiary
                                 }
 
                                 Text {
@@ -647,10 +675,14 @@ Item {
                                     textFormat: Text.PlainText
                                     text: card.failing
                                           ? page.failureText(card.errors)
-                                          : card.modelData.permissions.length > 0
-                                            ? card.modelData.permissions.map(permission => permission.title).join(" · ")
-                                            : qsTr("No extra permission")
-                                    color: card.failing ? Theme.colors.dangerText : Theme.colors.textTertiary
+                                          : card.healthText !== ""
+                                            ? card.healthText
+                                            : card.modelData.permissions.length > 0
+                                              ? card.modelData.permissions.map(permission => permission.title).join(" · ")
+                                              : qsTr("No extra permission")
+                                    color: card.failing ? Theme.colors.dangerText
+                                         : card.healthText !== "" ? Theme.colors.warningText
+                                         : Theme.colors.textTertiary
                                     font.pixelSize: Theme.type.caption.size
                                     elide: Text.ElideRight
                                 }
@@ -678,7 +710,7 @@ Item {
 
                                 Button {
                                     objectName: "extensionDetails"
-                                    visible: card.failing
+                                    visible: card.failing || card.healthText !== "" || (card.health.events ?? []).length > 0
                                     small: true
                                     text: qsTr("Details")
                                     Accessible.description: card.modelData.name
@@ -965,6 +997,86 @@ Item {
                                       : problemRow.modelData.code
                                 color: Theme.colors.textTertiary
                                 font.family: Theme.type.monoFamily
+                                font.pixelSize: Theme.type.caption.size
+                                wrapMode: Text.Wrap
+                            }
+                        }
+                    }
+                }
+            }
+
+            ColumnLayout {
+                objectName: "extensionHealth"
+                Layout.fillWidth: true
+                visible: (detailsDialog.entry.health?.events ?? []).length > 0
+                spacing: Theme.space.xs
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: Theme.space.sm
+
+                    Text {
+                        Layout.fillWidth: true
+                        textFormat: Text.PlainText
+                        text: qsTr("Health")
+                        color: Theme.colors.textTertiary
+                        font.pixelSize: Theme.type.caption.size
+                        font.weight: Font.DemiBold
+                    }
+
+                    Button {
+                        objectName: "clearHealth"
+                        small: true
+                        tone: "ghost"
+                        text: qsTr("Clear the record")
+                        onClicked: {
+                            const key = detailsDialog.entry.key
+                            ExtensionHost.clearHealth(detailsDialog.entry.id)
+                            detailsDialog.entry = ExtensionHost.entries.find(each => each.key === key) ?? detailsDialog.entry
+                        }
+                    }
+                }
+
+                Repeater {
+                    model: detailsDialog.entry.health?.events ?? []
+
+                    delegate: RowLayout {
+                        id: eventRow
+
+                        required property var modelData
+
+                        Layout.fillWidth: true
+                        spacing: Theme.space.sm
+
+                        Icon {
+                            Layout.alignment: Qt.AlignTop
+                            name: eventRow.modelData.kind === "crashed" ? "circle-x" : "power"
+                            size: Theme.size.iconSmall
+                            color: Theme.colors.warningText
+                        }
+
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: Theme.space.xxs
+
+                            Text {
+                                Layout.fillWidth: true
+                                textFormat: Text.PlainText
+                                text: page.eventText(eventRow.modelData)
+                                color: Theme.colors.textPrimary
+                                font.pixelSize: Theme.type.caption.size
+                                wrapMode: Text.Wrap
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                textFormat: Text.PlainText
+                                text: [new Date(eventRow.modelData.at).toLocaleString(Qt.locale(), Locale.ShortFormat),
+                                       eventRow.modelData.version,
+                                       eventRow.modelData.report !== ""
+                                           ? qsTr("crash report %1").arg(eventRow.modelData.report) : ""]
+                                      .filter(part => part !== "").join(" · ")
+                                color: Theme.colors.textTertiary
                                 font.pixelSize: Theme.type.caption.size
                                 wrapMode: Text.Wrap
                             }

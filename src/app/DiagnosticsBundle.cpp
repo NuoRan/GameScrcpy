@@ -3,6 +3,7 @@
 #include "AppInfo.h"
 #include "AppSettings.h"
 #include "CrashReport.h"
+#include "ExtensionHost.h"
 
 #include <gs/platform/AtomicFile.h>
 
@@ -853,14 +854,22 @@ std::vector<Entry> entries(const Sources& sources, Secrets secrets)
             found.push_back({"logs/" + utf8(file.filename()), std::move(*data)});
         }
     }
-    if (sources.crash) {
-        const std::string folder = "crash/" + utf8(sources.crash->filename()) + "/";
-        for (const std::filesystem::path& file : filesIn(*sources.crash, {})) {
+    const auto addCrash = [&found](const std::filesystem::path& crash, const std::string& folder) {
+        for (const std::filesystem::path& file : filesIn(crash, {})) {
             const bool dump = utf8(file.extension()) == ".dmp";
             if (std::optional<std::string> data = readFile(file, !dump)) {
                 found.push_back({folder + utf8(file.filename()), std::move(*data), dump});
             }
         }
+    };
+    if (sources.crash) {
+        addCrash(*sources.crash, "crash/" + utf8(sources.crash->filename()) + "/");
+    }
+    if (!sources.extensions.empty()) {
+        found.push_back({"extensions.json", sources.extensions});
+    }
+    for (const std::filesystem::path& crash : sources.extensionCrashes) {
+        addCrash(crash, "crash-extensions/" + utf8(crash.parent_path().filename()) + "/" + utf8(crash.filename()) + "/");
     }
     for (const Entry& entry : found) {
         if (!entry.binary) {
@@ -1011,6 +1020,10 @@ diagnostics::Sources DiagnosticsBundle::sources() const
     found.logs = m_data / "logs";
     if (m_crashes != nullptr) {
         found.crash = m_crashes->newestFolder();
+    }
+    if (const ExtensionHost* extensions = ExtensionHost::instance()) {
+        found.extensions = extensions->diagnosticsText();
+        found.extensionCrashes = extensions->crashFolders();
     }
     return found;
 }

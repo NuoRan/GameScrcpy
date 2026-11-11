@@ -226,6 +226,13 @@
 <context>
     <name>ExtensionsPage</name>
     <message numerus="yes">
+        <source>Stopped working %n time(s) in the last 7 days</source>
+        <translation>
+            <numerusform>Stopped working %n time in the last 7 days</numerusform>
+            <numerusform>Stopped working %n times in the last 7 days</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
         <source>%n extension(s)</source>
         <translation>
             <numerusform>%n extension</numerusform>

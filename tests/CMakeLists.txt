@@ -425,6 +425,7 @@ if(GS_BUILD_APP)
             unit/app/FilterBudgetTests.cpp
             unit/app/GamepadPassthroughTests.cpp
             unit/app/GridTests.cpp
+            unit/app/ExtensionHealthTests.cpp
             unit/app/HardwareAccessTests.cpp
             unit/app/HardwareClaimsTests.cpp
             unit/app/HelpLibraryTests.cpp
@@ -579,6 +580,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionPanels.h"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionTouchSink.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionTouchSink.h"
+            "${PROJECT_SOURCE_DIR}/src/app/ExtensionHealth.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/ExtensionHealth.h"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionHelp.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionHelp.h"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionIcons.cpp"

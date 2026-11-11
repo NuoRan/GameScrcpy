@@ -41,6 +41,8 @@ struct Sources {
     std::vector<std::filesystem::path> settings;
     std::filesystem::path logs;
     std::optional<std::filesystem::path> crash;
+    std::string extensions;
+    std::vector<std::filesystem::path> extensionCrashes;
 };
 
 struct Entry {

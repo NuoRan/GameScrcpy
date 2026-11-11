@@ -32,6 +32,9 @@ struct HostedOptions {
     std::function<void(const std::string& provider)> devicesChanged;
     std::function<void(const std::string& resource, bool wait, std::function<void(ClaimResult)> answer)> claim;
     std::function<void(const std::string& resource)> release;
+    std::filesystem::path crashes;
+    std::filesystem::path logFile;
+    std::function<void(std::uint32_t code)> crashed;
     std::string settings;
     std::function<void(std::uint64_t session)> touchLost;
     std::function<void()> restarted;

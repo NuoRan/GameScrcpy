@@ -31,6 +31,15 @@ std::string utf8(const std::filesystem::path& path)
     return {reinterpret_cast<const char*>(text.data()), text.size()};
 }
 
+std::wstring quoted(const std::filesystem::path& path)
+{
+    std::wstring text = path.wstring();
+    while (!text.empty() && (text.back() == L'\\' || text.back() == L'/')) {
+        text.pop_back();
+    }
+    return L"\"" + text + L"\"";
+}
+
 HANDLE sharedJob()
 {
     static const HANDLE job = [] {
@@ -82,6 +91,9 @@ std::optional<Instance> launch(const HostedOptions& options, std::string& proble
     if (made) {
         std::wstring command = L"\"" + options.program.wstring() + L"\" --channel " + detail::handleText(copies) +
                                L" --parent " + std::to_wstring(GetCurrentProcessId());
+        if (!options.crashes.empty()) {
+            command += L" --crashes " + quoted(options.crashes) + L" --log " + quoted(options.logFile);
+        }
         SIZE_T size = 0;
         InitializeProcThreadAttributeList(nullptr, 1, 0, &size);
         std::vector<std::byte> storage(size);
@@ -511,9 +523,13 @@ struct HostedModule::Impl {
         bool failedLate = false;
         std::string why;
         std::set<std::string> dropped;
+        DWORD code = 0;
         {
             const std::scoped_lock lock(mutex);
             if (process != nullptr) {
+                if (GetExitCodeProcess(process, &code) == FALSE) {
+                    code = 0;
+                }
                 CloseHandle(process);
                 process = nullptr;
             }
@@ -557,6 +573,9 @@ struct HostedModule::Impl {
             }
         }
         changed.notify_all();
+        if (options.crashed) {
+            options.crashed(static_cast<std::uint32_t>(code));
+        }
         if (options.release) {
             for (const std::string& resource : dropped) {
                 options.release(resource);
