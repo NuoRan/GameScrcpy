@@ -67,7 +67,7 @@ The user interface is available in Simplified Chinese and English.
 
 - **`.gsext` packages**: themes, picture filters, profiles and patches, logic extensions and native DLL extensions; native extensions run in a separate low-privilege process and are checked when installed.
 - **`.gsbundle` bundles**: install a set of extensions at once, and find out step by step which one causes a problem.
-- **Development**: the C interface header is [`sdk/include`](sdk/include/gamescrcpy_ext.h), samples are in [`examples`](examples).
+- **Development**: the [guide to writing extensions](docs/extensions/README.en.md) covers the manifest, the logic and native interfaces, testing and publishing; the C interface header is [`sdk/include`](sdk/include/gamescrcpy_ext.h), samples are in [`examples`](examples).
 
 ### Interface
 
@@ -114,6 +114,7 @@ Both include everything they need (adb too); there is no Android SDK or Visual C
 |:--|:--|
 | User guide (the same pages as F1 in the app) | [docs/README.md](docs/README.md) |
 | Script API | [sdk/docs](sdk/docs/README.md) |
+| Writing extensions | [docs/extensions](docs/extensions/README.en.md) |
 | Architecture | [docs/architecture.md](docs/architecture.md) |
 | Protocol | [protocol/SPEC.md](protocol/SPEC.md) |
 | ESP32 firmware | [firmware/esp32](firmware/esp32/README.md) |

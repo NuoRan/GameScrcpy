@@ -1,0 +1,75 @@
+{
+  "schemaVersion": 1,
+  "id": "example.deck-bridge",
+  "version": "1.0.0",
+  "name": "Deck bridge",
+  "description": "Lets Stream Deck and other programs on this computer press keys that profiles bind, over HTTP on 127.0.0.1.",
+  "authors": ["GameScrcpy"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/NuoRan/GameScrcpy",
+  "requires": {
+    "script": "^1.0",
+    "panel": "^1.0"
+  },
+  "contributes": {
+    "scripts": [
+      {"name": "main", "entry": "src/main.ts", "run": "app"}
+    ],
+    "panels": [
+      {"name": "deck", "title": "Deck bridge", "icon": "keyboard", "where": "page", "script": "main"}
+    ],
+    "services": [
+      {
+        "name": "tap",
+        "title": "Tap a deck key",
+        "description": "Presses a key of the input source deck and lets it go after ms milliseconds (80 by default). The calling extension needs the permission hardware too, since a call runs with the permissions both extensions have.",
+        "input": {
+          "type": "object",
+          "properties": {
+            "key": {"type": "string", "maxLength": 32, "description": "1 to 32 letters, digits, _ or -"},
+            "ms": {"type": "integer", "minimum": 10, "maximum": 2000}
+          },
+          "required": ["key"]
+        },
+        "output": {
+          "type": "object",
+          "properties": {
+            "held": {"type": "array", "items": {"type": "string"}}
+          },
+          "required": ["held"]
+        },
+        "script": "main"
+      },
+      {
+        "name": "status",
+        "title": "Bridge status",
+        "description": "Whether the bridge listens, on which port, and which deck keys are held.",
+        "output": {
+          "type": "object",
+          "properties": {
+            "listening": {"type": "boolean"},
+            "port": {"type": "integer"},
+            "held": {"type": "array", "items": {"type": "string"}}
+          },
+          "required": ["listening", "port", "held"]
+        },
+        "script": "main"
+      }
+    ]
+  },
+  "permissions": [
+    {"name": "network.listen", "reason": "Stream Deck and other programs on this computer call it on 127.0.0.1."},
+    {"name": "hardware", "reason": "The keys it receives reach the key mapping as the input source deck."}
+  ],
+  "l10n": {
+    "zh_CN": {
+      "name": "按键桥",
+      "description": "让 Stream Deck 等本机程序经 127.0.0.1 上的 HTTP 按下方案里绑定的键。",
+      "panels.deck.title": "按键桥",
+      "services.tap.title": "按一下按键桥的键",
+      "services.tap.description": "按下输入源 deck 的一个键，ms 毫秒后松开（默认 80）。调用的扩展也要有 hardware 权限，因为服务按双方都有的权限运行。",
+      "services.status.title": "按键桥的状态",
+      "services.status.description": "是否在监听、用哪个端口，以及按住了哪些键。"
+    }
+  }
+}

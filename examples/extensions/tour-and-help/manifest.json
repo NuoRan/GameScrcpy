@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "id": "example.tour-and-help",
+  "version": "1.0.0",
+  "name": "Tour and help",
+  "description": "Shows how an extension brings its own guided tour and help articles, with a page and a card in Settings for the tour to point at.",
+  "authors": ["GameScrcpy"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/NuoRan/GameScrcpy",
+  "requires": {
+    "script": "^1.0",
+    "panel": "^1.0",
+    "help": "^1.0",
+    "tour": "^1.0"
+  },
+  "contributes": {
+    "scripts": [
+      {"name": "main", "entry": "src/main.ts", "run": "app"}
+    ],
+    "panels": [
+      {"name": "welcome", "title": "Tour sample", "icon": "navigation", "where": "page", "script": "main"},
+      {"name": "options", "title": "Tour sample", "icon": "navigation", "where": "settings", "script": "main"}
+    ],
+    "tours": [
+      {
+        "id": "intro",
+        "title": "What an extension can show you",
+        "start": "enabled",
+        "steps": [
+          {
+            "title": "A tour from an extension",
+            "text": "Extensions can bring their own guided tours. This one shows the places where this sample appears in GameScrcpy."
+          },
+          {
+            "target": "card",
+            "title": "Its card",
+            "text": "Every extension has a card on the Extensions page. Its Details lists the extension's tours, so you can play this one again."
+          },
+          {
+            "target": "page:welcome",
+            "title": "Its page",
+            "text": "The sample adds this page to the left column. Its app script draws it with GameScrcpy's own controls."
+          },
+          {
+            "target": "settings:options",
+            "title": "Its settings",
+            "text": "A panel can also be a card in Settings. This one decides whether the sample's page shows a tip."
+          },
+          {
+            "title": "Its help",
+            "text": "Press F1: the Extensions group of the help page holds the sample's articles, which can start this tour again too."
+          }
+        ]
+      }
+    ],
+    "help": [
+      {
+        "id": "guide",
+        "title": "The tour and help sample",
+        "file": "help/guide.md",
+        "locales": {"zh_CN": "help/guide.zh_CN.md"},
+        "icon": "navigation"
+      },
+      {
+        "id": "writing",
+        "title": "Writing help for an extension",
+        "file": "help/writing.md",
+        "locales": {"zh_CN": "help/writing.zh_CN.md"},
+        "icon": "doc-page"
+      }
+    ]
+  },
+  "l10n": {
+    "zh_CN": {
+      "name": "引导与帮助示例",
+      "description": "演示扩展怎样自带功能引导和帮助文章，还带一个页面和设置里的一张卡片，给引导指着看。",
+      "panels.welcome.title": "引导示例",
+      "panels.options.title": "引导示例",
+      "tours.intro.title": "扩展能给你看什么",
+      "tours.intro.0.title": "扩展自带的引导",
+      "tours.intro.0.text": "扩展可以自带功能引导。这一段带你看这个示例在 GameScrcpy 里出现的几个地方。",
+      "tours.intro.1.title": "它的卡片",
+      "tours.intro.1.text": "每个扩展在扩展页都有一张卡片。“详情”里列出它的引导，可以从那里再放一遍。",
+      "tours.intro.2.title": "它的页面",
+      "tours.intro.2.text": "这个示例在左栏加了这一页，由它的应用脚本用 GameScrcpy 自己的控件画出来。",
+      "tours.intro.3.title": "它的设置",
+      "tours.intro.3.text": "面板也可以是设置里的一张卡片。这一张决定示例的页面上显示不显示提示。",
+      "tours.intro.4.title": "它的帮助",
+      "tours.intro.4.text": "按 F1：帮助页的“扩展”一组里有这个示例的文章，文章里也能重新开始这段引导。",
+      "help.guide.title": "引导与帮助示例",
+      "help.writing.title": "给扩展写帮助"
+    }
+  }
+}

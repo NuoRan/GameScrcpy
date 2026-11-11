@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "example.event-log",
+  "version": "1.0.0",
+  "name": "Event log",
+  "description": "Lists what happens in GameScrcpy as it happens: phones connecting, profiles applied, apps in front, recordings, extensions and settings.",
+  "authors": ["GameScrcpy"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/NuoRan/GameScrcpy",
+  "requires": {
+    "script": "^1.0",
+    "panel": "^1.0"
+  },
+  "contributes": {
+    "scripts": [
+      {"name": "main", "entry": "src/main.ts", "run": "app"}
+    ],
+    "panels": [
+      {"name": "log", "title": "Event log", "icon": "activity", "where": "page", "script": "main"}
+    ]
+  },
+  "permissions": [
+    {"name": "events.app", "reason": "Lists what happens on every phone and window, not only the extension's own events."}
+  ],
+  "l10n": {
+    "zh_CN": {
+      "name": "事件记录",
+      "description": "随时列出 GameScrcpy 里发生的事：手机连上、方案应用、前台应用、录像、扩展与设置。",
+      "panels.log.title": "事件记录"
+    }
+  }
+}

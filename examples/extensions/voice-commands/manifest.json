@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "example.voice-commands",
+  "version": "1.0.0",
+  "name": "Voice commands",
+  "description": "Say a command and it presses the key you chose for it, then answers out loud.",
+  "authors": ["GameScrcpy"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/NuoRan/GameScrcpy",
+  "requires": {
+    "script": "^1.0",
+    "panel": "^1.0"
+  },
+  "contributes": {
+    "scripts": [
+      {"name": "main", "entry": "src/main.ts", "run": "app"}
+    ],
+    "panels": [
+      {"name": "voice", "title": "Voice commands", "icon": "audio-lines", "where": "page", "script": "main"}
+    ]
+  },
+  "permissions": [
+    {"name": "speech.listen", "reason": "Listens for the commands you set up on its page."},
+    {"name": "hardware", "reason": "Presses the key of each command you say, as the input source voice."}
+  ],
+  "l10n": {
+    "zh_CN": {
+      "name": "语音命令",
+      "description": "说一句命令，就按下你为它选的键，再出声回答。",
+      "panels.voice.title": "语音命令"
+    }
+  }
+}

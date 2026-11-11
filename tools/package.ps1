@@ -9,10 +9,10 @@
     Visual Studio's redistributable folder and adb from the Android platform-tools pinned in packaging\adb.json
     (downloaded once into deps\adb, checked against its SHA-256 and the Google signature). Test programs, PDBs and
     the QML debugging plugins stay out. No extension is built in: the packaged gs.exe and cmake\PackSample.cmake pack
-    the samples (the PC clock build in examples\pc-clock\package, the CRT scanlines and the slate theme from
-    examples\extensions) under the developer ids example.pc-clock, example.crt-scanlines and example.slate-theme into
-    sdk\samples\<id>-<version>.gsext, for developers to add with "Install from file...". cmake.exe is the one
-    named in the build's CMakeCache.txt, else the one on PATH.
+    the samples (the PC clock build in examples\pc-clock\package, the CRT scanlines, the slate theme, the deck
+    bridge, the voice commands, the event log and the tour and help from examples\extensions) under developer ids
+    such as example.pc-clock into sdk\samples\<id>-<version>.gsext, for developers to add with "Install from
+    file...". cmake.exe is the one named in the build's CMakeCache.txt, else the one on PATH.
 
     Every program and DLL in the folder must find what it imports in the folder or in Windows (the Visual C++
     runtime only in the folder), and gs.exe must answer --version with nothing but Windows on PATH. -Smoke also
@@ -54,7 +54,11 @@ $SkippedFolders = @('qmltooling')
 $Samples = @(
     @{ Id = 'example.pc-clock'; Folder = Join-Path $BuildDir 'examples\pc-clock\package' },
     @{ Id = 'example.crt-scanlines'; Folder = Join-Path $root 'examples\extensions\crt-scanlines' },
-    @{ Id = 'example.slate-theme'; Folder = Join-Path $root 'examples\extensions\slate-theme' }
+    @{ Id = 'example.slate-theme'; Folder = Join-Path $root 'examples\extensions\slate-theme' },
+    @{ Id = 'example.deck-bridge'; Folder = Join-Path $root 'examples\extensions\deck-bridge' },
+    @{ Id = 'example.voice-commands'; Folder = Join-Path $root 'examples\extensions\voice-commands' },
+    @{ Id = 'example.event-log'; Folder = Join-Path $root 'examples\extensions\event-log' },
+    @{ Id = 'example.tour-and-help'; Folder = Join-Path $root 'examples\extensions\tour-and-help' }
 )
 $DroppedTypes = @('.pdb', '.ilk', '.exp', '.lib')
 $Symbols = @('GameScrcpy.pdb', 'gs.pdb', 'gs-exthost.pdb', 'gs-scripthost.pdb')

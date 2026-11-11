@@ -65,7 +65,7 @@ GameScrcpy 把安卓手机的画面低延迟地投到电脑上，键位直接摆
 
 - **扩展包 `.gsext`**：主题、画面滤镜、键位方案与补丁、逻辑扩展、原生 DLL 扩展；原生扩展在单独的低权限进程里运行，安装时有安全检查。
 - **整合包 `.gsbundle`**：一次装好一组扩展；出了问题可以一步步找出是哪一个。
-- **开发**：C 接口头文件在 [`sdk/include`](sdk/include/gamescrcpy_ext.h)，示例在 [`examples`](examples)。
+- **开发**：[扩展开发指南](docs/extensions/README.md)讲清单、逻辑与原生接口、测试和发布；C 接口头文件在 [`sdk/include`](sdk/include/gamescrcpy_ext.h)，示例在 [`examples`](examples)。
 
 ### 界面
 
@@ -112,6 +112,7 @@ GameScrcpy 把安卓手机的画面低延迟地投到电脑上，键位直接摆
 |:--|:--|
 | 使用帮助（与程序里 F1 打开的是同一份） | [docs/README.md](docs/README.md) |
 | 脚本接口 | [sdk/docs](sdk/docs/README.md) |
+| 扩展开发 | [docs/extensions](docs/extensions/README.md) |
 | 架构概览 | [docs/architecture.md](docs/architecture.md) |
 | 通信协议 | [protocol/SPEC.md](protocol/SPEC.md) |
 | ESP32 固件 | [firmware/esp32](firmware/esp32/README.md) |

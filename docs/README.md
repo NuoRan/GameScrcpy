@@ -20,9 +20,10 @@ These are the same pages as F1 in the app; a few pictures and in-app links only 
 
 ## 写逻辑与扩展 / Scripting and extensions
 
+- [扩展开发指南](extensions/README.md) / [Writing extensions](extensions/README.en.md)：扩展能做什么，清单、逻辑与原生接口，测试、打包与发布。
 - [脚本接口参考 / Script API reference](../sdk/docs/README.md)：由 `gs api write sdk` 从程序生成，类型声明在 [`sdk/types`](../sdk/types/gamescrcpy.d.ts)。
 - [原生扩展的 C 接口 / C interface for native extensions](../sdk/include/gamescrcpy_ext.h)。
-- [示例 / Examples](../examples)：组件、任务与扩展（主题、画面滤镜、原生 DLL、ESP32）。
+- [示例 / Examples](../examples)：组件、任务与扩展（主题、画面滤镜、原生 DLL、ESP32、按键桥、语音命令、事件记录、引导与帮助）。
 
 ## 技术文档 / Technical documents
 

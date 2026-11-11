@@ -76,6 +76,7 @@ TEST_CASE("the example extensions pass the package check as official extensions,
 {
     Scratch scratch;
     std::size_t count = 0;
+    std::size_t reserved = 0;
     for (const fs::directory_entry& entry : fs::directory_iterator(fs::path(GS_EXAMPLES_DIR) / "extensions")) {
         CAPTURE(entry.path().string());
         if (fs::exists(entry.path() / "CMakeLists.txt")) {
@@ -85,7 +86,14 @@ TEST_CASE("the example extensions pass the package check as official extensions,
         const PackageCheck folder = checkDirectory(entry.path(), {.official = true});
         INFO(listed(folder.diagnostics));
         CHECK(folder.ok());
-        CHECK(reports(checkDirectory(entry.path()).diagnostics, Code::IdReserved));
+        const PackageCheck developer = checkDirectory(entry.path());
+        INFO(listed(developer.diagnostics));
+        if (folder.manifest && folder.manifest->id.starts_with(kReservedIdPrefix)) {
+            ++reserved;
+            CHECK(reports(developer.diagnostics, Code::IdReserved));
+        } else {
+            CHECK(developer.ok());
+        }
         const fs::path archive = scratch / (entry.path().filename().string() + ".gsext");
         REQUIRE(packDirectory(entry.path(), archive).empty());
         const PackageCheck package = checkPackage(archive, {.official = true});
@@ -93,6 +101,7 @@ TEST_CASE("the example extensions pass the package check as official extensions,
         CHECK(package.manifest == folder.manifest);
     }
     CHECK(count >= 1);
+    CHECK(reserved >= 1);
 }
 
 TEST_CASE("a folder and its package report the same problems at the same places")
