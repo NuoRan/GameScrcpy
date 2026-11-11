@@ -32,6 +32,7 @@ Item {
     readonly property real cardWidth: (content.width - (columns - 1) * gap) / columns
 
     signal packageChosen(string url)
+    signal tourRequested(string key)
 
     Component.onCompleted: SettingsCatalog.scoped = false
     onVisibleChanged: {
@@ -67,6 +68,8 @@ Item {
             return qsTr("panels in GameScrcpy windows")
         case "help":
             return qsTr("help articles")
+        case "tour":
+            return qsTr("guided tours")
         default:
             return point
         }
@@ -144,6 +147,8 @@ Item {
             return qsTr("Panels")
         case "help":
             return qsTr("Help")
+        case "tour":
+            return qsTr("Tours")
         default:
             return point
         }
@@ -1000,6 +1005,34 @@ Item {
                                 font.pixelSize: Theme.type.caption.size
                                 wrapMode: Text.Wrap
                             }
+                        }
+                    }
+                }
+            }
+
+            Flow {
+                id: tourButtons
+
+                readonly property var tours: ExtensionHost.tours.filter(tour => tour.extension === detailsDialog.entry.id)
+
+                objectName: "extensionTours"
+                Layout.fillWidth: true
+                visible: tourButtons.tours.length > 0
+                spacing: Theme.space.xs
+
+                Repeater {
+                    model: tourButtons.tours
+
+                    delegate: Button {
+                        required property var modelData
+
+                        small: true
+                        tone: "ghost"
+                        iconName: "navigation"
+                        text: qsTr("Tour: %1").arg(modelData.title)
+                        onClicked: {
+                            detailsDialog.close()
+                            page.tourRequested(modelData.key)
                         }
                     }
                 }

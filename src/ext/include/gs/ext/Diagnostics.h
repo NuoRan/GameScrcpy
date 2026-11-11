@@ -98,6 +98,7 @@ enum class Code : std::uint8_t {
     NativeParamUnused,
     NativeTargetUnknown,
     NativeModuleFailed,
+    TourTargetInvalid,
 };
 
 struct Diagnostic {

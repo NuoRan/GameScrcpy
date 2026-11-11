@@ -23,12 +23,12 @@ inline constexpr std::size_t kMaxReasonLength = 120;
 inline constexpr std::string_view kReservedIdPrefix = "gamescrcpy.";
 
 enum class ExtensionPoint : std::uint8_t {
-    Profile, Theme, Filter, Script, Command, Preset, Native, Component, Task, Panel, Help
+    Profile, Theme, Filter, Script, Command, Preset, Native, Component, Task, Panel, Help, Tour
 };
-inline constexpr std::array<std::string_view, 11> kExtensionPointNames{"profile", "theme",     "filter",
+inline constexpr std::array<std::string_view, 12> kExtensionPointNames{"profile", "theme",     "filter",
                                                                        "script",  "command",   "preset",
                                                                        "native",  "component", "task",
-                                                                       "panel",   "help"};
+                                                                       "panel",   "help",      "tour"};
 
 inline constexpr std::array<std::string_view, 8> kNativeTypeNames{"boolean", "number", "string",   "point",
                                                                   "region",  "color",  "duration", "json"};
@@ -491,6 +491,46 @@ struct HelpContribution {
     friend bool operator==(const HelpContribution&, const HelpContribution&) = default;
 };
 
+enum class TourStart : std::uint8_t { Enabled, Manual };
+inline constexpr std::array<std::string_view, 2> kTourStartNames{"enabled", "manual"};
+inline constexpr std::size_t kMaxTours = 4;
+inline constexpr std::size_t kMinTourSteps = 2;
+inline constexpr std::size_t kMaxTourSteps = 12;
+
+struct TourStep {
+    std::string target;
+    std::string title;
+    std::string text;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("target", m.target, {.maxLength = 64});
+        v.text("title", m.title, {.required = true, .maxLength = 60});
+        v.text("text", m.text, {.required = true, .maxLength = 300});
+    }
+
+    friend bool operator==(const TourStep&, const TourStep&) = default;
+};
+
+struct TourContribution {
+    std::string id;
+    std::string title;
+    TourStart start = TourStart::Enabled;
+    std::vector<TourStep> steps;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("id", m.id, {.required = true, .maxLength = kMaxPanelNameLength, .format = TextFormat::PanelName});
+        v.text("title", m.title, {.required = true, .maxLength = 60});
+        v.choice("start", m.start, kTourStartNames, false);
+        v.objectList("steps", m.steps, kMaxTourSteps);
+    }
+
+    friend bool operator==(const TourContribution&, const TourContribution&) = default;
+};
+
 struct Contributions {
     std::vector<FilterContribution> filters;
     std::vector<ThemeContribution> themes;
@@ -504,6 +544,7 @@ struct Contributions {
     std::vector<TaskContribution> tasks;
     std::vector<PanelContribution> panels;
     std::vector<HelpContribution> help;
+    std::vector<TourContribution> tours;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -520,6 +561,7 @@ struct Contributions {
         v.objectList("tasks", m.tasks, 256);
         v.objectList("panels", m.panels, kMaxPanels);
         v.objectList("help", m.help, kMaxHelpTopics);
+        v.objectList("tours", m.tours, kMaxTours);
     }
 
     friend bool operator==(const Contributions&, const Contributions&) = default;

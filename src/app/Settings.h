@@ -546,8 +546,8 @@ struct Palette {
 
 struct Hints {
     static constexpr std::size_t kMaxCrashLength = 64;
-    static constexpr std::size_t kMaxTours = 16;
-    static constexpr std::size_t kMaxTourNameLength = 32;
+    static constexpr std::size_t kMaxTours = 64;
+    static constexpr std::size_t kMaxTourNameLength = 112;
     static constexpr std::int32_t kMaxLaunches = 1'000'000'000;
 
     bool mirrorToolbar = false;

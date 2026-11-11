@@ -64,6 +64,7 @@ const ext::HostApi& hostApi()
         offered.versions[ext::ExtensionPoint::Script] = {ext::Version{1, 0, 0}};
         offered.versions[ext::ExtensionPoint::Panel] = {ext::Version{1, 0, 0}};
         offered.versions[ext::ExtensionPoint::Help] = {ext::Version{1, 0, 0}};
+        offered.versions[ext::ExtensionPoint::Tour] = {ext::Version{1, 0, 0}};
         return offered;
     }();
     return api;
@@ -1190,6 +1191,39 @@ void ExtensionHost::clearHealth(const QString& id)
 {
     m_health->clear(id.toStdString());
     emit extensionsChanged();
+}
+
+QVariantList ExtensionHost::tours() const
+{
+    const QString language = m_settings.interfaceLanguage();
+    QVariantList list;
+    for (const Extension& extension : m_extensions) {
+        if (!extension.active || !extension.manifest) {
+            continue;
+        }
+        const ext::Manifest& manifest = *extension.manifest;
+        const QString name = extensionText(manifest, "name", manifest.name, language);
+        for (const ext::TourContribution& tour : manifest.contributes.tours) {
+            const std::string base = "tours." + tour.id;
+            QVariantList steps;
+            for (std::size_t index = 0; index < tour.steps.size(); ++index) {
+                const ext::TourStep& step = tour.steps[index];
+                const std::string at = base + "." + std::to_string(index);
+                steps.append(QVariantMap{{QStringLiteral("target"), QString::fromStdString(step.target)},
+                                         {QStringLiteral("title"), extensionText(manifest, at + ".title", step.title, language)},
+                                         {QStringLiteral("text"), extensionText(manifest, at + ".text", step.text, language)}});
+            }
+            list.append(QVariantMap{
+                {QStringLiteral("key"), QString::fromStdString("ext/" + manifest.id + "/" + tour.id)},
+                {QStringLiteral("extension"), QString::fromStdString(manifest.id)},
+                {QStringLiteral("extensionName"), name},
+                {QStringLiteral("id"), QString::fromStdString(tour.id)},
+                {QStringLiteral("title"), extensionText(manifest, base + ".title", tour.title, language)},
+                {QStringLiteral("start"), toQString(ext::kTourStartNames[static_cast<std::size_t>(tour.start)])},
+                {QStringLiteral("steps"), steps}});
+        }
+    }
+    return list;
 }
 
 std::string ExtensionHost::diagnosticsText() const

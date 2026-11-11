@@ -183,6 +183,8 @@ std::string_view codeName(Code code) noexcept
         return "native-target-unknown";
     case Code::NativeModuleFailed:
         return "native-module-failed";
+    case Code::TourTargetInvalid:
+        return "tour-target-invalid";
     }
     return "unknown";
 }
@@ -402,6 +404,9 @@ std::string_view fixHint(Code code) noexcept
     case Code::NativeModuleFailed:
         return "An attachment or behavior of the DLL failed three times within 10 seconds, so the extension was turned "
                "off; turn it on again on the Extensions page to try again, or update it.";
+    case Code::TourTargetInvalid:
+        return "Point a step at \"card\", \"device\" (only when the extension provides devices), \"page:\" and one of "
+               "its page panels or \"settings:\" and one of its settings panels, or leave the target out.";
     }
     return "";
 }

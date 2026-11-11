@@ -423,6 +423,16 @@ std::pair<std::string_view, std::string_view> identity(const HelpContribution& e
     return {"id", entry.id};
 }
 
+std::pair<std::string_view, std::string_view> identity(const TourStep&)
+{
+    return {"target", {}};
+}
+
+std::pair<std::string_view, std::string_view> identity(const TourContribution& entry)
+{
+    return {"id", entry.id};
+}
+
 std::pair<std::string_view, std::string_view> identity(const SettingDeclaration& entry)
 {
     return {"key", entry.key};
@@ -682,6 +692,27 @@ void checkEntry(const HelpContribution& help, const std::string& path, Context& 
         } else if (!markdownFile(file)) {
             context.report(Severity::Error, Code::PathInvalid, at, file);
         }
+    }
+}
+
+void checkEntry(const TourStep& step, const std::string& path, Context& context)
+{
+    const std::string_view target = step.target;
+    if (target.empty() || target == "card" || target == "device") {
+        return;
+    }
+    for (const std::string_view kind : {std::string_view("page:"), std::string_view("settings:")}) {
+        if (target.starts_with(kind) && validPanelName(target.substr(kind.size()))) {
+            return;
+        }
+    }
+    context.report(Severity::Error, Code::TourTargetInvalid, path + ".target", step.target);
+}
+
+void checkEntry(const TourContribution& tour, const std::string& path, Context& context)
+{
+    if (tour.steps.size() < kMinTourSteps) {
+        context.report(Severity::Error, Code::OutOfRange, path + ".steps", "a tour has 2 to 12 steps");
     }
 }
 
@@ -1797,11 +1828,34 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
         {"tasks", ExtensionPoint::Task, !contributes.tasks.empty()},
         {"panels", ExtensionPoint::Panel, !contributes.panels.empty()},
         {"help", ExtensionPoint::Help, !contributes.help.empty()},
+        {"tours", ExtensionPoint::Tour, !contributes.tours.empty()},
     };
     for (const Contributed& entry : contributed) {
         if (entry.present && !manifest.declares(entry.point)) {
             context.report(Severity::Error, Code::ContributionUndeclared, "$.contributes." + std::string(entry.key),
                            std::string(nameOf(entry.point)));
+        }
+    }
+    const auto hasPanel = [&contributes](std::string_view name, PanelPlace where) {
+        return std::ranges::any_of(contributes.panels, [name, where](const PanelContribution& panel) {
+            return panel.name == name && panel.where == where;
+        });
+    };
+    const bool provides = contributes.native && !contributes.native->deviceProviders.empty();
+    for (std::size_t tour = 0; tour < contributes.tours.size(); ++tour) {
+        const std::vector<TourStep>& steps = contributes.tours[tour].steps;
+        for (std::size_t step = 0; step < steps.size(); ++step) {
+            const std::string_view target = steps[step].target;
+            const std::string_view page = target.starts_with("page:") ? target.substr(5) : std::string_view();
+            const std::string_view place = target.starts_with("settings:") ? target.substr(9) : std::string_view();
+            const bool missing = (target == "device" && !provides) ||
+                                 (validPanelName(page) && !hasPanel(page, PanelPlace::Page)) ||
+                                 (validPanelName(place) && !hasPanel(place, PanelPlace::Settings));
+            if (missing) {
+                context.report(Severity::Error, Code::TourTargetInvalid,
+                               indexed(indexed("$.contributes.tours", tour) + ".steps", step) + ".target",
+                               steps[step].target);
+            }
         }
     }
     if (!contributes.panels.empty() && !manifest.declares(ExtensionPoint::Script)) {

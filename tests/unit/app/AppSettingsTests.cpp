@@ -482,6 +482,23 @@ TEST_CASE("the settings catalog stays global without a device to scope to")
     CHECK(catalog.device().isEmpty());
 }
 
+TEST_CASE("ADR-0112: the tour of an extension is remembered under its long key, next to the tours of GameScrcpy")
+{
+    const TemporaryDirectory directory;
+    const QString key = QStringLiteral("ext/%1/intro").arg(QString(64, QLatin1Char('a')));
+    {
+        AppSettings settings(directory.path());
+        for (int index = 0; index < 20; ++index) {
+            settings.markTourSeen(QStringLiteral("tour-%1").arg(index));
+        }
+        settings.markTourSeen(key);
+        CHECK(settings.tourSeen(key));
+    }
+    AppSettings settings(directory.path());
+    CHECK(settings.tourSeen(key));
+    CHECK(settings.toursSeen().size() == 21);
+}
+
 TEST_CASE("ADR-0110: each guided tour is remembered once it is finished or skipped, and the help can reset one")
 {
     const TemporaryDirectory directory;

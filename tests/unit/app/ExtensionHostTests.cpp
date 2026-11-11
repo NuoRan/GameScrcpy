@@ -813,3 +813,41 @@ TEST_CASE("ADR-0112: why an extension was turned off is still shown after GameSc
     CHECK(diagnostics["extensions"][0]["enabled"] == true);
     CHECK(diagnostics["health"].empty());
 }
+
+TEST_CASE("ADR-0112: the tours of an extension that is on come with their text in the language of the interface")
+{
+    const Fixture fixture;
+    writeFile(fixture.user / "alice.tours/1.0.0/manifest.json",
+              R"({"schemaVersion": 1, "id": "alice.tours", "version": "1.0.0", "name": "Tours", "license": "MIT",
+                  "requires": {"tour": "^1.0"},
+                  "contributes": {"tours": [{"id": "intro", "title": "Getting started", "start": "manual",
+                                             "steps": [{"title": "Welcome", "text": "What it adds."},
+                                                       {"target": "card", "title": "Its card",
+                                                        "text": "Turn it on here."}]}]},
+                  "l10n": {"zh_CN": {"tours.intro.title": "上手", "tours.intro.1.text": "在这里打开它。"}}})");
+    writeFile(fixture.data / "settings.json",
+              R"({"format": "gamescrcpy.settings", "version": 1, "general": {"language": "zh_CN"}})");
+    AppSettings settings(fixture.data);
+    ExtensionHost host(settings, {fixture.user, {}});
+    host.start(false);
+    INFO(listed(host.problems()));
+    CHECK(host.tours().isEmpty());
+    REQUIRE(host.setEnabled("alice.tours", true));
+    const QVariantList tours = host.tours();
+    REQUIRE(tours.size() == 1);
+    const QVariantMap tour = tours[0].toMap();
+    CHECK(tour.value(QStringLiteral("key")).toString() == "ext/alice.tours/intro");
+    CHECK(tour.value(QStringLiteral("extension")).toString() == "alice.tours");
+    CHECK(tour.value(QStringLiteral("extensionName")).toString() == "Tours");
+    CHECK(tour.value(QStringLiteral("title")).toString() == QStringLiteral("上手"));
+    CHECK(tour.value(QStringLiteral("start")).toString() == "manual");
+    const QVariantList steps = tour.value(QStringLiteral("steps")).toList();
+    REQUIRE(steps.size() == 2);
+    CHECK(steps[0].toMap().value(QStringLiteral("target")).toString().isEmpty());
+    CHECK(steps[0].toMap().value(QStringLiteral("text")).toString() == "What it adds.");
+    CHECK(steps[1].toMap().value(QStringLiteral("target")).toString() == "card");
+    CHECK(steps[1].toMap().value(QStringLiteral("title")).toString() == "Its card");
+    CHECK(steps[1].toMap().value(QStringLiteral("text")).toString() == QStringLiteral("在这里打开它。"));
+    REQUIRE(host.setEnabled("alice.tours", false));
+    CHECK(host.tours().isEmpty());
+}

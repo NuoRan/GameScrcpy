@@ -67,6 +67,7 @@ class ExtensionHost : public QObject
     Q_PROPERTY(QVariantMap overrides READ overrides NOTIFY valuesChanged FINAL)
     Q_PROPERTY(QString mode READ modeName NOTIFY extensionsChanged FINAL)
     Q_PROPERTY(QVariantList entries READ entries NOTIFY extensionsChanged FINAL)
+    Q_PROPERTY(QVariantList tours READ tours NOTIFY extensionsChanged FINAL)
     Q_PROPERTY(QVariantList themes READ themes NOTIFY extensionsChanged FINAL)
     Q_PROPERTY(bool installing READ installing NOTIFY installingChanged FINAL)
     Q_PROPERTY(QVariantMap bisect READ bisectState NOTIFY bisectChanged FINAL)
@@ -118,6 +119,7 @@ public:
     [[nodiscard]] std::string nativeSettings(std::string_view id) const;
     [[nodiscard]] QString modeName() const;
     [[nodiscard]] QVariantList entries() const;
+    [[nodiscard]] QVariantList tours() const;
     [[nodiscard]] QVariantList themes() const;
     [[nodiscard]] bool installing() const noexcept { return m_installing; }
     [[nodiscard]] QVariantMap bisectState() const;

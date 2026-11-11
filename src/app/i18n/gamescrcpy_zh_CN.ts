@@ -6367,6 +6367,10 @@
         <translation>帮助文章</translation>
     </message>
     <message>
+        <source>guided tours</source>
+        <translation>功能引导</translation>
+    </message>
+    <message>
         <source>Mirror window side panel</source>
         <translation>投屏窗口侧边面板</translation>
     </message>
@@ -6445,6 +6449,10 @@
     <message>
         <source>Help</source>
         <translation>帮助</translation>
+    </message>
+    <message>
+        <source>Tours</source>
+        <translation>引导</translation>
     </message>
     <message>
         <source>Stopped working three times within a minute, so it was turned off</source>
@@ -6555,6 +6563,10 @@
     <message>
         <source>%1 · %2</source>
         <translation>%1 · %2</translation>
+    </message>
+    <message>
+        <source>Tour: %1</source>
+        <translation>引导：%1</translation>
     </message>
     <message>
         <source>Health</source>
@@ -10138,6 +10150,10 @@
     <message>
         <source>The tours play again the next time you open each of them</source>
         <translation>每段引导会在下次打开对应界面时再放一遍</translation>
+    </message>
+    <message>
+        <source>The extension of this tour is not on</source>
+        <translation>这个引导所属的扩展没有打开</translation>
     </message>
     <message>
         <source>Not saved: another program is using the file</source>

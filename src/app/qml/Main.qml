@@ -161,8 +161,83 @@ Window {
             AppSettings.resetTours()
             root.notify(qsTr("The tours play again the next time you open each of them"))
             break
+        default: {
+            const found = ExtensionHost.tours.find(tour => tour.key === key)
+            if (found === undefined) {
+                root.notify(qsTr("The extension of this tour is not on"))
+                break
+            }
+            AppSettings.resetTour(key)
+            extensionTour.entry = found
+            extensionTour.restart()
+            break
+        }
         }
         root.bringForward()
+    }
+
+    function tourStep(step: var): var {
+        const target = step.target ?? ""
+        if (target === "")
+            return { centered: true, title: step.title, text: step.text }
+        return { target: () => root.tourTarget(target), title: step.title, text: step.text }
+    }
+
+    function tourTarget(target: string): Item {
+        const extension = extensionTour.entry !== null ? extensionTour.entry.extension : ""
+        if (target === "card") {
+            rail.currentIndex = 3
+            return root.findWhere(extensionsPage, item => item.objectName === "extensionCard"
+                                                         && item.modelData?.id === extension)
+        }
+        if (target === "device") {
+            rail.currentIndex = 0
+            return root.findWhere(devicesPage, item => typeof item.serial === "string"
+                                                      && item.serial.startsWith("box:" + extension + "/"))
+        }
+        if (target.startsWith("page:")) {
+            const name = target.slice(5)
+            return root.findWhere(extensionNav, item => item.objectName === "extensionNavItem"
+                                                       && item.modelData?.extension === extension
+                                                       && item.modelData?.name === name)
+        }
+        if (target.startsWith("settings:")) {
+            const name = target.slice(9)
+            rail.currentIndex = 4
+            const page = settingsPage.ensure() as SettingsPage
+            if (page === null)
+                return null
+            if (page.current !== "extensions")
+                page.open("extensions")
+            return root.findWhere(page, item => item.objectName === "extensionSettingsPanel"
+                                               && item.panelEntry?.extension === extension
+                                               && item.panelEntry?.name === name)
+        }
+        return null
+    }
+
+    function findWhere(from: Item, wanted: var): Item {
+        if (from === null)
+            return null
+        if (wanted(from))
+            return from
+        const kids = from.children
+        for (let index = 0; index < kids.length; ++index) {
+            const found = root.findWhere(kids[index], wanted)
+            if (found !== null)
+                return found
+        }
+        return null
+    }
+
+    function playWaitingTour() {
+        if (extensionTour.running || AppSettings.toursQuiet || !root.visible)
+            return
+        const waiting = ExtensionHost.tours.find(tour => tour.start === "enabled" && !AppSettings.tourSeen(tour.key))
+        if (waiting === undefined)
+            return
+        extensionTour.entry = waiting
+        extensionTour.restart()
     }
 
     Binding {
@@ -634,6 +709,7 @@ Window {
             ExtensionsPage {
                 id: extensionsPage
                 onPackageChosen: packageUrl => root.confirmPackage(packageUrl)
+                onTourRequested: key => root.replayTour(key)
             }
 
             LazyPage {
@@ -875,6 +951,38 @@ Window {
         })
     }
 
+    TourOverlay {
+        id: extensionTour
+
+        property var entry: null
+
+        anchors.left: rail.left
+        anchors.right: parent.right
+        anchors.top: titleBar.bottom
+        anchors.bottom: parent.bottom
+        objectName: "extensionTour"
+        tourKey: extensionTour.entry !== null ? extensionTour.entry.key : ""
+        settings: AppSettings
+        steps: extensionTour.entry !== null ? extensionTour.entry.steps.map(step => root.tourStep(step)) : []
+        onEnded: Qt.callLater(root.playWaitingTour)
+    }
+
+    Connections {
+        target: ExtensionHost
+
+        function onExtensionsChanged() {
+            Qt.callLater(root.playWaitingTour)
+        }
+    }
+
+    Connections {
+        target: AppSettings
+
+        function onToursQuietChanged() {
+            Qt.callLater(root.playWaitingTour)
+        }
+    }
+
     Component.onCompleted: {
         chrome.attach()
         if (AppSettings.placeWindow(root))
@@ -887,5 +995,6 @@ Window {
             Qt.callLater(sponsorDialog.ask, AppSettings.sponsorMilestone)
         if (CrashReport.pending)
             crashToast.open()
+        Qt.callLater(root.playWaitingTour)
     }
 }

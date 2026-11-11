@@ -799,7 +799,8 @@ TEST_CASE("panel contributions name a place, a script and a title, load and surv
     CHECK(panelSchema["items"]["properties"]["title"]["maxLength"] == 40);
     const Json points = schema["properties"]["requires"]["propertyNames"]["enum"];
     CHECK(std::find(points.begin(), points.end(), Json("panel")) != points.end());
-    CHECK(points.back() == "help");
+    CHECK(std::find(points.begin(), points.end(), Json("help")) != points.end());
+    CHECK(points.back() == "tour");
 }
 
 TEST_CASE("panel contributions are checked: names, places, titles, at most eight, one menu and both points "
@@ -1221,4 +1222,70 @@ TEST_CASE("ADR-0112: an extension adds help articles in Markdown, a file for eac
     loaded = load(json);
     CHECK_FALSE(loaded.usable);
     CHECK(undeclared(loaded, "$.contributes.help", "help"));
+}
+
+TEST_CASE("ADR-0112: an extension adds tours whose steps point at its card, its devices or its own panels")
+{
+    const auto step = [](const char* target, const char* title) {
+        Json made = {{"title", title}, {"text", std::string(title) + " text."}};
+        if (target[0] != '\0') {
+            made["target"] = target;
+        }
+        return made;
+    };
+    Json json = base();
+    json["id"] = "alice.tours";
+    json["requires"] = {{"tour", "^1.0"}, {"script", "^1.0"}, {"panel", "^1.0"}};
+    json["contributes"] = {
+        {"scripts", Json::array({{{"name", "app"}, {"entry", "app.js"}, {"run", "app"}}})},
+        {"panels", Json::array({{{"name", "home"}, {"title", "Home"}, {"where", "page"}, {"script", "app"}},
+                                {{"name", "options"}, {"title", "Options"}, {"where", "settings"}, {"script", "app"}}})},
+        {"tours", Json::array({{{"id", "intro"},
+                                {"title", "Getting started"},
+                                {"steps", Json::array({step("", "Welcome"), step("card", "Its card"),
+                                                       step("page:home", "Its page"),
+                                                       step("settings:options", "Its settings")})}},
+                               {{"id", "later"},
+                                {"title", "Later"},
+                                {"start", "manual"},
+                                {"steps", Json::array({step("", "One"), step("", "Two")})}}})}};
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    REQUIRE(loaded.manifest.contributes.tours.size() == 2);
+    const TourContribution& intro = loaded.manifest.contributes.tours[0];
+    CHECK(intro.start == TourStart::Enabled);
+    REQUIRE(intro.steps.size() == 4);
+    CHECK(intro.steps[0].target.empty());
+    CHECK(intro.steps[2].target == "page:home");
+    CHECK(intro.steps[3].text == "Its settings text.");
+    CHECK(loaded.manifest.contributes.tours[1].start == TourStart::Manual);
+    CHECK(extensionPointNamed("tour") == ExtensionPoint::Tour);
+    const Json saved = Json::parse(saveManifest(loaded.manifest))["contributes"]["tours"];
+    CHECK(saved[1]["start"] == "manual");
+    CHECK(saved[0]["steps"][1]["target"] == "card");
+
+    json["contributes"]["tours"][0]["steps"][1]["target"] = "devices";
+    json["contributes"]["tours"][0]["steps"][2]["target"] = "page:options";
+    json["contributes"]["tours"][0]["steps"][3]["target"] = "device";
+    json["contributes"]["tours"][1]["id"] = "intro";
+    json["contributes"]["tours"][1]["steps"] = Json::array({step("", "Only")});
+    loaded = load(json);
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::TourTargetInvalid, "$.contributes.tours[0].steps[1].target"));
+    CHECK(reports(loaded, Code::TourTargetInvalid, "$.contributes.tours[0].steps[2].target"));
+    CHECK(reports(loaded, Code::TourTargetInvalid, "$.contributes.tours[0].steps[3].target"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.tours[1].id"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.tours[1].steps"));
+    CHECK(std::ranges::count_if(loaded.diagnostics, [](const Diagnostic& each) {
+              return each.path == "$.contributes.tours[0].steps[1].target";
+          }) == 1);
+
+    json = base();
+    json["requires"] = {{"script", "^1.0"}};
+    json["contributes"] = {
+        {"tours", Json::array({{{"id", "intro"}, {"title", "Intro"}, {"steps", Json::array({step("", "A"), step("", "B")})}}})}};
+    loaded = load(json);
+    CHECK_FALSE(loaded.usable);
+    CHECK(undeclared(loaded, "$.contributes.tours", "tour"));
 }

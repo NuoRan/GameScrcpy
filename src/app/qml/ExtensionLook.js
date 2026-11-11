@@ -61,6 +61,8 @@ function icon(point) {
         return "panel-top"
     case "help":
         return "circle-help"
+    case "tour":
+        return "navigation"
     default:
         return "puzzle"
     }
@@ -90,6 +92,8 @@ function tone(point) {
         return "azure"
     case "help":
         return "teal"
+    case "tour":
+        return "orange"
     default:
         return ""
     }
