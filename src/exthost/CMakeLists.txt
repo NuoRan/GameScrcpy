@@ -7,6 +7,8 @@ add_library(gs_exthost STATIC
     src/Channel.cpp
     src/Channel.h
     src/Hosted.cpp
+    src/ImageSection.cpp
+    src/ImageSection.h
     src/InProcess.cpp
     src/MediaRing.cpp
     src/MediaRing.h

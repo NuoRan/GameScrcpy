@@ -150,6 +150,9 @@ public:
     void refreshProviders(std::string_view extension = {});
     [[nodiscard]] exthost::CallResult actOnDevice(std::string_view extension, std::string_view provider,
                                                   std::string_view device, std::string_view action) const;
+    [[nodiscard]] exthost::CallResult recognize(std::string_view extension, std::string_view engine,
+                                                exthost::VisionKind kind, const exthost::VisionImage& image,
+                                                std::string_view params) const;
     [[nodiscard]] std::vector<NativeEventTarget> eventTargets() const;
     [[nodiscard]] std::vector<TransportPhone> transportPhones() const;
     void refreshTransports(std::string_view extension = {});

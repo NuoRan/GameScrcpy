@@ -421,3 +421,72 @@ Errors:
 ```ts
 const ok = await vision.findText("OK"); if (ok) await touch.tap(ok);
 ```
+
+## vision.engines()
+
+The recognition engines: "system", the text recognition that comes with Windows, and those that extensions provide, with what each recognizes.
+
+```ts
+vision.engines(): readonly VisionEngineInfo[]
+```
+
+Returns `readonly VisionEngineInfo[]`. stable since API 1.
+
+```ts
+for (const engine of vision.engines()) log.info(engine.id, engine.kinds.join(", "));
+```
+
+## vision.recognize(engine, kind, region?, params?)
+
+Recognizes text ("ocr"), things ("detect") or what the picture shows ("classify") with an engine, in the next frame or in the picture already shown when no new frame comes within 0.25 s, and resolves with what it found, in the order the engine gives: x and y are the middle and width and height the size, as ratios of the whole picture, and confidence goes from 0 to 1. Resolves with null when there is no picture within 2 seconds. An engine works on one picture at a time and stops waiting for an extension's engine after 5 seconds. The logic of an extension needs the permission device.screen.
+
+```ts
+vision.recognize(engine: string, kind: VisionKind, region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionResult[] | null>
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `engine` | `string` | The id of an engine from vision.engines(): "system" for the text recognition that comes with Windows, or "<extension id>/<name>" for one an extension provides. |
+| `kind` | `VisionKind` | What to recognize: "ocr" for text, "detect" for things, "classify" for what the picture shows. |
+| `region` (optional) | `Region \| RegionName` | The part of the picture to look at; the whole picture by default. |
+| `params` (optional) | `VisionParams` | What the engine takes besides the picture, such as { language: "en" } for "system". |
+
+Returns `Promise<readonly VisionResult[] | null>`. stable since API 1.
+
+Errors:
+
+- `GS-API-170` when there is no engine with this id, or the extension that provides it is off or did not load. Pick an engine from vision.engines(), or turn its extension on.
+- `GS-API-171` when the engine does not recognize this kind, or does not know the language asked for. Pick an engine whose kinds include it, or a language it knows.
+- `GS-API-172` when the engine is not an id, kind is not "ocr", "detect" or "classify", params is not an object of at most 64 KiB as JSON, or the engine does not take these params. Pass the id, one of the three kinds and a plain object the engine takes.
+- `GS-API-173` when the engine failed or gave a result that is not a valid list; the message says why. Try again, or check the engine's extension.
+- `GS-API-174` when the engine took longer than 5 seconds, is still working on an earlier picture, or has 16 pictures waiting already. Pass a smaller region, or ask less often.
+- `GS-API-002` when the region is outside the picture. Regions are picture ratios.
+- `GS-API-018` when there is no region with that name. Use a name from res/resources.json.
+- `GS-API-072` when the logic belongs to an extension whose manifest does not ask for the permission device.screen. Add "device.screen" to the permissions in the extension's manifest, with a reason.
+- `GS-API-073` when the logic has no phone, such as the app script of an extension. Recognize from a session script.
+
+```ts
+const lines = await vision.recognize("system", "ocr", res.region("Chat"), { language: "en" }); for (const line of lines ?? []) log.info(line.text);
+```
+
+## vision.engine(id)
+
+An engine by its id, with read(), detect() and classify() as short ways to call recognize(); the id is checked only when it is used.
+
+```ts
+vision.engine(id: string): VisionEngine
+```
+
+| Parameter | Type | Description |
+|---|---|---|
+| `id` | `string` | The id of an engine from vision.engines(). |
+
+Returns `VisionEngine`. stable since API 1.
+
+Errors:
+
+- `GS-API-172` when the id is not a string of 1 to 160 characters. Pass the id of an engine from vision.engines().
+
+```ts
+const bosses = await vision.engine("alice.finder/boss").detect(); if (bosses?.length) await touch.tap(bosses[0]);
+```

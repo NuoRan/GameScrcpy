@@ -3,12 +3,14 @@
 #include "Channel.h"
 #include "MediaRing.h"
 #include "TapSection.h"
+#include "ImageSection.h"
 #include "Wire.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <condition_variable>
+#include <cstring>
 #include <deque>
 #include <map>
 #include <mutex>
@@ -384,6 +386,12 @@ struct HostedModule::Impl {
                 outstanding.erase(message.id);
                 if (const auto found = answers.find(message.id); found != answers.end()) {
                     found->second = std::move(result);
+                }
+                for (auto& entry : sights) {
+                    if (entry.second.busy == message.id) {
+                        entry.second.busy = 0;
+                        entry.second.sent = false;
+                    }
                 }
             }
             changed.notify_all();
@@ -882,6 +890,12 @@ struct HostedModule::Impl {
             channel.reset();
             dropped.swap(held);
             heard.clear();
+            for (auto& entry : sights) {
+                if (entry.second.sent) {
+                    entry.second.busy = 0;
+                    entry.second.sent = false;
+                }
+            }
             if (closing || state == State::Stopped) {
                 return;
             }
@@ -1089,6 +1103,13 @@ struct HostedModule::Impl {
     std::map<std::uint64_t, std::shared_ptr<detail::SinkBox>> sinks;
     std::map<std::uint64_t, TapRemote> taps;
     std::uint64_t nextTap = 0;
+    struct Sight {
+        std::shared_ptr<detail::ImageSection> section;
+        std::optional<std::uint64_t> sentTo;
+        std::uint64_t busy = 0;
+        bool sent = false;
+    };
+    std::map<std::size_t, Sight> sights;
     std::jthread reader;
 };
 
@@ -1870,6 +1891,99 @@ std::uint64_t HostedModule::startExport(std::size_t exporter, std::string_view i
     d.jobs.emplace(id, std::move(events));
     SetEvent(d.channel->toHostEvent());
     return id;
+}
+
+CallResult HostedModule::recognize(std::size_t engine, VisionKind kind, const VisionImage& image,
+                                   std::string_view params)
+{
+    Impl& d = *m_impl;
+    if (engine >= d.info.visionEngines.size()) {
+        return {CallStatus::Unavailable, {}, "the DLL has no such vision engine"};
+    }
+    if ((d.info.visionEngines[engine].kinds & visionBit(kind)) == 0) {
+        return {CallStatus::BadArgument, {},
+                "the vision engine does not recognize " + std::string(visionKindName(kind))};
+    }
+    if (!validImage(image) || params.size() > kMostVisionParamBytes || !validUtf8(params)) {
+        return {CallStatus::BadArgument, {}, "the picture or the params are not valid"};
+    }
+    const std::size_t row = std::size_t{4} * image.width;
+    const std::uint64_t needed = std::uint64_t{row} * image.height;
+    std::shared_ptr<detail::ImageSection> section;
+    std::uint64_t id = 0;
+    {
+        const std::scoped_lock lock(d.mutex);
+        if (d.state != Impl::State::Ready || !d.channel) {
+            return {CallStatus::Unavailable, {},
+                    d.state == Impl::State::Stopped ? "the extension stopped working and was turned off"
+                                                    : "the extension is starting again"};
+        }
+        Impl::Sight& sight = d.sights[engine];
+        if (sight.busy != 0) {
+            return {CallStatus::TooSlow, {}, "the engine is still working on an earlier picture"};
+        }
+        if (sight.section == nullptr || sight.section->bytes() < needed) {
+            sight.section = detail::ImageSection::create(needed);
+            sight.sentTo.reset();
+            if (sight.section == nullptr) {
+                return {CallStatus::Failed, {}, "no shared memory could be made for the picture"};
+            }
+        }
+        id = ++d.nextId;
+        sight.busy = id;
+        sight.sent = false;
+        section = sight.section;
+    }
+    for (std::uint32_t line = 0; line < image.height; ++line) {
+        std::memcpy(section->data() + std::size_t{line} * row, image.pixels.get() + std::size_t{line} * image.stride,
+                    row);
+    }
+    std::unique_lock lock(d.mutex);
+    Impl::Sight& sight = d.sights[engine];
+    const auto failed = [&sight, id](CallStatus status, std::string problem) {
+        if (sight.busy == id) {
+            sight.busy = 0;
+        }
+        return CallResult{status, {}, std::move(problem)};
+    };
+    if (sight.busy != id) {
+        return CallResult{CallStatus::TooSlow, {}, "the engine is still working on an earlier picture"};
+    }
+    if (d.state != Impl::State::Ready || !d.channel || d.process == nullptr || sight.section != section) {
+        return failed(CallStatus::Unavailable, "the extension is starting again");
+    }
+    HANDLE copy = nullptr;
+    if (sight.sentTo != d.launches &&
+        DuplicateHandle(GetCurrentProcess(), section->mapping(), d.process, &copy, FILE_MAP_READ, FALSE, 0) == FALSE) {
+        return failed(CallStatus::Failed, "the picture could not be handed to the extension's process");
+    }
+    detail::WireWriter payload;
+    payload.u32(static_cast<std::uint32_t>(engine));
+    payload.u32(static_cast<std::uint32_t>(kind));
+    payload.u32(image.width);
+    payload.u32(image.height);
+    payload.u64(static_cast<std::uint64_t>(reinterpret_cast<std::uintptr_t>(copy)));
+    payload.u64(section->bytes());
+    payload.text(params.empty() ? std::string_view("{}") : params);
+    if (!d.channel->toHost().write(detail::Kind::VisionRun, id, payload.bytes())) {
+        if (copy != nullptr) {
+            DuplicateHandle(d.process, copy, nullptr, nullptr, 0, FALSE, DUPLICATE_CLOSE_SOURCE);
+        }
+        return failed(CallStatus::Unavailable, "the extension's process is too busy to take the picture");
+    }
+    if (copy != nullptr) {
+        sight.sentTo = d.launches;
+    }
+    sight.sent = true;
+    d.answers.emplace(id, std::nullopt);
+    SetEvent(d.channel->toHostEvent());
+    const std::chrono::milliseconds limit = d.options.visionLimit;
+    const bool answered = d.changed.wait_for(lock, limit, [&d, id] { return d.answers.at(id).has_value(); });
+    CallResult result = answered ? std::move(*d.answers.at(id))
+                                 : CallResult{CallStatus::TooSlow, {},
+                                              "the engine took longer than " + std::to_string(limit.count()) + " ms"};
+    d.answers.erase(id);
+    return result;
 }
 
 }

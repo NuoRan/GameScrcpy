@@ -113,6 +113,11 @@ void WireWriter::info(const ModuleInfo& info)
     for (const FrameTapInfo& tap : info.frameTaps) {
         text(tap.name);
     }
+    u32(static_cast<std::uint32_t>(info.visionEngines.size()));
+    for (const VisionEngineInfo& engine : info.visionEngines) {
+        text(engine.name);
+        u32(engine.kinds);
+    }
 }
 
 void WireWriter::event(const InputEvent& event)
@@ -397,6 +402,18 @@ bool WireReader::info(ModuleInfo& out)
             return false;
         }
         out.frameTaps.push_back(std::move(tap));
+    }
+    std::uint32_t engines = 0;
+    if (!u32(engines) || engines > kMostVisionEngines) {
+        return false;
+    }
+    for (std::uint32_t index = 0; index < engines; ++index) {
+        VisionEngineInfo engine;
+        if (!text(engine.name, kMostNameBytes) || !u32(engine.kinds) || engine.kinds == 0 ||
+            (engine.kinds & ~kAllVisionKinds) != 0) {
+            return false;
+        }
+        out.visionEngines.push_back(std::move(engine));
     }
     return true;
 }

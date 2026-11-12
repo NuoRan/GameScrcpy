@@ -1700,6 +1700,59 @@ void unloadAll(void*)
     stopLoop();
 }
 
+int32_t probeRun(void*, uint32_t kind, const gs_ext_image* image, const char* params, size_t size, gs_ext_result* out)
+{
+    const std::string text(params, size);
+    const auto pause = static_cast<DWORD>(numberIn(text, "sleepMs", 0.0));
+    if (pause > 0) {
+        Sleep(pause);
+    }
+    if (numberIn(text, "fail", 0.0) != 0.0) {
+        constexpr char kWhy[] = "the test engine fails on purpose";
+        g_host->set_error(out, kWhy, sizeof(kWhy) - 1);
+        return GS_EXT_FAILED;
+    }
+    if (numberIn(text, "refuse", 0.0) != 0.0) {
+        constexpr char kWhy[] = "the test engine does not take refuse";
+        g_host->set_error(out, kWhy, sizeof(kWhy) - 1);
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (numberIn(text, "crash", 0.0) != 0.0) {
+        RaiseException(EXCEPTION_ACCESS_VIOLATION, EXCEPTION_NONCONTINUABLE, 0, nullptr);
+    }
+    if (numberIn(text, "broken", 0.0) != 0.0) {
+        return giveText(out, GS_EXT_TYPE_JSON, "{\"not\":\"a list\"}");
+    }
+    if (kind == GS_EXT_VISION_OCR) {
+        return giveText(out, GS_EXT_TYPE_JSON,
+                        R"([{"text":"OK","x":0.5,"y":0.25,"width":0.5,"height":0.25,"confidence":0.75}])");
+    }
+    uint64_t blue = 0;
+    uint64_t green = 0;
+    uint64_t red = 0;
+    for (uint32_t y = 0; y < image->height; ++y) {
+        const uint8_t* row = image->pixels + static_cast<size_t>(y) * image->stride;
+        for (uint32_t x = 0; x < image->width; ++x) {
+            blue += row[4 * static_cast<size_t>(x)];
+            green += row[4 * static_cast<size_t>(x) + 1];
+            red += row[4 * static_cast<size_t>(x) + 2];
+        }
+    }
+    const uint64_t count = uint64_t{image->width} * image->height;
+    char color[8] = {};
+    std::snprintf(color, sizeof(color), "#%02X%02X%02X", static_cast<unsigned>(red / count),
+                  static_cast<unsigned>(green / count), static_cast<unsigned>(blue / count));
+    std::string json = "[{\"label\":\"" + std::string(color) + "\",\"confidence\":1},{\"label\":\"" +
+                       std::to_string(image->width) + "x" + std::to_string(image->height) + "/" +
+                       std::to_string(image->stride) + "\",\"confidence\":0.5},{\"label\":";
+    appendText(json, params, size);
+    json += ",\"confidence\":0.25}]";
+    return giveText(out, GS_EXT_TYPE_JSON, json);
+}
+
+const gs_ext_vision_engine kProbe = {sizeof(gs_ext_vision_engine), "probe",
+                                     (1U << GS_EXT_VISION_OCR) | (1U << GS_EXT_VISION_CLASSIFY), nullptr, &probeRun};
+
 const gs_ext_job kCount = {sizeof(gs_ext_job), "count", nullptr, &countStart, &countCancel};
 const gs_ext_job kRefuse = {sizeof(gs_ext_job), "refuse", nullptr, &refuseStart, &refuseCancel};
 const gs_ext_job kSpeak = {sizeof(gs_ext_job), "speak", nullptr, &speakStart, &countCancel};
@@ -1854,6 +1907,7 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "aiModels", &kNodes[43]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "lastAiRequest", &kNodes[44]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_JOB, "aiChat", &kAiChat},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_VISION_ENGINE, "probe", &kProbe},
 };
 
 const gs_ext_plugin kPlugin = {

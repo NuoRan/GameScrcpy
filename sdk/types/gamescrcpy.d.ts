@@ -424,6 +424,27 @@ type ConvertInput = { readonly name: string; readonly from: string; readonly to:
 /** What a converter returns: the new file as bytes, as a text written as UTF-8 or as a JSON value written as JSON text, and for an import the name of the file, which names the new profile. A converter may also return the text, the bytes or the JSON value itself, such as the object of a profile; an object counts as a ConvertOutput when it has bytes, text or json. GameScrcpy checks what it imports as it checks any file it imports. */
 type ConvertOutput = { readonly name?: string; readonly bytes?: Uint8Array | ArrayBuffer | readonly number[]; readonly text?: string; readonly json?: unknown };
 
+/** What a recognition engine recognizes: text, things, or what the picture shows. */
+type VisionKind = "ocr" | "detect" | "classify";
+
+/** What a recognition engine takes besides the picture. "system" takes language, a tag such as "en" or "zh-Hans" (the languages of the user's profile by default), and words, true for each word instead of each line. */
+type VisionParams = Readonly<Record<string, StoreValue>>;
+
+/** A recognition engine: "system" is Windows, the others are "extension id/name". kinds tells what it recognizes and languages the languages it reads, when it says. */
+type VisionEngineInfo = { readonly id: string; readonly title: string; readonly kinds: readonly VisionKind[]; readonly languages: readonly string[] };
+
+/** Text an engine read: x and y are its middle and width and height its size, as ratios of the picture; confidence goes from 0 to 1. */
+type VisionText = { readonly text: string; readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly confidence: number };
+
+/** A thing an engine found: what it is, where it is as for VisionText, and how sure the engine is, from 0 to 1. */
+type VisionObject = { readonly label: string; readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly confidence: number };
+
+/** What an engine says the picture shows, and how sure it is, from 0 to 1. */
+type VisionClass = { readonly label: string; readonly confidence: number };
+
+/** One thing recognize() found: a VisionText for "ocr", a VisionObject for "detect" and a VisionClass for "classify". */
+type VisionResult = VisionText | VisionObject | VisionClass;
+
 /** A component of the profile in use. Every type below has these members too. */
 interface Component {
     /**
@@ -2256,6 +2277,33 @@ interface SpeechListener {
     close(): void;
 }
 
+/** A recognition engine from vision.engine(). */
+interface VisionEngine {
+    /**
+     * The id of the engine.
+     * @example log.info(engine.id);
+     */
+    readonly id: string;
+
+    /**
+     * Reads text, as vision.recognize(id, "ocr", region, params) does.
+     * @example const lines = await vision.engine("system").read(res.region("Gold"));
+     */
+    read(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionText[] | null>;
+
+    /**
+     * Finds things, as vision.recognize(id, "detect", region, params) does.
+     * @example const enemies = await vision.engine("alice.finder/boss").detect(undefined, { threshold: 0.6 });
+     */
+    detect(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionObject[] | null>;
+
+    /**
+     * Tells what the picture shows, as vision.recognize(id, "classify", region, params) does.
+     * @example const scene = await vision.engine("alice.finder/scene").classify(); log.info(scene?.[0]?.label);
+     */
+    classify(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionClass[] | null>;
+}
+
 /**
  * Waits without blocking other tasks. Rejects with an AbortError when the task is cancelled.
  * @param ms How long to wait, in milliseconds (0 to 2147483647).
@@ -3875,6 +3923,42 @@ declare namespace vision {
      * @example const ok = await vision.findText("OK"); if (ok) await touch.tap(ok);
      */
     function findText(text: string, options?: ReadTextOptions): Promise<Found | null>;
+
+    /**
+     * The recognition engines: "system", the text recognition that comes with Windows, and those that extensions provide, with what each recognizes.
+     * @since 1 (stable)
+     * @example for (const engine of vision.engines()) log.info(engine.id, engine.kinds.join(", "));
+     */
+    function engines(): readonly VisionEngineInfo[];
+
+    /**
+     * Recognizes text ("ocr"), things ("detect") or what the picture shows ("classify") with an engine, in the next frame or in the picture already shown when no new frame comes within 0.25 s, and resolves with what it found, in the order the engine gives: x and y are the middle and width and height the size, as ratios of the whole picture, and confidence goes from 0 to 1. Resolves with null when there is no picture within 2 seconds. An engine works on one picture at a time and stops waiting for an extension's engine after 5 seconds. The logic of an extension needs the permission device.screen.
+     * @param engine The id of an engine from vision.engines(): "system" for the text recognition that comes with Windows, or "<extension id>/<name>" for one an extension provides.
+     * @param kind What to recognize: "ocr" for text, "detect" for things, "classify" for what the picture shows.
+     * @param region The part of the picture to look at; the whole picture by default.
+     * @param params What the engine takes besides the picture, such as { language: "en" } for "system".
+     * @throws GS-API-170 when there is no engine with this id, or the extension that provides it is off or did not load. Pick an engine from vision.engines(), or turn its extension on.
+     * @throws GS-API-171 when the engine does not recognize this kind, or does not know the language asked for. Pick an engine whose kinds include it, or a language it knows.
+     * @throws GS-API-172 when the engine is not an id, kind is not "ocr", "detect" or "classify", params is not an object of at most 64 KiB as JSON, or the engine does not take these params. Pass the id, one of the three kinds and a plain object the engine takes.
+     * @throws GS-API-173 when the engine failed or gave a result that is not a valid list; the message says why. Try again, or check the engine's extension.
+     * @throws GS-API-174 when the engine took longer than 5 seconds, is still working on an earlier picture, or has 16 pictures waiting already. Pass a smaller region, or ask less often.
+     * @throws GS-API-002 when the region is outside the picture. Regions are picture ratios.
+     * @throws GS-API-018 when there is no region with that name. Use a name from res/resources.json.
+     * @throws GS-API-072 when the logic belongs to an extension whose manifest does not ask for the permission device.screen. Add "device.screen" to the permissions in the extension's manifest, with a reason.
+     * @throws GS-API-073 when the logic has no phone, such as the app script of an extension. Recognize from a session script.
+     * @since 1 (stable)
+     * @example const lines = await vision.recognize("system", "ocr", res.region("Chat"), { language: "en" }); for (const line of lines ?? []) log.info(line.text);
+     */
+    function recognize(engine: string, kind: VisionKind, region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionResult[] | null>;
+
+    /**
+     * An engine by its id, with read(), detect() and classify() as short ways to call recognize(); the id is checked only when it is used.
+     * @param id The id of an engine from vision.engines().
+     * @throws GS-API-172 when the id is not a string of 1 to 160 characters. Pass the id of an engine from vision.engines().
+     * @since 1 (stable)
+     * @example const bosses = await vision.engine("alice.finder/boss").detect(); if (bosses?.length) await touch.tap(bosses[0]);
+     */
+    function engine(id: string): VisionEngine;
 }
 
 /** The named points, regions and paths of the profile, kept in res/resources.json by the vision workbench. */

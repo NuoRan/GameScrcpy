@@ -46,6 +46,7 @@
 #include "SettingsCatalog.h"
 #include "ShortcutDispatcher.h"
 #include "SpeechEngines.h"
+#include "VisionEngines.h"
 #include "WirelessController.h"
 
 #include <gs/adb/AdbClient.h>
@@ -485,6 +486,10 @@ int main(int argc, char* argv[])
     gs::app::AiProviders aiProviders(data / "ai-requests");
     aiProviders.use(*extensions.native(), nativeJobs);
     aiProviders.follow(extensions);
+    gs::app::VisionEngines visionEngines(nullptr);
+    visionEngines.addEngine(std::make_shared<gs::app::SystemVisionEngine>());
+    visionEngines.follow(extensions, *extensions.native());
+    visionEngines.offerServices();
     gs::app::NativeEvents nativeEvents(*extensions.native());
     gs::app::AppEvents appEvents;
     gs::app::ExtensionServices extensionServices(nullptr);

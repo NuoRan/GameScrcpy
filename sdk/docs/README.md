@@ -729,6 +729,17 @@ Voice commands listened for with speech.listen().
 | `readonly isOpen: boolean` | Whether it still listens. |
 | `close(): void` | Stops listening; the microphone is let go once nothing else listens. |
 
+### VisionEngine
+
+A recognition engine from vision.engine().
+
+| Member | Description |
+|---|---|
+| `readonly id: string` | The id of the engine. |
+| `read(region?: Region \| RegionName, params?: VisionParams): Promise<readonly VisionText[] \| null>` | Reads text, as vision.recognize(id, "ocr", region, params) does. |
+| `detect(region?: Region \| RegionName, params?: VisionParams): Promise<readonly VisionObject[] \| null>` | Finds things, as vision.recognize(id, "detect", region, params) does. |
+| `classify(region?: Region \| RegionName, params?: VisionParams): Promise<readonly VisionClass[] \| null>` | Tells what the picture shows, as vision.recognize(id, "classify", region, params) does. |
+
 ## Types
 
 ### AbortSignal
@@ -1865,4 +1876,60 @@ What a converter returns: the new file as bytes, as a text written as UTF-8 or a
 
 ```ts
 type ConvertOutput = { readonly name?: string; readonly bytes?: Uint8Array | ArrayBuffer | readonly number[]; readonly text?: string; readonly json?: unknown };
+```
+
+### VisionKind
+
+What a recognition engine recognizes: text, things, or what the picture shows.
+
+```ts
+type VisionKind = "ocr" | "detect" | "classify";
+```
+
+### VisionParams
+
+What a recognition engine takes besides the picture. "system" takes language, a tag such as "en" or "zh-Hans" (the languages of the user's profile by default), and words, true for each word instead of each line.
+
+```ts
+type VisionParams = Readonly<Record<string, StoreValue>>;
+```
+
+### VisionEngineInfo
+
+A recognition engine: "system" is Windows, the others are "extension id/name". kinds tells what it recognizes and languages the languages it reads, when it says.
+
+```ts
+type VisionEngineInfo = { readonly id: string; readonly title: string; readonly kinds: readonly VisionKind[]; readonly languages: readonly string[] };
+```
+
+### VisionText
+
+Text an engine read: x and y are its middle and width and height its size, as ratios of the picture; confidence goes from 0 to 1.
+
+```ts
+type VisionText = { readonly text: string; readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly confidence: number };
+```
+
+### VisionObject
+
+A thing an engine found: what it is, where it is as for VisionText, and how sure the engine is, from 0 to 1.
+
+```ts
+type VisionObject = { readonly label: string; readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly confidence: number };
+```
+
+### VisionClass
+
+What an engine says the picture shows, and how sure it is, from 0 to 1.
+
+```ts
+type VisionClass = { readonly label: string; readonly confidence: number };
+```
+
+### VisionResult
+
+One thing recognize() found: a VisionText for "ocr", a VisionObject for "detect" and a VisionClass for "classify".
+
+```ts
+type VisionResult = VisionText | VisionObject | VisionClass;
 ```

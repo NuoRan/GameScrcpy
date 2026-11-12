@@ -210,11 +210,15 @@ void RecordingServices::setServiceHook(std::function<bool(std::string_view servi
 
 bool RecordingServices::offersService(std::string_view service)
 {
-    return service == "panel.show" || service == "ai.ask" || (m_hookOffers && m_hookCall && m_hookOffers(service));
+    return service == "panel.show" || service == "ai.ask" || service == "vision.engines" ||
+           service == "vision.recognize" || (m_hookOffers && m_hookCall && m_hookOffers(service));
 }
 
 ServiceAnswer RecordingServices::callService(std::string_view service, std::string_view json)
 {
+    if (service == "vision.engines") {
+        return {"[]", {}, {}};
+    }
     if (service != "panel.show") {
         if (m_hookOffers && m_hookCall && m_hookOffers(service)) {
             return m_hookCall(service, json);
@@ -229,6 +233,16 @@ ServiceAnswer RecordingServices::callService(std::string_view service, std::stri
 
 void RecordingServices::requestService(std::uint64_t request, std::string_view service, std::string_view json)
 {
+    if (service == "vision.recognize") {
+        const nlohmann::json value = nlohmann::json::parse(json, nullptr, false);
+        const auto text = [&value](const char* key) {
+            const auto found = value.is_object() ? value.find(key) : value.end();
+            return found != value.end() && found->is_string() ? found->get<std::string>() : std::string();
+        };
+        record(std::format("vision recognize {} {}", text("engine"), text("kind")));
+        m_replies.emplace_back(request, "null");
+        return;
+    }
     if (service != "ai.ask") {
         m_refusals.emplace_back(request, "GS-API-070 no part of GameScrcpy offers the service " + std::string(service));
         return;

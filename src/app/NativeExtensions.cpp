@@ -492,6 +492,7 @@ struct NativeExtensions::Entry {
     std::vector<std::optional<std::size_t>> sinkIndex;
     std::vector<std::optional<std::size_t>> exporterIndex;
     std::vector<std::optional<std::size_t>> tapIndex;
+    std::vector<std::optional<std::size_t>> visionIndex;
 };
 
 namespace {
@@ -633,6 +634,24 @@ void matchEntry(NativeExtensions::Entry& entry)
     matchNames(entry, wanted.native.mediaSinks, info.sinks, entry.sinkIndex, where + ".mediaSinks");
     matchNames(entry, wanted.native.recordingExporters, info.exporters, entry.exporterIndex,
                where + ".recordingExporters");
+    for (std::size_t index = 0; index < wanted.native.visionEngines.size(); ++index) {
+        const ext::NativeVisionEngine& engine = wanted.native.visionEngines[index];
+        const auto found = std::ranges::find(info.visionEngines, engine.name, &exthost::VisionEngineInfo::name);
+        std::uint32_t declared = 0;
+        for (const std::string& kind : engine.kinds) {
+            if (const std::optional<exthost::VisionKind> named = exthost::visionKindNamed(kind)) {
+                declared |= exthost::visionBit(*named);
+            }
+        }
+        const bool fits = found != info.visionEngines.end() && declared != 0 && (declared & ~found->kinds) == 0;
+        entry.visionIndex.push_back(
+            fits ? std::optional<std::size_t>(static_cast<std::size_t>(found - info.visionEngines.begin()))
+                 : std::nullopt);
+        if (!fits) {
+            entry.problems.push_back({ext::Severity::Warning, ext::Code::NativeMismatch,
+                                      where + ".visionEngines[" + std::to_string(index) + "]", engine.name});
+        }
+    }
     log::info(kCategory, "{}: the DLL is loaded {}", wanted.id,
               wanted.official ? "inside GameScrcpy" : "in its own process");
 }
@@ -1041,6 +1060,32 @@ exthost::CallResult NativeExtensions::actOnDevice(std::string_view extension, st
         return entry->module->actOnDevice(*entry->providerIndex[index], device, action);
     }
     return {exthost::CallStatus::Unavailable, {}, "the extension that adds the device is off"};
+}
+
+exthost::CallResult NativeExtensions::recognize(std::string_view extension, std::string_view engine,
+                                                exthost::VisionKind kind, const exthost::VisionImage& image,
+                                                std::string_view params) const
+{
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        if (entry->wanted.id != extension) {
+            continue;
+        }
+        if (entry->module == nullptr || entry->pending || !entry->module->working()) {
+            break;
+        }
+        const std::vector<ext::NativeVisionEngine>& engines = entry->wanted.native.visionEngines;
+        const auto found = std::ranges::find(engines, engine, &ext::NativeVisionEngine::name);
+        const auto index = static_cast<std::size_t>(found - engines.begin());
+        if (found == engines.end() || index >= entry->visionIndex.size() || !entry->visionIndex[index]) {
+            break;
+        }
+        const std::string_view named = exthost::visionKindName(kind);
+        if (std::ranges::find(found->kinds, named) == found->kinds.end()) {
+            return {exthost::CallStatus::BadArgument, {}, "the engine does not recognize " + std::string(named)};
+        }
+        return entry->module->recognize(*entry->visionIndex[index], kind, image, params);
+    }
+    return {exthost::CallStatus::Unavailable, {}, "the extension that adds the engine is off or did not load"};
 }
 
 std::vector<NativeEventTarget> NativeExtensions::eventTargets() const

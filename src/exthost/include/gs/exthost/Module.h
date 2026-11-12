@@ -3,6 +3,7 @@
 #include "gs/exthost/Media.h"
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -287,6 +288,40 @@ struct TapEvents {
 [[nodiscard]] bool validTapFrame(const TapFrame& frame) noexcept;
 [[nodiscard]] std::vector<Shape> uniqueShapes(std::vector<Shape> shapes);
 
+inline constexpr std::size_t kMostVisionEngines = 4;
+inline constexpr std::uint32_t kMostImageSide = 4096;
+inline constexpr std::size_t kMostVisionParamBytes = 64 * 1024;
+inline constexpr std::chrono::milliseconds kVisionLimit{5'000};
+
+enum class VisionKind : std::uint8_t { Ocr, Detect, Classify };
+
+inline constexpr std::array<std::string_view, 3> kVisionKindNames{"ocr", "detect", "classify"};
+inline constexpr std::uint32_t kAllVisionKinds = 0b111;
+
+[[nodiscard]] constexpr std::uint32_t visionBit(VisionKind kind) noexcept
+{
+    return 1U << static_cast<std::uint32_t>(kind);
+}
+
+[[nodiscard]] std::optional<VisionKind> visionKindNamed(std::string_view name) noexcept;
+[[nodiscard]] std::string_view visionKindName(VisionKind kind) noexcept;
+
+struct VisionEngineInfo {
+    std::string name;
+    std::uint32_t kinds = 0;
+
+    friend bool operator==(const VisionEngineInfo&, const VisionEngineInfo&) = default;
+};
+
+struct VisionImage {
+    std::shared_ptr<const std::uint8_t> pixels;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::uint32_t stride = 0;
+};
+
+[[nodiscard]] bool validImage(const VisionImage& image) noexcept;
+
 struct ModuleInfo {
     std::vector<TouchMethodInfo> touchMethods;
     std::vector<NodeInfo> nodes;
@@ -301,6 +336,7 @@ struct ModuleInfo {
     std::vector<SinkInfo> sinks;
     std::vector<ExporterInfo> exporters;
     std::vector<FrameTapInfo> frameTaps;
+    std::vector<VisionEngineInfo> visionEngines;
 
     friend bool operator==(const ModuleInfo&, const ModuleInfo&) = default;
 };
@@ -485,6 +521,10 @@ public:
     [[nodiscard]] virtual std::uint64_t openTap(std::size_t, const TapOpen&, TapEvents) { return 0; }
     [[nodiscard]] virtual bool offerFrame(std::uint64_t, const TapFrame&) { return false; }
     virtual void closeTap(std::uint64_t) {}
+    [[nodiscard]] virtual CallResult recognize(std::size_t, VisionKind, const VisionImage&, std::string_view)
+    {
+        return {};
+    }
 };
 
 }

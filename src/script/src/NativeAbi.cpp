@@ -33,6 +33,7 @@ constexpr Constant kConstants[] = {
      "A contribution whose data is a gs_ext_recording_exporter."},
     {"GS_EXT_SOUND_RATE", "48000", "The rate of all sound that goes between a DLL and GameScrcpy, in frames a second."},
     {"GS_EXT_KIND_FRAME_TAP", "\"frame-tap\"", "A contribution whose data is a gs_ext_frame_tap."},
+    {"GS_EXT_KIND_VISION_ENGINE", "\"vision-engine\"", "A contribution whose data is a gs_ext_vision_engine."},
 };
 
 constexpr Enumerator kTypes[] = {
@@ -152,6 +153,18 @@ constexpr Enumerator kShapeColors[] = {
     {"GS_EXT_COLOR_WHITE", 4, "White."},
 };
 
+constexpr Enumerator kVisionKinds[] = {
+    {"GS_EXT_VISION_OCR", 0,
+     "\"ocr\" in the manifest: reads text. The result lists { text, x, y, width, height, confidence } for each piece "
+     "of text."},
+    {"GS_EXT_VISION_DETECT", 1,
+     "\"detect\" in the manifest: finds things. The result lists { label, x, y, width, height, confidence } for each "
+     "one."},
+    {"GS_EXT_VISION_CLASSIFY", 2,
+     "\"classify\" in the manifest: tells what the picture shows. The result lists { label, confidence } for each "
+     "class."},
+};
+
 constexpr Enumeration kEnumerations[] = {
     {"gs_ext_type",
      "What a node parameter or result holds. The names in the manifest's contributes.native are the same types.",
@@ -176,6 +189,9 @@ constexpr Enumeration kEnumerations[] = {
     {"gs_ext_frame_format", "How the pixels of a gs_ext_frame are laid out.", kFrameFormats},
     {"gs_ext_shape_kind", "What a gs_ext_shape draws.", kShapeKinds},
     {"gs_ext_shape_color", "The color of a gs_ext_shape: the colors that logic draws with.", kShapeColors},
+    {"gs_ext_vision_kind",
+     "What a vision engine is asked to recognize; bit 1u << kind of gs_ext_vision_engine.kinds says that it can.",
+     kVisionKinds},
 };
 
 constexpr Field kValueFields[] = {
@@ -808,6 +824,36 @@ constexpr Field kInputSourceFields[] = {
      "lowercase letter followed by lowercase letters and digits, 32 at most."},
 };
 
+constexpr Field kImageFields[] = {
+    {"uint32_t size", "sizeof(gs_ext_image) in GameScrcpy."},
+    {"const uint8_t* pixels",
+     "The pixels, 4 bytes each in the order blue, green, red and alpha (always 255), rows from top to bottom. They "
+     "belong to GameScrcpy, may only be read and stay valid until run returns."},
+    {"uint32_t stride", "How many bytes one row takes, at least 4 * width."},
+    {"uint32_t width", "The width in pixels, from 1 to 4096."},
+    {"uint32_t height", "The height in pixels, from 1 to 4096."},
+};
+
+constexpr Field kVisionEngineFields[] = {
+    {"uint32_t size", "sizeof(gs_ext_vision_engine) in the DLL."},
+    {"const char* name", "The name of the engine in the manifest's contributes.native.visionEngines."},
+    {"uint32_t kinds",
+     "What it recognizes: the bits 1u << GS_EXT_VISION_OCR, 1u << GS_EXT_VISION_DETECT and 1u << "
+     "GS_EXT_VISION_CLASSIFY, at least those the manifest's kinds name."},
+    {"void* context", "Passed back to run."},
+    {"int32_t (*run)(void* context, uint32_t kind, const gs_ext_image* image, const char* params, size_t size, "
+     "gs_ext_result* out)",
+     "Recognizes kind, one of gs_ext_vision_kind, in image, the part of the phone's picture the logic asked for. "
+     "params is the UTF-8 JSON object of size bytes, not ended by a zero byte, that the logic passed (\"{}\" when it "
+     "passed none). Put the result into out as a JSON array with set_text and return GS_EXT_OK: x and y are the "
+     "middle of what was found and width and height its size, all as ratios of the image from 0 to 1, and confidence "
+     "goes from 0 to 1; GameScrcpy turns them into ratios of the whole picture for the logic. Return "
+     "GS_EXT_BAD_ARGUMENT for params it does not take, or call set_error and return GS_EXT_FAILED. GameScrcpy calls "
+     "it on a thread of its own that never draws the interface, one call at a time for each engine, perhaps at the "
+     "same time as nodes, jobs and other engines. When it takes longer than 5 seconds the logic gets an error, and "
+     "the engine takes the next picture only after it returns."},
+};
+
 constexpr Structure kStructures[] = {
     {"gs_ext_value", "A node parameter or result. It never changes in later versions.", kValueFields},
     {"gs_ext_result", "Where a node puts its result. It never changes in later versions.", kResultFields},
@@ -905,6 +951,16 @@ constexpr Structure kStructures[] = {
      "A file format that the recordings list offers under Export as. It needs the permission media.output and counts "
      "as one of the extension's at most 4 running jobs.",
      kRecordingExporterFields},
+    {"gs_ext_image",
+     "A picture handed to a vision engine: the part of the phone's picture that the logic asked for. In "
+     "gs-exthost.exe it comes through shared memory that the DLL can only read.",
+     kImageFields},
+    {"gs_ext_vision_engine",
+     "A vision engine: recognizes text, things or what the picture shows for logic, which calls it with "
+     "vision.recognize() or vision.engine(), next to GameScrcpy's own text recognition. A DLL offers at most 4. It "
+     "needs no permission, since the logic that asks for it needs device.screen. supports(\"vision-engines\") is 1 "
+     "when GameScrcpy has them.",
+     kVisionEngineFields},
 };
 
 constexpr Entry kEntry = {

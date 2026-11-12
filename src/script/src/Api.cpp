@@ -3594,6 +3594,42 @@ constexpr Failure kFindTextFailures[] = {
      "Add the language in Windows Settings, Time & language, Language & region, or name one the computer has."},
     {"GS-API-001", "no phone is connected to this script", "Start the script on a phone that is mirroring."},
 };
+constexpr Param kVisionRecognizeParams[] = {
+    {"engine", "string",
+     "The id of an engine from vision.engines(): \"system\" for the text recognition that comes with Windows, or "
+     "\"<extension id>/<name>\" for one an extension provides."},
+    {"kind", "VisionKind", "What to recognize: \"ocr\" for text, \"detect\" for things, \"classify\" for what the "
+                           "picture shows."},
+    {"region", "Region | RegionName", "The part of the picture to look at; the whole picture by default.", true},
+    {"params", "VisionParams", "What the engine takes besides the picture, such as { language: \"en\" } for \"system\".",
+     true},
+};
+constexpr Param kVisionEngineParams[] = {
+    {"id", "string", "The id of an engine from vision.engines()."},
+};
+constexpr Failure kVisionRecognizeFailures[] = {
+    {"GS-API-170", "there is no engine with this id, or the extension that provides it is off or did not load",
+     "Pick an engine from vision.engines(), or turn its extension on."},
+    {"GS-API-171", "the engine does not recognize this kind, or does not know the language asked for",
+     "Pick an engine whose kinds include it, or a language it knows."},
+    {"GS-API-172",
+     "the engine is not an id, kind is not \"ocr\", \"detect\" or \"classify\", params is not an object of at most 64 "
+     "KiB as JSON, or the engine does not take these params",
+     "Pass the id, one of the three kinds and a plain object the engine takes."},
+    {"GS-API-173", "the engine failed or gave a result that is not a valid list; the message says why",
+     "Try again, or check the engine's extension."},
+    {"GS-API-174", "the engine took longer than 5 seconds, is still working on an earlier picture, or has 16 pictures "
+                   "waiting already",
+     "Pass a smaller region, or ask less often."},
+    {"GS-API-002", "the region is outside the picture", "Regions are picture ratios."},
+    {"GS-API-018", "there is no region with that name", "Use a name from res/resources.json."},
+    {"GS-API-072", "the logic belongs to an extension whose manifest does not ask for the permission device.screen",
+     "Add \"device.screen\" to the permissions in the extension's manifest, with a reason."},
+    {"GS-API-073", "the logic has no phone, such as the app script of an extension", "Recognize from a session script."},
+};
+constexpr Failure kVisionEngineFailures[] = {
+    {"GS-API-172", "the id is not a string of 1 to 160 characters", "Pass the id of an engine from vision.engines()."},
+};
 
 constexpr Function kVision[] = {
     {"find", kFindParams, "Promise<Found | null>",
@@ -3674,6 +3710,26 @@ constexpr Function kVision[] = {
      "is no picture before the timeout.",
      "const ok = await vision.findText(\"OK\"); if (ok) await touch.tap(ok);", &readTextNative, 1,
      kFindTextFailures},
+    {"engines", {}, "readonly VisionEngineInfo[]",
+     "The recognition engines: \"system\", the text recognition that comes with Windows, and those that extensions "
+     "provide, with what each recognizes.",
+     "for (const engine of vision.engines()) log.info(engine.id, engine.kinds.join(\", \"));"},
+    {"recognize", kVisionRecognizeParams, "Promise<readonly VisionResult[] | null>",
+     "Recognizes text (\"ocr\"), things (\"detect\") or what the picture shows (\"classify\") with an engine, in the "
+     "next frame or in the picture already shown when no new frame comes within 0.25 s, and resolves with what it "
+     "found, in the order the engine gives: x and y are the middle and width and height the size, as ratios of the "
+     "whole picture, and confidence goes from 0 to 1. Resolves with null when there is no picture within 2 seconds. "
+     "An engine works on one picture at a time and stops waiting for an extension's engine after 5 seconds. The "
+     "logic of an extension needs the permission device.screen.",
+     "const lines = await vision.recognize(\"system\", \"ocr\", res.region(\"Chat\"), { language: \"en\" }); for "
+     "(const line of lines ?? []) log.info(line.text);",
+     nullptr, 0, kVisionRecognizeFailures},
+    {"engine", kVisionEngineParams, "VisionEngine",
+     "An engine by its id, with read(), detect() and classify() as short ways to call recognize(); the id is checked "
+     "only when it is used.",
+     "const bosses = await vision.engine(\"alice.finder/boss\").detect(); if (bosses?.length) await "
+     "touch.tap(bosses[0]);",
+     nullptr, 0, kVisionEngineFailures},
 };
 
 constexpr Param kPointParams[] = {{"name", "PointName", "The name of a point in res/resources.json."}};
@@ -4594,6 +4650,31 @@ constexpr Type kTypes[] = {
      "text, and for an import the name of the file, which names the new profile. A converter may also return the "
      "text, the bytes or the JSON value itself, such as the object of a profile; an object counts as a ConvertOutput "
      "when it has bytes, text or json. GameScrcpy checks what it imports as it checks any file it imports."},
+    {"VisionKind", "\"ocr\" | \"detect\" | \"classify\"",
+     "What a recognition engine recognizes: text, things, or what the picture shows."},
+    {"VisionParams", "Readonly<Record<string, StoreValue>>",
+     "What a recognition engine takes besides the picture. \"system\" takes language, a tag such as \"en\" or "
+     "\"zh-Hans\" (the languages of the user's profile by default), and words, true for each word instead of each "
+     "line."},
+    {"VisionEngineInfo",
+     "{ readonly id: string; readonly title: string; readonly kinds: readonly VisionKind[]; readonly languages: "
+     "readonly string[] }",
+     "A recognition engine: \"system\" is Windows, the others are \"extension id/name\". kinds tells what it "
+     "recognizes and languages the languages it reads, when it says."},
+    {"VisionText",
+     "{ readonly text: string; readonly x: number; readonly y: number; readonly width: number; readonly height: "
+     "number; readonly confidence: number }",
+     "Text an engine read: x and y are its middle and width and height its size, as ratios of the picture; "
+     "confidence goes from 0 to 1."},
+    {"VisionObject",
+     "{ readonly label: string; readonly x: number; readonly y: number; readonly width: number; readonly height: "
+     "number; readonly confidence: number }",
+     "A thing an engine found: what it is, where it is as for VisionText, and how sure the engine is, from 0 to 1."},
+    {"VisionClass", "{ readonly label: string; readonly confidence: number }",
+     "What an engine says the picture shows, and how sure it is, from 0 to 1."},
+    {"VisionResult", "VisionText | VisionObject | VisionClass",
+     "One thing recognize() found: a VisionText for \"ocr\", a VisionObject for \"detect\" and a VisionClass for "
+     "\"classify\"."},
 };
 
 constexpr std::string_view kTouchStartDoc = "Starts a task each time it puts a finger on the screen.";
@@ -5383,6 +5464,20 @@ constexpr Member kSpeechListenerMembers[] = {
      "listener.close();"},
 };
 
+constexpr Member kVisionEngineMembers[] = {
+    {"id", "readonly id: string", "The id of the engine.", "log.info(engine.id);"},
+    {"read", "read(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionText[] | null>",
+     "Reads text, as vision.recognize(id, \"ocr\", region, params) does.",
+     "const lines = await vision.engine(\"system\").read(res.region(\"Gold\"));"},
+    {"detect", "detect(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionObject[] | null>",
+     "Finds things, as vision.recognize(id, \"detect\", region, params) does.",
+     "const enemies = await vision.engine(\"alice.finder/boss\").detect(undefined, { threshold: 0.6 });"},
+    {"classify",
+     "classify(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionClass[] | null>",
+     "Tells what the picture shows, as vision.recognize(id, \"classify\", region, params) does.",
+     "const scene = await vision.engine(\"alice.finder/scene\").classify(); log.info(scene?.[0]?.label);"},
+};
+
 constexpr Member kExtensionsMembers[] = {
     {"call", "call<T = StoreValue>(service: string, args?: StoreValue): Promise<T>",
      "Calls a service of an extension, named \"<extension id>/<service>\" as its manifest declares it in "
@@ -5513,6 +5608,7 @@ constexpr Interface kInterfaces[] = {
      kInputSourceMembers},
     {"NetServer", "An HTTP server on 127.0.0.1 made by net.listen().", kNetServerMembers},
     {"SpeechListener", "Voice commands listened for with speech.listen().", kSpeechListenerMembers},
+    {"VisionEngine", "A recognition engine from vision.engine().", kVisionEngineMembers},
 };
 
 constexpr std::string_view kBuiltInClassDoc =

@@ -591,6 +591,27 @@ struct NativeAiProvider {
     friend bool operator==(const NativeAiProvider&, const NativeAiProvider&) = default;
 };
 
+inline constexpr std::size_t kMostVisionEngines = 4;
+inline constexpr std::array<std::string_view, 3> kVisionKindNames{"ocr", "detect", "classify"};
+
+struct NativeVisionEngine {
+    std::string name;
+    std::string title;
+    std::vector<std::string> kinds;
+    std::vector<std::string> languages;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = 64, .format = TextFormat::NativeName});
+        v.text("title", m.title, {.required = true, .maxLength = 40});
+        v.textList("kinds", m.kinds, {.maxItems = 3, .maxLength = 16});
+        v.textList("languages", m.languages, {.maxItems = 32, .maxLength = 16});
+    }
+
+    friend bool operator==(const NativeVisionEngine&, const NativeVisionEngine&) = default;
+};
+
 struct NativeContribution {
     std::string dll;
     TextMap dlls;
@@ -609,6 +630,7 @@ struct NativeContribution {
     std::vector<NativeRecordingExporter> recordingExporters;
     std::vector<NativeFrameTap> frameTaps;
     std::vector<NativeAiProvider> aiProviders;
+    std::vector<NativeVisionEngine> visionEngines;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -633,6 +655,7 @@ struct NativeContribution {
         v.objectList("recordingExporters", m.recordingExporters, kMostRecordingExporters);
         v.objectList("frameTaps", m.frameTaps, kMostFrameTaps);
         v.objectList("aiProviders", m.aiProviders, kMostAiProviders);
+        v.objectList("visionEngines", m.visionEngines, kMostVisionEngines);
     }
 
     friend bool operator==(const NativeContribution&, const NativeContribution&) = default;

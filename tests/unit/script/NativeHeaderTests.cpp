@@ -204,3 +204,39 @@ TEST_CASE("ADR-0112: the C header describes frame taps: their kind, the frame wi
     CHECK(header.find("int32_t (*frame)(void* state, const gs_ext_frame* frame, gs_ext_overlay* overlay);") !=
           std::string::npos);
 }
+
+TEST_CASE("ADR-0112: the C header offers vision engines: their contribution kind, the kinds they recognize, and an "
+          "image and an engine that start with their size")
+{
+    const std::string header = generatedHeader();
+    CHECK(header.find("#define GS_EXT_KIND_VISION_ENGINE \"vision-engine\"\n") != std::string::npos);
+    CHECK(header.find("enum gs_ext_vision_kind {\n") != std::string::npos);
+    CHECK(header.find("    GS_EXT_VISION_OCR = 0,\n") != std::string::npos);
+    CHECK(header.find("    GS_EXT_VISION_DETECT = 1,\n") != std::string::npos);
+    CHECK(header.find("    GS_EXT_VISION_CLASSIFY = 2,\n") != std::string::npos);
+    for (const std::string_view structure : {"gs_ext_image", "gs_ext_vision_engine"}) {
+        CAPTURE(structure);
+        const std::string name(structure);
+        const std::size_t declared = header.find("typedef struct " + name + " " + name + ";\n");
+        const std::size_t defined = header.find("struct " + name + " {\n");
+        REQUIRE(declared != std::string::npos);
+        REQUIRE(defined != std::string::npos);
+        CHECK(declared < defined);
+        const std::size_t firstField = header.find(";\n", defined);
+        const std::size_t size = header.find("    uint32_t size;\n", defined);
+        CHECK(size + std::string_view("    uint32_t size").size() == firstField);
+    }
+    const std::size_t image = header.find("struct gs_ext_image {\n");
+    const std::size_t imageEnd = header.find("};\n", image);
+    for (const std::string_view field : {"    const uint8_t* pixels;\n", "    uint32_t stride;\n", "    uint32_t width;\n",
+                                         "    uint32_t height;\n"}) {
+        CAPTURE(field);
+        CHECK(header.find(field, image) < imageEnd);
+    }
+    const std::size_t engine = header.find("struct gs_ext_vision_engine {\n");
+    const std::size_t engineEnd = header.find("};\n", engine);
+    CHECK(header.find("    uint32_t kinds;\n", engine) < engineEnd);
+    CHECK(header.find("    int32_t (*run)(void* context, uint32_t kind, const gs_ext_image* image, const char* params, "
+                      "size_t size, gs_ext_result* out);\n",
+                      engine) < engineEnd);
+}

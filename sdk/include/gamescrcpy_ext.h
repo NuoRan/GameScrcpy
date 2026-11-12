@@ -66,6 +66,9 @@ extern "C" {
 /* A contribution whose data is a gs_ext_frame_tap. */
 #define GS_EXT_KIND_FRAME_TAP "frame-tap"
 
+/* A contribution whose data is a gs_ext_vision_engine. */
+#define GS_EXT_KIND_VISION_ENGINE "vision-engine"
+
 /* What a node parameter or result holds. The names in the manifest's contributes.native are the same types. */
 enum gs_ext_type {
     /* No value: the result of a node that gives nothing back. */
@@ -254,6 +257,16 @@ enum gs_ext_shape_color {
     GS_EXT_COLOR_WHITE = 4,
 };
 
+/* What a vision engine is asked to recognize; bit 1u << kind of gs_ext_vision_engine.kinds says that it can. */
+enum gs_ext_vision_kind {
+    /* "ocr" in the manifest: reads text. The result lists { text, x, y, width, height, confidence } for each piece of text. */
+    GS_EXT_VISION_OCR = 0,
+    /* "detect" in the manifest: finds things. The result lists { label, x, y, width, height, confidence } for each one. */
+    GS_EXT_VISION_DETECT = 1,
+    /* "classify" in the manifest: tells what the picture shows. The result lists { label, confidence } for each class. */
+    GS_EXT_VISION_CLASSIFY = 2,
+};
+
 typedef struct gs_ext_value gs_ext_value;
 typedef struct gs_ext_result gs_ext_result;
 typedef struct gs_ext_contact gs_ext_contact;
@@ -289,6 +302,8 @@ typedef struct gs_ext_audio_source gs_ext_audio_source;
 typedef struct gs_ext_sink_info gs_ext_sink_info;
 typedef struct gs_ext_media_sink gs_ext_media_sink;
 typedef struct gs_ext_recording_exporter gs_ext_recording_exporter;
+typedef struct gs_ext_image gs_ext_image;
+typedef struct gs_ext_vision_engine gs_ext_vision_engine;
 
 /* A node parameter or result. It never changes in later versions. */
 struct gs_ext_value {
@@ -938,6 +953,34 @@ struct gs_ext_recording_exporter {
     int32_t (*start)(void* context, uint64_t job, const char* input, size_t input_size, const char* output, size_t output_size);
     /* Asks the export to stop soon; it still ends with job_fail. */
     void (*cancel)(void* context, uint64_t job);
+};
+
+/* A picture handed to a vision engine: the part of the phone's picture that the logic asked for. In gs-exthost.exe it comes through shared memory that the DLL can only read. */
+struct gs_ext_image {
+    /* sizeof(gs_ext_image) in GameScrcpy. */
+    uint32_t size;
+    /* The pixels, 4 bytes each in the order blue, green, red and alpha (always 255), rows from top to bottom. They belong to GameScrcpy, may only be read and stay valid until run returns. */
+    const uint8_t* pixels;
+    /* How many bytes one row takes, at least 4 * width. */
+    uint32_t stride;
+    /* The width in pixels, from 1 to 4096. */
+    uint32_t width;
+    /* The height in pixels, from 1 to 4096. */
+    uint32_t height;
+};
+
+/* A vision engine: recognizes text, things or what the picture shows for logic, which calls it with vision.recognize() or vision.engine(), next to GameScrcpy's own text recognition. A DLL offers at most 4. It needs no permission, since the logic that asks for it needs device.screen. supports("vision-engines") is 1 when GameScrcpy has them. */
+struct gs_ext_vision_engine {
+    /* sizeof(gs_ext_vision_engine) in the DLL. */
+    uint32_t size;
+    /* The name of the engine in the manifest's contributes.native.visionEngines. */
+    const char* name;
+    /* What it recognizes: the bits 1u << GS_EXT_VISION_OCR, 1u << GS_EXT_VISION_DETECT and 1u << GS_EXT_VISION_CLASSIFY, at least those the manifest's kinds name. */
+    uint32_t kinds;
+    /* Passed back to run. */
+    void* context;
+    /* Recognizes kind, one of gs_ext_vision_kind, in image, the part of the phone's picture the logic asked for. params is the UTF-8 JSON object of size bytes, not ended by a zero byte, that the logic passed ("{}" when it passed none). Put the result into out as a JSON array with set_text and return GS_EXT_OK: x and y are the middle of what was found and width and height its size, all as ratios of the image from 0 to 1, and confidence goes from 0 to 1; GameScrcpy turns them into ratios of the whole picture for the logic. Return GS_EXT_BAD_ARGUMENT for params it does not take, or call set_error and return GS_EXT_FAILED. GameScrcpy calls it on a thread of its own that never draws the interface, one call at a time for each engine, perhaps at the same time as nodes, jobs and other engines. When it takes longer than 5 seconds the logic gets an error, and the engine takes the next picture only after it returns. */
+    int32_t (*run)(void* context, uint32_t kind, const gs_ext_image* image, const char* params, size_t size, gs_ext_result* out);
 };
 
 /* The function a native extension DLL exports. GameScrcpy calls it once after loading the DLL: set *plugin to the DLL's own description and return GS_EXT_OK, or GS_EXT_UNSUPPORTED when host->abi_version is not one the DLL supports. The description, and everything it points to, has to stay valid until unload is called; GameScrcpy never writes to it. */

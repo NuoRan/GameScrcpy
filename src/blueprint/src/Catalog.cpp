@@ -485,6 +485,9 @@ private:
         } else if (member.label == "vision.find" || member.label == "vision.waitFor") {
             entry.title = d.say(member.label == "vision.find" ? "node:find" : "node:waitFor");
             entry.icon = "search";
+        } else if (member.label == "vision.recognize" || member.label == "vision.engines") {
+            entry.icon = "eye";
+            entry.keywords += " ocr detect classify engine";
         } else if (entry.group == "extensions") {
             entry.title = member.name;
             entry.groupTitle = extensionTitle(member.owner);

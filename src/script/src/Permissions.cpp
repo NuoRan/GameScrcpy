@@ -107,6 +107,7 @@ constexpr std::string_view kMappingEvents[] = {"control", "state", "enabled", "s
 constexpr Named kChannelServices[] = {
     {"ai.ask", {kAi, false}},
     {"media.frames", {kMediaRead, true}},
+    {"vision.recognize", {kScreen, true}},
 };
 
 }

@@ -47,6 +47,7 @@ struct HostedOptions {
     std::function<void(const std::string& source, const std::string& slot, double x, double y, std::uint64_t at)> input;
     std::function<void(const std::string& transport)> transportChanged;
     std::function<void(const std::string& source)> sourcesChanged;
+    std::chrono::milliseconds visionLimit = kVisionLimit;
 };
 
 class HostedModule final : public Module
@@ -100,6 +101,8 @@ public:
     [[nodiscard]] std::uint64_t openTap(std::size_t tap, const TapOpen& info, TapEvents events) override;
     [[nodiscard]] bool offerFrame(std::uint64_t tap, const TapFrame& frame) override;
     void closeTap(std::uint64_t tap) override;
+    [[nodiscard]] CallResult recognize(std::size_t engine, VisionKind kind, const VisionImage& image,
+                                       std::string_view params) override;
 
     [[nodiscard]] int crashes() const;
     [[nodiscard]] bool waitReady(std::chrono::milliseconds limit) const;

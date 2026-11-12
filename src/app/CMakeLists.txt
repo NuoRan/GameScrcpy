@@ -437,6 +437,8 @@ qt_add_qml_module(GameScrcpy
         UhidMouse.h
         UsbPhones.cpp
         UsbPhones.h
+        VisionEngines.cpp
+        VisionEngines.h
         VisionSearch.cpp
         VisionSearch.h
         VisionWorkbench.cpp

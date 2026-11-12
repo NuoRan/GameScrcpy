@@ -212,6 +212,7 @@ gs_add_unit_test(gs_script_tests
         unit/script/TestRunTests.cpp
         unit/script/TextSearchTests.cpp
         unit/script/UiPanelTests.cpp
+        unit/script/VisionEngineTests.cpp
         unit/script/WorldModelTests.cpp
     LIBRARIES
         gs::script
@@ -506,6 +507,7 @@ if(GS_BUILD_APP)
             unit/app/TrayNoticesTests.cpp
             unit/app/UhidTouchSinkTests.cpp
             unit/app/UsbPhonesTests.cpp
+            unit/app/VisionEnginesTests.cpp
             unit/app/VisionWorkbenchTests.cpp
             unit/app/WindowFitTests.cpp
             unit/app/ExtensionExportTests.cpp
@@ -764,6 +766,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/UhidTouchSink.h"
             "${PROJECT_SOURCE_DIR}/src/app/UsbPhones.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/UsbPhones.h"
+            "${PROJECT_SOURCE_DIR}/src/app/VisionEngines.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/VisionEngines.h"
             "${PROJECT_SOURCE_DIR}/src/app/VisionSearch.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/VisionSearch.h"
             "${PROJECT_SOURCE_DIR}/src/app/VisionWorkbench.cpp"

@@ -895,6 +895,54 @@ TEST_CASE("ADR-0112: an AI provider names a chat job taking one json request and
     CHECK(provider["required"] == Json::array({"name", "title", "models", "chat"}));
 }
 
+TEST_CASE("ADR-0112: vision engines load with their kinds and languages, survive a save and a load, and name known "
+          "kinds once each")
+{
+    Json json = nativeBase();
+    json["contributes"]["native"]["visionEngines"] =
+        Json::array({{{"name", "reader"},
+                      {"title", "Fast reader"},
+                      {"kinds", {"ocr", "classify"}},
+                      {"languages", {"en-US", "zh-Hans"}}},
+                     {{"name", "finder"}, {"title", "Boss finder"}, {"kinds", {"detect"}}}});
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    REQUIRE(loaded.manifest.contributes.native.has_value());
+    const std::vector<NativeVisionEngine>& engines = loaded.manifest.contributes.native->visionEngines;
+    REQUIRE(engines.size() == 2);
+    CHECK(engines[0] == NativeVisionEngine{.name = "reader",
+                                           .title = "Fast reader",
+                                           .kinds = {"ocr", "classify"},
+                                           .languages = {"en-US", "zh-Hans"}});
+    CHECK(engines[1].kinds == std::vector<std::string>{"detect"});
+    CHECK(engines[1].languages.empty());
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+
+    json["contributes"]["native"]["visionEngines"] =
+        Json::array({{{"name", "reader"}, {"title", "Again"}, {"kinds", {"ocr", "faces", "ocr"}}},
+                     {{"name", "reader"}, {"title", "Twice"}, {"kinds", Json::array()}},
+                     {{"name", "blind"}, {"title", "Blind"}, {"kinds", {"classify"}}, {"languages", {"x", "zh_CN!"}}},
+                     {{"name", "fourth"}, {"title", "Fourth"}, {"kinds", {"detect"}}},
+                     {{"name", "fifth"}, {"title", "Fifth"}, {"kinds", {"detect"}}}});
+    loaded = load(json);
+    INFO(listed(loaded));
+    CHECK_FALSE(loaded.usable);
+    CHECK_FALSE(reports(loaded, Code::VisionEngineInvalid, "$.contributes.native.visionEngines[0].kinds[0]"));
+    CHECK(reports(loaded, Code::VisionEngineInvalid, "$.contributes.native.visionEngines[0].kinds[1]"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.native.visionEngines[0].kinds[2]"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.native.visionEngines[1].name"));
+    CHECK(reports(loaded, Code::VisionEngineInvalid, "$.contributes.native.visionEngines[1].kinds"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.visionEngines[2].languages[0]"));
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.visionEngines[2].languages[1]"));
+    CHECK(reports(loaded, Code::TooMany, "$.contributes.native.visionEngines"));
+    CHECK(codeName(Code::VisionEngineInvalid) == "vision-engine-invalid");
+    CHECK_FALSE(fixHint(Code::VisionEngineInvalid).empty());
+}
+
 TEST_CASE("ADR-0112: native input sources load with their slots, survive a save and a load, and need names that "
           "bindings can use, kinds that exist, at least one slot and the permission input.provide")
 {

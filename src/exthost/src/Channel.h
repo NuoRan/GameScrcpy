@@ -79,6 +79,7 @@ enum class Kind : std::uint32_t {
     TapClose,
     TapOverlay,
     TapFailed,
+    VisionRun,
 };
 
 struct Message {

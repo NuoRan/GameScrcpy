@@ -3,6 +3,7 @@
 #include "Channel.h"
 #include "MediaRing.h"
 #include "TapSection.h"
+#include "ImageSection.h"
 #include "Wire.h"
 
 #include "gs/exthost/InProcess.h"
@@ -501,6 +502,124 @@ private:
     bool m_stopping = false;
     std::jthread m_thread;
 };
+
+struct Look {
+    std::uint64_t id = 0;
+    VisionKind kind = VisionKind::Ocr;
+    std::uint32_t width = 0;
+    std::uint32_t height = 0;
+    std::shared_ptr<detail::ImageSection> fresh;
+    std::string params;
+};
+
+void replyTo(Link& link, std::uint64_t id, const CallResult& result)
+{
+    detail::WireWriter out;
+    out.u32(static_cast<std::uint32_t>(result.status));
+    out.value(result.value);
+    out.text(result.problem);
+    link.send(detail::Kind::Answer, id, out.bytes());
+}
+
+class Sight
+{
+public:
+    Sight(Module& module, Link& link, std::size_t engine)
+        : m_module(module)
+        , m_link(link)
+        , m_engine(engine)
+        , m_thread([this] { run(); })
+    {
+    }
+
+    ~Sight()
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_stopping = true;
+        }
+        m_wake.notify_all();
+    }
+
+    Sight(const Sight&) = delete;
+    Sight& operator=(const Sight&) = delete;
+
+    void push(Look look)
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_queue.push_back(std::move(look));
+        }
+        m_wake.notify_one();
+    }
+
+private:
+    void run()
+    {
+        t_hostThread = true;
+        for (;;) {
+            Look look;
+            {
+                std::unique_lock lock(m_mutex);
+                m_wake.wait(lock, [this] { return m_stopping || !m_queue.empty(); });
+                if (m_stopping) {
+                    return;
+                }
+                look = std::move(m_queue.front());
+                m_queue.pop_front();
+            }
+            replyTo(m_link, look.id, seen(look));
+        }
+    }
+
+    CallResult seen(const Look& look)
+    {
+        if (look.fresh != nullptr) {
+            m_section = look.fresh;
+        }
+        const std::uint64_t needed = std::uint64_t{4} * look.width * look.height;
+        if (m_section == nullptr || m_section->bytes() < needed) {
+            return {CallStatus::Failed, {}, "the picture did not arrive"};
+        }
+        const VisionImage image{.pixels = std::shared_ptr<const std::uint8_t>(m_section, m_section->data()),
+                                .width = look.width,
+                                .height = look.height,
+                                .stride = 4 * look.width};
+        return m_module.recognize(m_engine, look.kind, image, look.params);
+    }
+
+    Module& m_module;
+    Link& m_link;
+    std::size_t m_engine = 0;
+    std::shared_ptr<detail::ImageSection> m_section;
+    std::mutex m_mutex;
+    std::condition_variable m_wake;
+    std::deque<Look> m_queue;
+    bool m_stopping = false;
+    std::jthread m_thread;
+};
+
+void sighted(std::vector<std::unique_ptr<Sight>>& sights, Link& link, const detail::Message& message)
+{
+    detail::WireReader in(message.payload);
+    std::uint32_t engine = 0;
+    std::uint32_t kind = 0;
+    std::uint64_t handle = 0;
+    std::uint64_t bytes = 0;
+    Look look{.id = message.id};
+    const bool good = in.u32(engine) && in.u32(kind) && in.u32(look.width) && in.u32(look.height) && in.u64(handle) &&
+                      in.u64(bytes) && in.text(look.params, kMostVisionParamBytes) && in.done();
+    if (handle != 0) {
+        look.fresh = detail::ImageSection::open(reinterpret_cast<HANDLE>(static_cast<std::uintptr_t>(handle)), bytes);
+    }
+    if (!good || engine >= sights.size() || kind > static_cast<std::uint32_t>(VisionKind::Classify) ||
+        (handle != 0 && look.fresh == nullptr)) {
+        replyTo(link, message.id, {CallStatus::BadArgument, {}, "the picture was damaged"});
+        return;
+    }
+    look.kind = static_cast<VisionKind>(kind);
+    sights[engine]->push(std::move(look));
+}
 
 class Jobs
 {
@@ -1391,6 +1510,10 @@ int serve(int argc, wchar_t** argv)
         Streams streams(*module, link);
         MediaStreams media(*module, link);
         Taps taps(*module, link);
+        std::vector<std::unique_ptr<Sight>> sights;
+        for (std::size_t engine = 0; engine < module->info().visionEngines.size(); ++engine) {
+            sights.push_back(std::make_unique<Sight>(*module, link, engine));
+        }
         std::map<std::uint64_t, std::uint64_t> sessions;
         std::map<std::uint64_t, std::uint64_t> instances;
         bool running = true;
@@ -1434,6 +1557,8 @@ int serve(int argc, wchar_t** argv)
                 streams.push(std::move(message));
             } else if (message.kind == detail::Kind::SourceList) {
                 worker.push(std::move(message));
+            } else if (message.kind == detail::Kind::VisionRun) {
+                sighted(sights, link, message);
             } else if (message.kind == detail::Kind::Stop) {
                 running = false;
             } else if (message.kind == detail::Kind::Settings) {

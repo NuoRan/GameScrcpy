@@ -215,6 +215,8 @@ std::string_view codeName(Code code) noexcept
         return "converter-invalid";
     case Code::AiProviderInvalid:
         return "ai-provider-invalid";
+    case Code::VisionEngineInvalid:
+        return "vision-engine-invalid";
     }
     return "unknown";
 }
@@ -485,6 +487,9 @@ std::string_view fixHint(Code code) noexcept
     case Code::AiProviderInvalid:
         return "An AI provider names a chat job of the extension that takes one parameter, request (json), and "
                "returns json, and a models node without parameters that returns json.";
+    case Code::VisionEngineInvalid:
+        return "A vision engine names what it recognizes in kinds: one or more of \"ocr\", \"detect\" and "
+               "\"classify\", each once; its DLL offers a gs_ext_vision_engine of the same name that recognizes them.";
     }
     return "";
 }

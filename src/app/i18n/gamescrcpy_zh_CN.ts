@@ -2958,6 +2958,38 @@
         <translation>查找文字</translation>
     </message>
     <message>
+        <source>Recognize with Engine</source>
+        <translation>用引擎识别</translation>
+    </message>
+    <message>
+        <source>Get Recognition Engines</source>
+        <translation>获取识别引擎列表</translation>
+    </message>
+    <message>
+        <source>Get Recognition Engine</source>
+        <translation>获取识别引擎</translation>
+    </message>
+    <message>
+        <source>Engine</source>
+        <translation>引擎</translation>
+    </message>
+    <message>
+        <source>Recognize</source>
+        <translation>识别类型</translation>
+    </message>
+    <message>
+        <source>Engine Options</source>
+        <translation>引擎选项</translation>
+    </message>
+    <message>
+        <source>Things</source>
+        <translation>物体</translation>
+    </message>
+    <message>
+        <source>What it shows</source>
+        <translation>画面内容</translation>
+    </message>
+    <message>
         <source>Get Saved Point</source>
         <translation>获取点位素材</translation>
     </message>
@@ -6549,6 +6581,10 @@
     <message>
         <source>AI model services: %1</source>
         <translation>AI 模型服务：%1</translation>
+    </message>
+    <message>
+        <source>Recognition engines: %1</source>
+        <translation>识别引擎：%1</translation>
     </message>
     <message>
         <source>Its DLL runs in a process of its own; when that stops three times within a minute, the extension is turned off.</source>
@@ -14438,6 +14474,26 @@
         <translation>不再听；没有别的在听时放开麦克风。</translation>
     </message>
     <message>
+        <source>A recognition engine from vision.engine().</source>
+        <translation>由 vision.engine() 得到的识别引擎。</translation>
+    </message>
+    <message>
+        <source>The id of the engine.</source>
+        <translation>引擎的 id。</translation>
+    </message>
+    <message>
+        <source>Reads text, as vision.recognize(id, &quot;ocr&quot;, region, params) does.</source>
+        <translation>读出文字，与 vision.recognize(id, &quot;ocr&quot;, region, params) 相同。</translation>
+    </message>
+    <message>
+        <source>Finds things, as vision.recognize(id, &quot;detect&quot;, region, params) does.</source>
+        <translation>查找物体，与 vision.recognize(id, &quot;detect&quot;, region, params) 相同。</translation>
+    </message>
+    <message>
+        <source>Tells what the picture shows, as vision.recognize(id, &quot;classify&quot;, region, params) does.</source>
+        <translation>判断画面里是什么，与 vision.recognize(id, &quot;classify&quot;, region, params) 相同。</translation>
+    </message>
+    <message>
         <source>The settings of a running task, as chosen on the Tasks page; the task declares them in static params.</source>
         <translation>正在运行的任务的设置，按任务页里填的；任务在 static params 里声明它们。</translation>
     </message>
@@ -14870,6 +14926,34 @@
         <translation>转换器返回的内容：新文件，可以是字节、按 UTF-8 写出的文字，或写成 JSON 文本的 JSON 值；导入时还有文件名，用来给新方案命名。转换器也可以直接返回文字、字节或 JSON 值本身，例如方案的对象；对象带有 bytes、text 或 json 时才算 ConvertOutput。GameScrcpy 像检查任何导入的文件一样检查导入的内容。</translation>
     </message>
     <message>
+        <source>What a recognition engine recognizes: text, things, or what the picture shows.</source>
+        <translation>识别引擎识别的内容：文字、物体，或画面里是什么。</translation>
+    </message>
+    <message>
+        <source>What a recognition engine takes besides the picture. &quot;system&quot; takes language, a tag such as &quot;en&quot; or &quot;zh-Hans&quot; (the languages of the user&apos;s profile by default), and words, true for each word instead of each line.</source>
+        <translation>识别引擎除画面外接受的参数。&quot;system&quot; 接受 language（语言标签，例如 &quot;en&quot; 或 &quot;zh-Hans&quot;，默认用用户账户的语言）和 words（为 true 时按词而不是按行给出）。</translation>
+    </message>
+    <message>
+        <source>A recognition engine: &quot;system&quot; is Windows, the others are &quot;extension id/name&quot;. kinds tells what it recognizes and languages the languages it reads, when it says.</source>
+        <translation>一个识别引擎：&quot;system&quot; 是 Windows 自带的，其余写作 &quot;&lt;扩展 id&gt;/&lt;名字&gt;&quot;。kinds 说明它识别什么，languages 是它能读的语言（引擎说明了的话）。</translation>
+    </message>
+    <message>
+        <source>Text an engine read: x and y are its middle and width and height its size, as ratios of the picture; confidence goes from 0 to 1.</source>
+        <translation>引擎读出的文字：x 和 y 是它的中心，width 和 height 是它的大小，都用画面的比例表示；confidence 从 0 到 1。</translation>
+    </message>
+    <message>
+        <source>A thing an engine found: what it is, where it is as for VisionText, and how sure the engine is, from 0 to 1.</source>
+        <translation>引擎找到的物体：它是什么、在哪里（同 VisionText），以及引擎有多确定（从 0 到 1）。</translation>
+    </message>
+    <message>
+        <source>What an engine says the picture shows, and how sure it is, from 0 to 1.</source>
+        <translation>引擎认为画面里是什么，以及它有多确定（从 0 到 1）。</translation>
+    </message>
+    <message>
+        <source>One thing recognize() found: a VisionText for &quot;ocr&quot;, a VisionObject for &quot;detect&quot; and a VisionClass for &quot;classify&quot;.</source>
+        <translation>recognize() 找到的一项：&quot;ocr&quot; 时是 VisionText，&quot;detect&quot; 时是 VisionObject，&quot;classify&quot; 时是 VisionClass。</translation>
+    </message>
+    <message>
         <source>Runs a handler again and again, waiting intervalMs before each run.</source>
         <translation>反复执行处理函数，每次之前等 intervalMs。</translation>
     </message>
@@ -15020,6 +15104,98 @@
     <message>
         <source>What to run the first time.</source>
         <translation>第一次要执行的内容。</translation>
+    </message>
+    <message>
+        <source>The recognition engines: &quot;system&quot;, the text recognition that comes with Windows, and those that extensions provide, with what each recognizes.</source>
+        <translation>识别引擎列表：&quot;system&quot;（Windows 自带的文字识别）以及扩展提供的引擎，并写明各自识别什么。</translation>
+    </message>
+    <message>
+        <source>Recognizes text (&quot;ocr&quot;), things (&quot;detect&quot;) or what the picture shows (&quot;classify&quot;) with an engine, in the next frame or in the picture already shown when no new frame comes within 0.25 s, and resolves with what it found, in the order the engine gives: x and y are the middle and width and height the size, as ratios of the whole picture, and confidence goes from 0 to 1. Resolves with null when there is no picture within 2 seconds. An engine works on one picture at a time and stops waiting for an extension&apos;s engine after 5 seconds. The logic of an extension needs the permission device.screen.</source>
+        <translation>用引擎识别文字（&quot;ocr&quot;）、物体（&quot;detect&quot;）或画面里是什么（&quot;classify&quot;），对象是下一帧，0.25 秒内没有新帧时用已显示的画面；结果按引擎给出的顺序：x 和 y 是中心，width 和 height 是大小，都用整个画面的比例表示，confidence 从 0 到 1。2 秒内没有画面时结果为 null。一个引擎一次只处理一张画面，扩展的引擎超过 5 秒就不再等待。扩展的逻辑需要权限 device.screen。</translation>
+    </message>
+    <message>
+        <source>The id of an engine from vision.engines(): &quot;system&quot; for the text recognition that comes with Windows, or &quot;&lt;extension id&gt;/&lt;name&gt;&quot; for one an extension provides.</source>
+        <translation>vision.engines() 里某个引擎的 id：&quot;system&quot; 表示 Windows 自带的文字识别，&quot;&lt;扩展 id&gt;/&lt;名字&gt;&quot; 表示扩展提供的引擎。</translation>
+    </message>
+    <message>
+        <source>What to recognize: &quot;ocr&quot; for text, &quot;detect&quot; for things, &quot;classify&quot; for what the picture shows.</source>
+        <translation>识别什么：&quot;ocr&quot; 是文字，&quot;detect&quot; 是物体，&quot;classify&quot; 是画面里是什么。</translation>
+    </message>
+    <message>
+        <source>The part of the picture to look at; the whole picture by default.</source>
+        <translation>要看的画面部分；默认整个画面。</translation>
+    </message>
+    <message>
+        <source>What the engine takes besides the picture, such as { language: &quot;en&quot; } for &quot;system&quot;.</source>
+        <translation>引擎除画面外接受的参数，例如对 &quot;system&quot; 用 { language: &quot;en&quot; }。</translation>
+    </message>
+    <message>
+        <source>Pick an engine from vision.engines(), or turn its extension on.</source>
+        <translation>从 vision.engines() 里选一个引擎，或开启提供它的扩展。</translation>
+    </message>
+    <message>
+        <source>there is no engine with this id, or the extension that provides it is off or did not load</source>
+        <translation>没有这个 id 的引擎，或提供它的扩展已关闭、没有加载成功</translation>
+    </message>
+    <message>
+        <source>Pick an engine whose kinds include it, or a language it knows.</source>
+        <translation>选一个 kinds 里有它的引擎，或选它认得的语言。</translation>
+    </message>
+    <message>
+        <source>the engine does not recognize this kind, or does not know the language asked for</source>
+        <translation>引擎不识别这一类，或不认得要求的语言</translation>
+    </message>
+    <message>
+        <source>Pass the id, one of the three kinds and a plain object the engine takes.</source>
+        <translation>传入 id、三种类型之一，以及引擎接受的普通对象。</translation>
+    </message>
+    <message>
+        <source>the engine is not an id, kind is not &quot;ocr&quot;, &quot;detect&quot; or &quot;classify&quot;, params is not an object of at most 64 KiB as JSON, or the engine does not take these params</source>
+        <translation>engine 不是 id，kind 不是 &quot;ocr&quot;、&quot;detect&quot; 或 &quot;classify&quot;，params 不是写成 JSON 至多 64 KiB 的对象，或引擎不接受这些参数</translation>
+    </message>
+    <message>
+        <source>Try again, or check the engine&apos;s extension.</source>
+        <translation>再试一次，或检查提供引擎的扩展。</translation>
+    </message>
+    <message>
+        <source>the engine failed or gave a result that is not a valid list; the message says why</source>
+        <translation>引擎出错，或给出的结果不是有效的列表；消息里写明原因</translation>
+    </message>
+    <message>
+        <source>Pass a smaller region, or ask less often.</source>
+        <translation>传入更小的区域，或降低请求频率。</translation>
+    </message>
+    <message>
+        <source>the engine took longer than 5 seconds, is still working on an earlier picture, or has 16 pictures waiting already</source>
+        <translation>引擎用了超过 5 秒、还在处理上一张画面，或已有 16 张画面在等待</translation>
+    </message>
+    <message>
+        <source>Add &quot;device.screen&quot; to the permissions in the extension&apos;s manifest, with a reason.</source>
+        <translation>在扩展清单的 permissions 里加上 &quot;device.screen&quot; 并写明理由。</translation>
+    </message>
+    <message>
+        <source>the logic belongs to an extension whose manifest does not ask for the permission device.screen</source>
+        <translation>这份逻辑所属的扩展在清单里没有申请权限 device.screen</translation>
+    </message>
+    <message>
+        <source>Recognize from a session script.</source>
+        <translation>改在每台手机一份的脚本里识别。</translation>
+    </message>
+    <message>
+        <source>An engine by its id, with read(), detect() and classify() as short ways to call recognize(); the id is checked only when it is used.</source>
+        <translation>按 id 取得的引擎，read()、detect() 和 classify() 是调用 recognize() 的简便写法；id 要到使用时才检查。</translation>
+    </message>
+    <message>
+        <source>The id of an engine from vision.engines().</source>
+        <translation>vision.engines() 里某个引擎的 id。</translation>
+    </message>
+    <message>
+        <source>Pass the id of an engine from vision.engines().</source>
+        <translation>传入 vision.engines() 里某个引擎的 id。</translation>
+    </message>
+    <message>
+        <source>the id is not a string of 1 to 160 characters</source>
+        <translation>id 不是 1～160 个字符的字符串</translation>
     </message>
     <message>
         <source>the topic is not 1 to 64 lowercase letters, digits, dots and dashes, after an extension id and a colon or alone</source>

@@ -173,6 +173,8 @@ public:
     void tell(const QString& kind, const QString& id, const QString& json);
     [[nodiscard]] std::uint64_t keepFrame(const QImage& picture, script::PictureSize source, quint64 frames);
     void forgetFrames(quint64 frames);
+    [[nodiscard]] bool grab(quint64 request, bool color, LogicServices::FrameTaken taken);
+    void ungrab(quint64 request);
     void allowInput();
     [[nodiscard]] const LogicCaller& caller() const noexcept { return m_caller; }
     [[nodiscard]] bool task() const noexcept { return m_source.task; }

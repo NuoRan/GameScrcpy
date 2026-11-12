@@ -172,4 +172,17 @@ void LogicServices::forgetFrames(std::uint64_t logic, quint64 frames) const
     }
 }
 
+bool LogicServices::grab(std::uint64_t logic, quint64 id, bool color, FrameTaken taken) const
+{
+    ScriptRuntime* runtime = runtimeOf(logic);
+    return runtime != nullptr && runtime->grab(id, color, std::move(taken));
+}
+
+void LogicServices::ungrab(std::uint64_t logic, quint64 id) const
+{
+    if (ScriptRuntime* runtime = runtimeOf(logic)) {
+        runtime->ungrab(id);
+    }
+}
+
 }

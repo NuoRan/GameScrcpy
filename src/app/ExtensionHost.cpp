@@ -1354,6 +1354,11 @@ QVariantList ExtensionHost::entries() const
                     aiProviders.append(
                         extensionText(manifest, "aiProviders." + provider.name + ".title", provider.title, language));
                 }
+                QStringList visionEngines;
+                for (const ext::NativeVisionEngine& engine : manifest.contributes.native->visionEngines) {
+                    visionEngines.append(
+                        extensionText(manifest, "visionEngines." + engine.name + ".title", engine.title, language));
+                }
                 row.insert(QStringLiteral("native"),
                            QVariantMap{{QStringLiteral("touchMethods"), methods},
                                        {QStringLiteral("nodes"), nodes},
@@ -1364,6 +1369,7 @@ QVariantList ExtensionHost::entries() const
                                        {QStringLiteral("transports"), transports},
                                        {QStringLiteral("frameTaps"), taps},
                                        {QStringLiteral("aiProviders"), aiProviders},
+                                       {QStringLiteral("visionEngines"), visionEngines},
                                        {QStringLiteral("ownProcess"),
                                         !(extension->builtin && manifest.id.starts_with(ext::kReservedIdPrefix))},
                                        {QStringLiteral("architectures"), architectures}});

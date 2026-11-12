@@ -8,7 +8,7 @@ namespace gs::script::detail {
 
 inline constexpr std::string_view kPreludeName = "<gs>";
 
-inline constexpr std::array<std::string_view, 18> kPreludeParts{
+inline constexpr std::array<std::string_view, 19> kPreludeParts{
     R"js(((host) => {
     "use strict";
     const defineProperty = Object.defineProperty;
@@ -3484,6 +3484,90 @@ inline constexpr std::array<std::string_view, 18> kPreludeParts{
     };
     const convertLibrary = {};
 )js",
+    R"js(    const visionKinds = ["ocr", "detect", "classify"];
+    const visionId = (engine) => {
+        if (typeof engine !== "string" || engine === "" || engine.length > 160) {
+            throw new TypeError("GS-API-172 the engine is the id of one from vision.engines(), such as \"system\"");
+        }
+        return engine;
+    };
+    const visionRegion = (region) => {
+        if (region === undefined || region === null) {
+            return undefined;
+        }
+        if (typeof region === "string") {
+            const named = globalThis.res.region(region);
+            return { x: named.x, y: named.y, width: named.width, height: named.height };
+        }
+        if (typeof region !== "object") {
+            throw new TypeError("GS-API-002 the region must be an object inside the picture or the name of a region");
+        }
+        const area = { x: ratioOf(region.x, "x"), y: ratioOf(region.y, "y"), width: ratioOf(region.width, "width"),
+            height: ratioOf(region.height, "height") };
+        if (area.x + area.width > 1 + 1e-9 || area.y + area.height > 1 + 1e-9) {
+            throw new RangeError("GS-API-002 the region must be an object inside the picture");
+        }
+        return area;
+    };
+    const visionAsk = (engine, kind, region, params) => {
+        const id = visionId(engine);
+        if (!visionKinds.includes(kind)) {
+            throw new TypeError("GS-API-172 kind must be \"ocr\", \"detect\" or \"classify\"");
+        }
+        const area = visionRegion(region);
+        if (params !== undefined && params !== null && (typeof params !== "object" || Array.isArray(params))) {
+            throw new TypeError("GS-API-172 params must be an object");
+        }
+        let given;
+        try {
+            given = JSON.stringify(params ?? {});
+        } catch (error) {
+            throw new TypeError("GS-API-172 params must be JSON values: " + (error?.message ?? String(error)));
+        }
+        if (given.length > 65536) {
+            throw new RangeError("GS-API-172 params must be at most 64 KiB as JSON");
+        }
+        const ask = area === undefined ? { engine: id, kind, params: JSON.parse(given) }
+            : { engine: id, kind, region: area, params: JSON.parse(given) };
+        return host.request("vision.recognize", JSON.stringify(ask)).then((found) =>
+            (Array.isArray(found) ? freeze(found.map((item) => freeze({ ...item }))) : null));
+    };
+    class VisionEngine {
+        #id;
+        constructor(token, id) {
+            if (token !== world) {
+                throw new TypeError("Illegal constructor");
+            }
+            this.#id = id;
+        }
+        get id() {
+            return this.#id;
+        }
+        read(region, params) {
+            return visionAsk(this.#id, "ocr", region, params);
+        }
+        detect(region, params) {
+            return visionAsk(this.#id, "detect", region, params);
+        }
+        classify(region, params) {
+            return visionAsk(this.#id, "classify", region, params);
+        }
+    }
+    defineProperty(VisionEngine.prototype, Symbol.toStringTag, { value: "VisionEngine" });
+    freeze(VisionEngine.prototype);
+    const visionLibrary = {
+        "vision.engines": function engines() {
+            return freeze(host.call("vision.engines", "{}").map((engine) => freeze({ ...engine,
+                kinds: freeze([...(engine.kinds ?? [])]), languages: freeze([...(engine.languages ?? [])]) })));
+        },
+        "vision.recognize": function recognize(engine, kind, region, params) {
+            return visionAsk(engine, kind, region, params);
+        },
+        "vision.engine": function engine(id) {
+            return freeze(new VisionEngine(world, visionId(id)));
+        },
+    };
+)js",
     R"js(    const library = {
         ...hardwareLibrary,
         ...netLibrary,
@@ -3491,6 +3575,7 @@ inline constexpr std::array<std::string_view, 18> kPreludeParts{
         ...servicesLibrary,
         ...mediaLibrary,
         ...convertLibrary,
+        ...visionLibrary,
         every(intervalMs, handler, options) {
             return timed(intervalOf(intervalMs), handler, options, "every(" + intervalMs + ")", true);
         },

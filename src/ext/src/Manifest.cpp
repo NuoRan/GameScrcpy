@@ -449,6 +449,11 @@ std::pair<std::string_view, std::string_view> identity(const NativeAiProvider& e
     return {"name", entry.name};
 }
 
+std::pair<std::string_view, std::string_view> identity(const NativeVisionEngine& entry)
+{
+    return {"name", entry.name};
+}
+
 std::pair<std::string_view, std::string_view> identity(const DeclaredParam& entry)
 {
     return {"key", entry.key};
@@ -646,6 +651,32 @@ void checkEntry(const NativeRecordingExporter& exporter, const std::string& path
 void checkEntry(const NativeFrameTap&, const std::string&, Context&) {}
 
 void checkEntry(const NativeAiProvider&, const std::string&, Context&) {}
+
+void checkEntry(const NativeVisionEngine& engine, const std::string& path, Context& context)
+{
+    if (engine.kinds.empty()) {
+        context.report(Severity::Error, Code::VisionEngineInvalid, path + ".kinds", engine.name);
+    }
+    for (std::size_t index = 0; index < engine.kinds.size(); ++index) {
+        const std::string& kind = engine.kinds[index];
+        const auto earlier = engine.kinds.begin() + static_cast<std::ptrdiff_t>(index);
+        if (std::ranges::find(kVisionKindNames, kind) == kVisionKindNames.end()) {
+            context.report(Severity::Error, Code::VisionEngineInvalid, indexed(path + ".kinds", index), kind);
+        } else if (std::find(engine.kinds.begin(), earlier, kind) != earlier) {
+            context.report(Severity::Error, Code::Duplicate, indexed(path + ".kinds", index), kind);
+        }
+    }
+    for (std::size_t index = 0; index < engine.languages.size(); ++index) {
+        const std::string& language = engine.languages[index];
+        const bool written = language.size() >= 2 && std::ranges::all_of(language, [](char c) {
+                                 return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+                                        c == '-';
+                             });
+        if (!written) {
+            context.report(Severity::Error, Code::OutOfRange, indexed(path + ".languages", index), language);
+        }
+    }
+}
 
 void checkEntry(const NativeContribution& native, const std::string& path, Context& context)
 {

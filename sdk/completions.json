@@ -1218,6 +1218,27 @@
     "insertText": "vision.findText(${1:text})"
   },
   {
+    "label": "vision.engines",
+    "kind": "function",
+    "detail": "vision.engines(): readonly VisionEngineInfo[]",
+    "documentation": "The recognition engines: \"system\", the text recognition that comes with Windows, and those that extensions provide, with what each recognizes.",
+    "insertText": "vision.engines()"
+  },
+  {
+    "label": "vision.recognize",
+    "kind": "function",
+    "detail": "vision.recognize(engine: string, kind: VisionKind, region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionResult[] | null>",
+    "documentation": "Recognizes text (\"ocr\"), things (\"detect\") or what the picture shows (\"classify\") with an engine, in the next frame or in the picture already shown when no new frame comes within 0.25 s, and resolves with what it found, in the order the engine gives: x and y are the middle and width and height the size, as ratios of the whole picture, and confidence goes from 0 to 1. Resolves with null when there is no picture within 2 seconds. An engine works on one picture at a time and stops waiting for an extension's engine after 5 seconds. The logic of an extension needs the permission device.screen.",
+    "insertText": "vision.recognize(${1:engine}, ${2:kind})"
+  },
+  {
+    "label": "vision.engine",
+    "kind": "function",
+    "detail": "vision.engine(id: string): VisionEngine",
+    "documentation": "An engine by its id, with read(), detect() and classify() as short ways to call recognize(); the id is checked only when it is used.",
+    "insertText": "vision.engine(${1:id})"
+  },
+  {
     "label": "res",
     "kind": "namespace",
     "detail": "res",
@@ -3696,6 +3717,34 @@
     "insertText": "close(${1})"
   },
   {
+    "label": "VisionEngine.id",
+    "kind": "property",
+    "detail": "readonly id: string",
+    "documentation": "The id of the engine.",
+    "insertText": "id"
+  },
+  {
+    "label": "VisionEngine.read",
+    "kind": "method",
+    "detail": "read(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionText[] | null>",
+    "documentation": "Reads text, as vision.recognize(id, \"ocr\", region, params) does.",
+    "insertText": "read(${1})"
+  },
+  {
+    "label": "VisionEngine.detect",
+    "kind": "method",
+    "detail": "detect(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionObject[] | null>",
+    "documentation": "Finds things, as vision.recognize(id, \"detect\", region, params) does.",
+    "insertText": "detect(${1})"
+  },
+  {
+    "label": "VisionEngine.classify",
+    "kind": "method",
+    "detail": "classify(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionClass[] | null>",
+    "documentation": "Tells what the picture shows, as vision.recognize(id, \"classify\", region, params) does.",
+    "insertText": "classify(${1})"
+  },
+  {
     "label": "AbortSignal",
     "kind": "type",
     "detail": "type AbortSignal",
@@ -4688,5 +4737,54 @@
     "detail": "type ConvertOutput",
     "documentation": "What a converter returns: the new file as bytes, as a text written as UTF-8 or as a JSON value written as JSON text, and for an import the name of the file, which names the new profile. A converter may also return the text, the bytes or the JSON value itself, such as the object of a profile; an object counts as a ConvertOutput when it has bytes, text or json. GameScrcpy checks what it imports as it checks any file it imports.",
     "insertText": "ConvertOutput"
+  },
+  {
+    "label": "VisionKind",
+    "kind": "type",
+    "detail": "type VisionKind",
+    "documentation": "What a recognition engine recognizes: text, things, or what the picture shows.",
+    "insertText": "VisionKind"
+  },
+  {
+    "label": "VisionParams",
+    "kind": "type",
+    "detail": "type VisionParams",
+    "documentation": "What a recognition engine takes besides the picture. \"system\" takes language, a tag such as \"en\" or \"zh-Hans\" (the languages of the user's profile by default), and words, true for each word instead of each line.",
+    "insertText": "VisionParams"
+  },
+  {
+    "label": "VisionEngineInfo",
+    "kind": "type",
+    "detail": "type VisionEngineInfo",
+    "documentation": "A recognition engine: \"system\" is Windows, the others are \"extension id/name\". kinds tells what it recognizes and languages the languages it reads, when it says.",
+    "insertText": "VisionEngineInfo"
+  },
+  {
+    "label": "VisionText",
+    "kind": "type",
+    "detail": "type VisionText",
+    "documentation": "Text an engine read: x and y are its middle and width and height its size, as ratios of the picture; confidence goes from 0 to 1.",
+    "insertText": "VisionText"
+  },
+  {
+    "label": "VisionObject",
+    "kind": "type",
+    "detail": "type VisionObject",
+    "documentation": "A thing an engine found: what it is, where it is as for VisionText, and how sure the engine is, from 0 to 1.",
+    "insertText": "VisionObject"
+  },
+  {
+    "label": "VisionClass",
+    "kind": "type",
+    "detail": "type VisionClass",
+    "documentation": "What an engine says the picture shows, and how sure it is, from 0 to 1.",
+    "insertText": "VisionClass"
+  },
+  {
+    "label": "VisionResult",
+    "kind": "type",
+    "detail": "type VisionResult",
+    "documentation": "One thing recognize() found: a VisionText for \"ocr\", a VisionObject for \"detect\" and a VisionClass for \"classify\".",
+    "insertText": "VisionResult"
   }
 ]

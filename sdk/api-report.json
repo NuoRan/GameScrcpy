@@ -1645,6 +1645,42 @@
             "GS-API-039",
             "GS-API-001"
           ]
+        },
+        {
+          "name": "engines",
+          "signature": "vision.engines(): readonly VisionEngineInfo[]",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": []
+        },
+        {
+          "name": "recognize",
+          "signature": "vision.recognize(engine: string, kind: VisionKind, region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionResult[] | null>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-170",
+            "GS-API-171",
+            "GS-API-172",
+            "GS-API-173",
+            "GS-API-174",
+            "GS-API-002",
+            "GS-API-018",
+            "GS-API-072",
+            "GS-API-073"
+          ]
+        },
+        {
+          "name": "engine",
+          "signature": "vision.engine(id: string): VisionEngine",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-172"
+          ]
         }
       ]
     },
@@ -2996,6 +3032,15 @@
         "readonly isOpen: boolean",
         "close(): void"
       ]
+    },
+    {
+      "name": "VisionEngine",
+      "members": [
+        "readonly id: string",
+        "read(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionText[] | null>",
+        "detect(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionObject[] | null>",
+        "classify(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionClass[] | null>"
+      ]
     }
   ],
   "types": [
@@ -3566,6 +3611,34 @@
     {
       "name": "ConvertOutput",
       "definition": "{ readonly name?: string; readonly bytes?: Uint8Array | ArrayBuffer | readonly number[]; readonly text?: string; readonly json?: unknown }"
+    },
+    {
+      "name": "VisionKind",
+      "definition": "\"ocr\" | \"detect\" | \"classify\""
+    },
+    {
+      "name": "VisionParams",
+      "definition": "Readonly<Record<string, StoreValue>>"
+    },
+    {
+      "name": "VisionEngineInfo",
+      "definition": "{ readonly id: string; readonly title: string; readonly kinds: readonly VisionKind[]; readonly languages: readonly string[] }"
+    },
+    {
+      "name": "VisionText",
+      "definition": "{ readonly text: string; readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly confidence: number }"
+    },
+    {
+      "name": "VisionObject",
+      "definition": "{ readonly label: string; readonly x: number; readonly y: number; readonly width: number; readonly height: number; readonly confidence: number }"
+    },
+    {
+      "name": "VisionClass",
+      "definition": "{ readonly label: string; readonly confidence: number }"
+    },
+    {
+      "name": "VisionResult",
+      "definition": "VisionText | VisionObject | VisionClass"
     }
   ]
 }

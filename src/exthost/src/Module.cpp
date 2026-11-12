@@ -56,6 +56,27 @@ bool reservedTopic(std::string_view topic) noexcept
     });
 }
 
+std::optional<VisionKind> visionKindNamed(std::string_view name) noexcept
+{
+    const auto found = std::ranges::find(kVisionKindNames, name);
+    if (found == kVisionKindNames.end()) {
+        return std::nullopt;
+    }
+    return static_cast<VisionKind>(found - kVisionKindNames.begin());
+}
+
+std::string_view visionKindName(VisionKind kind) noexcept
+{
+    const auto index = static_cast<std::size_t>(kind);
+    return index < kVisionKindNames.size() ? kVisionKindNames[index] : std::string_view();
+}
+
+bool validImage(const VisionImage& image) noexcept
+{
+    return image.pixels != nullptr && image.width >= 1 && image.height >= 1 && image.width <= kMostImageSide &&
+           image.height <= kMostImageSide && image.stride / 4 >= image.width;
+}
+
 bool validResource(std::string_view resource) noexcept
 {
     constexpr std::array<std::string_view, 4> kKinds{"serial:", "ble:", "hid:", "usb:"};

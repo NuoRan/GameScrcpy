@@ -65,6 +65,9 @@ static_assert(static_cast<int>(ShapeKind::Rect) == GS_EXT_SHAPE_RECT);
 static_assert(static_cast<int>(ShapeKind::Line) == GS_EXT_SHAPE_LINE);
 static_assert(static_cast<int>(ShapeKind::Point) == GS_EXT_SHAPE_POINT);
 static_assert(static_cast<int>(ShapeKind::Text) == GS_EXT_SHAPE_TEXT);
+static_assert(static_cast<int>(VisionKind::Ocr) == GS_EXT_VISION_OCR);
+static_assert(static_cast<int>(VisionKind::Detect) == GS_EXT_VISION_DETECT);
+static_assert(static_cast<int>(VisionKind::Classify) == GS_EXT_VISION_CLASSIFY);
 
 namespace {
 
@@ -468,6 +471,83 @@ private:
     std::vector<Source> m_sources;
 };
 
+class VisionRunner
+{
+public:
+    using Work = std::function<CallResult()>;
+
+    VisionRunner()
+        : m_thread([this] { run(); })
+    {
+    }
+
+    ~VisionRunner()
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_stopping = true;
+        }
+        m_wake.notify_all();
+        if (m_thread.joinable()) {
+            m_thread.join();
+        }
+    }
+
+    VisionRunner(const VisionRunner&) = delete;
+    VisionRunner& operator=(const VisionRunner&) = delete;
+
+    [[nodiscard]] CallResult give(Work work, std::chrono::milliseconds limit)
+    {
+        std::unique_lock lock(m_mutex);
+        if (m_busy || m_stopping) {
+            return {CallStatus::TooSlow, {}, "the engine is still working on an earlier picture"};
+        }
+        const std::uint64_t ticket = ++m_lastTicket;
+        m_busy = true;
+        m_work = std::move(work);
+        m_ticket = ticket;
+        m_result.reset();
+        m_wake.notify_all();
+        if (!m_done.wait_for(lock, limit, [this, ticket] { return m_finished == ticket; })) {
+            return {CallStatus::TooSlow, {}, "the engine took longer than " + std::to_string(limit.count()) + " ms"};
+        }
+        return std::move(*m_result);
+    }
+
+private:
+    void run()
+    {
+        std::unique_lock lock(m_mutex);
+        for (;;) {
+            m_wake.wait(lock, [this] { return m_stopping || m_work != nullptr; });
+            if (m_work == nullptr) {
+                return;
+            }
+            Work work = std::exchange(m_work, nullptr);
+            const std::uint64_t ticket = m_ticket;
+            lock.unlock();
+            CallResult result = work();
+            lock.lock();
+            m_result = std::move(result);
+            m_finished = ticket;
+            m_busy = false;
+            m_done.notify_all();
+        }
+    }
+
+    std::mutex m_mutex;
+    std::condition_variable m_wake;
+    std::condition_variable m_done;
+    Work m_work;
+    std::optional<CallResult> m_result;
+    std::uint64_t m_lastTicket = 0;
+    std::uint64_t m_ticket = 0;
+    std::uint64_t m_finished = 0;
+    bool m_busy = false;
+    bool m_stopping = false;
+    std::thread m_thread;
+};
+
 nlohmann::json settingsOf(std::string_view text)
 {
     nlohmann::json parsed = nlohmann::json::parse(text, nullptr, false);
@@ -514,6 +594,7 @@ struct InProcessModule::Impl {
         , settings(settingsOf(options.settings))
         , inputGate(options.inputs)
         , clock(options.clock)
+        , visionLimit(options.visionLimit)
     {
     }
 
@@ -526,6 +607,7 @@ struct InProcessModule::Impl {
         endJobs();
         endStreams();
         endTaps();
+        runners.clear();
         {
             const std::scoped_lock lock(touchMutex);
             for (const auto& [id, session] : sessions) {
@@ -789,6 +871,10 @@ struct InProcessModule::Impl {
     std::map<std::uint64_t, Sink> sinkStates;
     std::uint64_t nextSink = 0;
     const Clock* clock = nullptr;
+    std::chrono::milliseconds visionLimit;
+    std::vector<gs_ext_vision_engine> visionEngines;
+    std::mutex visionMutex;
+    std::vector<std::unique_ptr<VisionRunner>> runners;
 };
 
 namespace {
@@ -925,6 +1011,9 @@ int32_t hostSupports(void*, const char* feature)
     const std::string_view name(feature, strnlen(feature, kMostNameBytes));
     if (name == "input-sources" || name == "services" || name == "transports" || name == "media" ||
         name == "frame-taps") {
+        return 1;
+    }
+    if (name == "vision-engines") {
         return 1;
     }
     return name == "jobs" || name == "events" || name == "settings" || name == "claims" || name == "job-output" ||
@@ -1828,6 +1917,52 @@ void runTap(const gs_ext_frame_tap& entry, InProcessModule::Impl::Tap& tap)
     tap.done = true;
 }
 
+std::string addVisionEngine(InProcessModule::Impl& impl, const gs_ext_contribution& entry,
+                            std::set<std::string, std::less<>>& names)
+{
+    gs_ext_vision_engine engine{};
+    std::string name;
+    if (!copied(entry.data, engine)) {
+        return "a vision engine has no data";
+    }
+    if (std::string problem = named("vision engine", engine.name, entry, names, name); !problem.empty()) {
+        return problem;
+    }
+    if (engine.run == nullptr) {
+        return "the vision engine " + name + " lacks run";
+    }
+    engine.kinds &= kAllVisionKinds;
+    if (engine.kinds == 0) {
+        if (impl.services != nullptr) {
+            impl.services->log(GS_EXT_LOG_WARNING, "the vision engine " + name +
+                                                       " recognizes nothing this GameScrcpy knows; it is left out");
+        }
+        return {};
+    }
+    impl.visionEngines.push_back(engine);
+    impl.info.visionEngines.push_back({.name = name, .kinds = engine.kinds});
+    return {};
+}
+
+CallResult visionAnswer(int32_t status, const gs_ext_result& result, const ResultBox& box)
+{
+    if (status == GS_EXT_BAD_ARGUMENT) {
+        return {CallStatus::BadArgument, {},
+                box.error.empty() ? std::string("the engine does not take these params") : box.error};
+    }
+    if (status != GS_EXT_OK) {
+        return {CallStatus::Failed, {},
+                box.error.empty() ? "the engine failed with status " + std::to_string(status) : box.error};
+    }
+    std::string text = result.value.type != GS_EXT_TYPE_JSON || result.value.size == 0 || result.value.text == nullptr
+                           ? std::string()
+                           : std::string(result.value.text, result.value.size);
+    if (!validUtf8(text) || !nlohmann::json::parse(text, nullptr, false).is_array()) {
+        return {CallStatus::Failed, {}, "the engine did not give a JSON array"};
+    }
+    return {CallStatus::Ok, Value{.type = ValueType::Json, .text = std::move(text)}, {}};
+}
+
 std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
 {
     if (!copied(plugin, impl.described)) {
@@ -1883,6 +2018,8 @@ std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
             problem = addExporter(impl, entry, names);
         } else if (kind == GS_EXT_KIND_FRAME_TAP) {
             problem = addFrameTap(impl, entry, names);
+        } else if (kind == GS_EXT_KIND_VISION_ENGINE) {
+            problem = addVisionEngine(impl, entry, names);
         } else if (kind.empty()) {
             problem = "contribution " + std::to_string(index + 1) + " has no kind";
         } else if (impl.services != nullptr) {
@@ -1909,6 +2046,9 @@ std::string describe(InProcessModule::Impl& impl, const gs_ext_plugin* plugin)
     if (impl.videoSources.size() > kMostMediaSources || impl.audioSources.size() > kMostMediaSources ||
         impl.mediaSinks.size() > kMostSinks || impl.exporters.size() > kMostExporters) {
         return "the DLL offers more than 8 video sources, 8 audio sources, 8 media sinks or 8 recording exporters";
+    }
+    if (impl.info.visionEngines.size() > kMostVisionEngines) {
+        return "the DLL offers more than 4 vision engines";
     }
     return {};
 }
@@ -2924,6 +3064,51 @@ void InProcessModule::closeTap(std::uint64_t tap)
         found->closing = true;
     }
     found->wake.notify_all();
+}
+
+CallResult InProcessModule::recognize(std::size_t engine, VisionKind kind, const VisionImage& image,
+                                      std::string_view params)
+{
+    Impl& d = *m_impl;
+    if (engine >= d.visionEngines.size()) {
+        return {CallStatus::Unavailable, {}, "the DLL has no such vision engine"};
+    }
+    if ((d.info.visionEngines[engine].kinds & visionBit(kind)) == 0) {
+        return {CallStatus::BadArgument, {},
+                "the vision engine does not recognize " + std::string(visionKindName(kind))};
+    }
+    if (!validImage(image) || params.size() > kMostVisionParamBytes || !validUtf8(params)) {
+        return {CallStatus::BadArgument, {}, "the picture or the params are not valid"};
+    }
+    VisionRunner* runner = nullptr;
+    {
+        const std::scoped_lock lock(d.visionMutex);
+        if (d.runners.size() < d.visionEngines.size()) {
+            d.runners.resize(d.visionEngines.size());
+        }
+        if (d.runners[engine] == nullptr) {
+            d.runners[engine] = std::make_unique<VisionRunner>();
+        }
+        runner = d.runners[engine].get();
+    }
+    const gs_ext_vision_engine entry = d.visionEngines[engine];
+    std::string text = params.empty() ? std::string("{}") : std::string(params);
+    return runner->give(
+        [entry, kind, image, text = std::move(text)] {
+            gs_ext_image native{};
+            native.size = sizeof(gs_ext_image);
+            native.pixels = image.pixels.get();
+            native.stride = image.stride;
+            native.width = image.width;
+            native.height = image.height;
+            ResultBox box;
+            gs_ext_result result{};
+            result.host = &box;
+            const int32_t status = entry.run(entry.context, static_cast<std::uint32_t>(kind), &native, text.data(),
+                                             text.size(), &result);
+            return visionAnswer(status, result, box);
+        },
+        d.visionLimit);
 }
 
 }

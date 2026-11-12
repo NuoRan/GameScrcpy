@@ -645,6 +645,11 @@ public:
 
     void readText(std::uint64_t id, const script::TextQuery& query) { enqueue(id, query, false); }
 
+    void grab(std::uint64_t id, bool color, LogicServices::FrameTaken taken)
+    {
+        enqueue(id, script::CaptureQuery{}, color, std::move(taken));
+    }
+
     void save(std::uint64_t id, std::uint64_t capture, std::string name)
     {
         {
@@ -723,6 +728,7 @@ private:
         Clock::time_point grace;
         Clock::time_point deadline;
         bool tried = false;
+        LogicServices::FrameTaken taken;
     };
 
     struct Save {
@@ -773,10 +779,14 @@ private:
         return query.file == query.image ? query.image : std::format("{} ({})", query.image, query.file);
     }
 
-    void enqueue(std::uint64_t id, Query query, bool color)
+    void enqueue(std::uint64_t id, Query query, bool color, LogicServices::FrameTaken taken = {})
     {
         if (m_snapshots == nullptr) {
-            m_answer(id, nothing(query));
+            if (taken) {
+                taken(nullptr);
+            } else {
+                m_answer(id, nothing(query));
+            }
             return;
         }
         const double timeoutMs = std::visit([](const auto& asked) { return asked.timeoutMs; }, query);
@@ -790,7 +800,9 @@ private:
                                                  .color = color,
                                                  .after = m_snapshots->offered(),
                                                  .grace = now + std::min<Clock::duration>(wait, kFreshFrameGrace),
-                                                 .deadline = now + wait});
+                                                 .deadline = now + wait,
+                                                 .tried = false,
+                                                 .taken = std::move(taken)});
         }
         m_snapshots->request(color);
         m_shared->wake.notify_all();
@@ -867,7 +879,7 @@ private:
             bool captured = false;
             std::erase_if(waiting, [&](Request& request) {
                 if (freshFor(request)) {
-                    serve(request, *fresh);
+                    deliver(request, fresh);
                     return true;
                 }
                 if (!request.tried && now >= request.grace) {
@@ -875,18 +887,31 @@ private:
                         current = m_snapshots->capture(colorDue);
                     }
                     if (current != nullptr) {
-                        serve(request, *current);
+                        deliver(request, current);
                         return true;
                     }
                     request.tried = true;
                 }
                 if (now >= request.deadline) {
-                    m_answer(request.id, nothing(request.query));
+                    if (request.taken) {
+                        request.taken(nullptr);
+                    } else {
+                        m_answer(request.id, nothing(request.query));
+                    }
                     return true;
                 }
                 return false;
             });
         }
+    }
+
+    void deliver(const Request& request, const std::shared_ptr<const media::LumaSnapshot>& shot)
+    {
+        if (request.taken) {
+            request.taken(shot);
+            return;
+        }
+        serve(request, *shot);
     }
 
     void serve(const Request& request, const media::LumaSnapshot& shot)
@@ -2940,6 +2965,22 @@ void ScriptRuntime::forgetFrames(quint64 frames)
 {
     if (m_seer != nullptr) {
         m_seer->forgetFrames(frames);
+    }
+}
+
+bool ScriptRuntime::grab(quint64 request, bool color, LogicServices::FrameTaken taken)
+{
+    if (m_seer == nullptr) {
+        return false;
+    }
+    m_seer->grab(request, color, std::move(taken));
+    return true;
+}
+
+void ScriptRuntime::ungrab(quint64 request)
+{
+    if (m_seer != nullptr) {
+        m_seer->cancel(request);
     }
 }
 

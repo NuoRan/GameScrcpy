@@ -1494,6 +1494,151 @@ TEST_CASE("ADR-0112: the registry lists the phones of an extension allowed to pr
     CHECK(registry.transportPhones().empty());
 }
 
+namespace {
+
+exthost::VisionImage paintedPicture(std::uint32_t width, std::uint32_t height, std::uint32_t stride,
+                                    std::array<std::uint8_t, 3> bgr)
+{
+    const std::size_t row = std::max(std::size_t{stride}, std::size_t{4} * width);
+    auto pixels = std::make_shared<std::vector<std::uint8_t>>(row * height, std::uint8_t{255});
+    for (std::uint32_t y = 0; y < height; ++y) {
+        for (std::uint32_t x = 0; x < width; ++x) {
+            std::uint8_t* pixel = pixels->data() + std::size_t{y} * stride + std::size_t{4} * x;
+            pixel[0] = bgr[0];
+            pixel[1] = bgr[1];
+            pixel[2] = bgr[2];
+            pixel[3] = 255;
+        }
+    }
+    return {.pixels = std::shared_ptr<const std::uint8_t>(pixels, pixels->data()),
+            .width = width,
+            .height = height,
+            .stride = stride};
+}
+
+}
+
+TEST_CASE("ADR-0112: a DLL's vision engine gets the picture with its size and stride and gives its result, keeps to "
+          "its kinds and its time limit and says why it failed, in GameScrcpy and in gs-exthost.exe")
+{
+    Scratch scratch;
+    std::string problem;
+    const std::unique_ptr<exthost::InProcessModule> loaded = exthost::InProcessModule::load(
+        {.dll = kTestDll, .store = scratch / "inside.json", .granted = {}, .services = nullptr, .visionLimit = 300ms},
+        problem);
+    REQUIRE_MESSAGE(loaded != nullptr, problem);
+    exthost::HostedOptions options = hostedOptions(scratch);
+    options.visionLimit = 300ms;
+    const std::unique_ptr<exthost::HostedModule> hosted = exthost::HostedModule::start(std::move(options), problem);
+    REQUIRE_MESSAGE(hosted != nullptr, problem);
+    const exthost::VisionImage padded = paintedPicture(8, 4, 40, {10, 20, 30});
+    const std::uint32_t kinds =
+        exthost::visionBit(exthost::VisionKind::Ocr) | exthost::visionBit(exthost::VisionKind::Classify);
+    const std::array<std::pair<exthost::Module*, std::string>, 2> modules{
+        {{loaded.get(), "8x4/40"}, {hosted.get(), "8x4/32"}}};
+    for (const auto& [module, size] : modules) {
+        CAPTURE(size);
+        REQUIRE(module->info().visionEngines ==
+                std::vector<exthost::VisionEngineInfo>{{.name = "probe", .kinds = kinds}});
+        const exthost::CallResult classified =
+            module->recognize(0, exthost::VisionKind::Classify, padded, R"({"mode":"mean"})");
+        REQUIRE_MESSAGE(classified.ok(), classified.problem);
+        CHECK(classified.value.type == exthost::ValueType::Json);
+        CHECK(nlohmann::json::parse(classified.value.text) ==
+              nlohmann::json::array({{{"label", "#1E140A"}, {"confidence", 1}},
+                                     {{"label", size}, {"confidence", 0.5}},
+                                     {{"label", R"({"mode":"mean"})"}, {"confidence", 0.25}}}));
+        const exthost::CallResult read = module->recognize(0, exthost::VisionKind::Ocr, padded, {});
+        REQUIRE_MESSAGE(read.ok(), read.problem);
+        CHECK(nlohmann::json::parse(read.value.text) ==
+              nlohmann::json::parse(R"([{"text":"OK","x":0.5,"y":0.25,"width":0.5,"height":0.25,"confidence":0.75}])"));
+
+        CHECK(module->recognize(0, exthost::VisionKind::Detect, padded, {}).status == exthost::CallStatus::BadArgument);
+        CHECK(module->recognize(1, exthost::VisionKind::Ocr, padded, {}).status == exthost::CallStatus::Unavailable);
+        CHECK(module->recognize(0, exthost::VisionKind::Ocr, exthost::VisionImage{}, {}).status ==
+              exthost::CallStatus::BadArgument);
+        CHECK(module->recognize(0, exthost::VisionKind::Ocr, paintedPicture(8, 4, 16, {0, 0, 0}), {}).status ==
+              exthost::CallStatus::BadArgument);
+        const exthost::CallResult failed = module->recognize(0, exthost::VisionKind::Classify, padded, R"({"fail":1})");
+        CHECK(failed.status == exthost::CallStatus::Failed);
+        CHECK(failed.problem == "the test engine fails on purpose");
+        const exthost::CallResult refused =
+            module->recognize(0, exthost::VisionKind::Classify, padded, R"({"refuse":1})");
+        CHECK(refused.status == exthost::CallStatus::BadArgument);
+        CHECK(refused.problem == "the test engine does not take refuse");
+        const exthost::CallResult broken =
+            module->recognize(0, exthost::VisionKind::Classify, padded, R"({"broken":1})");
+        CHECK(broken.status == exthost::CallStatus::Failed);
+        CHECK(broken.problem == "the engine did not give a JSON array");
+
+        const exthost::CallResult slow = module->recognize(0, exthost::VisionKind::Ocr, padded, R"({"sleepMs":900})");
+        CHECK(slow.status == exthost::CallStatus::TooSlow);
+        CHECK(slow.problem == "the engine took longer than 300 ms");
+        const exthost::CallResult busy = module->recognize(0, exthost::VisionKind::Ocr, padded, {});
+        CHECK(busy.status == exthost::CallStatus::TooSlow);
+        CHECK(busy.problem == "the engine is still working on an earlier picture");
+        REQUIRE(eventually([&] { return module->recognize(0, exthost::VisionKind::Ocr, padded, {}).ok(); }));
+    }
+
+    const exthost::VisionImage large = paintedPicture(1200, 1000, 4800, {200, 100, 50});
+    const exthost::CallResult grown = hosted->recognize(0, exthost::VisionKind::Classify, large, {});
+    REQUIRE_MESSAGE(grown.ok(), grown.problem);
+    const nlohmann::json seen = nlohmann::json::parse(grown.value.text);
+    CHECK(seen[0]["label"] == "#3264C8");
+    CHECK(seen[1]["label"] == "1200x1000/4800");
+    CHECK(seen[2]["label"] == "{}");
+
+    const exthost::CallResult crashed = hosted->recognize(0, exthost::VisionKind::Classify, padded, R"({"crash":1})");
+    CHECK_FALSE(crashed.ok());
+    REQUIRE(eventually([&] { return hosted->crashes() == 1 && hosted->ready(); }));
+    const exthost::CallResult again = hosted->recognize(0, exthost::VisionKind::Classify, padded, {});
+    REQUIRE_MESSAGE(again.ok(), again.problem);
+    CHECK(nlohmann::json::parse(again.value.text)[0]["label"] == "#1E140A");
+    CHECK(callNode(*hosted, "supports", {textValue(exthost::ValueType::String, "vision-engines")}).value.flag);
+    CHECK(callNode(*loaded, "supports", {textValue(exthost::ValueType::String, "vision-engines")}).value.flag);
+}
+
+TEST_CASE("ADR-0112: the registry reaches a vision engine the manifest declares with kinds its DLL recognizes, and "
+          "names one whose kinds do not match")
+{
+    ApplicationScope application;
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.native/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    app::NativeWanted wanted = testWanted(folder);
+    wanted.native.visionEngines = {{.name = "probe", .title = "Probe", .kinds = {"classify"}, .languages = {}}};
+    registry.apply({wanted});
+    const exthost::VisionImage padded = paintedPicture(8, 4, 40, {10, 20, 30});
+    const exthost::CallResult classified =
+        registry.recognize("gstest.native", "probe", exthost::VisionKind::Classify, padded, "{}");
+    REQUIRE_MESSAGE(classified.ok(), classified.problem);
+    CHECK(nlohmann::json::parse(classified.value.text)[0]["label"] == "#1E140A");
+    CHECK(registry.recognize("gstest.native", "probe", exthost::VisionKind::Detect, padded, "{}").status ==
+          exthost::CallStatus::BadArgument);
+    CHECK(registry.recognize("gstest.native", "nope", exthost::VisionKind::Classify, padded, "{}").status ==
+          exthost::CallStatus::Unavailable);
+    CHECK(registry.recognize("gstest.other", "probe", exthost::VisionKind::Classify, padded, "{}").status ==
+          exthost::CallStatus::Unavailable);
+    CHECK(std::ranges::none_of(registry.problems(), [](const ext::Diagnostic& problem) {
+        return problem.path.find("visionEngines") != std::string::npos;
+    }));
+
+    wanted.native.visionEngines = {{.name = "probe", .title = "Probe", .kinds = {"detect"}, .languages = {}},
+                                   {.name = "absent", .title = "Absent", .kinds = {"ocr"}, .languages = {}}};
+    registry.apply({wanted});
+    const std::vector<ext::Diagnostic> problems = registry.problems();
+    CHECK(std::ranges::any_of(problems, [](const ext::Diagnostic& problem) {
+        return problem.code == ext::Code::NativeMismatch && problem.detail == "probe";
+    }));
+    CHECK(std::ranges::any_of(problems, [](const ext::Diagnostic& problem) {
+        return problem.code == ext::Code::NativeMismatch && problem.detail == "absent";
+    }));
+    CHECK(registry.recognize("gstest.native", "probe", exthost::VisionKind::Detect, padded, "{}").status ==
+          exthost::CallStatus::Unavailable);
+}
+
 TEST_CASE("ADR-0112: the registry lists the devices of an extension allowed to add them, leaves out bad ones, "
           "follows changes and passes on actions")
 {

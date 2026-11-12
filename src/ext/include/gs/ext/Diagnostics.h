@@ -114,6 +114,7 @@ enum class Code : std::uint8_t {
     CliCommandInvalid,
     ConverterInvalid,
     AiProviderInvalid,
+    VisionEngineInvalid,
 };
 
 struct Diagnostic {

@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -16,6 +17,10 @@
 #include <vector>
 
 class QImage;
+
+namespace gs::media {
+struct LumaSnapshot;
+}
 
 namespace gs::app {
 
@@ -60,6 +65,10 @@ public:
     [[nodiscard]] std::uint64_t keepFrame(std::uint64_t logic, const QImage& picture, script::PictureSize source,
                                           quint64 frames) const;
     void forgetFrames(std::uint64_t logic, quint64 frames) const;
+
+    using FrameTaken = std::function<void(std::shared_ptr<const media::LumaSnapshot> shot)>;
+    [[nodiscard]] bool grab(std::uint64_t logic, quint64 id, bool color, FrameTaken taken) const;
+    void ungrab(std::uint64_t logic, quint64 id) const;
 
 signals:
     void logicStarted(quint64 logic);
