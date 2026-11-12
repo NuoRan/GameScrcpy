@@ -799,7 +799,11 @@ if(GS_BUILD_APP)
             user32
             userenv
     )
-    target_include_directories(gs_app_tests PRIVATE "${PROJECT_SOURCE_DIR}/src/app" "${CMAKE_CURRENT_SOURCE_DIR}")
+    target_include_directories(gs_app_tests PRIVATE
+        "${PROJECT_SOURCE_DIR}/src/app"
+        "${CMAKE_CURRENT_SOURCE_DIR}"
+        "${PROJECT_SOURCE_DIR}/src/exthost/src"
+    )
     target_compile_definitions(gs_app_tests PRIVATE
         GS_APP_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/unit/app"
         GS_BUILD_CONFIG="$<CONFIG>"

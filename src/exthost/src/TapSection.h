@@ -59,6 +59,7 @@ private:
     HANDLE m_mapping = nullptr;
     void* m_view = nullptr;
     std::uint64_t m_bytes = 0;
+    std::uint64_t m_slotBytes = 0;
     std::mutex m_writing;
 };
 

@@ -45,6 +45,7 @@ std::unique_ptr<TapSection> TapSection::create(std::uint32_t width, std::uint32_
         return nullptr;
     }
     made->m_bytes = total;
+    made->m_slotBytes = slotBytes;
     auto* layout = new (made->m_view) TapLayout{};
     layout->magic = kMagic;
     layout->version = kLayoutVersion;
@@ -65,10 +66,12 @@ std::unique_ptr<TapSection> TapSection::open(HANDLE mapping, std::uint64_t bytes
     }
     made->m_bytes = bytes;
     const TapLayout& layout = made->layout();
-    if (layout.magic != kMagic || layout.version != kLayoutVersion || layout.slotBytes == 0 ||
-        layout.slotBytes > kMostSlotBytes || kDataOffset + kTapSlots * layout.slotBytes > bytes) {
+    const std::uint64_t slotBytes = layout.slotBytes;
+    if (layout.magic != kMagic || layout.version != kLayoutVersion || slotBytes == 0 || slotBytes > kMostSlotBytes ||
+        kDataOffset + kTapSlots * slotBytes > bytes) {
         return nullptr;
     }
+    made->m_slotBytes = slotBytes;
     return made;
 }
 
@@ -79,7 +82,7 @@ TapLayout& TapSection::layout() const noexcept
 
 std::uint8_t* TapSection::slotData(std::size_t slot) const noexcept
 {
-    return static_cast<std::uint8_t*>(m_view) + kDataOffset + slot * layout().slotBytes;
+    return static_cast<std::uint8_t*>(m_view) + kDataOffset + slot * m_slotBytes;
 }
 
 bool TapSection::put(const TapFrame& frame)
@@ -89,7 +92,7 @@ bool TapSection::put(const TapFrame& frame)
     }
     TapLayout& shared = layout();
     const std::uint64_t row = std::uint64_t{4} * frame.width;
-    if (row * frame.height > shared.slotBytes) {
+    if (row * frame.height > m_slotBytes) {
         return false;
     }
     const std::scoped_lock lock(m_writing);
@@ -136,7 +139,7 @@ std::optional<std::size_t> TapSection::take(TapFrame& frame)
                          .width = taken.width,
                          .height = taken.height,
                          .timeUs = taken.timeUs};
-        if (!validTapFrame(frame) || std::uint64_t{frame.stride} * frame.height > shared.slotBytes) {
+        if (!validTapFrame(frame) || std::uint64_t{frame.stride} * frame.height > m_slotBytes) {
             done(slot);
             return std::nullopt;
         }

@@ -1,6 +1,7 @@
 #include "ExtensionMedia.h"
 #include "MediaSinks.h"
 #include "NativeExtensions.h"
+#include "TapSection.h"
 
 #include "unit/ext/TestFiles.h"
 
@@ -834,4 +835,38 @@ TEST_CASE("ADR-0112: a window is letterboxed into the size a sink asks for, with
     media::LumaSnapshot grey;
     app::letterboxBgra(grey, 2, 2, out);
     CHECK(out == std::vector<std::uint8_t>{0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255});
+}
+
+TEST_CASE("ADR-0112: a frame tap's shared section keeps its own slot size, so gs-exthost.exe cannot make GameScrcpy "
+          "write outside it")
+{
+    constexpr std::uint32_t kSide = 64;
+    constexpr std::uint32_t kFree = 0;
+    constexpr std::uint32_t kWaiting = 2;
+    constexpr std::uint32_t kReading = 3;
+    const std::unique_ptr<exthost::detail::TapSection> section = exthost::detail::TapSection::create(kSide, kSide);
+    REQUIRE(section != nullptr);
+    void* view = MapViewOfFile(section->mapping(), FILE_MAP_ALL_ACCESS, 0, 0, 0);
+    REQUIRE(view != nullptr);
+    auto* shared = static_cast<exthost::detail::TapLayout*>(view);
+    const std::uint64_t slotBytes = shared->slotBytes;
+    shared->slotBytes = std::uint64_t{1} << 40;
+    shared->buffers[0].state.store(kReading);
+
+    const std::vector<std::uint8_t> pixels(std::size_t{4} * kSide * kSide, std::uint8_t{0x5A});
+    const exthost::TapFrame frame{
+        .pixels = pixels.data(), .stride = 4 * kSide, .width = kSide, .height = kSide, .timeUs = 7};
+    CHECK(section->put(frame));
+    const std::size_t dataOffset = (sizeof(exthost::detail::TapLayout) + 63) / 64 * 64;
+    const auto* second = static_cast<const std::uint8_t*>(view) + dataOffset + slotBytes;
+    CHECK(shared->buffers[1].state.load() == kWaiting);
+    CHECK(std::ranges::equal(std::span<const std::uint8_t>(second, pixels.size()), pixels));
+
+    shared->buffers[0].state.store(kFree);
+    shared->buffers[1].state.store(kFree);
+    const std::vector<std::uint8_t> larger(std::size_t{16} * kSide * kSide, std::uint8_t{0x33});
+    const exthost::TapFrame wider{
+        .pixels = larger.data(), .stride = 8 * kSide, .width = 2 * kSide, .height = 2 * kSide, .timeUs = 8};
+    CHECK_FALSE(section->put(wider));
+    UnmapViewOfFile(view);
 }
