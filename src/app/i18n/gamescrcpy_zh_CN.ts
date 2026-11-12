@@ -6497,8 +6497,12 @@
         <translation>关闭</translation>
     </message>
     <message>
-        <source>No extension yet. Extensions add video filters and themes; install one from a .gsext package.</source>
-        <translation>还没有扩展。扩展可以添加画面滤镜和主题，可从 .gsext 扩展包安装。</translation>
+        <source>The card tells what the extension adds and what it may do.</source>
+        <translation>卡片上写着扩展加了什么、可以做什么。</translation>
+    </message>
+    <message>
+        <source>An extension only loads once its switch is on. Turning it on allows the permissions it asks for.</source>
+        <translation>开关打开后扩展才会加载；打开就表示同意它申请的权限。</translation>
     </message>
     <message>
         <source>Not used</source>
@@ -6633,16 +6637,8 @@
         <translation>扩展卡片</translation>
     </message>
     <message>
-        <source>The card tells what the extension adds and what it may do. Built-in ones come with GameScrcpy.</source>
-        <translation>卡片上写着扩展加了什么、可以做什么。标着“内置”的是随 GameScrcpy 一起来的。</translation>
-    </message>
-    <message>
         <source>Turn it on</source>
         <translation>打开它</translation>
-    </message>
-    <message>
-        <source>An extension only loads once its switch is on, and the first time it asks what it may do.</source>
-        <translation>开关打开后扩展才会加载，第一次打开时它会先问你允许它做哪些事。</translation>
     </message>
     <message>
         <source>Extensions that have settings are set up here.</source>
@@ -6787,6 +6783,10 @@
     <message>
         <source>All</source>
         <translation>全部</translation>
+    </message>
+    <message>
+        <source>No extension yet. Extensions add touch boxes, panels, picture filters, themes and more; install one from a .gsext package.</source>
+        <translation>还没有扩展。扩展可以添加触控盒、面板、画面滤镜、主题等，可从 .gsext 扩展包安装。</translation>
     </message>
     <message>
         <source>No extension matches “%1”.</source>

@@ -31,10 +31,12 @@ Without USB debugging, GameScrcpy Companion on the phone connects to this comput
 1. **The same Wi-Fi**: the computer and the phone must be on the same Wi-Fi or local network.
 2. **Install the companion**: if the phone does not have GameScrcpy Companion yet, scan the code in the control window with the phone's own camera or scanner. It opens a page on this computer to download the app; install it, and allow installing from this source if the phone asks.
 3. **Scan to connect**: open GameScrcpy Companion on the phone, tap Scan to connect, allow the camera and scan the code in the control window. The code goes away once the phone is connected.
-4. **Type with the computer's keyboard**: in the companion, tap Turn on the input method and switch on GameScrcpy Companion, then tap Choose the input method and pick it. When an input box opens on the phone, a thin bar says "Typing with the computer's keyboard"; tap it to get the phone's keyboard back.
+4. **Type with the computer's keyboard**: on the companion's **Permissions** page, tap **Open** on the Input method row and switch on GameScrcpy Companion, then come back and tap **Choose** to pick it. When an input box opens on the phone, a thin bar says "Typing with the computer's keyboard"; tap it to get the phone's keyboard back. The companion's **Features** page can move the bar to the top.
 
 > [!TIP]
-> **Next time**: both sides remember each other. On the same Wi-Fi the companion connects again by itself as soon as the control window is open; there is nothing to scan.
+> **Next time**: both sides remember each other. On the same Wi-Fi the companion connects again by itself as soon as the control window is open; there is nothing to scan (the companion's Auto connect is on by default).
+
+The companion's other features, switches and permissions: [GameScrcpy Companion](help:companion)
 
 > [!WARNING]
 > **Windows Firewall**: the first time, Windows asks whether GameScrcpy may accept connections from the network. Allow it for private networks, otherwise the phone cannot connect. GameScrcpy only listens while a control window shows the code or waits for a paired phone.

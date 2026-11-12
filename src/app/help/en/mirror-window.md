@@ -40,9 +40,11 @@ From left to right. When the window is narrow, some buttons move into **More**.
 | :power: Power | Turns only the phone's own screen off; the picture here goes on. Select it again to turn the screen on. |
 | :volume-2: Volume | Mutes the phone's sound on this computer, or sets how loud it plays. |
 | :bot: Tasks | Starts or stops [tasks](help:scripts) on this phone; running ones show how far they are. The button is lit while a task runs. |
+| Record | Records the picture and sound to a video; select it again to stop. The button is red while it records. Your recordings are under **More > Recordings…** |
+| :puzzle: Extension panels | Shows only when an extension comes with a panel, and opens that panel beside the picture. Extensions can also add buttons of their own to the toolbar. |
 | :activity: Diagnostics overlay | Shows the frame rate, the delay and more figures over the picture. |
 | :maximize-2: Full screen | Fills the screen with the picture; press <kbd>F11</kbd> to leave. |
-| :ellipsis: More | The status capsule, **Edit logic**, **Vision workbench**, **Measure the real latency**, **Shrink to a mini window on top**, **Device settings** and **Disconnect**. |
+| :ellipsis: More | The status capsule, **Recordings…**, **Edit logic**, **Vision workbench**, **Measure the real latency**, **Shrink to a mini window on top**, **Device settings** and **Disconnect**. With extensions that offer them, also **Extensions reading the picture** and **Send to …**; see [What extensions add](help:extension-features#media). |
 | :pin: Pin | Keeps the toolbar above the picture. |
 
 ## Status capsule

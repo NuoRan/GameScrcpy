@@ -496,7 +496,10 @@ qt_add_resources(gs_help_articles "help_articles"
         help/index.json
         help/en/aoa-driver.md
         help/en/capture-card.md
+        help/en/companion.md
         help/en/connecting.md
+        help/en/extension-features.md
+        help/en/extensions.md
         help/en/faq.md
         help/en/keymap-editor.md
         help/en/mirror-window.md
@@ -506,7 +509,10 @@ qt_add_resources(gs_help_articles "help_articles"
         help/en/tours.md
         help/zh_CN/aoa-driver.md
         help/zh_CN/capture-card.md
+        help/zh_CN/companion.md
         help/zh_CN/connecting.md
+        help/zh_CN/extension-features.md
+        help/zh_CN/extensions.md
         help/zh_CN/faq.md
         help/zh_CN/keymap-editor.md
         help/zh_CN/mirror-window.md

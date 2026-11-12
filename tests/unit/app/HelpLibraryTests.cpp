@@ -198,7 +198,8 @@ TEST_CASE("every help article in the index is bundled in English and in Chinese,
     CHECK(slugs == QStringList{QStringLiteral("connecting"), QStringLiteral("aoa-driver"), QStringLiteral("touch-box"),
                                QStringLiteral("capture-card"), QStringLiteral("mirror-window"),
                                QStringLiteral("keymap-editor"), QStringLiteral("profiles"), QStringLiteral("scripts"),
-                               QStringLiteral("tours"), QStringLiteral("faq")});
+                               QStringLiteral("tours"), QStringLiteral("companion"), QStringLiteral("extensions"),
+                               QStringLiteral("extension-features"), QStringLiteral("faq")});
     for (const QString& language : {kEnglish, kChinese}) {
         for (const QString& slug : slugs) {
             const QString path = QStringLiteral(":/help/%1/%2.md").arg(language, slug);
@@ -556,7 +557,7 @@ TEST_CASE("the help home lists the guides with their look, the popular questions
 
     const QVariantMap home = help.home();
     const QVariantList guides = home.value(QStringLiteral("guides")).toList();
-    REQUIRE(guides.size() == 10);
+    REQUIRE(guides.size() == 13);
     const QVariantMap connecting = guides.front().toMap();
     CHECK(connecting.value(QStringLiteral("slug")).toString() == QStringLiteral("connecting"));
     CHECK(connecting.value(QStringLiteral("title")).toString() == QStringLiteral("连接手机"));

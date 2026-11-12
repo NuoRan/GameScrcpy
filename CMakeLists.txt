@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.28)
 
 project(GameScrcpy
-    VERSION 2.0.0
+    VERSION 2.1.0
     DESCRIPTION "Android screen mirroring, input mapping and automation"
     HOMEPAGE_URL "https://github.com/NuoRan/GameScrcpy"
     LANGUAGES C CXX

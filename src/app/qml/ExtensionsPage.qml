@@ -555,7 +555,8 @@ Item {
                     anchors.horizontalCenter: parent.horizontalCenter
                     width: Math.min(implicitWidth, empty.width)
                     textFormat: Text.PlainText
-                    text: qsTr("No extension yet. Extensions add video filters and themes; install one from a .gsext package.")
+                    text: qsTr("No extension yet. Extensions add touch boxes, panels, picture filters, themes and more; "
+                               + "install one from a .gsext package.")
                     color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.body.size
                     horizontalAlignment: Text.AlignHCenter
@@ -1706,15 +1707,14 @@ Item {
                 target: function() { return tour.findItem(page, "extensionCard") },
                 optional: true,
                 title: qsTr("An extension card"),
-                text: qsTr("The card tells what the extension adds and what it may do. Built-in ones come with "
-                           + "GameScrcpy.")
+                text: qsTr("The card tells what the extension adds and what it may do.")
             },
             {
                 target: function() { return tour.findItem(page, "extensionToggle") },
                 optional: true,
                 title: qsTr("Turn it on"),
-                text: qsTr("An extension only loads once its switch is on, and the first time it asks what it may "
-                           + "do.")
+                text: qsTr("An extension only loads once its switch is on. Turning it on allows the permissions it "
+                           + "asks for.")
             },
             {
                 target: function() { return tour.findItem(page, "extensionSettings") },

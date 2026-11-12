@@ -33,7 +33,7 @@ The user interface is available in Simplified Chinese and English.
 - **Several phones**: one window each, or all of them in a grid; mirror input to all of them, or open an app, install an APK, send files or run a task on the selected ones.
 - **Recording**: records the picture, the sound and your input, exports MP4, and replays recordings to test logic.
 - **Phone tools**: files, apps, a status overlay, and apps launched on a separate virtual display; measures the real latency from a key press to the change on screen.
-- **Companion app**: an optional phone app that shows the cursor and key hints on the phone, provides an input method and connects by scanning a QR code.
+- **Companion app**: an optional phone app that shows the cursor and key hints on the phone, lets you type into the phone with the PC's keyboard and connects over Wi-Fi by scanning a QR code; its switches can be changed on the phone or on the PC, and both sides stay in sync.
 
 ### Key mapping
 
@@ -60,14 +60,15 @@ The user interface is available in Simplified Chinese and English.
 
 - **USB debugging**: the default, no extra hardware needed.
 - **AOA**: the phone takes the PC for a USB touch screen and works without USB debugging (experimental).
-- **ESP32 touch box**: an ESP32 board flashed with the GameScrcpy firmware acts as the phone's touch screen, keyboard, mouse and gamepad. ESP32-S3, S2 and P4 connect over USB; the classic ESP32, C3 and C6 over Bluetooth (experimental). The firmware ships with the app and is flashed from it; see [`firmware/esp32`](firmware/esp32/README.md).
-- **Capture cards**: shows the picture of an HDMI capture card, with touch through AOA or the ESP32 (experimental).
+- **Touch boxes**: a small board from an extension acts as the phone's touch screen and keyboard, so the phone works without USB debugging. The ESP32 touch box is now the community extension `community.esp32`, published in its own project, GameScrcpy-ESP32; GameScrcpy itself does not include it (experimental).
+- **Capture cards**: shows the picture of an HDMI capture card, with touch through AOA or a touch box (experimental).
 
 ### Extensions
 
-- **`.gsext` packages**: themes, picture filters, profiles and patches, logic extensions and native DLL extensions; native extensions run in a separate low-privilege process and are checked when installed.
-- **`.gsbundle` bundles**: install a set of extensions at once, and find out step by step which one causes a problem.
-- **Development**: the [guide to writing extensions](docs/extensions/README.en.md) covers the manifest, the logic and native interfaces, testing and publishing; the C interface header is [`sdk/include`](sdk/include/gamescrcpy_ext.h), samples are in [`examples`](examples).
+- **`.gsext` packages**: themes, picture filters, profiles and patches, logic extensions and native DLL extensions. They can also bring devices such as touch boxes, new ways to connect phones, places pictures and sound come from and go to, reading aloud and voice commands, interface languages, AI model services, and importing and exporting other formats. GameScrcpy comes with no extensions.
+- **Safety**: an extension can do only what you allow. Packages can be signed and show a verified publisher; restricted native extensions run in a separate process without any rights, and native code is checked before it installs; `gamescrcpy://` links on web pages install extensions directly.
+- **Bundles and upkeep**: a `.gsbundle` installs a set of extensions at once; extensions can be checked for updates; each card shows the extension's health, and you can find out step by step which one causes a problem.
+- **Development**: the [guide to writing extensions](docs/extensions/README.en.md) covers the manifest, the logic and native interfaces, testing, signing and publishing; the C interface header is [`sdk/include`](sdk/include/gamescrcpy_ext.h), samples are in [`examples`](examples); `gs ext` tests an extension without GameScrcpy or a phone.
 
 ### Interface
 
@@ -106,7 +107,7 @@ Both include everything they need (adb too); there is no Android SDK or Visual C
 2. Connect the phone with a USB cable and allow USB debugging on the phone.
 3. On the Devices page, choose "Mirror".
 4. In the mirror window's toolbar, open "Edit key mapping", drag components onto the game's buttons and bind keys.
-5. Press F1 for the illustrated help on the mirror window, the key mapping editor, profiles, scripts and common questions.
+5. Press F1 for the illustrated help on the mirror window, the key mapping editor, profiles, scripts, extensions and common questions.
 
 ## Documentation
 
@@ -117,7 +118,6 @@ Both include everything they need (adb too); there is no Android SDK or Visual C
 | Writing extensions | [docs/extensions](docs/extensions/README.en.md) |
 | Architecture | [docs/architecture.md](docs/architecture.md) |
 | Protocol | [protocol/SPEC.md](protocol/SPEC.md) |
-| ESP32 firmware | [firmware/esp32](firmware/esp32/README.md) |
 | Building from source and contributing | [CONTRIBUTING.en.md](CONTRIBUTING.en.md) |
 
 ## Feedback

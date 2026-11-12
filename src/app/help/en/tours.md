@@ -26,3 +26,7 @@ Or bring them all back at once: [Replay every tour](action:tour:all).
 
 > [!TIP]
 > While a tour is showing, clicks outside the lit place go nowhere on purpose. Press **Skip**, or Esc, to get rid of it.
+
+## Tours from extensions {#extension-tours}
+
+Extensions can bring tours too, about what they add to the interface. Some play once by themselves after you turn the extension on; to watch one again, open the extension's **Details** on the **Extensions** page and choose "Tour: …". While the extension is off, its tours cannot play.

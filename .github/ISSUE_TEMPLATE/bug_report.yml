@@ -12,7 +12,7 @@ body:
     attributes:
       label: GameScrcpy 版本 / Version
       description: 设置 > 关于 / Settings > About
-      placeholder: "2.0.0"
+      placeholder: "2.1.0"
     validations:
       required: true
   - type: dropdown

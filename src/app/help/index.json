@@ -98,6 +98,36 @@
           }
         },
         {
+          "slug": "companion",
+          "icon": "cursor-arrow",
+          "tile": "lime",
+          "title": { "en": "GameScrcpy Companion", "zh_CN": "GameScrcpy 伴侣" },
+          "summary": {
+            "en": "The phone app for the cursor, key hints and typing on the phone, with switches you can change on either side.",
+            "zh_CN": "手机上的光标、键位提示和打字都靠它，开关在电脑和手机上都能改。"
+          }
+        },
+        {
+          "slug": "extensions",
+          "icon": "puzzle",
+          "tile": "rose",
+          "title": { "en": "Extensions", "zh_CN": "扩展" },
+          "summary": {
+            "en": "Install extensions safely: signatures, install links, native code, updates and what to do when one goes wrong.",
+            "zh_CN": "安全地安装扩展：签名、安装链接、原生代码、更新，以及出了问题怎么办。"
+          }
+        },
+        {
+          "slug": "extension-features",
+          "icon": "sparkles",
+          "tile": "teal",
+          "title": { "en": "What extensions add", "zh_CN": "扩展带来的功能" },
+          "summary": {
+            "en": "Devices, pictures and sound, speech, languages, files, AI services and converters from extensions, and where to find them.",
+            "zh_CN": "扩展带来的设备、画面与声音、语音、语言、文件、AI 服务和格式转换，以及在哪里找到它们。"
+          }
+        },
+        {
           "slug": "faq",
           "icon": "circle-help",
           "tile": "amber",
