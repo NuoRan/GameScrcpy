@@ -529,6 +529,11 @@ std::pair<std::string_view, std::string_view> identity(const ConverterContributi
     return {"name", entry.name};
 }
 
+std::pair<std::string_view, std::string_view> identity(const LocaleContribution& entry)
+{
+    return {"locale", entry.locale};
+}
+
 std::pair<std::string_view, std::string_view> identity(const SettingDeclaration& entry)
 {
     return {"key", entry.key};
@@ -1001,6 +1006,32 @@ void checkEntry(const ConverterContribution& converter, const std::string& path,
     const bool code = (lower.ends_with(".ts") && !lower.ends_with(".d.ts")) || lower.ends_with(".js");
     if (!converter.script.empty() && !code) {
         context.report(Severity::Error, Code::ScriptEntryInvalid, path + ".script", converter.script);
+    }
+}
+
+bool endsWithFolded(std::string_view file, std::string_view ending)
+{
+    if (file.size() <= ending.size()) {
+        return false;
+    }
+    std::string tail(file.substr(file.size() - ending.size()));
+    std::ranges::transform(tail, tail.begin(), [](char c) { return c >= 'A' && c <= 'Z' ? char(c - 'A' + 'a') : c; });
+    return tail == ending;
+}
+
+void checkEntry(const LocaleContribution& locale, const std::string& path, Context& context)
+{
+    if (!locale.locale.empty() && !languageCode(locale.locale)) {
+        context.report(Severity::Error, Code::LocaleInvalid, path + ".locale", locale.locale);
+    } else if (std::ranges::find(kBuiltinLocales, locale.locale) != kBuiltinLocales.end()) {
+        context.report(Severity::Error, Code::LocaleInvalid, path + ".locale",
+                       locale.locale + " is built into GameScrcpy");
+    }
+    if (!locale.translations.empty() && !endsWithFolded(locale.translations, ".qm")) {
+        context.report(Severity::Error, Code::LocaleInvalid, path + ".translations",
+                       endsWithFolded(locale.translations, ".ts")
+                           ? locale.translations + " is not compiled; compile it into a .qm file with lrelease"
+                           : locale.translations);
     }
 }
 
@@ -2165,6 +2196,7 @@ void checkManifest(const Manifest& manifest, const LoadOptions& options, Context
         {"help", ExtensionPoint::Help, !contributes.help.empty()},
         {"tours", ExtensionPoint::Tour, !contributes.tours.empty()},
         {"converters", ExtensionPoint::Script, !contributes.converters.empty()},
+        {"locales", ExtensionPoint::Locale, !contributes.locales.empty()},
     };
     for (const Contributed& entry : contributed) {
         if (entry.present && !manifest.declares(entry.point)) {

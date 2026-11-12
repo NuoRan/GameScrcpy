@@ -257,6 +257,9 @@ bool AppSettings::setValue(const QString& path, const QVariant& value)
     if (!converted || !settings::assign(next, entry->path, *converted)) {
         return false;
     }
+    if (next.general.language != m_file.document().general.language && !offersLanguage(next.general.language)) {
+        return false;
+    }
     change(next);
     return true;
 }
@@ -325,13 +328,14 @@ void AppSettings::change(const settings::Settings& next)
 
 QString AppSettings::language() const
 {
-    return toQString(settings::kLanguageNames[static_cast<std::size_t>(m_file.document().general.language)]);
+    return QString::fromStdString(m_file.document().general.language);
 }
 
 QString AppSettings::interfaceLanguage() const
 {
-    if (m_file.document().general.language != settings::Language::System) {
-        return language();
+    const std::string& chosen = m_file.document().general.language;
+    if (chosen != settings::kLanguageNames.front() && offersLanguage(chosen)) {
+        return QString::fromStdString(chosen);
     }
     for (const QString& name : QLocale::system().uiLanguages()) {
         const QLocale::Language spoken = QLocale(name).language();
@@ -343,6 +347,24 @@ QString AppSettings::interfaceLanguage() const
         }
     }
     return QStringLiteral("en");
+}
+
+void AppSettings::setLanguagePacks(const QStringList& languages)
+{
+    if (languages == m_languagePacks) {
+        return;
+    }
+    const QString before = interfaceLanguage();
+    m_languagePacks = languages;
+    if (interfaceLanguage() != before) {
+        emit languageChanged();
+    }
+}
+
+bool AppSettings::offersLanguage(const std::string& language) const
+{
+    return std::ranges::find(settings::kLanguageNames, language) != settings::kLanguageNames.end() ||
+           m_languagePacks.contains(QString::fromStdString(language));
 }
 
 bool AppSettings::placeWindow(QWindow* window, const QString& which)

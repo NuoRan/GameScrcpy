@@ -117,6 +117,8 @@ public:
 
     [[nodiscard]] QString language() const;
     [[nodiscard]] QString interfaceLanguage() const;
+    [[nodiscard]] const QStringList& languagePacks() const noexcept { return m_languagePacks; }
+    void setLanguagePacks(const QStringList& languages);
 
 signals:
     void appearanceChanged();
@@ -136,6 +138,7 @@ private:
     void change(const settings::Settings& next);
     void capture(const QString& which);
     void reportBusy();
+    [[nodiscard]] bool offersLanguage(const std::string& language) const;
 
     struct Placed {
         QPointer<QWindow> window;
@@ -151,6 +154,7 @@ private:
     bool m_systemReducedTransparency = false;
     bool m_toursQuiet = false;
     std::optional<std::chrono::steady_clock::time_point> m_busyShown;
+    QStringList m_languagePacks;
 };
 
 }

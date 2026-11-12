@@ -135,6 +135,17 @@ TEST_CASE("ADR-0112: an extension whose DLL feeds input devices into the key map
     CHECK(look.lead(pedal) == QStringLiteral("hardware"));
 }
 
+TEST_CASE("ADR-0112: a language pack shows as a language, with the languages icon")
+{
+    Look look;
+    const QVariantMap japanese{{QStringLiteral("id"), QStringLiteral("alice.japanese")},
+                               {QStringLiteral("points"), QVariantList{QStringLiteral("locale")}}};
+    CHECK(look.capabilities(japanese) == QStringList{QStringLiteral("locale")});
+    CHECK(look.lead(japanese) == QStringLiteral("locale"));
+    CHECK(look.icon(QStringLiteral("locale")) == QStringLiteral("languages"));
+    CHECK(look.tone(QStringLiteral("locale")) == QStringLiteral("azure"));
+}
+
 TEST_CASE("ADR-0107: an extension card offers Settings only when the extension is loaded and has parameters, "
           "devices it may use or is the ESP32 touch box")
 {

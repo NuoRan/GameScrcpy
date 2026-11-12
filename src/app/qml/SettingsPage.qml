@@ -962,8 +962,7 @@ Item {
                     iconName: "languages"
                     tone: ""
 
-                    SegmentsSetting {
-                        path: "general.language"
+                    LanguageSetting {
                         labels: ({ system: qsTr("Follow Windows"), zh_CN: "简体中文", en: "English" })
                     }
                 }

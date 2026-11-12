@@ -4,6 +4,7 @@
 #include "gs/ext/Manifest.h"
 #include "gs/ext/Version.h"
 
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string_view>
@@ -13,6 +14,9 @@ namespace gs::ext {
 
 inline constexpr std::string_view kManifestFileName = "manifest.json";
 inline constexpr std::string_view kStagingFolder = ".staging";
+inline constexpr std::uint64_t kMaxTranslationBytes = std::uint64_t{16} << 20;
+
+[[nodiscard]] bool compiledTranslation(std::string_view bytes) noexcept;
 
 struct PackageCheck {
     std::optional<Manifest> manifest;

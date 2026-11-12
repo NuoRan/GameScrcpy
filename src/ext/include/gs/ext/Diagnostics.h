@@ -115,6 +115,7 @@ enum class Code : std::uint8_t {
     ConverterInvalid,
     AiProviderInvalid,
     VisionEngineInvalid,
+    LocaleInvalid,
 };
 
 struct Diagnostic {

@@ -29,21 +29,22 @@ struct Facets {
 inline constexpr std::string_view kFormat = "gamescrcpy.settings";
 inline constexpr int kVersion = 1;
 
-enum class Language : std::uint8_t { System, ChineseSimplified, English };
 inline constexpr std::array<std::string_view, 3> kLanguageNames{"system", "zh_CN", "en"};
 
+[[nodiscard]] bool languageTag(std::string_view text) noexcept;
+
 struct General {
-    Language language = Language::System;
+    std::string language = std::string(kLanguageNames.front());
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
     {
-        v.choice("language", m.language, kLanguageNames,
-                 {.title = GS_TRANSLATE_NOOP("Settings", "Interface language"),
-                  .description = GS_TRANSLATE_NOOP(
-                      "Settings", "Following Windows shows Chinese on a Chinese Windows and English elsewhere."),
-                  .keywords = GS_TRANSLATE_NOOP("Settings", "language chinese english locale"),
-                  .live = true});
+        v.language("language", m.language, kLanguageNames,
+                   {.title = GS_TRANSLATE_NOOP("Settings", "Interface language"),
+                    .description = GS_TRANSLATE_NOOP(
+                        "Settings", "Following Windows shows Chinese on a Chinese Windows and English elsewhere."),
+                    .keywords = GS_TRANSLATE_NOOP("Settings", "language chinese english locale"),
+                    .live = true});
     }
 
     friend bool operator==(const General&, const General&) = default;

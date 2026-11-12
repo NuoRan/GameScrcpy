@@ -1262,7 +1262,7 @@ TEST_CASE("panel contributions name a place, a script and a title, load and surv
     const Json points = schema["properties"]["requires"]["propertyNames"]["enum"];
     CHECK(std::find(points.begin(), points.end(), Json("panel")) != points.end());
     CHECK(std::find(points.begin(), points.end(), Json("help")) != points.end());
-    CHECK(points.back() == "tour");
+    CHECK(std::find(points.begin(), points.end(), Json("tour")) != points.end());
 }
 
 TEST_CASE("panel contributions are checked: names, places, titles, at most eight, one menu and both points "
@@ -2174,4 +2174,114 @@ TEST_CASE("ADR-0112: a converter is checked for its formats, the file extensions
     loaded = load(json);
     CHECK_FALSE(loaded.usable);
     CHECK(undeclared(loaded, "$.contributes.converters", "script"));
+}
+
+TEST_CASE("ADR-0112: a language pack names its language, its own name, a compiled translation and an optional help "
+          "folder under the locale point, and survives a save and a load")
+{
+    Json json = base();
+    json["id"] = "alice.japanese";
+    json["requires"] = {{"locale", "^1.0"}};
+    json["contributes"] = {
+        {"locales", Json::array({{{"locale", "ja"}, {"name", "日本語"}, {"translations", "i18n/ja.qm"}, {"help", "help/ja"}},
+                                 {{"locale", "zh_TW"}, {"name", "繁體中文"}, {"translations", "i18n/zh_TW.QM"}}})}};
+    const LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    REQUIRE(loaded.manifest.contributes.locales.size() == 2);
+    const LocaleContribution& japanese = loaded.manifest.contributes.locales[0];
+    CHECK(japanese.locale == "ja");
+    CHECK(japanese.name == "日本語");
+    CHECK(japanese.translations == "i18n/ja.qm");
+    CHECK(japanese.help == "help/ja");
+    CHECK(loaded.manifest.contributes.locales[1].locale == "zh_TW");
+    CHECK(loaded.manifest.contributes.locales[1].help.empty());
+    CHECK(loaded.manifest.declares(ExtensionPoint::Locale));
+    CHECK(extensionPointNamed("locale") == ExtensionPoint::Locale);
+    CHECK(nameOf(ExtensionPoint::Locale) == "locale");
+
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+    const Json saved = Json::parse(saveManifest(loaded.manifest))["contributes"]["locales"];
+    CHECK(saved[0]["help"] == "help/ja");
+    CHECK_FALSE(saved[1].contains("help"));
+
+    const Json schema = Json::parse(manifestJsonSchema());
+    const Json localeSchema = schema["properties"]["contributes"]["properties"]["locales"];
+    CHECK(localeSchema["maxItems"] == kMaxLocales);
+    CHECK(localeSchema["items"]["required"] == Json::array({"locale", "name", "translations"}));
+    const Json points = schema["properties"]["requires"]["propertyNames"]["enum"];
+    CHECK(std::find(points.begin(), points.end(), Json("locale")) != points.end());
+}
+
+TEST_CASE("ADR-0112: a language pack is checked for its tag, the languages GameScrcpy has itself, a .qm file, its "
+          "point and that it asks for no permission")
+{
+    Json json = base();
+    json["id"] = "alice.japanese";
+    json["requires"] = {{"locale", "^1.0"}};
+    json["contributes"] = {
+        {"locales", Json::array({{{"locale", "Japanese"}, {"name", "日本語"}, {"translations", "i18n/ja.qm"}},
+                                 {{"locale", "en"}, {"name", "English"}, {"translations", "i18n/en.qm"}},
+                                 {{"locale", "zh_CN"}, {"name", "简体中文"}, {"translations", "i18n/zh_CN.qm"}},
+                                 {{"locale", "ja"}, {"name", "日本語"}, {"translations", "i18n/ja.ts"}},
+                                 {{"locale", "ja"}, {"name", "日本語"}, {"translations", "i18n/ja.txt"}},
+                                 {{"locale", "zh_tw"},
+                                  {"name", std::string(kMaxLocaleNameLength + 1, 'x')},
+                                  {"translations", "../ja.qm"},
+                                  {"help", "/help"}},
+                                 {{"locale", "ko"}}})}};
+    LoadedManifest loaded = load(json);
+    INFO(listed(loaded));
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::LocaleInvalid, "$.contributes.locales[0].locale"));
+    CHECK(reports(loaded, Code::LocaleInvalid, "$.contributes.locales[1].locale"));
+    CHECK(reports(loaded, Code::LocaleInvalid, "$.contributes.locales[2].locale"));
+    CHECK(reports(loaded, Code::LocaleInvalid, "$.contributes.locales[3].translations"));
+    CHECK(reports(loaded, Code::LocaleInvalid, "$.contributes.locales[4].translations"));
+    CHECK(reports(loaded, Code::Duplicate, "$.contributes.locales[4].locale"));
+    CHECK(reports(loaded, Code::LocaleInvalid, "$.contributes.locales[5].locale"));
+    CHECK(reports(loaded, Code::TooLong, "$.contributes.locales[5].name"));
+    CHECK(reports(loaded, Code::PathInvalid, "$.contributes.locales[5].translations"));
+    CHECK(reports(loaded, Code::PathInvalid, "$.contributes.locales[5].help"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.locales[6].name"));
+    CHECK(reports(loaded, Code::MissingField, "$.contributes.locales[6].translations"));
+    CHECK_FALSE(reports(loaded, Code::LocaleInvalid, "$.contributes.locales[6].locale"));
+    const auto reserved = std::ranges::find_if(loaded.diagnostics, [](const Diagnostic& each) {
+        return each.path == "$.contributes.locales[1].locale";
+    });
+    REQUIRE(reserved != loaded.diagnostics.end());
+    CHECK(reserved->detail == "en is built into GameScrcpy");
+    const auto source = std::ranges::find_if(loaded.diagnostics, [](const Diagnostic& each) {
+        return each.path == "$.contributes.locales[3].translations";
+    });
+    REQUIRE(source != loaded.diagnostics.end());
+    CHECK(source->detail.find("lrelease") != std::string::npos);
+    CHECK(codeName(Code::LocaleInvalid) == "locale-invalid");
+    CHECK(fixHint(Code::LocaleInvalid).find("lrelease") != std::string_view::npos);
+
+    json["contributes"]["locales"] = Json::array();
+    for (std::size_t index = 0; index <= kMaxLocales; ++index) {
+        json["contributes"]["locales"].push_back({{"locale", std::string{'a', static_cast<char>('a' + index)}},
+                                                  {"name", "Language"},
+                                                  {"translations", "i18n/language.qm"}});
+    }
+    loaded = load(json);
+    CHECK(reports(loaded, Code::TooMany, "$.contributes.locales"));
+
+    json["contributes"]["locales"] =
+        Json::array({{{"locale", "ja"}, {"name", "日本語"}, {"translations", "i18n/ja.qm"}}});
+    json["permissions"] =
+        Json::array({{{"name", "network"}, {"reason", "Downloads new words."}, {"hosts", {"example.com"}}}});
+    loaded = load(json);
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::PermissionNotAllowed, "$.permissions"));
+
+    json.erase("permissions");
+    json["requires"] = {{"theme", "^1.0"}};
+    loaded = load(json);
+    CHECK_FALSE(loaded.usable);
+    CHECK(undeclared(loaded, "$.contributes.locales", "locale"));
 }

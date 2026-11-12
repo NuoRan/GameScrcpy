@@ -56,6 +56,12 @@ bool contains(const std::vector<std::string>& keys, const std::string& key)
     return std::find(keys.begin(), keys.end(), key) != keys.end();
 }
 
+template <std::size_t N>
+bool languageAccepted(std::string_view text, const std::array<std::string_view, N>& names)
+{
+    return std::ranges::find(names, text) != names.end() || languageTag(text);
+}
+
 struct Context {
     std::vector<Diagnostic>& diagnostics;
     bool usable = true;
@@ -147,6 +153,26 @@ public:
             }
         }
         m_context.report(Severity::Error, Problem::UnknownName, pathOf(name), value->dump());
+    }
+
+    template <std::size_t N>
+    void language(std::string_view name, std::string& field, const std::array<std::string_view, N>& names,
+                  const Facets& = {})
+    {
+        const Json* value = find(name);
+        if (!value) {
+            return;
+        }
+        if (!value->is_string()) {
+            wrongType(name, *value);
+            return;
+        }
+        const std::string& text = value->get_ref<const std::string&>();
+        if (!languageAccepted(text, names)) {
+            m_context.report(Severity::Error, Problem::UnknownName, pathOf(name), value->dump());
+            return;
+        }
+        field = text;
     }
 
     template <typename T>
@@ -417,6 +443,13 @@ public:
         set(name, std::string(names[static_cast<std::size_t>(field)]));
     }
 
+    template <std::size_t N>
+    void language(std::string_view name, const std::string& field, const std::array<std::string_view, N>&,
+                  const Facets& = {})
+    {
+        set(name, field);
+    }
+
     template <typename T>
     void integer(std::string_view name, const T& field, std::int64_t, std::int64_t, const Facets& = {})
     {
@@ -574,6 +607,17 @@ public:
         }
     }
 
+    template <std::size_t N>
+    void language(std::string_view name, const std::string& field, const std::array<std::string_view, N>& names,
+                  const Facets& facets = {})
+    {
+        if (!facets.title.empty()) {
+            Entry entry = make(name, Kind::Choice, facets, field);
+            entry.choices.assign(names.begin(), names.end());
+            entries.push_back(std::move(entry));
+        }
+    }
+
     template <typename T>
     void integer(std::string_view name, const T& field, std::int64_t min, std::int64_t max, const Facets& facets = {})
     {
@@ -636,6 +680,15 @@ public:
         }
     }
 
+    template <std::size_t N>
+    void language(std::string_view name, const std::string& field, const std::array<std::string_view, N>&,
+                  const Facets& facets = {})
+    {
+        if (wanted(name, facets)) {
+            found = field;
+        }
+    }
+
     template <typename T>
     void integer(std::string_view name, const T& field, std::int64_t, std::int64_t, const Facets& facets = {})
     {
@@ -690,6 +743,17 @@ public:
         const auto found = std::ranges::find(names, *text);
         if (found != names.end()) {
             field = static_cast<E>(found - names.begin());
+            assigned = true;
+        }
+    }
+
+    template <std::size_t N>
+    void language(std::string_view name, std::string& field, const std::array<std::string_view, N>& names,
+                  const Facets& facets = {})
+    {
+        const auto* text = wanted(name, facets) ? std::get_if<std::string>(&m_value) : nullptr;
+        if (text != nullptr && languageAccepted(*text, names)) {
+            field = *text;
             assigned = true;
         }
     }
@@ -851,6 +915,22 @@ bool assign(Settings& settings, std::string_view path, const Value& value)
     Setter setter(path, value);
     Settings::visit(setter, settings);
     return setter.assigned;
+}
+
+bool languageTag(std::string_view text) noexcept
+{
+    const auto lower = [](char c) { return c >= 'a' && c <= 'z'; };
+    const auto upper = [](char c) { return c >= 'A' && c <= 'Z'; };
+    const std::size_t split = text.find('_');
+    const std::string_view language = text.substr(0, split);
+    if (language.size() < 2 || language.size() > 3 || !std::ranges::all_of(language, lower)) {
+        return false;
+    }
+    if (split == std::string_view::npos) {
+        return true;
+    }
+    const std::string_view region = text.substr(split + 1);
+    return region.size() == 2 && std::ranges::all_of(region, upper);
 }
 
 Settings effectiveSettings(const Settings& global, const DeviceSettings& device)

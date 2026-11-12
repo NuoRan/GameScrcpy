@@ -7,6 +7,7 @@
 #include <gs/platform/AtomicFile.h>
 
 #include <algorithm>
+#include <array>
 #include <cstdint>
 #include <fstream>
 #include <functional>
@@ -132,6 +133,34 @@ void checkFilter(const Manifest& manifest, std::size_t index, const ArchiveListi
     }
 }
 
+void checkLocale(const Manifest& manifest, std::size_t index, const ArchiveListing& listing, const Reader& reader,
+                 std::vector<Diagnostic>& diagnostics)
+{
+    const LocaleContribution& locale = manifest.contributes.locales[index];
+    const std::string at = "$.contributes.locales[" + std::to_string(index) + "]";
+    const ArchiveEntry* entry = entryOf(listing, locale.translations);
+    if (entry == nullptr) {
+        add(diagnostics, Code::FileMissing, at + ".translations", locale.translations);
+    } else if (entry->size > kMaxTranslationBytes) {
+        add(diagnostics, Code::TooLarge, at + ".translations", std::to_string(entry->size));
+    } else if (const std::optional<std::string> bytes = reader(locale.translations, kMaxTranslationBytes); !bytes) {
+        add(diagnostics, Code::ArchiveCorrupt, at + ".translations", locale.translations);
+    } else if (!compiledTranslation(*bytes)) {
+        add(diagnostics, Code::LocaleInvalid, at + ".translations",
+            locale.translations + " is not a compiled Qt translation");
+    }
+    if (locale.help.empty()) {
+        return;
+    }
+    const std::string folder = locale.help + "/";
+    const bool articles = std::ranges::any_of(listing.files, [&folder](const ArchiveEntry& file) {
+        return file.path.starts_with(folder) && file.path.ends_with(".md");
+    });
+    if (!articles) {
+        add(diagnostics, Code::FileMissing, at + ".help", folder + "*.md");
+    }
+}
+
 PackageCheck checkFiles(const ArchiveListing& listing, const Reader& reader, const LoadOptions& options)
 {
     PackageCheck check;
@@ -182,6 +211,9 @@ PackageCheck checkFiles(const ArchiveListing& listing, const Reader& reader, con
             add(check.diagnostics, Code::FileMissing,
                 "$.contributes.converters[" + std::to_string(index) + "].script", converter.script);
         }
+    }
+    for (std::size_t index = 0; index < loaded.manifest.contributes.locales.size(); ++index) {
+        checkLocale(loaded.manifest, index, listing, reader, check.diagnostics);
     }
     check.manifest = std::move(loaded.manifest);
     return check;
@@ -238,6 +270,15 @@ PackageCheck checkDirectory(const std::filesystem::path& directory, const LoadOp
         inspectDirectory(directory),
         [&](std::string_view path, std::uint64_t maxBytes) { return readFrom(directory, path, maxBytes); },
         options);
+}
+
+bool compiledTranslation(std::string_view bytes) noexcept
+{
+    static constexpr std::array<unsigned char, 16> kMagic{0x3C, 0xB8, 0x64, 0x18, 0xCA, 0xEF, 0x9C, 0x95,
+                                                          0xCD, 0x21, 0x1C, 0xBF, 0x60, 0xA1, 0xBD, 0xDD};
+    return std::ranges::equal(kMagic, bytes.substr(0, kMagic.size()), [](unsigned char wanted, char found) {
+        return static_cast<unsigned char>(found) == wanted;
+    });
 }
 
 std::filesystem::path installedDirectory(const std::filesystem::path& root, std::string_view id,

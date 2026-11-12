@@ -92,6 +92,9 @@ std::vector<ExtensionHelp> extensionHelp(const ExtensionHost& host, const QStrin
                 topic.titles.emplace(toQString(code),
                                      extensionText(manifest, "help." + help.id + ".title", help.title, toQString(code)));
             }
+            if (!language.isEmpty()) {
+                topic.titles.emplace(language, extensionText(manifest, "help." + help.id + ".title", help.title, language));
+            }
             if (const std::optional<QString> text = helpText(extension.directory, help.file)) {
                 topic.texts.emplace(toQString(kLanguages.front()), *text);
             }

@@ -78,6 +78,7 @@ qt_add_qml_module(GameScrcpy
         qml/KeymapDraftLayer.qml
         qml/KeymapEditor.qml
         qml/KeyProperties.qml
+        qml/LanguageSetting.qml
         qml/LatencyTestCard.qml
         qml/LazyPage.qml
         qml/LogicImportDialog.qml
@@ -317,6 +318,8 @@ qt_add_qml_module(GameScrcpy
         KeyLabels.h
         KeymapBackgrounds.cpp
         KeymapBackgrounds.h
+        LanguagePacks.cpp
+        LanguagePacks.h
         LatencyMeter.cpp
         LatencyMeter.h
         LocalServers.cpp

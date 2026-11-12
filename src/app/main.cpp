@@ -27,6 +27,7 @@
 #include "LocalServers.h"
 #include "InputReadGrants.h"
 #include "JsSequence.h"
+#include "LanguagePacks.h"
 #include "LogFile.h"
 #include "McpDevices.h"
 #include "McpDrafts.h"
@@ -77,7 +78,6 @@
 #include <QScopeGuard>
 #include <QStandardPaths>
 #include <QStringList>
-#include <QTranslator>
 #include <QtQml/qqmlextensionplugin.h>
 
 #include <algorithm>
@@ -203,14 +203,6 @@ void applyDefaultFont()
     const QStringList chinese{u"Microsoft YaHei UI"_s, u"Microsoft YaHei"_s};
     QFontDatabase::setApplicationFallbackFontFamilies(QChar::Script_Han, chinese);
     QFontDatabase::setApplicationFallbackFontFamilies(QChar::Script_Common, chinese);
-}
-
-void loadTranslation(QTranslator& translator, const QString& language)
-{
-    QCoreApplication::removeTranslator(&translator);
-    if (translator.load(u"gamescrcpy_"_s + language, u":/i18n"_s)) {
-        QCoreApplication::installTranslator(&translator);
-    }
 }
 
 void logExtensions(const gs::app::ExtensionHost& host)
@@ -415,8 +407,7 @@ int main(int argc, char* argv[])
     gs::app::CrashReport crashes(settings, data / "crashes");
     gs::app::HardwareClaims hardwareClaims;
     gs::app::ComponentDefaults componentDefaults(data / "component-defaults.json");
-    QTranslator translator;
-    loadTranslation(translator, settings.interfaceLanguage());
+    gs::app::LanguagePacks languagePacks(settings);
     gs::app::HelpLibrary help(settings);
     gs::app::ProfileLibrary profiles(data / "profiles");
     gs::app::TaskLibrary tasks(data / "tasks");
@@ -434,6 +425,8 @@ int main(int argc, char* argv[])
                    .log = logFile.path()});
     extensions.start(parser.isSet(safeMode), data / "extensions.running", data / "extensions-bisect.json");
     logExtensions(extensions);
+    gs::app::watchLanguageHelp(help, languagePacks);
+    languagePacks.follow(extensions);
     profiles.setExtensionProfiles(extensions.profiles());
     QObject::connect(&extensions, &gs::app::ExtensionHost::profilesChanged, &profiles,
                      [&profiles, &extensions] { profiles.setExtensionProfiles(extensions.profiles()); });
@@ -719,8 +712,7 @@ int main(int argc, char* argv[])
                   static_cast<long long>(gs::platform::millisecondsSinceProcessStart()));
         }, Qt::QueuedConnection);
     }
-    QObject::connect(&settings, &gs::app::AppSettings::languageChanged, &app, [&] {
-        loadTranslation(translator, settings.interfaceLanguage());
+    QObject::connect(&languagePacks, &gs::app::LanguagePacks::translationsChanged, &app, [&] {
         engine.retranslate();
         commands.retranslate();
         devices.retranslate();

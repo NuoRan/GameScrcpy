@@ -15,6 +15,8 @@
 #include <functional>
 #include <map>
 #include <optional>
+#include <string>
+#include <string_view>
 #include <vector>
 
 class QJSEngine;
@@ -59,6 +61,14 @@ struct ExtensionHelp {
     QUrl base;
 };
 
+struct HelpLanguage {
+    QString code;
+    QString translations;
+    QString folder;
+
+    friend bool operator==(const HelpLanguage&, const HelpLanguage&) = default;
+};
+
 class HelpLibrary : public QObject
 {
     Q_OBJECT
@@ -90,6 +100,7 @@ public:
     [[nodiscard]] const HelpTopic* find(QStringView slug) const;
     [[nodiscard]] QUrl baseUrl() const;
     void setExtensionTopics(std::vector<ExtensionHelp> topics);
+    void setLanguagePacks(std::vector<HelpLanguage> packs);
 
     Q_INVOKABLE bool contains(const QString& slug) const;
     Q_INVOKABLE QVariantMap article(const QString& slug, const QString& language = {}) const;
@@ -105,6 +116,12 @@ private:
     void loadReference(std::size_t group, const QString& icon);
     [[nodiscard]] std::map<QString, std::map<QString, QString>>
     translatedReference(const std::map<QString, QString>& bundled) const;
+    [[nodiscard]] std::map<QString, QString> bundledReference() const;
+    [[nodiscard]] static std::map<QString, QString>
+    translatedPages(const std::map<QString, QString>& bundled, const std::function<std::string(std::string_view)>& shown);
+    void addPack(const HelpLanguage& pack, const std::map<QString, QString>& bundled);
+    [[nodiscard]] QStringList languages() const;
+    void makeSearchable(HelpTopic& topic) const;
     void followLanguage();
     [[nodiscard]] QVariantList listed() const;
     [[nodiscard]] QVariantMap neighbour(const HelpTopic& topic, int step, const QString& language) const;
@@ -123,6 +140,7 @@ private:
     QStringList m_popular;
     QVariantList m_contents;
     std::optional<std::size_t> m_extensionGroup;
+    std::vector<HelpLanguage> m_packs;
 };
 
 }

@@ -67,6 +67,7 @@ const ext::HostApi& hostApi()
         offered.versions[ext::ExtensionPoint::Panel] = {ext::Version{1, 0, 0}};
         offered.versions[ext::ExtensionPoint::Help] = {ext::Version{1, 0, 0}};
         offered.versions[ext::ExtensionPoint::Tour] = {ext::Version{1, 0, 0}};
+        offered.versions[ext::ExtensionPoint::Locale] = {ext::Version{1, 0, 0}};
         return offered;
     }();
     return api;
@@ -547,6 +548,16 @@ QVariantList converterList(const ext::Manifest& manifest, const QString& languag
     return converters;
 }
 
+QVariantList localeList(const ext::Manifest& manifest)
+{
+    QVariantList locales;
+    for (const ext::LocaleContribution& locale : manifest.contributes.locales) {
+        locales.append(QVariantMap{{QStringLiteral("locale"), QString::fromStdString(locale.locale)},
+                                   {QStringLiteral("name"), QString::fromStdString(locale.name)}});
+    }
+    return locales;
+}
+
 QVariantMap describe(const std::optional<ext::Manifest>& found, const QString& language)
 {
     static const ext::Manifest blank{};
@@ -586,7 +597,8 @@ QVariantMap describe(const std::optional<ext::Manifest>& found, const QString& l
                  (manifest.contributes.native && !manifest.contributes.native->attachments.empty())},
             {QStringLiteral("panels"), panelList(manifest, language)},
             {QStringLiteral("services"), serviceList(manifest, language)},
-            {QStringLiteral("converters"), converterList(manifest, language)}};
+            {QStringLiteral("converters"), converterList(manifest, language)},
+            {QStringLiteral("locales"), localeList(manifest)}};
 }
 
 QVariantMap installResult(const ext::InstalledExtension& outcome)

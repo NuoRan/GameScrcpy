@@ -23,7 +23,7 @@ Item {
     readonly property bool bisecting: ExtensionHost.bisect.active === true
     readonly property string query: search.text.trim().toLowerCase()
     readonly property var capabilities: ["filter", "theme", "profile", "script", "command", "preset", "hardware",
-                                         "component", "nodes", "task", "panel"]
+                                         "component", "nodes", "task", "panel", "locale"]
         .filter(kind => page.extensions.some(entry => ExtensionLook.capabilities(entry).includes(kind)))
     readonly property var shown: page.extensions.filter(entry => page.matches(entry)
                                                          && (page.filter === ""
@@ -73,6 +73,8 @@ Item {
             return qsTr("help articles")
         case "tour":
             return qsTr("guided tours")
+        case "locale":
+            return qsTr("interface languages")
         default:
             return point
         }
@@ -182,6 +184,8 @@ Item {
             return qsTr("Help")
         case "tour":
             return qsTr("Tours")
+        case "locale":
+            return qsTr("Languages")
         default:
             return point
         }
@@ -203,6 +207,8 @@ Item {
             return qsTr("A picture it needs could not be read")
         case "native-architecture-missing":
             return qsTr("This extension has no version for this computer")
+        case "locale-invalid":
+            return qsTr("Its language file is not a compiled translation")
         default:
             return qsTr("Could not load")
         }
@@ -989,6 +995,19 @@ Item {
                 visible: text !== ""
                 textFormat: Text.PlainText
                 text: page.nativeText(detailsDialog.entry.native)
+                color: Theme.colors.textTertiary
+                font.pixelSize: Theme.type.caption.size
+                wrapMode: Text.Wrap
+            }
+
+            Text {
+                objectName: "localeDetails"
+                Layout.fillWidth: true
+                visible: (detailsDialog.entry.locales ?? []).length > 0
+                textFormat: Text.PlainText
+                text: qsTr("Languages: %1").arg((detailsDialog.entry.locales ?? [])
+                                                .map(item => qsTr("%1 (%2)").arg(item.name).arg(item.locale))
+                                                .join(qsTr(", ", "list separator")))
                 color: Theme.colors.textTertiary
                 font.pixelSize: Theme.type.caption.size
                 wrapMode: Text.Wrap

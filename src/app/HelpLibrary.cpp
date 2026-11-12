@@ -1,6 +1,7 @@
 #include "HelpLibrary.h"
 
 #include "AppSettings.h"
+#include "LanguagePacks.h"
 
 #include <gs/ext/Archive.h>
 #include <gs/script/ApiFiles.h>
@@ -19,6 +20,7 @@
 #include <algorithm>
 #include <array>
 #include <cstddef>
+#include <initializer_list>
 #include <iterator>
 #include <optional>
 #include <string>
@@ -138,11 +140,10 @@ std::map<QString, QString> titlesOf(const QJsonValue& value)
 
 QString pick(const std::map<QString, QString>& values, const QString& language)
 {
-    if (const auto found = values.find(language); found != values.end()) {
-        return found->second;
-    }
-    if (const auto english = values.find(kFallback.toString()); english != values.end()) {
-        return english->second;
+    for (const QString& candidate : {language, language.section(u'_', 0, 0), kFallback.toString()}) {
+        if (const auto found = values.find(candidate); found != values.end()) {
+            return found->second;
+        }
     }
     return values.empty() ? QString() : values.begin()->second;
 }
@@ -150,11 +151,10 @@ QString pick(const std::map<QString, QString>& values, const QString& language)
 template <typename Value>
 const Value* pickOf(const std::map<QString, Value>& values, const QString& language)
 {
-    if (const auto found = values.find(language); found != values.end()) {
-        return &found->second;
-    }
-    if (const auto english = values.find(kFallback.toString()); english != values.end()) {
-        return &english->second;
+    for (const QString& candidate : {language, language.section(u'_', 0, 0), kFallback.toString()}) {
+        if (const auto found = values.find(candidate); found != values.end()) {
+            return &found->second;
+        }
     }
     return values.empty() ? nullptr : &values.begin()->second;
 }
@@ -305,8 +305,8 @@ void HelpLibrary::setExtensionTopics(std::vector<ExtensionHelp> topics)
     std::erase_if(m_topics, [](const HelpTopic& topic) { return !topic.extension.isEmpty(); });
     if (!m_extensionGroup) {
         HelpGroup group;
-        for (const QStringView language : kLanguages) {
-            group.titles.emplace(language.toString(), textIn(language.toString(), kExtensionsGroup));
+        for (const QString& code : languages()) {
+            group.titles.emplace(code, textIn(code, kExtensionsGroup));
         }
         m_extensionGroup = m_groups.size();
         m_groups.push_back(std::move(group));
@@ -335,14 +335,124 @@ void HelpLibrary::setExtensionTopics(std::vector<ExtensionHelp> topics)
         if (topic.texts.empty()) {
             continue;
         }
-        for (const QStringView language : kLanguages) {
-            const QString code = language.toString();
-            topic.searchable.emplace(code, searchableText(pick(topic.titles, code), pick(topic.texts, code)));
-        }
+        makeSearchable(topic);
         m_topics.push_back(std::move(topic));
     }
     m_contents = listed();
     emit contentsChanged();
+}
+
+void HelpLibrary::setLanguagePacks(std::vector<HelpLanguage> packs)
+{
+    std::erase_if(packs, [](const HelpLanguage& pack) {
+        return pack.code.isEmpty() || std::ranges::find(kLanguages, QStringView(pack.code)) != kLanguages.end();
+    });
+    if (packs == m_packs) {
+        return;
+    }
+    for (HelpTopic& topic : m_topics) {
+        if (!topic.extension.isEmpty()) {
+            continue;
+        }
+        for (const HelpLanguage& old : m_packs) {
+            topic.titles.erase(old.code);
+            topic.texts.erase(old.code);
+            topic.documents.erase(old.code);
+        }
+    }
+    if (m_extensionGroup) {
+        for (const HelpLanguage& old : m_packs) {
+            m_groups[*m_extensionGroup].titles.erase(old.code);
+        }
+    }
+    m_packs = std::move(packs);
+    const std::map<QString, QString> bundled = m_packs.empty() ? std::map<QString, QString>() : bundledReference();
+    for (const HelpLanguage& pack : m_packs) {
+        addPack(pack, bundled);
+    }
+    for (HelpTopic& topic : m_topics) {
+        makeSearchable(topic);
+    }
+    m_contents = listed();
+    emit contentsChanged();
+}
+
+void HelpLibrary::addPack(const HelpLanguage& pack, const std::map<QString, QString>& bundled)
+{
+    QByteArray data;
+    QTranslator translator;
+    const bool loaded = !m_translate && loadTranslationFile(translator, data, pack.translations);
+    const auto translate = [&](const char* context, const QString& english) {
+        const QString found = m_translate ? m_translate(pack.code, english)
+                              : loaded    ? translator.translate(context, english.toUtf8().constData())
+                                          : QString();
+        return found.isEmpty() ? english : found;
+    };
+    if (m_extensionGroup) {
+        m_groups[*m_extensionGroup].titles.insert_or_assign(
+            pack.code, translate("HelpLibrary", QString::fromUtf8(kExtensionsGroup)));
+    }
+    if (loaded || m_translate) {
+        const QByteArray context(script::kApiTextContext.data(), static_cast<qsizetype>(script::kApiTextContext.size()));
+        const std::map<QString, QString> pages = translatedPages(bundled, [&](std::string_view text) {
+            return translate(context.constData(), QString::fromUtf8(text.data(), static_cast<qsizetype>(text.size())))
+                .toStdString();
+        });
+        for (const auto& [stem, page] : pages) {
+            const auto english = bundled.find(stem);
+            const QString slug = referenceSlug(stem);
+            const auto topic = std::ranges::find_if(
+                m_topics, [&slug](const HelpTopic& each) { return each.reference && each.slug == slug; });
+            if (topic == m_topics.end() || (english != bundled.end() && english->second == page)) {
+                continue;
+            }
+            const Document shown = split(page);
+            const QString body = withHelpLinks(shown.body);
+            topic->titles.insert_or_assign(pack.code, shown.heading.isEmpty() ? stem : shown.heading);
+            topic->texts.insert_or_assign(pack.code, body);
+            topic->documents.insert_or_assign(pack.code, parseHelpMarkdown(body));
+        }
+    }
+    if (pack.folder.isEmpty()) {
+        return;
+    }
+    for (HelpTopic& topic : m_topics) {
+        if (topic.reference || !topic.extension.isEmpty()) {
+            continue;
+        }
+        const std::optional<QString> text = readText(pack.folder + u'/' + topic.slug + u".md"_s);
+        if (!text) {
+            continue;
+        }
+        const Document shown = split(*text);
+        if (!shown.heading.isEmpty()) {
+            topic.titles.insert_or_assign(pack.code, shown.heading);
+        }
+        topic.texts.insert_or_assign(pack.code, shown.body);
+        topic.documents.insert_or_assign(pack.code, parseHelpMarkdown(shown.body));
+    }
+}
+
+QStringList HelpLibrary::languages() const
+{
+    QStringList codes;
+    for (const QStringView language : kLanguages) {
+        codes.append(language.toString());
+    }
+    for (const HelpLanguage& pack : m_packs) {
+        if (!codes.contains(pack.code)) {
+            codes.append(pack.code);
+        }
+    }
+    return codes;
+}
+
+void HelpLibrary::makeSearchable(HelpTopic& topic) const
+{
+    topic.searchable.clear();
+    for (const QString& code : languages()) {
+        topic.searchable.emplace(code, searchableText(pick(topic.titles, code), pick(topic.texts, code)));
+    }
 }
 
 QString HelpLibrary::textIn(const QString& language, const char* text) const
@@ -354,6 +464,12 @@ QString HelpLibrary::textIn(const QString& language, const char* text) const
     QString found;
     if (m_translate) {
         found = m_translate(language, english);
+    } else if (const auto pack = std::ranges::find(m_packs, language, &HelpLanguage::code); pack != m_packs.end()) {
+        QByteArray data;
+        QTranslator translator;
+        if (loadTranslationFile(translator, data, pack->translations)) {
+            found = translator.translate("HelpLibrary", text);
+        }
     } else if (QTranslator translator; translator.load(u"gamescrcpy_"_s + language, u":/i18n"_s)) {
         found = translator.translate("HelpLibrary", text);
     }
@@ -580,23 +696,28 @@ void HelpLibrary::load()
         }
     }
     for (HelpTopic& topic : m_topics) {
-        for (const QStringView language : kLanguages) {
-            const QString code = language.toString();
-            topic.searchable.emplace(code, searchableText(pick(topic.titles, code), pick(topic.texts, code)));
+        makeSearchable(topic);
+    }
+}
+
+std::map<QString, QString> HelpLibrary::bundledReference() const
+{
+    const QDir folder(m_root + u"/api"_s);
+    std::map<QString, QString> bundled;
+    for (const QString& file : folder.entryList({u"*.md"_s}, QDir::Files, QDir::Name)) {
+        if (const std::optional<QString> text = readText(folder.filePath(file))) {
+            bundled.emplace(file.chopped(3), *text);
         }
     }
+    return bundled;
 }
 
 void HelpLibrary::loadReference(std::size_t group, const QString& icon)
 {
-    const QDir folder(m_root + u"/api"_s);
+    const std::map<QString, QString> bundled = bundledReference();
     std::map<QString, Document> documents;
-    std::map<QString, QString> bundled;
-    for (const QString& file : folder.entryList({u"*.md"_s}, QDir::Files, QDir::Name)) {
-        if (const std::optional<QString> text = readText(folder.filePath(file))) {
-            documents.emplace(file.chopped(3), split(*text));
-            bundled.emplace(file.chopped(3), *text);
-        }
+    for (const auto& [stem, text] : bundled) {
+        documents.emplace(stem, split(text));
     }
     const std::map<QString, std::map<QString, QString>> translations = translatedReference(bundled);
     QStringList order;
@@ -644,14 +765,6 @@ void HelpLibrary::loadReference(std::size_t group, const QString& icon)
 std::map<QString, std::map<QString, QString>>
 HelpLibrary::translatedReference(const std::map<QString, QString>& bundled) const
 {
-    const auto stemOf = [](const std::string& path) {
-        const QString name = QString::fromStdString(path).section(u'/', -1);
-        return name.endsWith(u".md"_s) ? name.chopped(3) : name;
-    };
-    std::map<QString, QString> generated;
-    for (const script::ApiFile& page : script::apiDocs({})) {
-        generated.emplace(stemOf(page.path), QString::fromStdString(page.contents));
-    }
     const QByteArray context(script::kApiTextContext.data(), static_cast<qsizetype>(script::kApiTextContext.size()));
     std::map<QString, std::map<QString, QString>> translations;
     for (const QStringView language : kLanguages) {
@@ -670,17 +783,32 @@ HelpLibrary::translatedReference(const std::map<QString, QString>& bundled) cons
                 m_translate ? m_translate(code, english) : translator.translate(context.constData(), source.c_str());
             return (target.isEmpty() ? english : target).toStdString();
         };
-        std::map<QString, QString>& pages = translations[code];
-        for (const script::ApiFile& page : script::apiDocs(shown)) {
-            const QString stem = stemOf(page.path);
-            const auto english = generated.find(stem);
-            const auto file = bundled.find(stem);
-            if (english != generated.end() && file != bundled.end() && file->second == english->second) {
-                pages.emplace(stem, QString::fromStdString(page.contents));
-            }
-        }
+        translations.emplace(code, translatedPages(bundled, shown));
     }
     return translations;
+}
+
+std::map<QString, QString> HelpLibrary::translatedPages(const std::map<QString, QString>& bundled,
+                                                       const std::function<std::string(std::string_view)>& shown)
+{
+    const auto stemOf = [](const std::string& path) {
+        const QString name = QString::fromStdString(path).section(u'/', -1);
+        return name.endsWith(u".md"_s) ? name.chopped(3) : name;
+    };
+    std::map<QString, QString> generated;
+    for (const script::ApiFile& page : script::apiDocs({})) {
+        generated.emplace(stemOf(page.path), QString::fromStdString(page.contents));
+    }
+    std::map<QString, QString> pages;
+    for (const script::ApiFile& page : script::apiDocs(shown)) {
+        const QString stem = stemOf(page.path);
+        const auto english = generated.find(stem);
+        const auto file = bundled.find(stem);
+        if (english != generated.end() && file != bundled.end() && file->second == english->second) {
+            pages.emplace(stem, QString::fromStdString(page.contents));
+        }
+    }
+    return pages;
 }
 
 void HelpLibrary::followLanguage()

@@ -24,12 +24,13 @@ inline constexpr std::size_t kMaxReasonLength = 120;
 inline constexpr std::string_view kReservedIdPrefix = "gamescrcpy.";
 
 enum class ExtensionPoint : std::uint8_t {
-    Profile, Theme, Filter, Script, Command, Preset, Native, Component, Task, Panel, Help, Tour
+    Profile, Theme, Filter, Script, Command, Preset, Native, Component, Task, Panel, Help, Tour, Locale
 };
-inline constexpr std::array<std::string_view, 12> kExtensionPointNames{"profile", "theme",     "filter",
+inline constexpr std::array<std::string_view, 13> kExtensionPointNames{"profile", "theme",     "filter",
                                                                        "script",  "command",   "preset",
                                                                        "native",  "component", "task",
-                                                                       "panel",   "help",      "tour"};
+                                                                       "panel",   "help",      "tour",
+                                                                       "locale"};
 
 inline constexpr std::array<std::string_view, 8> kNativeTypeNames{"boolean", "number", "string",   "point",
                                                                   "region",  "color",  "duration", "json"};
@@ -903,6 +904,28 @@ struct ConverterContribution {
 [[nodiscard]] bool appFormat(std::string_view format) noexcept;
 [[nodiscard]] bool fileFormat(std::string_view format) noexcept;
 
+inline constexpr std::size_t kMaxLocales = 8;
+inline constexpr std::size_t kMaxLocaleNameLength = 40;
+inline constexpr std::array<std::string_view, 2> kBuiltinLocales{"en", "zh_CN"};
+
+struct LocaleContribution {
+    std::string locale;
+    std::string name;
+    std::string translations;
+    std::string help;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("locale", m.locale, {.required = true, .maxLength = 16});
+        v.text("name", m.name, {.required = true, .maxLength = kMaxLocaleNameLength});
+        v.text("translations", m.translations, {.required = true, .maxLength = 260, .format = TextFormat::PackagePath});
+        v.text("help", m.help, {.maxLength = 260, .format = TextFormat::PackagePath});
+    }
+
+    friend bool operator==(const LocaleContribution&, const LocaleContribution&) = default;
+};
+
 struct Contributions {
     std::vector<FilterContribution> filters;
     std::vector<ThemeContribution> themes;
@@ -920,6 +943,7 @@ struct Contributions {
     std::vector<ServiceContribution> services;
     std::vector<CliContribution> cli;
     std::vector<ConverterContribution> converters;
+    std::vector<LocaleContribution> locales;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -940,6 +964,7 @@ struct Contributions {
         v.objectList("services", m.services, kMaxServices);
         v.objectList("cli", m.cli, kMaxCliCommands);
         v.objectList("converters", m.converters, kMaxConverters);
+        v.objectList("locales", m.locales, kMaxLocales);
     }
 
     friend bool operator==(const Contributions&, const Contributions&) = default;

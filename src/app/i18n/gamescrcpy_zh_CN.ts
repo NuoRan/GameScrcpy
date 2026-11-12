@@ -6479,6 +6479,10 @@
         <translation>功能引导</translation>
     </message>
     <message>
+        <source>interface languages</source>
+        <translation>界面语言</translation>
+    </message>
+    <message>
         <source>Mirror window side panel</source>
         <translation>投屏窗口侧边面板</translation>
     </message>
@@ -6619,8 +6623,16 @@
         <translation>引导</translation>
     </message>
     <message>
+        <source>Languages</source>
+        <translation>语言</translation>
+    </message>
+    <message>
         <source>This extension has no version for this computer</source>
         <translation>这个扩展没有适合这台电脑的版本</translation>
+    </message>
+    <message>
+        <source>Its language file is not a compiled translation</source>
+        <translation>它的语言文件不是编译好的译文</translation>
     </message>
     <message>
         <source>Updates have to be signed with the same key. To accept a new key, remove the extension and install it again.</source>
@@ -6743,6 +6755,14 @@
     <message>
         <source>Details…</source>
         <translation>详情…</translation>
+    </message>
+    <message>
+        <source>Languages: %1</source>
+        <translation>语言：%1</translation>
+    </message>
+    <message>
+        <source>%1 (%2)</source>
+        <translation>%1（%2）</translation>
     </message>
     <message>
         <source>Panels it adds</source>
@@ -9950,6 +9970,25 @@
     <message>
         <source>Stop</source>
         <translation>停止</translation>
+    </message>
+</context>
+<context>
+    <name>LanguageSetting</name>
+    <message>
+        <source>%1 · %2</source>
+        <translation>%1 · %2</translation>
+    </message>
+    <message>
+        <source>%1 (unavailable)</source>
+        <translation>%1（不可用）</translation>
+    </message>
+    <message>
+        <source>%1 comes from the extension %2, which is off, so the interface follows Windows until it is on again.</source>
+        <translation>%1 来自扩展“%2”，该扩展已关闭，界面暂时跟随 Windows，重新打开后恢复。</translation>
+    </message>
+    <message>
+        <source>The extension that added %1 is no longer installed, so the interface follows Windows.</source>
+        <translation>添加 %1 的扩展已卸载，界面改为跟随 Windows。</translation>
     </message>
 </context>
 <context>

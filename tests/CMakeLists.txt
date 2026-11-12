@@ -466,6 +466,7 @@ if(GS_BUILD_APP)
             unit/app/KeyHintModelTests.cpp
             unit/app/KeymapBackgroundsTests.cpp
             unit/app/KeymapPlaytestTests.cpp
+            unit/app/LanguagePacksTests.cpp
             unit/app/LatencyMeterTests.cpp
             unit/app/LibusbBuildTests.cpp
             unit/app/LocalServersTests.cpp
@@ -678,6 +679,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/KeyLabels.h"
             "${PROJECT_SOURCE_DIR}/src/app/KeymapBackgrounds.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/KeymapBackgrounds.h"
+            "${PROJECT_SOURCE_DIR}/src/app/LanguagePacks.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/LanguagePacks.h"
             "${PROJECT_SOURCE_DIR}/src/app/LatencyMeter.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/LatencyMeter.h"
             "${PROJECT_SOURCE_DIR}/src/app/LocalServers.cpp"

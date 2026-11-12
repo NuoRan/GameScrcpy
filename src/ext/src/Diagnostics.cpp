@@ -217,6 +217,8 @@ std::string_view codeName(Code code) noexcept
         return "ai-provider-invalid";
     case Code::VisionEngineInvalid:
         return "vision-engine-invalid";
+    case Code::LocaleInvalid:
+        return "locale-invalid";
     }
     return "unknown";
 }
@@ -490,6 +492,11 @@ std::string_view fixHint(Code code) noexcept
     case Code::VisionEngineInvalid:
         return "A vision engine names what it recognizes in kinds: one or more of \"ocr\", \"detect\" and "
                "\"classify\", each once; its DLL offers a gs_ext_vision_engine of the same name that recognizes them.";
+    case Code::LocaleInvalid:
+        return "Write \"locale\" as a language code with an optional region, such as \"ja\" or \"zh_TW\"; \"en\" and "
+               "\"zh_CN\" belong to GameScrcpy. Point \"translations\" at a compiled Qt translation (.qm) in the "
+               "package: GameScrcpy and gs pack do not compile .ts files, so run Qt's lrelease on yours first "
+               "(lrelease ja.ts -qm ja.qm).";
     }
     return "";
 }

@@ -65,6 +65,8 @@ function icon(point) {
         return "circle-help"
     case "tour":
         return "navigation"
+    case "locale":
+        return "languages"
     default:
         return "puzzle"
     }
@@ -96,6 +98,8 @@ function tone(point) {
         return "teal"
     case "tour":
         return "orange"
+    case "locale":
+        return "azure"
     default:
         return ""
     }

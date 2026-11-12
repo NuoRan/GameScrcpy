@@ -70,6 +70,13 @@ bool emptyOrMissing(const fs::path& folder)
     return !fs::exists(folder, error) || fs::is_empty(folder, error);
 }
 
+std::string compiledQm()
+{
+    constexpr unsigned char kMagic[] = {0x3C, 0xB8, 0x64, 0x18, 0xCA, 0xEF, 0x9C, 0x95,
+                                        0xCD, 0x21, 0x1C, 0xBF, 0x60, 0xA1, 0xBD, 0xDD};
+    return std::string(reinterpret_cast<const char*>(kMagic), sizeof(kMagic));
+}
+
 }
 
 TEST_CASE("the example extensions pass the package check as official extensions, as a folder and as a package")
@@ -239,6 +246,51 @@ TEST_CASE("ADR-0112: an extension's converters need their script files in the fo
     CHECK(folder.ok());
     REQUIRE(folder.manifest.has_value());
     CHECK(folder.manifest->contributes.converters.size() == 2);
+}
+
+TEST_CASE("ADR-0112: a language pack needs its compiled translation and the help folder it names, in the folder and "
+          "in the package")
+{
+    const std::string manifest = R"({
+        "schemaVersion": 1,
+        "id": "alice.japanese",
+        "version": "1.0.0",
+        "name": "Japanese",
+        "license": "MIT",
+        "requires": {"locale": "^1.0"},
+        "contributes": {"locales": [{"locale": "ja", "name": "Japanese", "translations": "i18n/ja.qm",
+                                     "help": "help/ja"}]}
+    })";
+    Scratch scratch;
+    writeFile(scratch / "folder/manifest.json", manifest);
+    PackageCheck folder = checkDirectory(scratch / "folder");
+    INFO(listed(folder.diagnostics));
+    CHECK_FALSE(folder.ok());
+    CHECK(reports(folder.diagnostics, Code::FileMissing, "$.contributes.locales[0].translations"));
+    CHECK(reports(folder.diagnostics, Code::FileMissing, "$.contributes.locales[0].help"));
+    REQUIRE(packDirectory(scratch / "folder", scratch / "missing.gsext").empty());
+    CHECK(checkPackage(scratch / "missing.gsext").diagnostics == folder.diagnostics);
+
+    writeFile(scratch / "folder/i18n/ja.qm", R"(<?xml version="1.0"?><TS version="2.1" language="ja"/>)");
+    writeFile(scratch / "folder/help/ja/notes.txt", "Not an article.");
+    folder = checkDirectory(scratch / "folder");
+    CHECK(reports(folder.diagnostics, Code::LocaleInvalid, "$.contributes.locales[0].translations"));
+    CHECK(reports(folder.diagnostics, Code::FileMissing, "$.contributes.locales[0].help"));
+    REQUIRE(packDirectory(scratch / "folder", scratch / "source.gsext").empty());
+    CHECK(checkPackage(scratch / "source.gsext").diagnostics == folder.diagnostics);
+
+    writeFile(scratch / "folder/i18n/ja.qm", compiledQm() + "messages");
+    writeFile(scratch / "folder/help/ja/tours.md", "# Tours\n\nIn Japanese.\n");
+    folder = checkDirectory(scratch / "folder");
+    CHECK(folder.ok());
+    REQUIRE(packDirectory(scratch / "folder", scratch / "japanese.gsext").empty());
+    const PackageCheck package = checkPackage(scratch / "japanese.gsext");
+    CHECK(package.ok());
+    CHECK(package.manifest == folder.manifest);
+
+    CHECK(compiledTranslation(compiledQm()));
+    CHECK_FALSE(compiledTranslation(compiledQm().substr(0, 15)));
+    CHECK_FALSE(compiledTranslation(R"(<TS version="2.1"/>)"));
 }
 
 TEST_CASE("a package without a manifest is reported at the manifest file")
