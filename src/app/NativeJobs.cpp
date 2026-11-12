@@ -482,8 +482,7 @@ void NativeJobs::logged(std::uint64_t id, int level, const std::string& text)
 
 void NativeJobs::outputted(std::uint64_t id, const std::string& json)
 {
-    nlohmann::json value = nlohmann::json::parse(json, nullptr, false);
-    if (value.is_discarded()) {
+    if (!nlohmann::json::accept(json)) {
         return;
     }
     std::uint64_t logic = 0;
@@ -503,13 +502,13 @@ void NativeJobs::outputted(std::uint64_t id, const std::string& json)
     }
     if (forHost) {
         if (output) {
-            output(QString::fromStdString(value.dump()));
+            output(QString::fromStdString(json));
         }
         return;
     }
     if (m_replies.tell) {
         m_replies.tell(logic, QStringLiteral("job"), QString::number(id),
-                       QString::fromStdString(nlohmann::json{{"kind", "output"}, {"value", std::move(value)}}.dump()));
+                       QString::fromStdString(R"({"kind":"output","value":)" + json + '}'));
     }
 }
 

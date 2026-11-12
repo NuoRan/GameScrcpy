@@ -825,6 +825,70 @@ TEST_CASE("ADR-0112: an extension's speech engine reads and listens through its 
     CHECK(std::ranges::find(told, QStringLiteral(R"(job {"kind":"output","value":{"step":2}})")) != told.end());
 }
 
+TEST_CASE("ADR-0112: a part of a job's result nested 30000 deep reaches the script and the host as the job handed it "
+          "over, without GameScrcpy running out of stack")
+{
+    ApplicationScope application;
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.native/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    app::NativeWanted wanted = testWanted(folder);
+    wanted.native.nodes.clear();
+    wanted.native.jobs = {{.name = "count",
+                           .title = "Count",
+                           .params = {{"steps", "number"}, {"pause", "number"}, {"fail", "number"}, {"output", "number"}},
+                           .returns = "json",
+                           .description = {},
+                           .permissions = {},
+                           .most = std::nullopt}};
+    registry.apply({wanted});
+    REQUIRE(registry.problems().empty());
+    std::vector<QString> told;
+    app::NativeJobs jobs(registry);
+    jobs.setReplies({.answer = {},
+                     .refuse = {},
+                     .tell = [&told](std::uint64_t, const QString& kind, const QString&,
+                                     const QString& json) { told.push_back(kind + u' ' + json); }});
+    const auto settled = [](const std::function<bool()>& done) {
+        const auto deadline = std::chrono::steady_clock::now() + 20s;
+        while (!done()) {
+            if (std::chrono::steady_clock::now() > deadline) {
+                return false;
+            }
+            QCoreApplication::processEvents();
+            std::this_thread::sleep_for(5ms);
+        }
+        return true;
+    };
+    const QString deep = QString::fromStdString(std::string(30000, '[') + std::string(30000, ']'));
+    const std::string asked =
+        R"({"extension":"gstest.native","job":"count","args":{"steps":1,"pause":0,"fail":0,"output":2}})";
+
+    const script::ServiceAnswer counted = jobs.start(app::LogicCaller{.logic = 9}, asked);
+    REQUIRE_MESSAGE(counted.code.empty(), counted.problem);
+    const QString line = QStringLiteral(R"(job {"kind":"output","value":)") + deep + u'}';
+    REQUIRE(settled([&told, &line] { return std::ranges::find(told, line) != told.end(); }));
+
+    std::optional<QString> handed;
+    std::optional<bool> finished;
+    const script::ServiceAnswer started = jobs.startForHost(
+        asked, app::HostJobEvents{.progress = {},
+                                  .done = [&finished](bool worked, const QString&) { finished = worked; },
+                                  .output =
+                                      [&handed](const QString& json) {
+                                          if (!handed) {
+                                              handed = json;
+                                          }
+                                      }});
+    REQUIRE_MESSAGE(started.code.empty(), started.problem);
+    REQUIRE(settled([&finished] { return finished.has_value(); }));
+    CHECK(*finished);
+    REQUIRE(handed.has_value());
+    CHECK(*handed == deep);
+}
+
 TEST_CASE("ADR-0112: the devices page starts a job with the same checks and limit as a script and hears its progress "
           "and end itself; no script can cancel it, ask for its result or end it")
 {

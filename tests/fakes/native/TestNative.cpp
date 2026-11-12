@@ -1397,12 +1397,17 @@ int32_t countStart(void*, uint64_t job, const char* args, size_t size)
     const auto pause = static_cast<DWORD>(numberIn(text, "pause", 0.0));
     const bool fail = numberIn(text, "fail", 0.0) != 0.0;
     const bool output = numberIn(text, "output", 0.0) != 0.0;
+    const bool deep = numberIn(text, "output", 0.0) == 2.0;
     auto stop = std::make_shared<std::atomic<bool>>(false);
     JobBook& book = jobBook();
     const std::scoped_lock lock(book.mutex);
     book.stops[job] = stop;
-    book.threads.emplace_back([job, steps, pause, fail, output, stop] {
+    book.threads.emplace_back([job, steps, pause, fail, output, deep, stop] {
         int busy = 0;
+        if (deep) {
+            const std::string nested = std::string(30000, '[') + std::string(30000, ']');
+            g_host->job_output(g_host->context, job, nested.data(), nested.size());
+        }
         for (int step = 1; step <= steps; ++step) {
             if (stop->load()) {
                 sayJob(job, false, "cancelled");
