@@ -201,6 +201,67 @@ QString aiConnectionLog(const QString& log, const QString& home, int most)
     return u"Recent lines about phones connecting and mirroring, oldest first:\n"_s + text;
 }
 
+namespace {
+
+qsizetype compactSize(const QJsonObject& object)
+{
+    return QJsonDocument(object).toJson(QJsonDocument::Compact).size();
+}
+
+qsizetype entrySize(const QJsonValue& entry)
+{
+    const QJsonArray wrapped{entry};
+    return QJsonDocument(wrapped).toJson(QJsonDocument::Compact).size() - 2;
+}
+
+QJsonArray newestEntriesThatFit(const QJsonArray& entries, qsizetype& room)
+{
+    qsizetype used = 0;
+    qsizetype first = entries.size();
+    while (first > 0) {
+        const qsizetype cost = entrySize(entries.at(first - 1)) + (first == entries.size() ? 0 : 1);
+        if (used + cost > room) {
+            break;
+        }
+        used += cost;
+        --first;
+    }
+    room -= used;
+    QJsonArray kept;
+    for (qsizetype index = first; index < entries.size(); ++index) {
+        kept.append(entries.at(index));
+    }
+    return kept;
+}
+
+}
+
+QJsonObject aiBoundedChat(const QJsonObject& document, qsizetype mostBytes)
+{
+    if (mostBytes <= 0 || compactSize(document) <= mostBytes) {
+        return document;
+    }
+    QJsonObject bounded = document;
+    const QJsonArray items = bounded.value(u"items"_s).toArray();
+    const QJsonArray turns = bounded.value(u"history"_s).toArray();
+    bounded.insert(u"items"_s, QJsonArray());
+    bounded.insert(u"history"_s, QJsonArray());
+    qsizetype room = mostBytes - compactSize(bounded);
+    const QJsonArray keptItems = newestEntriesThatFit(items, room);
+    const QJsonArray keptTurns = newestEntriesThatFit(turns, room);
+    qsizetype start = 0;
+    while (start < keptTurns.size() && keptTurns.at(start).toObject().value(u"role"_s).toString() != u"user"_s) {
+        ++start;
+    }
+    QJsonArray wholeTurns;
+    for (qsizetype index = start; index < keptTurns.size(); ++index) {
+        wholeTurns.append(keptTurns.at(index));
+    }
+    bounded.insert(u"items"_s, keptItems);
+    bounded.insert(u"history"_s, wholeTurns);
+    return bounded;
+}
+
 AiChatTools::AiChatTools(AiToolRunner* base, const HelpLibrary* help, Navigate navigate)
     : m_base(base)
     , m_help(help)
@@ -782,7 +843,15 @@ void AiChats::save()
     }
     std::error_code made;
     std::filesystem::create_directories(m_folder, made);
-    const QByteArray bytes = QJsonDocument(document).toJson(QJsonDocument::Compact);
+    QByteArray bytes = QJsonDocument(document).toJson(QJsonDocument::Compact);
+    if (bytes.size() > static_cast<qsizetype>(kMostFileBytes)) {
+        const QJsonObject bounded = aiBoundedChat(document, static_cast<qsizetype>(kMostFileBytes));
+        if (bounded.value(u"items"_s).toArray().size() != document.value(u"items"_s).toArray().size() ||
+            bounded.value(u"history"_s).toArray().size() != document.value(u"history"_s).toArray().size()) {
+            log::warning(kCategory, "the conversation is too large to save whole; its oldest turns were left out");
+        }
+        bytes = QJsonDocument(bounded).toJson(QJsonDocument::Compact);
+    }
     if (const std::error_code failed =
             platform::writeFileAtomically(fileOf(id), std::string_view(bytes.constData(), bytes.size()))) {
         log::warning(kCategory, "the conversation could not be saved: {}", failed.message());

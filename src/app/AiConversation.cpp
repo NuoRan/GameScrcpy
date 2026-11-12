@@ -663,6 +663,7 @@ bool AiConversation::send(const QString& text)
     append(Item{.kind = Item::Kind::User, .text = words});
     m_rounds = 0;
     m_retried = false;
+    m_pictures = true;
     ++m_generation;
     setPhase(Phase::Context);
     readContext();

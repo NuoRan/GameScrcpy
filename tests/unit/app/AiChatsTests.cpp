@@ -9,6 +9,7 @@
 
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -299,6 +300,53 @@ TEST_CASE("ADR-0099 2026-11-10: a conversation keeps its own model and options, 
     REQUIRE(reopened.log->choices.size() == 1);
     CHECK(reopened.log->choices[0].model == u"claude-sonnet-4-5");
     CHECK(reopened.log->choices[0].effort == u"high");
+}
+
+TEST_CASE("ADR-0099 2026-11-13: a conversation too large for the reader is saved without its oldest turns, starting at "
+          "a question")
+{
+    const QString padding(400, u'x');
+    QJsonArray turns;
+    for (int round = 0; round < 6; ++round) {
+        turns.append(QJsonObject{{u"role"_s, u"user"_s}, {u"text"_s, padding}});
+        turns.append(QJsonObject{{u"role"_s, u"assistant"_s}, {u"text"_s, padding}});
+    }
+    const QJsonArray items{QJsonObject{{u"kind"_s, u"user"_s}, {u"text"_s, u"Hello"_s}}};
+    const QJsonObject document{{u"format"_s, u"gamescrcpy.ai-chat"_s}, {u"items"_s, items}, {u"history"_s, turns}};
+    CHECK(gs::app::aiBoundedChat(document, 1'000'000) == document);
+
+    const QJsonObject bounded = gs::app::aiBoundedChat(document, 1'300);
+    CHECK(QJsonDocument(bounded).toJson(QJsonDocument::Compact).size() <= 1'300);
+    const QJsonArray kept = bounded.value(u"history"_s).toArray();
+    CHECK(kept.size() < turns.size());
+    REQUIRE(kept.size() >= 2);
+    CHECK(kept.at(0).toObject().value(u"role"_s).toString() == u"user");
+    CHECK(kept.at(kept.size() - 1).toObject() == turns.at(turns.size() - 1).toObject());
+    CHECK(bounded.value(u"items"_s).toArray() == items);
+}
+
+TEST_CASE("ADR-0099 2026-11-13: a conversation that outgrows the file limit still opens, with every row it shows")
+{
+    gs::test::McpApplication application;
+    const QTemporaryDir folder;
+    REQUIRE(folder.isValid());
+    Rig rig(folder.path());
+    const QString huge(17'000'000, u'x');
+    const QJsonObject saved{
+        {u"items"_s,
+         QJsonArray{QJsonObject{{u"kind"_s, u"user"_s}, {u"text"_s, u"Hello"_s}},
+                    QJsonObject{{u"kind"_s, u"assistant"_s}, {u"text"_s, u"Hi there"_s}}}},
+        {u"history"_s, QJsonArray{QJsonObject{{u"role"_s, u"user"_s}, {u"text"_s, huge}}}}};
+    rig.chats.conversation()->restore(saved);
+    REQUIRE(rig.chats.send(u"One more question"_s, {}));
+    const QString id = rig.chats.current();
+    REQUIRE(!id.isEmpty());
+    const QString path = QDir(folder.path()).filePath(id + u".json"_s);
+    CHECK(QFileInfo(path).size() <= static_cast<qint64>(AiChats::kMostFileBytes));
+    CHECK(readJson(path).value(u"history"_s).toArray().size() == 2);
+
+    REQUIRE(rig.chats.open(id));
+    CHECK(rig.chats.conversation()->count() == 4);
 }
 
 TEST_CASE("ADR-0099 2026-11-10: the list of conversations comes from a small index that mends itself")

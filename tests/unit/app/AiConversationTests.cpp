@@ -390,6 +390,24 @@ TEST_CASE("a refused picture leads to one more try without pictures")
     CHECK(setup.kind(setup.conversation.count() - 2) == u"notice");
 }
 
+TEST_CASE("ADR-0099 2026-11-13: a question after one the service refused asks with pictures again")
+{
+    Setup setup;
+    setup.script->steps.push_back(replyWith(asking({AiToolCall{.id = u"a"_s, .name = u"get_frame"_s}})));
+    setup.script->steps.push_back(
+        replyWith(AiReply{.status = 400, .problem = u"The service did not accept the request (HTTP 400)."_s}));
+    setup.script->steps.push_back(replyWith(answer(u"I cannot see pictures, but here is an idea."_s)));
+    REQUIRE(setup.conversation.send(u"What is on the screen?"_s));
+    REQUIRE(setup.script->requests.size() == 3);
+    CHECK(setup.script->requests[1].pictures);
+    CHECK_FALSE(setup.script->requests[2].pictures);
+
+    setup.script->steps.push_back(replyWith(answer(u"Still here."_s)));
+    REQUIRE(setup.conversation.send(u"And now?"_s));
+    REQUIRE(setup.script->requests.size() == 4);
+    CHECK(setup.script->requests[3].pictures);
+}
+
 TEST_CASE("a service problem ends the question with a problem row")
 {
     Setup setup;

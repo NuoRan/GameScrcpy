@@ -24,6 +24,7 @@ namespace gs::app {
 class HelpLibrary;
 
 [[nodiscard]] QString aiConnectionLog(const QString& log, const QString& home, int most);
+[[nodiscard]] QJsonObject aiBoundedChat(const QJsonObject& document, qsizetype mostBytes);
 
 class AiChatTools final : public AiToolRunner
 {
