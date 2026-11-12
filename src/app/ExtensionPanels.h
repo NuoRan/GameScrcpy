@@ -96,6 +96,8 @@ public:
     [[nodiscard]] QVariantList menus() const { return m_menus; }
 
     Q_INVOKABLE QVariant tree(const QString& key) const;
+    [[nodiscard]] Q_INVOKABLE QVariant devicePanel(const QString& extension, const QString& name,
+                                                   const QString& device) const;
     Q_INVOKABLE bool send(quint64 logic, const QString& panel, const QString& type, const QString& id,
                           const QVariant& value) const;
     Q_INVOKABLE bool choose(quint64 logic, const QString& menu, const QString& id, const QVariant& value,

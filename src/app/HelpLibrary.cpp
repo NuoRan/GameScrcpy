@@ -241,7 +241,7 @@ QVariantList withSafePictures(const QVariantList& blocks)
         const QVariantMap block = value.toMap();
         if (block.value(u"kind"_s).toString() == u"image"_s) {
             const QString source = block.value(u"source"_s).toString();
-            if (source.contains(u':') || !ext::safeArchivePath(source.toStdString())) {
+            if (source.contains(u':') || source.contains(u'%') || !ext::safeArchivePath(source.toStdString())) {
                 continue;
             }
         }

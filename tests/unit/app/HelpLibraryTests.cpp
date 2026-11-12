@@ -783,7 +783,8 @@ TEST_CASE("ADR-0112: extensions add help articles under their own group, found b
           .id = QStringLiteral("setup"),
           .titles = {{kEnglish, QStringLiteral("Setting up")}, {kChinese, QStringLiteral("设置")}},
           .texts = {{kEnglish, QStringLiteral("# Setting up\n\nPlug the board into the phone.\n\n![The board](images/board.png)\n\n"
-                                              "![Away](../outside.png)\n\n![Web](https://example.com/a.png)\n")},
+                                              "![Away](../outside.png)\n\n![Slash](..%2F..%2Foutside.png)\n\n"
+                                              "![Backslash](..%5C..%5Coutside.png)\n\n![Web](https://example.com/a.png)\n")},
                     {kChinese, QStringLiteral("把板子插到手机上。\n")}},
           .icon = {},
           .iconPath = QStringLiteral("M2 2 L22 22"),

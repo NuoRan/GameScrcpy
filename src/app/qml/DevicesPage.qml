@@ -474,8 +474,8 @@ Item {
     Connections {
         target: DeviceManager
 
-        function onDevicePanelWanted(extension: string, panel: string, device: string, name: string) {
-            devicePanel.show(extension, panel, device, name)
+        function onDevicePanelWanted(extension: string, panel: string, serial: string, device: string, name: string) {
+            devicePanel.show(extension, panel, serial, device, name)
         }
     }
 

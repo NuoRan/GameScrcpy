@@ -10245,8 +10245,8 @@ void DeviceManager::runDeviceAction(const QString& serial, const QString& action
         const QString panel = fields.value(QStringLiteral("panel")).toString();
         const QString job = fields.value(QStringLiteral("job")).toString();
         if (!panel.isEmpty()) {
-            emit devicePanelWanted(QString::fromStdString(device.extension), panel, QString::fromStdString(device.id),
-                                   device.name);
+            emit devicePanelWanted(QString::fromStdString(device.extension), panel, serial,
+                                   QString::fromStdString(device.id), device.name);
         } else if (!job.isEmpty()) {
             startProvidedJob(row, job, fields.value(QStringLiteral("title")).toString());
         } else if (NativeExtensions* native = m_extensions != nullptr ? m_extensions->native() : nullptr) {
