@@ -14,6 +14,7 @@
 #include <QCoreApplication>
 #include <QString>
 
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <filesystem>
@@ -213,6 +214,38 @@ TEST_CASE("ADR-0112: a call from logic reaches the app script that provides the 
     services.request(caller, "ext.call", 19, callJson("alice.tools/add", R"({"a":1,"b":2})"));
     REQUIRE(replies.told.size() == 7);
     CHECK(replies.told[6].logic == 1);
+}
+
+TEST_CASE("ADR-0112: one logic keeps at most a fixed number of service calls waiting, and the ones over that are "
+          "refused at once without ever reaching the provider")
+{
+    ApplicationScope application;
+    app::ExtensionServices services;
+    Replies replies;
+    services.setReplies(replies.make());
+    services.setExtensions(sample());
+    const app::LogicCaller caller = logicOf(2, "bob.app", "main");
+    const auto idOf = [](std::size_t index) { return static_cast<quint64>(1000 + index); };
+    const QString args = callJson("alice.tools/add", R"({"a":1,"b":2})");
+    for (std::size_t index = 0; index <= app::ExtensionServices::kMostWaitingCalls; ++index) {
+        services.request(caller, "ext.call", idOf(index), args);
+    }
+    REQUIRE(replies.refused.size() == 1);
+    CHECK(std::get<0>(replies.refused[0]) == 2);
+    CHECK(std::get<1>(replies.refused[0]) == idOf(app::ExtensionServices::kMostWaitingCalls));
+    CHECK(std::get<2>(replies.refused[0]).startsWith(QStringLiteral("GS-API-149 this logic has 256 calls waiting")));
+    CHECK(replies.told.empty());
+
+    services.drop(caller, idOf(0));
+    services.request(caller, "ext.call", idOf(app::ExtensionServices::kMostWaitingCalls + 1), args);
+    CHECK(replies.refused.size() == 1);
+    services.request(logicOf(9, "", "logic"), "ext.call", 7, args);
+    CHECK(replies.refused.size() == 1);
+
+    CHECK(services.call(logicOf(1, "alice.tools"), "ext.provide", R"({"name":"add"})").code.empty());
+    REQUIRE(eventually([&] { return replies.told.size() >= app::ExtensionServices::kMostWaitingCalls + 1; }));
+    CHECK(replies.told.size() == app::ExtensionServices::kMostWaitingCalls + 1);
+    CHECK(std::ranges::none_of(replies.told, [](const Told& told) { return told.id == QStringLiteral("1256"); }));
 }
 
 TEST_CASE("ADR-0112: only an extension that depends on another, the same extension or the user's own logic calls its "

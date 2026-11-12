@@ -322,6 +322,18 @@ void ExtensionServices::request(const LogicCaller& caller, std::string_view serv
         }
         return;
     }
+    const auto waiting = std::ranges::count_if(m_calls, [&caller](const auto& entry) {
+        return entry.second.native == 0 && entry.second.logic == caller.logic;
+    });
+    if (static_cast<std::size_t>(waiting) >= kMostWaitingCalls) {
+        if (m_replies.refuse) {
+            m_replies.refuse(caller.logic, id,
+                             QStringLiteral("GS-API-149 this logic has %1 calls waiting already; wait for some of them "
+                                            "to answer")
+                                 .arg(static_cast<int>(kMostWaitingCalls)));
+        }
+        return;
+    }
     const QByteArray bytes = json.toUtf8();
     const Json body = Json::parse(bytes.begin(), bytes.end(), nullptr, false);
     std::optional<std::vector<std::string>> limit;

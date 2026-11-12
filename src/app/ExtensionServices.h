@@ -10,6 +10,7 @@
 #include <QTimer>
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
@@ -63,6 +64,7 @@ public:
 
     static constexpr std::string_view kEventKind = "extService";
     static constexpr std::chrono::milliseconds kTimeout{10'000};
+    static constexpr std::size_t kMostWaitingCalls = 256;
 
     explicit ExtensionServices(QObject* parent = nullptr);
     ~ExtensionServices() override;
