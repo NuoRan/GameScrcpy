@@ -35,7 +35,9 @@ struct Resolution {
 
 struct UpdateChanges {
     std::vector<Permission> addedPermissions;
+    std::vector<Permission> removedPermissions;
     std::vector<std::string> addedDependencies;
+    std::vector<std::string> removedDependencies;
     std::vector<ExtensionPoint> changedRequirements;
 
     [[nodiscard]] bool needsConsent() const noexcept { return !addedPermissions.empty() || !addedDependencies.empty(); }

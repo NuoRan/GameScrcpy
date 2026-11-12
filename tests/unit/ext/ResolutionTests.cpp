@@ -200,3 +200,26 @@ TEST_CASE("ADR-0112: an update that names a new folder under files.paths asks ag
     REQUIRE(changes.addedPermissions.size() == 1);
     CHECK(changes.addedPermissions.front().name == "files.paths");
 }
+
+TEST_CASE("ADR-0112: an update also names the permissions and dependencies it drops, which need no consent")
+{
+    Manifest before = extension("alice.app", "1.0.0");
+    before.permissions = {Permission{.name = "notify", .reason = "r"}, Permission{.name = "files.pick", .reason = "r"}};
+    needs(before, "bob.lib", "^1");
+    needs(before, "carol.extras", "^1");
+    needs(before, "dan.optional", "^1", true);
+
+    Manifest after = before;
+    after.version = *Version::parse("2.0.0");
+    after.permissions.erase(after.permissions.begin());
+    after.dependencies.erase("bob.lib");
+    needs(after, "carol.extras", "^1", true);
+    after.dependencies.erase("dan.optional");
+    const UpdateChanges changes = compareForUpdate(before, after);
+    CHECK_FALSE(changes.needsConsent());
+    CHECK(changes.addedPermissions.empty());
+    REQUIRE(changes.removedPermissions.size() == 1);
+    CHECK(changes.removedPermissions.front().name == "notify");
+    CHECK(changes.addedDependencies.empty());
+    CHECK(changes.removedDependencies == std::vector<std::string>{"bob.lib", "carol.extras"});
+}

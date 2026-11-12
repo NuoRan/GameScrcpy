@@ -6461,6 +6461,14 @@
         </translation>
     </message>
     <message>
+        <source>Checking…</source>
+        <translation>正在检查…</translation>
+    </message>
+    <message>
+        <source>Check for updates</source>
+        <translation>检查更新</translation>
+    </message>
+    <message>
         <source>Find a problem extension</source>
         <translation>查找出问题的扩展</translation>
     </message>
@@ -6513,8 +6521,56 @@
         <translation>内置</translation>
     </message>
     <message>
+        <source>Downloading %1… %2%</source>
+        <translation>正在下载 %1… %2%</translation>
+    </message>
+    <message>
+        <source>Update available: %1</source>
+        <translation>有更新：%1</translation>
+    </message>
+    <message>
+        <source>Update</source>
+        <translation>更新</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
         <source>Details…</source>
         <translation>详情…</translation>
+    </message>
+    <message>
+        <source>Updates</source>
+        <translation>更新</translation>
+    </message>
+    <message>
+        <source>From %1</source>
+        <translation>来自 %1</translation>
+    </message>
+    <message>
+        <source>last checked %1</source>
+        <translation>上次检查于 %1</translation>
+    </message>
+    <message>
+        <source>not checked yet</source>
+        <translation>还没检查过</translation>
+    </message>
+    <message>
+        <source>Version %1 is available, released %2</source>
+        <translation>可以更新到 %1 版，发布于 %2</translation>
+    </message>
+    <message>
+        <source>Version %1 is available</source>
+        <translation>可以更新到 %1 版</translation>
+    </message>
+    <message>
+        <source>Version %1 is skipped; a newer one will be offered</source>
+        <translation>已跳过 %1 版；有更新的版本时会再提示</translation>
+    </message>
+    <message>
+        <source>Skip this version</source>
+        <translation>跳过这个版本</translation>
     </message>
     <message>
         <source>Languages: %1</source>
@@ -8304,6 +8360,10 @@
         <translation>信任并安装</translation>
     </message>
     <message>
+        <source>Update</source>
+        <translation>更新</translation>
+    </message>
+    <message>
         <source>Version %1</source>
         <translation>版本 %1</translation>
     </message>
@@ -8319,6 +8379,10 @@
     <message>
         <source>Replaces version %1</source>
         <translation>将替换已安装的版本 %1</translation>
+    </message>
+    <message>
+        <source>Downloaded from %1; its size and SHA-256 match the update list</source>
+        <translation>从 %1 下载；大小和 SHA-256 与更新列表一致</translation>
     </message>
     <message>
         <source>Downloaded from %1; its SHA-256 matches the link</source>
@@ -8339,6 +8403,54 @@
     <message>
         <source>This package can&apos;t be installed.</source>
         <translation>这个扩展包无法安装。</translation>
+    </message>
+    <message>
+        <source>What changes from version %1</source>
+        <translation>与 %1 版相比的变化</translation>
+    </message>
+    <message>
+        <source>It asks for more than before</source>
+        <translation>它要的比以前多</translation>
+    </message>
+    <message>
+        <source>After installing, it stays off until you turn it on again in Extensions to allow what&apos;s new.</source>
+        <translation>安装后它会保持关闭，直到你在“扩展”里重新打开它、允许新增的内容。</translation>
+    </message>
+    <message>
+        <source>Its permissions and dependencies stay the same</source>
+        <translation>权限和依赖都没有变化</translation>
+    </message>
+    <message>
+        <source>New: %1</source>
+        <translation>新增：%1</translation>
+    </message>
+    <message>
+        <source>No longer: %1</source>
+        <translation>不再需要：%1</translation>
+    </message>
+    <message>
+        <source>Now needs %1</source>
+        <translation>现在需要 %1</translation>
+    </message>
+    <message>
+        <source>No longer needs %1</source>
+        <translation>不再需要 %1</translation>
+    </message>
+    <message>
+        <source>Interface versions: %1</source>
+        <translation>接口版本：%1</translation>
+    </message>
+    <message>
+        <source>%1 %2 (new)</source>
+        <translation>%1 %2（新增）</translation>
+    </message>
+    <message>
+        <source>%1 (no longer used)</source>
+        <translation>%1（不再使用）</translation>
+    </message>
+    <message>
+        <source>%1 %2 → %3</source>
+        <translation>%1 %2 → %3</translation>
     </message>
     <message>
         <source>Native code</source>
@@ -10224,6 +10336,24 @@
     <message>
         <source>Close the open install dialog first, then open the link again</source>
         <translation>请先关闭已打开的安装对话框，再重新打开这个链接</translation>
+    </message>
+    <message>
+        <source>Close the open install dialog first, then choose Update again</source>
+        <translation>请先关闭已打开的安装对话框，再点一次“更新”</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n extension update(s) available</source>
+        <translation>
+            <numerusform>有 %n 个扩展可以更新</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Some update lists could not be read; the extension details say why</source>
+        <translation>有些更新列表读不了，原因见扩展详情</translation>
+    </message>
+    <message>
+        <source>Your extensions are up to date</source>
+        <translation>扩展都是最新的</translation>
     </message>
     <message>
         <source>Installed %1 %2. It needs more than before: turn it on in Extensions to allow it</source>
@@ -18012,6 +18142,18 @@
         <translation>tray notification area background minimize close schedule timer task quit 托盘 通知区域 后台 最小化 关闭 计划 定时 任务 退出</translation>
     </message>
     <message>
+        <source>Check extensions for updates</source>
+        <translation>检查扩展更新</translation>
+    </message>
+    <message>
+        <source>Once a day at startup, GameScrcpy reads the update lists your extensions name and shows newer versions on the Extensions page. Nothing is installed until you choose Update, and nothing about what you have installed is sent.</source>
+        <translation>每天启动时最多检查一次：GameScrcpy 会读取扩展写明的更新列表，在“扩展”页显示新版本。在你点“更新”之前不会安装任何东西，也不会发送你装了哪些扩展。</translation>
+    </message>
+    <message>
+        <source>update upgrade new version check extension index online download</source>
+        <translation>更新 升级 新版本 检查 扩展 列表 在线 下载</translation>
+    </message>
+    <message>
         <source>Theme</source>
         <translation>主题</translation>
     </message>
@@ -19076,6 +19218,10 @@
     <message>
         <source>Scheduled tasks</source>
         <translation>计划任务</translation>
+    </message>
+    <message>
+        <source>Updates</source>
+        <translation>更新</translation>
     </message>
     <message>
         <source>Extension links</source>
@@ -22531,6 +22677,113 @@
     <message>
         <source>The downloaded file is not the one the link names: its SHA-256 does not match.</source>
         <translation>下载的文件不是链接指定的那个：SHA-256 对不上。</translation>
+    </message>
+</context>
+<context>
+    <name>gs::app::ExtensionUpdates</name>
+    <message>
+        <source>The server moved the file without saying where.</source>
+        <translation>服务器把文件挪走了，但没说挪到哪里。</translation>
+    </message>
+    <message>
+        <source>The server moved the file to an address that is not https, so it was not followed.</source>
+        <translation>服务器把文件挪到了不是 https 的地址，所以没有跟过去。</translation>
+    </message>
+    <message>
+        <source>The server moved the file too many times.</source>
+        <translation>服务器挪动文件的次数太多。</translation>
+    </message>
+    <message>
+        <source>The server answered %1.</source>
+        <translation>服务器返回了 %1。</translation>
+    </message>
+    <message>
+        <source>The download failed: %1</source>
+        <translation>下载失败：%1</translation>
+    </message>
+    <message>
+        <source>Another update is still downloading.</source>
+        <translation>还有一个更新正在下载。</translation>
+    </message>
+    <message>
+        <source>Finish installing the last update first.</source>
+        <translation>请先装完上一个更新。</translation>
+    </message>
+    <message>
+        <source>There is no update for this extension.</source>
+        <translation>这个扩展没有可用的更新。</translation>
+    </message>
+    <message>
+        <source>Extensions cannot be installed here.</source>
+        <translation>这里不能安装扩展。</translation>
+    </message>
+    <message>
+        <source>The update address is not an https address.</source>
+        <translation>更新地址不是 https 地址。</translation>
+    </message>
+    <message>
+        <source>The download cannot be saved: %1</source>
+        <translation>下载的文件没能保存：%1</translation>
+    </message>
+    <message>
+        <source>The download is larger than the update list says.</source>
+        <translation>下载的文件比更新列表写的大。</translation>
+    </message>
+    <message>
+        <source>The update list is larger than 1 MiB.</source>
+        <translation>更新列表超过了 1 MiB。</translation>
+    </message>
+    <message>
+        <source>The update list cannot be read: %1</source>
+        <translation>更新列表无法读取：%1</translation>
+    </message>
+    <message>
+        <source>The update list does not name this extension.</source>
+        <translation>更新列表里没有这个扩展。</translation>
+    </message>
+    <message>
+        <source>The download is not the size the update list names.</source>
+        <translation>下载的文件大小与更新列表写的不一致。</translation>
+    </message>
+    <message>
+        <source>The downloaded file is not the one the update list names: its SHA-256 does not match.</source>
+        <translation>下载的文件不是更新列表写的那个：SHA-256 对不上。</translation>
+    </message>
+    <message>
+        <source>The download is not an extension package GameScrcpy can read.</source>
+        <translation>下载的文件不是 GameScrcpy 能读取的扩展包。</translation>
+    </message>
+    <message>
+        <source>The package holds %1 %2, not the update the list names.</source>
+        <translation>这个包里是 %1 %2，不是更新列表写的那个更新。</translation>
+    </message>
+    <message>
+        <source>Its author signature does not match its files: it was changed after it was signed.</source>
+        <translation>作者签名与文件对不上：签名之后被改动过。</translation>
+    </message>
+    <message>
+        <source>The update list names a key that is not a minisign public key.</source>
+        <translation>更新列表写的公钥不是 minisign 公钥。</translation>
+    </message>
+    <message>
+        <source>The update list says key %1 signs this update, but the package is not signed.</source>
+        <translation>更新列表说这个更新由公钥 %1 签名，但这个包没有签名。</translation>
+    </message>
+    <message>
+        <source>The update list says key %1 signs this update, but the package is signed with key %2.</source>
+        <translation>更新列表说这个更新由公钥 %1 签名，但这个包是用公钥 %2 签的。</translation>
+    </message>
+    <message>
+        <source>The installed version is signed with key %1, but this update is not signed. Updates have to be signed with the same key.</source>
+        <translation>已安装的版本由公钥 %1 签名，但这个更新没有签名。更新必须用同一个公钥签名。</translation>
+    </message>
+    <message>
+        <source>This update is signed with key %1, the installed version with key %2. To accept the new key, remove the extension and install the package again.</source>
+        <translation>这个更新由公钥 %1 签名，已安装的版本由公钥 %2 签名。要接受新公钥，请先移除这个扩展，再重新安装这个包。</translation>
+    </message>
+    <message>
+        <source>This update does not run on this version of GameScrcpy.</source>
+        <translation>这个更新不能在这个版本的 GameScrcpy 上运行。</translation>
     </message>
 </context>
 <context>

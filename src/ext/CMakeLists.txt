@@ -27,6 +27,8 @@ add_library(gs_ext STATIC
     src/NativeCheck.cpp
     include/gs/ext/Signing.h
     src/Signing.cpp
+    include/gs/ext/UpdateIndex.h
+    src/UpdateIndex.cpp
 )
 add_library(gs::ext ALIAS gs_ext)
 

@@ -18,6 +18,7 @@
 #include "ExtensionHost.h"
 #include "ExtensionLinks.h"
 #include "ExtensionLogic.h"
+#include "ExtensionUpdates.h"
 #include "ExtensionPanels.h"
 #include "ExtensionServices.h"
 #include "FileAccess.h"
@@ -448,6 +449,10 @@ int main(int argc, char* argv[])
                      [&tasks, &extensions] { tasks.setExtensionTasks(extensions.tasks()); });
     QObject::connect(&app, &QCoreApplication::aboutToQuit, &extensions, &gs::app::ExtensionHost::finish);
     gs::app::ExtensionLinks extensionLinks(data / "extensions" / ".staging");
+    gs::app::ExtensionUpdates extensionUpdates(extensions, settings,
+                                               {.state = data / "extension-updates.json",
+                                                .staging = data / "extensions" / ".staging",
+                                                .extensions = data / "extensions"});
     gs::app::LinkHandover linkHandover(gs::app::linkPipeName(data));
     QObject::connect(&linkHandover, &gs::app::LinkHandover::received, &extensionLinks, &gs::app::ExtensionLinks::open);
     if (!parser.isSet(smokeTest)) {
@@ -741,6 +746,9 @@ int main(int argc, char* argv[])
     if (link) {
         QMetaObject::invokeMethod(&extensionLinks, [&extensionLinks, opened = *link] { extensionLinks.open(opened); },
                                   Qt::QueuedConnection);
+    }
+    if (!parser.isSet(smokeTest) && !parser.isSet(gallery)) {
+        extensionUpdates.checkWhenDue();
     }
     if (parser.isSet(profile)) {
         loadInputProfile(devices, parser.value(profile));

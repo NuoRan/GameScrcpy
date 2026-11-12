@@ -622,6 +622,47 @@ QVariantMap describe(const std::optional<ext::Manifest>& found, const QString& l
             {QStringLiteral("locales"), localeList(manifest)}};
 }
 
+QVariantMap changesMap(const ext::Manifest& before, const ext::Manifest& after)
+{
+    const ext::UpdateChanges changes = ext::compareForUpdate(before, after);
+    QVariantList added;
+    for (const ext::Permission& permission : changes.addedPermissions) {
+        added.append(QVariantMap{{QStringLiteral("name"), QString::fromStdString(permission.name)},
+                                 {QStringLiteral("title"), permissionTitle(permission.name)},
+                                 {QStringLiteral("reason"), QString::fromStdString(permission.reason)},
+                                 {QStringLiteral("scope"), permissionScope(permission)}});
+    }
+    QVariantList removed;
+    for (const ext::Permission& permission : changes.removedPermissions) {
+        removed.append(QVariantMap{{QStringLiteral("name"), QString::fromStdString(permission.name)},
+                                   {QStringLiteral("title"), permissionTitle(permission.name)}});
+    }
+    const auto ids = [](const std::vector<std::string>& list) {
+        QStringList names;
+        for (const std::string& id : list) {
+            names.append(QString::fromStdString(id));
+        }
+        return names;
+    };
+    const auto rangeOf = [](const ext::Manifest& manifest, ext::ExtensionPoint point) {
+        const auto found = manifest.requirements.find(point);
+        return found == manifest.requirements.end() ? QString() : QString::fromStdString(found->second.text());
+    };
+    QVariantList interfaces;
+    for (const ext::ExtensionPoint point : changes.changedRequirements) {
+        interfaces.append(QVariantMap{{QStringLiteral("point"), toQString(ext::nameOf(point))},
+                                      {QStringLiteral("before"), rangeOf(before, point)},
+                                      {QStringLiteral("after"), rangeOf(after, point)}});
+    }
+    return {{QStringLiteral("from"), QString::fromStdString(before.version.text())},
+            {QStringLiteral("addedPermissions"), added},
+            {QStringLiteral("removedPermissions"), removed},
+            {QStringLiteral("addedDependencies"), ids(changes.addedDependencies)},
+            {QStringLiteral("removedDependencies"), ids(changes.removedDependencies)},
+            {QStringLiteral("interfaces"), interfaces},
+            {QStringLiteral("needsConsent"), changes.needsConsent()}};
+}
+
 QVariantMap installResult(const ext::InstalledExtension& outcome)
 {
     return {{QStringLiteral("ok"), outcome.ok()},
@@ -788,6 +829,11 @@ fs::path profileFolderOf(const fs::path& directory, const std::string& file)
     return directory / relative.parent_path();
 }
 
+}
+
+const ext::HostApi& extensionHostApi()
+{
+    return hostApi();
 }
 
 QString extensionSettingPath(std::string_view id, std::string_view key)
@@ -1698,7 +1744,7 @@ QVariantMap ExtensionHost::inspect(const QString& fileOrUrl) const
         return refused;
     }
     const ext::PackageCheck check = ext::checkPackage(*package, {.official = false});
-    const auto newest = [&](bool fromBuiltin) {
+    const auto newestExtension = [&](bool fromBuiltin) {
         const Extension* found = nullptr;
         for (const Extension& extension : m_extensions) {
             if (check.manifest && extension.usable() && extension.builtin == fromBuiltin &&
@@ -1707,6 +1753,10 @@ QVariantMap ExtensionHost::inspect(const QString& fileOrUrl) const
                 found = &extension;
             }
         }
+        return found;
+    };
+    const auto newest = [&](bool fromBuiltin) {
+        const Extension* found = newestExtension(fromBuiltin);
         return found != nullptr ? QString::fromStdString(found->manifest->version.text()) : QString();
     };
     const bool builtin = check.manifest && exactly(check.manifest->id, check.manifest->version, true) != nullptr;
@@ -1736,6 +1786,13 @@ QVariantMap ExtensionHost::inspect(const QString& fileOrUrl) const
         if (publisher && !(native && native->refusal == ext::NativeRefusal::BadSignature)) {
             refused = true;
             problems.prepend(problemList({*publisher}).constFirst());
+        }
+        const Extension* installed = newestExtension(false);
+        if (installed == nullptr) {
+            installed = newestExtension(true);
+        }
+        if (installed != nullptr) {
+            result.insert(QStringLiteral("changes"), changesMap(*installed->manifest, *check.manifest));
         }
     }
     result.insert(QStringLiteral("ok"), check.ok() && !builtin && !refused);

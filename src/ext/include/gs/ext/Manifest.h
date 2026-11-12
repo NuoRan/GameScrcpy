@@ -1061,6 +1061,21 @@ struct Permission {
     friend bool operator==(const Permission&, const Permission&) = default;
 };
 
+inline constexpr std::size_t kMaxUpdateIndexLength = 2048;
+
+struct UpdateSource {
+    std::string index;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("index", m.index,
+               {.required = true, .maxLength = kMaxUpdateIndexLength, .format = TextFormat::HttpsUrl});
+    }
+
+    friend bool operator==(const UpdateSource&, const UpdateSource&) = default;
+};
+
 struct Manifest {
     std::int64_t schemaVersion = kSchemaVersion;
     std::string id;
@@ -1071,6 +1086,7 @@ struct Manifest {
     std::string license;
     std::string repository;
     std::string authorKey;
+    std::optional<UpdateSource> updates;
     bool aiAssisted = false;
     std::map<ExtensionPoint, VersionRange> requirements;
     std::map<std::string, Dependency, std::less<>> dependencies;
@@ -1091,6 +1107,7 @@ struct Manifest {
         v.text("license", m.license, {.required = true, .maxLength = 100});
         v.text("repository", m.repository, {.maxLength = 512, .format = TextFormat::HttpsUrl});
         v.text("authorKey", m.authorKey, {.maxLength = 64, .format = TextFormat::SigningKey});
+        v.optionalObject("updates", m.updates);
         v.boolean("aiAssisted", m.aiAssisted);
         v.requirements("requires", m.requirements);
         v.dependencies("dependencies", m.dependencies);

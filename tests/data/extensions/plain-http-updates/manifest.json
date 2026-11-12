@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "gstest.plain-http-updates",
+  "version": "1.0.0",
+  "name": "Plain http updates",
+  "description": "A manifest whose update list is not on an https address.",
+  "authors": ["GameScrcpy tests"],
+  "license": "MIT",
+  "updates": {
+    "index": "http://example.com/gamescrcpy/index.json"
+  },
+  "requires": {
+    "theme": "^1.0"
+  },
+  "contributes": {
+    "themes": [
+      {
+        "name": "Plain",
+        "dark": {
+          "bgBase": "#0E1116"
+        },
+        "light": {
+          "bgBase": "#F2F4F8"
+        }
+      }
+    ]
+  }
+}

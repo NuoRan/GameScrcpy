@@ -2422,3 +2422,41 @@ TEST_CASE("ADR-0112: a native DLL runs with full rights unless its manifest says
           Json::array({"full", "restricted"}));
     CHECK_FALSE(contains(schema["properties"]["contributes"]["properties"]["native"]["required"], "sandbox"));
 }
+
+TEST_CASE("ADR-0112: a manifest names its update list with an https address that has a host and no user name")
+{
+    Json json = base();
+    json["updates"] = {{"index", "https://alice.example/gamescrcpy/index.json"}};
+    LoadedManifest loaded = load(json);
+    CHECK_MESSAGE(loaded.diagnostics.empty(), listed(loaded));
+    REQUIRE(loaded.manifest.updates.has_value());
+    CHECK(loaded.manifest.updates->index == "https://alice.example/gamescrcpy/index.json");
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+
+    CHECK_FALSE(load(base()).manifest.updates.has_value());
+
+    for (const char* bad : {"http://alice.example/index.json", "https://", "https:///index.json",
+                            "https://:443/index.json", "https://user@alice.example/index.json",
+                            "https://alice.example/my index.json", "ftp://alice.example/index.json"}) {
+        json["updates"] = {{"index", bad}};
+        loaded = load(json);
+        CHECK_FALSE_MESSAGE(loaded.usable, bad);
+        CHECK_MESSAGE(reports(loaded, Code::UrlInvalid, "$.updates.index"), bad);
+    }
+
+    json["updates"] = {{"index", "https://alice.example/" + std::string(2048, 'a')}};
+    CHECK(reports(load(json), Code::TooLong, "$.updates.index"));
+    json["updates"] = Json::object();
+    CHECK(reports(load(json), Code::MissingField, "$.updates.index"));
+    json["updates"] = {{"index", "https://alice.example/index.json"}, {"channel", "beta"}};
+    CHECK(reports(load(json), Code::UnknownField, "$.updates.channel"));
+    json["updates"] = "https://alice.example/index.json";
+    CHECK(reports(load(json), Code::NotAnObject, "$.updates"));
+
+    Json schema = Json::parse(manifestJsonSchema());
+    CHECK(schema["properties"]["updates"]["required"] == Json::array({"index"}));
+    CHECK(schema["properties"]["updates"]["properties"]["index"]["maxLength"] == kMaxUpdateIndexLength);
+    CHECK_FALSE(contains(schema["required"], "updates"));
+}

@@ -416,6 +416,16 @@ Item {
         }
 
         Button {
+            objectName: "checkUpdates"
+            visible: ExtensionUpdates.sources > 0
+            enabled: !ExtensionUpdates.checking
+            tone: "ghost"
+            iconName: "refresh-cw"
+            text: ExtensionUpdates.checking ? qsTr("Checking…") : qsTr("Check for updates")
+            onClicked: ExtensionUpdates.check()
+        }
+
+        Button {
             objectName: "findProblem"
             visible: page.enabledCount > 0 && ExtensionHost.mode !== "safeRequested"
             enabled: !ExtensionHost.installing && !page.bisecting
@@ -598,6 +608,10 @@ Item {
                                                              ? qsTr("Turn it on again to allow what's new")
                                                              : card.healthText
                         readonly property var publisher: card.modelData.publisher ?? ({})
+                        readonly property string offered: card.modelData.builtin
+                                                          ? "" : ExtensionUpdates.states[card.modelData.id]?.version ?? ""
+                        readonly property bool fetching: card.offered !== ""
+                                                         && ExtensionUpdates.downloading === card.modelData.id
                         readonly property bool highlighted: page.highlighted !== ""
                                                             && page.highlighted === card.modelData.id
 
@@ -802,10 +816,13 @@ Item {
                                 spacing: Theme.space.xs
 
                                 Icon {
-                                    name: card.failing ? "circle-x" : card.noticeText !== "" ? "triangle-alert" : "shield"
+                                    name: card.failing ? "circle-x"
+                                        : card.noticeText !== "" ? "triangle-alert"
+                                        : card.offered !== "" ? "sparkles" : "shield"
                                     size: Theme.size.infoIcon
                                     color: card.failing ? Theme.colors.dangerText
                                          : card.noticeText !== "" ? Theme.colors.warningText
+                                         : card.offered !== "" ? Theme.colors.infoText
                                          : Theme.colors.textTertiary
                                 }
 
@@ -817,11 +834,17 @@ Item {
                                           ? page.failureText(card.errors)
                                           : card.noticeText !== ""
                                             ? card.noticeText
-                                            : card.modelData.permissions.length > 0
-                                              ? card.modelData.permissions.map(permission => permission.title).join(" · ")
-                                              : qsTr("No extra permission")
+                                            : card.fetching
+                                              ? qsTr("Downloading %1… %2%").arg(card.offered)
+                                                    .arg(Math.round(ExtensionUpdates.progress * 100))
+                                              : card.offered !== ""
+                                                ? qsTr("Update available: %1").arg(card.offered)
+                                                : card.modelData.permissions.length > 0
+                                                  ? card.modelData.permissions.map(permission => permission.title).join(" · ")
+                                                  : qsTr("No extra permission")
                                     color: card.failing ? Theme.colors.dangerText
                                          : card.noticeText !== "" ? Theme.colors.warningText
+                                         : card.offered !== "" ? Theme.colors.infoText
                                          : Theme.colors.textTertiary
                                     font.pixelSize: Theme.type.caption.size
                                     elide: Text.ElideRight
@@ -833,6 +856,24 @@ Item {
                                     text: card.stateText
                                     color: Theme.colors.textTertiary
                                     font.pixelSize: Theme.type.caption.size
+                                }
+
+                                Button {
+                                    objectName: "extensionUpdate"
+                                    visible: card.offered !== ""
+                                    enabled: card.fetching
+                                             || (ExtensionUpdates.downloading === "" && !ExtensionHost.installing
+                                                 && !page.bisecting)
+                                    small: true
+                                    tone: card.fetching ? "ghost" : "primary"
+                                    text: card.fetching ? qsTr("Cancel") : qsTr("Update")
+                                    Accessible.description: card.modelData.name
+                                    onClicked: {
+                                        if (card.fetching)
+                                            ExtensionUpdates.cancel()
+                                        else
+                                            ExtensionUpdates.update(card.modelData.id)
+                                    }
                                 }
 
                                 Button {
@@ -982,6 +1023,113 @@ Item {
                         color: Theme.colors.textSecondary
                         font.pixelSize: Theme.type.caption.size
                         wrapMode: Text.Wrap
+                    }
+                }
+            }
+
+            ColumnLayout {
+                id: updateDetails
+
+                readonly property var record: ExtensionUpdates.states[detailsDialog.entry.id ?? ""] ?? null
+                readonly property string offered: updateDetails.record?.version ?? ""
+
+                objectName: "extensionUpdates"
+                Layout.fillWidth: true
+                visible: updateDetails.record !== null && detailsDialog.entry.builtin !== true
+                spacing: Theme.space.xs
+
+                Text {
+                    textFormat: Text.PlainText
+                    text: qsTr("Updates")
+                    color: Theme.colors.textTertiary
+                    font.pixelSize: Theme.type.caption.size
+                    font.weight: Font.DemiBold
+                }
+
+                Text {
+                    objectName: "updateSource"
+                    Layout.fillWidth: true
+                    textFormat: Text.PlainText
+                    text: [qsTr("From %1").arg(updateDetails.record?.host ?? ""),
+                           (updateDetails.record?.checked ?? "") !== ""
+                               ? qsTr("last checked %1").arg(new Date(updateDetails.record.checked)
+                                                             .toLocaleString(Qt.locale(), Locale.ShortFormat))
+                               : qsTr("not checked yet")].join(" · ")
+                    color: Theme.colors.textSecondary
+                    font.pixelSize: Theme.type.caption.size
+                    wrapMode: Text.Wrap
+                }
+
+                Text {
+                    objectName: "updateProblem"
+                    Layout.fillWidth: true
+                    visible: text !== ""
+                    textFormat: Text.PlainText
+                    text: updateDetails.record?.problem ?? ""
+                    color: Theme.colors.warningText
+                    font.pixelSize: Theme.type.caption.size
+                    wrapMode: Text.Wrap
+                }
+
+                Text {
+                    objectName: "updateOffer"
+                    Layout.fillWidth: true
+                    visible: updateDetails.offered !== ""
+                    textFormat: Text.PlainText
+                    text: (updateDetails.record?.released ?? "") !== ""
+                          ? qsTr("Version %1 is available, released %2").arg(updateDetails.offered)
+                                                                       .arg(updateDetails.record?.released ?? "")
+                          : qsTr("Version %1 is available").arg(updateDetails.offered)
+                    color: Theme.colors.infoText
+                    font.pixelSize: Theme.type.label.size
+                    font.weight: Theme.type.label.weight
+                    wrapMode: Text.Wrap
+                }
+
+                Text {
+                    objectName: "updateNotes"
+                    Layout.fillWidth: true
+                    visible: updateDetails.offered !== "" && text !== ""
+                    textFormat: Text.PlainText
+                    text: updateDetails.record?.notes ?? ""
+                    color: Theme.colors.textSecondary
+                    font.pixelSize: Theme.type.caption.size
+                    wrapMode: Text.Wrap
+                }
+
+                Text {
+                    objectName: "updateSkipped"
+                    Layout.fillWidth: true
+                    visible: updateDetails.offered === "" && (updateDetails.record?.skipped ?? "") !== ""
+                    textFormat: Text.PlainText
+                    text: qsTr("Version %1 is skipped; a newer one will be offered").arg(updateDetails.record?.skipped ?? "")
+                    color: Theme.colors.textTertiary
+                    font.pixelSize: Theme.type.caption.size
+                    wrapMode: Text.Wrap
+                }
+
+                RowLayout {
+                    visible: updateDetails.offered !== ""
+                    spacing: Theme.space.sm
+
+                    Button {
+                        objectName: "detailsUpdate"
+                        small: true
+                        tone: "primary"
+                        enabled: ExtensionUpdates.downloading === "" && !ExtensionHost.installing && !page.bisecting
+                        text: qsTr("Update")
+                        onClicked: {
+                            ExtensionUpdates.update(detailsDialog.entry.id)
+                            detailsDialog.close()
+                        }
+                    }
+
+                    Button {
+                        objectName: "skipUpdate"
+                        small: true
+                        tone: "ghost"
+                        text: qsTr("Skip this version")
+                        onClicked: ExtensionUpdates.skip(detailsDialog.entry.id)
                     }
                 }
             }

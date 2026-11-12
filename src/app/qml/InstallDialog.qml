@@ -12,8 +12,15 @@ Dialog {
     property var info: ({})
     property string packageUrl
     property string source
+    property string origin
 
     readonly property string version: info.version ?? ""
+    readonly property var changes: info.changes ?? null
+    readonly property var addedPermissions: dialog.changes ? dialog.changes.addedPermissions : []
+    readonly property var removedPermissions: dialog.changes ? dialog.changes.removedPermissions : []
+    readonly property var addedDependencies: dialog.changes ? dialog.changes.addedDependencies : []
+    readonly property var removedDependencies: dialog.changes ? dialog.changes.removedDependencies : []
+    readonly property var interfaces: dialog.changes ? dialog.changes.interfaces : []
     readonly property var authors: info.authors ?? []
     readonly property string description: info.description ?? ""
     readonly property string installedVersion: info.installedVersion ?? ""
@@ -38,7 +45,9 @@ Dialog {
     title: info.name || info.id || decodeURIComponent(packageUrl.substring(packageUrl.lastIndexOf("/") + 1))
     onClosed: {
         dialog.source = ""
+        dialog.origin = ""
         ExtensionLinks.release()
+        ExtensionUpdates.release()
     }
 
     footer: Item {
@@ -61,7 +70,8 @@ Dialog {
             Button {
                 objectName: "accept"
                 tone: "primary"
-                text: dialog.nativeCode ? qsTr("Trust and install") : qsTr("Install")
+                text: dialog.nativeCode ? qsTr("Trust and install")
+                                        : dialog.origin === "update" ? qsTr("Update") : qsTr("Install")
                 enabled: dialog.installable
                 onClicked: {
                     ExtensionHost.installPackage(dialog.packageUrl)
@@ -133,7 +143,9 @@ Dialog {
                     width: parent.width
                     visible: dialog.source !== ""
                     textFormat: Text.PlainText
-                    text: qsTr("Downloaded from %1; its SHA-256 matches the link").arg(dialog.source)
+                    text: dialog.origin === "update"
+                          ? qsTr("Downloaded from %1; its size and SHA-256 match the update list").arg(dialog.source)
+                          : qsTr("Downloaded from %1; its SHA-256 matches the link").arg(dialog.source)
                     color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.caption.size
                     wrapMode: Text.Wrap
@@ -171,6 +183,103 @@ Dialog {
                 color: Theme.colors.dangerText
                 font.pixelSize: Theme.type.body.size
                 wrapMode: Text.Wrap
+            }
+
+            Column {
+                objectName: "installChanges"
+                width: parent.width
+                visible: dialog.changes !== null
+                spacing: Theme.space.sm
+
+                Heading {
+                    text: qsTr("What changes from version %1").arg(dialog.changes?.from ?? "")
+                }
+
+                InlineAlert {
+                    objectName: "installConsent"
+                    width: parent.width
+                    visible: dialog.changes?.needsConsent === true
+                    tone: "warn"
+                    title: qsTr("It asks for more than before")
+                    detail: qsTr("After installing, it stays off until you turn it on again in Extensions to allow what's new.")
+                }
+
+                Text {
+                    width: parent.width
+                    visible: dialog.addedPermissions.length + dialog.removedPermissions.length
+                             + dialog.addedDependencies.length + dialog.removedDependencies.length === 0
+                    textFormat: Text.PlainText
+                    text: qsTr("Its permissions and dependencies stay the same")
+                    color: Theme.colors.textSecondary
+                    font.pixelSize: Theme.type.caption.size
+                    wrapMode: Text.Wrap
+                }
+
+                Repeater {
+                    model: dialog.addedPermissions
+
+                    delegate: ChangeLine {
+                        required property var modelData
+
+                        objectName: "addedPermission"
+                        iconName: "plus"
+                        tint: Theme.colors.warningText
+                        title: qsTr("New: %1").arg(modelData.title ?? "")
+                        detail: [modelData.reason ?? "", modelData.scope ?? ""].filter(part => part !== "").join(" · ")
+                    }
+                }
+
+                Repeater {
+                    model: dialog.removedPermissions
+
+                    delegate: ChangeLine {
+                        required property var modelData
+
+                        objectName: "removedPermission"
+                        iconName: "minus"
+                        title: qsTr("No longer: %1").arg(modelData.title ?? "")
+                    }
+                }
+
+                Repeater {
+                    model: dialog.addedDependencies
+
+                    delegate: ChangeLine {
+                        required property string modelData
+
+                        objectName: "addedDependency"
+                        iconName: "plus"
+                        tint: Theme.colors.warningText
+                        title: qsTr("Now needs %1").arg(modelData)
+                    }
+                }
+
+                Repeater {
+                    model: dialog.removedDependencies
+
+                    delegate: ChangeLine {
+                        required property string modelData
+
+                        objectName: "removedDependency"
+                        iconName: "minus"
+                        title: qsTr("No longer needs %1").arg(modelData)
+                    }
+                }
+
+                Text {
+                    objectName: "installInterfaces"
+                    width: parent.width
+                    visible: dialog.interfaces.length > 0
+                    textFormat: Text.PlainText
+                    text: qsTr("Interface versions: %1").arg(dialog.interfaces.map(
+                        item => item.before === "" ? qsTr("%1 %2 (new)").arg(item.point).arg(item.after)
+                              : item.after === "" ? qsTr("%1 (no longer used)").arg(item.point)
+                              : qsTr("%1 %2 → %3").arg(item.point).arg(item.before).arg(item.after))
+                        .join(qsTr(", ", "list separator")))
+                    color: Theme.colors.textTertiary
+                    font.pixelSize: Theme.type.caption.size
+                    wrapMode: Text.Wrap
+                }
             }
 
             Column {
@@ -487,5 +596,49 @@ Dialog {
         color: Theme.colors.textTertiary
         font.pixelSize: Theme.type.caption.size
         font.weight: Font.DemiBold
+    }
+
+    component ChangeLine: Row {
+        id: line
+
+        property string iconName
+        property string title
+        property string detail
+        property color tint: Theme.colors.textSecondary
+
+        width: parent ? parent.width : implicitWidth
+        spacing: Theme.space.sm
+
+        Icon {
+            y: Theme.space.xxs
+            name: line.iconName
+            size: Theme.size.iconSmall
+            color: line.tint
+        }
+
+        Column {
+            width: line.width - Theme.size.iconSmall - line.spacing
+            spacing: Theme.space.xxs
+
+            Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                text: line.title
+                color: Theme.colors.textPrimary
+                font.pixelSize: Theme.type.label.size
+                font.weight: Theme.type.label.weight
+                wrapMode: Text.Wrap
+            }
+
+            Text {
+                width: parent.width
+                visible: text !== ""
+                textFormat: Text.PlainText
+                text: line.detail
+                color: Theme.colors.textSecondary
+                font.pixelSize: Theme.type.caption.size
+                wrapMode: Text.Wrap
+            }
+        }
     }
 }

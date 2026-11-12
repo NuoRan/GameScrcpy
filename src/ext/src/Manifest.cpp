@@ -1296,6 +1296,19 @@ void checkEntry(const Permission& permission, const std::string& path, Context& 
     }
 }
 
+void checkEntry(const UpdateSource& updates, const std::string& path, Context& context)
+{
+    if (!validHttpsUrl(updates.index)) {
+        return;
+    }
+    const std::string_view rest = std::string_view(updates.index).substr(8);
+    const std::string_view authority = rest.substr(0, rest.find_first_of("/?#"));
+    if (authority.empty() || authority.front() == ':' || authority.find('@') != std::string_view::npos) {
+        context.report(Severity::Error, Code::UrlInvalid, path + ".index",
+                       "an https address with a host and without a user name");
+    }
+}
+
 class Reader
 {
 public:

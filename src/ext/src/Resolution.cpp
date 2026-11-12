@@ -313,10 +313,21 @@ UpdateChanges compareForUpdate(const Manifest& before, const Manifest& after)
             changes.addedPermissions.push_back(permission);
         }
     }
+    for (const Permission& permission : before.permissions) {
+        if (std::ranges::find(after.permissions, permission.name, &Permission::name) == after.permissions.end()) {
+            changes.removedPermissions.push_back(permission);
+        }
+    }
     for (const auto& [id, dependency] : after.dependencies) {
         const auto previous = before.dependencies.find(id);
         if (!dependency.optional && (previous == before.dependencies.end() || previous->second.optional)) {
             changes.addedDependencies.push_back(id);
+        }
+    }
+    for (const auto& [id, dependency] : before.dependencies) {
+        const auto next = after.dependencies.find(id);
+        if (!dependency.optional && (next == after.dependencies.end() || next->second.optional)) {
+            changes.removedDependencies.push_back(id);
         }
     }
     for (const auto& [point, range] : after.requirements) {

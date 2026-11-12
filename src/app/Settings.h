@@ -70,6 +70,27 @@ struct Tray {
     friend bool operator==(const Tray&, const Tray&) = default;
 };
 
+struct Updates {
+    bool extensions = false;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.boolean("extensions", m.extensions,
+                  {.title = GS_TRANSLATE_NOOP("Settings", "Check extensions for updates"),
+                   .description = GS_TRANSLATE_NOOP("Settings", "Once a day at startup, GameScrcpy reads the update "
+                                                                "lists your extensions name and shows newer versions "
+                                                                "on the Extensions page. Nothing is installed until you "
+                                                                "choose Update, and nothing about what you have "
+                                                                "installed is sent."),
+                   .keywords = GS_TRANSLATE_NOOP("Settings", "update upgrade new version check extension index "
+                                                             "online download"),
+                   .live = true});
+    }
+
+    friend bool operator==(const Updates&, const Updates&) = default;
+};
+
 enum class ThemeMode : std::uint8_t { Dark, Light, System };
 inline constexpr std::array<std::string_view, 3> kThemeModeNames{"dark", "light", "system"};
 
@@ -926,6 +947,7 @@ struct Settings {
 
     General general;
     Tray tray;
+    Updates updates;
     Appearance appearance;
     Video video;
     Display display;
@@ -954,6 +976,7 @@ struct Settings {
         v.constantInteger("version", kVersion);
         v.object("general", m.general, Page::Appearance);
         v.object("tray", m.tray, Page::General);
+        v.object("updates", m.updates, Page::General);
         v.object("appearance", m.appearance, Page::Appearance);
         v.object("video", m.video, Page::Video);
         v.object("display", m.display, Page::Video);

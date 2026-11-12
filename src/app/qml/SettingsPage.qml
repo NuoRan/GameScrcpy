@@ -815,6 +815,18 @@ Item {
                 }
 
                 SettingCard {
+                    objectName: "updatesCard"
+                    title: qsTr("Updates")
+                    iconName: "refresh-cw"
+                    tone: "azure"
+
+                    SwitchSetting {
+                        objectName: "extensionUpdatesSwitch"
+                        path: "updates.extensions"
+                    }
+                }
+
+                SettingCard {
                     objectName: "ownDevices"
                     title: qsTr("Devices your own logic may use")
                     iconName: "usb"

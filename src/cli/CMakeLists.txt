@@ -55,6 +55,13 @@ if(GS_BUILD_TESTS)
     add_test(NAME gs_cli_validate_missing_license_exit COMMAND gs_cli validate "${gs_cli_test_data}/missing-license")
     set_tests_properties(gs_cli_validate_missing_license_exit PROPERTIES WILL_FAIL TRUE)
 
+    add_test(NAME gs_cli_validate_plain_http_updates COMMAND gs_cli validate "${gs_cli_test_data}/plain-http-updates")
+    set_tests_properties(gs_cli_validate_plain_http_updates PROPERTIES PASS_REGULAR_EXPRESSION
+                                                                      "url-invalid at [$][.]updates[.]index")
+    add_test(NAME gs_cli_validate_plain_http_updates_exit
+             COMMAND gs_cli validate "${gs_cli_test_data}/plain-http-updates")
+    set_tests_properties(gs_cli_validate_plain_http_updates_exit PROPERTIES WILL_FAIL TRUE)
+
     add_test(NAME gs_cli_usage COMMAND gs_cli)
     set_tests_properties(gs_cli_usage PROPERTIES PASS_REGULAR_EXPRESSION "usage:")
     add_test(NAME gs_cli_usage_exit COMMAND gs_cli)

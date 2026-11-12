@@ -60,12 +60,14 @@ Window {
         installDialog.info = ExtensionHost.inspect(packageUrl)
         installDialog.packageUrl = packageUrl
         installDialog.source = ""
+        installDialog.origin = ""
         installDialog.open()
     }
 
-    function confirmDownloaded(packageUrl: string, source: string) {
+    function confirmDownloaded(packageUrl: string, source: string, origin: string) {
         root.confirmInstall(packageUrl)
         installDialog.source = source
+        installDialog.origin = origin
     }
 
     function showExtension(id: string) {
@@ -351,7 +353,7 @@ Window {
                 return
             }
             rail.currentIndex = 3
-            root.confirmDownloaded(fileUrl, source)
+            root.confirmDownloaded(fileUrl, source, "link")
             root.bringForward()
         }
 
@@ -370,10 +372,38 @@ Window {
     }
 
     Connections {
+        target: ExtensionUpdates
+
+        function onPackageReady(fileUrl: string, source: string) {
+            if (installDialog.visible || bundleDialog.visible) {
+                ExtensionUpdates.release()
+                root.notify(qsTr("Close the open install dialog first, then choose Update again"), "warn")
+                return
+            }
+            rail.currentIndex = 3
+            root.confirmDownloaded(fileUrl, source, "update")
+        }
+
+        function onFailed(message: string) {
+            root.notify(message, "bad")
+        }
+
+        function onCheckFinished(offered: int, problems: int, manual: bool) {
+            if (offered > 0)
+                root.notify(qsTr("%n extension update(s) available", "", offered), "ok")
+            else if (manual && problems > 0)
+                root.notify(qsTr("Some update lists could not be read; the extension details say why"), "warn")
+            else if (manual)
+                root.notify(qsTr("Your extensions are up to date"), "ok")
+        }
+    }
+
+    Connections {
         target: ExtensionHost
 
         function onInstallFinished(result: var) {
             ExtensionLinks.release()
+            ExtensionUpdates.release()
             if (result.ok === true) {
                 if (result.consentRequired === true)
                     root.notify(qsTr("Installed %1 %2. It needs more than before: turn it on in Extensions to allow it")

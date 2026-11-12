@@ -421,6 +421,13 @@
 <context>
     <name>Main</name>
     <message numerus="yes">
+        <source>%n extension update(s) available</source>
+        <translation>
+            <numerusform>%n extension update available</numerusform>
+            <numerusform>%n extension updates available</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
         <source>Installed %n extension(s) from %1</source>
         <translation>
             <numerusform>Installed %n extension from %1</numerusform>

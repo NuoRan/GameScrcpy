@@ -10,6 +10,7 @@
 #include <gs/ext/Manifest.h>
 #include <gs/ext/NativeCheck.h>
 #include <gs/ext/Package.h>
+#include <gs/ext/Resolution.h>
 #include <gs/ext/Version.h>
 #include <gs/render/VideoFilter.h>
 
@@ -53,6 +54,7 @@ struct ExtensionRoots {
     std::filesystem::path log;
 };
 
+[[nodiscard]] const ext::HostApi& extensionHostApi();
 [[nodiscard]] QString extensionSettingPath(std::string_view id, std::string_view key);
 [[nodiscard]] QString extensionText(const ext::Manifest& manifest, std::string_view key, std::string_view fallback,
                                     const QString& language);
