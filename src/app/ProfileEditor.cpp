@@ -8,6 +8,7 @@
 #include "NativeExtensions.h"
 #include "ProfileForm.h"
 
+#include <gs/base/JsonNesting.h>
 #include <gs/blueprint/Layout.h>
 #include <gs/input/DeviceEvents.h>
 #include <gs/platform/AtomicFile.h>
@@ -3808,7 +3809,11 @@ bool ProfileEditor::setModuleParam(const QString& id, int attachment, const QStr
         module = control.attachments[static_cast<std::size_t>(attachment)].module;
         path = QStringLiteral("attachments.%1.params.").arg(attachment) + key;
     }
-    const Json value = Json::parse(json.toStdString(), nullptr, false);
+    const std::string valueText = json.toStdString();
+    if (!jsonNestingWithin(valueText, kMostJsonNesting)) {
+        return false;
+    }
+    const Json value = Json::parse(valueText, nullptr, false);
     if (value.is_discarded() || value.is_null()) {
         return false;
     }

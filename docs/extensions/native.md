@@ -96,7 +96,7 @@ GS_EXT_EXPORT int32_t gs_ext_main(const gs_ext_host* host, const gs_ext_plugin**
 | 函数 | 用途 |
 |:--|:--|
 | `log`、`now_us` | 写程序日志；只往前走的微秒时钟 |
-| `store_get`、`store_set` | 关掉程序后还在的存储，整个最多 1 MiB 的 JSON |
+| `store_get`、`store_set` | 关掉程序后还在的存储，整个最多 1 MiB 的 JSON，每个值最多嵌套 64 层 |
 | `allowed`、`notify` | 问用户是否同意了某项权限；显示系统通知（要 `notify`） |
 | `set_text`、`set_error` | 节点把文字结果、失败原因写进 `gs_ext_result` |
 | `supports` | 问 GameScrcpy 有没有某个后加的功能 |
@@ -382,7 +382,7 @@ AI 服务提供者让设置 › AI 的“模型服务”里多一项：小助手
 | 代码 | 意思 |
 |:--|:--|
 | `GS-API-060` | 扩展没打开 |
-| `GS-API-061` | 参数类型不对，或任务缺参数 |
+| `GS-API-061` | 参数类型不对、任务缺参数，或任务的参数嵌套超过 64 层 |
 | `GS-API-062` | 节点失败（带 `set_error` 的原因） |
 | `GS-API-063` | 扩展缺这个节点或任务要的权限 |
 | `GS-API-064` | 节点超过 100 毫秒没有返回 |

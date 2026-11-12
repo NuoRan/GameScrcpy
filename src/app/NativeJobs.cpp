@@ -2,6 +2,7 @@
 
 #include "NativeExtensions.h"
 
+#include <gs/base/JsonNesting.h>
 #include <gs/exthost/Module.h>
 
 #include <nlohmann/json.hpp>
@@ -80,7 +81,7 @@ std::pair<bool, std::string> checkedResult(const std::string& returns, bool work
     if (!worked) {
         return {false, std::move(text)};
     }
-    if (!exthost::jsonDepthWithin(text, exthost::kMostJsonDepth)) {
+    if (!jsonNestingWithin(text, kMostJsonNesting)) {
         return {false, "the job gave a result nested more than 64 levels deep"};
     }
     const nlohmann::json value = nlohmann::json::parse(text, nullptr, false);
@@ -93,7 +94,7 @@ std::pair<bool, std::string> checkedResult(const std::string& returns, bool work
     if (!fits(returns, value)) {
         return {false, "the job gave a result that is not a " + returns};
     }
-    return {true, value.dump()};
+    return {true, std::move(text)};
 }
 
 std::optional<std::uint64_t> jobIdOf(std::string_view json)
@@ -243,6 +244,9 @@ void NativeJobs::cancelForHost(std::uint64_t id)
 
 script::ServiceAnswer NativeJobs::begin(std::uint64_t logic, std::string_view json, std::optional<HostJobEvents> host)
 {
+    if (!jsonNestingWithin(json, kMostJsonNesting + 1)) {
+        return {.json = "null", .code = "GS-API-061", .problem = "the arguments are nested more than 64 levels deep"};
+    }
     const nlohmann::json request = nlohmann::json::parse(json, nullptr, false);
     if (!request.is_object() || !request.contains("extension") || !request["extension"].is_string() ||
         !request.contains("job") || !request["job"].is_string()) {
@@ -485,7 +489,7 @@ void NativeJobs::logged(std::uint64_t id, int level, const std::string& text)
 
 void NativeJobs::outputted(std::uint64_t id, const std::string& json)
 {
-    if (!exthost::jsonDepthWithin(json, exthost::kMostJsonDepth) || !nlohmann::json::accept(json)) {
+    if (!jsonNestingWithin(json, kMostJsonNesting) || !nlohmann::json::accept(json)) {
         return;
     }
     std::uint64_t logic = 0;

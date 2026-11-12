@@ -7,6 +7,8 @@
 
 #include <windows.h>
 
+#include <gs/base/JsonNesting.h>
+
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -1408,7 +1410,11 @@ int32_t hostDeviceOpen(void* context, const char* id, size_t idSize, const char*
     nlohmann::json body = nlohmann::json::object();
     body["id"] = std::string(id, idSize);
     if (optionsSize > 0) {
-        nlohmann::json chosen = nlohmann::json::parse(std::string_view(options, optionsSize), nullptr, false);
+        const std::string_view chosenOptions(options, optionsSize);
+        if (!jsonNestingWithin(chosenOptions, kMostJsonNesting)) {
+            return GS_EXT_BAD_ARGUMENT;
+        }
+        nlohmann::json chosen = nlohmann::json::parse(chosenOptions, nullptr, false);
         if (!chosen.is_object()) {
             return GS_EXT_BAD_ARGUMENT;
         }
@@ -1437,7 +1443,11 @@ int32_t hostDeviceWrite(void* context, uint64_t device, const void* data, size_t
     }
     nlohmann::json body = nlohmann::json::object();
     if (targetSize > 0) {
-        body = nlohmann::json::parse(std::string_view(target, targetSize), nullptr, false);
+        const std::string_view givenTarget(target, targetSize);
+        if (!jsonNestingWithin(givenTarget, kMostJsonNesting)) {
+            return GS_EXT_BAD_ARGUMENT;
+        }
+        body = nlohmann::json::parse(givenTarget, nullptr, false);
         if (!body.is_object()) {
             return GS_EXT_BAD_ARGUMENT;
         }
@@ -1453,7 +1463,11 @@ int32_t hostDeviceControl(void* context, uint64_t device, const char* request, s
     if (device == 0 || request == nullptr || requestSize == 0 || requestSize > kMostServiceBytes) {
         return GS_EXT_BAD_ARGUMENT;
     }
-    nlohmann::json body = nlohmann::json::parse(std::string_view(request, requestSize), nullptr, false);
+    const std::string_view givenRequest(request, requestSize);
+    if (!jsonNestingWithin(givenRequest, kMostJsonNesting)) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    nlohmann::json body = nlohmann::json::parse(givenRequest, nullptr, false);
     if (!body.is_object() || !body.contains("op") || !body.at("op").is_string()) {
         return GS_EXT_BAD_ARGUMENT;
     }

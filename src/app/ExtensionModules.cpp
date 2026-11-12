@@ -1,5 +1,7 @@
 #include "ExtensionModules.h"
 
+#include <gs/base/JsonNesting.h>
+
 #include <nlohmann/json.hpp>
 
 #include <algorithm>
@@ -198,7 +200,9 @@ bool moduleFits(const std::vector<std::string>& appliesTo, std::string_view type
 std::string moduleParams(const std::vector<ext::DeclaredParam>& declared, std::string_view chosen,
                          input::Vec2 position, input::Vec2 unit)
 {
-    const Json given = chosen.empty() ? Json::object() : Json::parse(chosen, nullptr, false);
+    const Json given = chosen.empty() || !jsonNestingWithin(chosen, kMostJsonNesting)
+                           ? Json::object()
+                           : Json::parse(chosen, nullptr, false);
     Json params = Json::object();
     for (const ext::DeclaredParam& param : declared) {
         std::string value;

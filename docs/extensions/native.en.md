@@ -96,7 +96,7 @@ Speech engines and AI providers have no kind of their own: the manifest builds t
 | Functions | For |
 |:--|:--|
 | `log`, `now_us` | Writing to the program log; a clock in microseconds that only goes forward |
-| `store_get`, `store_set` | A store that outlives the program, up to 1 MiB of JSON in all |
+| `store_get`, `store_set` | A store that outlives the program, up to 1 MiB of JSON in all, each value nested at most 64 levels deep |
 | `allowed`, `notify` | Whether the user allowed a permission; showing a system notification (needs `notify`) |
 | `set_text`, `set_error` | A node putting a text result or the reason it failed into `gs_ext_result` |
 | `supports` | Whether GameScrcpy has a feature added later |
@@ -382,7 +382,7 @@ The manifest's `dll` can be written as `{ "x64": "bin/x64/native.dll", "arm64": 
 | Code | Meaning |
 |:--|:--|
 | `GS-API-060` | The extension is not on |
-| `GS-API-061` | An argument has the wrong type, or a job misses one |
+| `GS-API-061` | An argument has the wrong type, a job misses one, or a job's arguments are nested more than 64 levels deep |
 | `GS-API-062` | The node failed (with the reason from `set_error`) |
 | `GS-API-063` | The extension lacks a permission the node or job needs |
 | `GS-API-064` | The node did not return within 100 ms |

@@ -1,5 +1,7 @@
 #include "McpRelay.h"
 
+#include <gs/base/JsonNesting.h>
+
 #include <nlohmann/json.hpp>
 
 #include <windows.h>
@@ -182,8 +184,12 @@ int refuse()
     std::vector<char> chunk(kChunkBytes);
     for (;;) {
         for (std::size_t newline = buffer.find('\n'); newline != std::string::npos; newline = buffer.find('\n')) {
-            const Json message = Json::parse(std::string_view(buffer).substr(0, newline), nullptr, false);
+            const std::string line = buffer.substr(0, newline);
             buffer.erase(0, newline + 1);
+            if (!jsonNestingWithin(line, kMostJsonNesting)) {
+                continue;
+            }
+            const Json message = Json::parse(line, nullptr, false);
             if (message.is_object() && message.contains("method") && message.contains("id")) {
                 const Json reply = {{"jsonrpc", "2.0"},
                                     {"id", message.at("id")},

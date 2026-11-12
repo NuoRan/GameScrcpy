@@ -1604,13 +1604,14 @@ int32_t speakStart(void*, uint64_t job, const char* args, size_t size)
         g_spoken = text;
     }
     const bool waits = text.find("\"text\":\"wait\"") != std::string::npos;
-    bookJob(job, [job, waits](const std::shared_ptr<std::atomic<bool>>& stop) {
+    const bool deep = text.find("\"text\":\"deep\"") != std::string::npos;
+    bookJob(job, [job, waits, deep](const std::shared_ptr<std::atomic<bool>>& stop) {
         if (waits) {
             untilStopped(stop);
             sayJob(job, false, "stopped");
             return;
         }
-        sayJob(job, true, "null");
+        sayJob(job, true, deep ? std::string(30000, '[') + std::string(30000, ']') : std::string("null"));
     });
     return GS_EXT_OK;
 }

@@ -4,6 +4,7 @@
 #include "NativeExtensions.h"
 #include "VisionSearch.h"
 
+#include <gs/base/JsonNesting.h>
 #include <gs/platform/TextReader.h>
 #include <gs/script/Permissions.h>
 
@@ -71,7 +72,12 @@ struct Asked {
 
 std::optional<Asked> askedOf(const QString& json, QString& problem)
 {
-    const nlohmann::json body = nlohmann::json::parse(toUtf8(json), nullptr, false);
+    const std::string text = toUtf8(json);
+    if (!jsonNestingWithin(text, kMostJsonNesting)) {
+        problem = QStringLiteral("GS-API-172 what is asked is nested more than 64 levels deep");
+        return std::nullopt;
+    }
+    const nlohmann::json body = nlohmann::json::parse(text, nullptr, false);
     if (!body.is_object()) {
         problem = QStringLiteral("GS-API-172 what is asked must be a JSON object");
         return std::nullopt;

@@ -542,3 +542,22 @@ TEST_CASE("ADR-0112: the Windows engine reads lines or words of the frame and re
     fixture.ask(kPhone, 6, QStringLiteral(R"({"engine":"system","kind":"detect"})"));
     CHECK(fixture.problemOf(6).startsWith(u"GS-API-171 "));
 }
+
+TEST_CASE("ADR-0112: vision.recognize refuses what is asked nested more than 64 levels deep before it reads it, so "
+          "that logic cannot overflow the stack of GameScrcpy")
+{
+    Fixture fixture;
+    const auto asked = [](std::size_t levels) {
+        return QString::fromStdString(R"({"engine":"alice.finder/boss","kind":"detect","params":{"deep":)" +
+                                      std::string(levels, '[') + std::string(levels, ']') + "}}");
+    };
+    fixture.ask(kPhone, 1, asked(62));
+    CHECK(fixture.resultOf(1).size() == 1);
+    for (const std::size_t levels : {std::size_t{63}, std::size_t{30000}}) {
+        fixture.ask(kPhone, 2, asked(levels));
+        CHECK(fixture.problemOf(2) == u"GS-API-172 what is asked is nested more than 64 levels deep");
+        fixture.refusals.clear();
+    }
+    CHECK(fixture.grabs.size() == 1);
+    CHECK(fixture.engines.pending() == 0);
+}

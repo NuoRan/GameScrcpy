@@ -6,6 +6,7 @@
 #include "HardwareAccess.h"
 #include "HardwareClaims.h"
 
+#include <gs/base/JsonNesting.h>
 #include <gs/base/Log.h>
 #include <gs/exthost/Hosted.h>
 #include <gs/exthost/InProcess.h>
@@ -1091,7 +1092,7 @@ void NativeExtensions::refreshProviders(std::string_view extension)
                 log::warning(kCategory, "{}: the device provider {} failed: {}", wanted.id, declared.name, listed.problem);
                 continue;
             }
-            if (!exthost::jsonDepthWithin(listed.value.text, exthost::kMostJsonDepth)) {
+            if (!jsonNestingWithin(listed.value.text, kMostJsonNesting)) {
                 log::warning(kCategory, "{}: the device provider {} gave a list nested more than 64 levels deep",
                              wanted.id, declared.name);
                 continue;
@@ -1206,7 +1207,7 @@ void NativeExtensions::refreshTransports(std::string_view extension)
                 log::warning(kCategory, "{}: the transport {} failed: {}", wanted.id, declared.name, found.problem);
                 continue;
             }
-            if (!exthost::jsonDepthWithin(found.value.text, exthost::kMostJsonDepth)) {
+            if (!jsonNestingWithin(found.value.text, kMostJsonNesting)) {
                 log::warning(kCategory, "{}: the transport {} gave a list nested more than 64 levels deep", wanted.id,
                              declared.name);
                 continue;
@@ -1973,7 +1974,7 @@ void NativeExtensions::refreshSources(std::string_view extension)
                     log::warning(kCategory, "{}: the source {} failed: {}", wanted.id, name, listed.problem);
                     continue;
                 }
-                if (!exthost::jsonDepthWithin(listed.value.text, exthost::kMostJsonDepth)) {
+                if (!jsonNestingWithin(listed.value.text, kMostJsonNesting)) {
                     log::warning(kCategory, "{}: the source {} gave a list nested more than 64 levels deep", wanted.id,
                                  name);
                     continue;

@@ -3566,6 +3566,8 @@ TEST_CASE("the profile editor adds the add-ons that fit, edits their parameters,
     CHECK_FALSE(editor.setModuleParam(fire, 0, QStringLiteral("dx"), QStringLiteral("3")));
     CHECK_FALSE(editor.setModuleParam(fire, 0, QStringLiteral("nope"), QStringLiteral("1")));
     CHECK_FALSE(editor.setModuleParam(fire, 5, QStringLiteral("dx"), QStringLiteral("0.1")));
+    const std::string deep = std::string(30000, '[') + std::string(30000, ']');
+    CHECK_FALSE(editor.setModuleParam(fire, 0, QStringLiteral("dx"), QString::fromStdString(deep)));
     CHECK(editor.attachmentsOf(fire)[0].toMap().value(QStringLiteral("params")).toList()[0].toMap().value(
               QStringLiteral("json")) == QStringLiteral("0.4"));
 
@@ -3637,6 +3639,15 @@ TEST_CASE("module parameters take the profile's valid values, the declared defau
                                  {"@unit", {0.1, 0.2}}});
     CHECK(nlohmann::json::parse(app::moduleParams({size, mode}, "", {}, {}))["mode"] == "soft");
     CHECK(nlohmann::json::parse(app::moduleParams({size}, "not json", {}, {}))["size"] == 0.2);
+    const auto deepParams = [](std::size_t levels) {
+        std::string text;
+        for (std::size_t level = 0; level < levels; ++level) {
+            text += R"({"size":)";
+        }
+        text += '1';
+        return text + std::string(levels, '}');
+    };
+    CHECK(nlohmann::json::parse(app::moduleParams({size}, deepParams(30000), {}, {}))["size"] == 0.2);
     CHECK(app::moduleFits({}, "camera"));
     CHECK(app::moduleFits({"*"}, "camera"));
     CHECK(app::moduleFits({"tap", "hold"}, "hold"));
@@ -3850,6 +3861,37 @@ TEST_CASE("ADR-0112: a DLL's device functions reach GameScrcpy as requests with 
     CHECK(deviceRun(*denied, "close").at("status") == static_cast<int>(GS_EXT_DENIED));
     CHECK(bareCalls.seen().empty());
     CHECK(bareCalls.shut().empty());
+}
+
+TEST_CASE("ADR-0112: device options, a write target and a control request nested more than 64 levels deep from a DLL "
+          "are refused with GS_EXT_BAD_ARGUMENT, so that they cannot overflow the stack of GameScrcpy")
+{
+    Scratch scratch;
+    std::string problem;
+    DeviceCalls calls;
+    DeviceServices services(calls);
+    const std::unique_ptr<exthost::InProcessModule> module = exthost::InProcessModule::load(
+        {.dll = kTestDll, .store = scratch / "inside.json", .granted = {"hardware"}, .services = &services}, problem);
+    REQUIRE_MESSAGE(module != nullptr, problem);
+    const auto nestedObject = [](std::size_t levels, const std::string& before = {}, const std::string& after = {}) {
+        std::string text = before;
+        for (std::size_t level = 0; level < levels; ++level) {
+            text += R"({"a":)";
+        }
+        text += '1';
+        text += std::string(levels, '}');
+        return text + after;
+    };
+    CHECK(deviceRun(*module, "open", "serial:board", nestedObject(65)).at("status") ==
+          static_cast<int>(GS_EXT_BAD_ARGUMENT));
+    CHECK(deviceRun(*module, "open", "serial:board", nestedObject(30000)).at("status") ==
+          static_cast<int>(GS_EXT_BAD_ARGUMENT));
+    CHECK(deviceRun(*module, "use", "7").at("status") == static_cast<int>(GS_EXT_OK));
+    CHECK(deviceRun(*module, "write", "00", nestedObject(30000)).at("status") ==
+          static_cast<int>(GS_EXT_BAD_ARGUMENT));
+    CHECK(deviceRun(*module, "control", nestedObject(30000, R"({"op":"signals","rest":)", "}")).at("status") ==
+          static_cast<int>(GS_EXT_BAD_ARGUMENT));
+    CHECK(calls.seen().empty());
 }
 
 TEST_CASE("ADR-0112: a restricted DLL runs in gs-exthost.exe inside an AppContainer of its own: it loads, its nodes "
@@ -4292,4 +4334,114 @@ TEST_CASE("ADR-0112: turning off an extension whose DLL inside GameScrcpy waits 
     const auto before = std::chrono::steady_clock::now();
     registry.apply({});
     CHECK(std::chrono::steady_clock::now() - before < 10s);
+}
+
+TEST_CASE("ADR-0112: a job is not started with arguments nested more than 64 levels deep, without GameScrcpy running "
+          "out of stack")
+{
+    ApplicationScope application;
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.native/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    app::NativeWanted wanted = testWanted(folder);
+    wanted.native.nodes.clear();
+    wanted.native.jobs = {{.name = "speak",
+                           .title = "Speak",
+                           .params = {{"text", "json"}},
+                           .returns = "json",
+                           .description = {},
+                           .permissions = {},
+                           .most = std::nullopt}};
+    registry.apply({wanted});
+    REQUIRE(registry.problems().empty());
+    app::NativeJobs jobs(registry);
+    jobs.setReplies({.answer = {}, .refuse = {}, .tell = {}});
+    const auto nested = [](std::size_t levels) { return std::string(levels, '[') + std::string(levels, ']'); };
+    const auto withText = [](const std::string& text) {
+        return R"({"extension":"gstest.native","job":"speak","args":{"text":)" + text + "}}";
+    };
+    const app::LogicCaller caller{.logic = 9};
+
+    const script::ServiceAnswer fits = jobs.start(caller, withText(nested(63)));
+    CHECK_MESSAGE(fits.code.empty(), fits.problem);
+    for (const std::size_t levels : {std::size_t{64}, std::size_t{30000}}) {
+        const script::ServiceAnswer refused = jobs.start(caller, withText(nested(levels)));
+        CHECK(refused.code == "GS-API-061");
+        CHECK(refused.problem == "the arguments are nested more than 64 levels deep");
+    }
+    const script::ServiceAnswer refusedForHost = jobs.startForHost(withText(nested(30000)), app::HostJobEvents{});
+    CHECK(refusedForHost.code == "GS-API-061");
+    jobs.endLogic(caller.logic);
+}
+
+TEST_CASE("ADR-0112: a DLL cannot keep a value nested more than 64 levels deep in its store, and a store file nested "
+          "deeper is not read, so that neither overflows the stack of GameScrcpy")
+{
+    Scratch scratch;
+    const auto nested = [](std::size_t levels) { return std::string(levels, '[') + std::string(levels, ']'); };
+    const auto key = [](std::string text) { return textValue(exthost::ValueType::String, std::move(text)); };
+    const auto json = [](std::string text) { return textValue(exthost::ValueType::Json, std::move(text)); };
+    std::string problem;
+    {
+        std::unique_ptr<exthost::HostedModule> module = exthost::HostedModule::start(hostedOptions(scratch), problem);
+        REQUIRE_MESSAGE(module != nullptr, problem);
+        CHECK(callNode(*module, "remember", {key("fits"), json(nested(64))}).value.flag);
+        CHECK_FALSE(callNode(*module, "remember", {key("deep"), json(nested(65))}).value.flag);
+        CHECK_FALSE(callNode(*module, "remember", {key("deeper"), json(nested(30000))}).value.flag);
+        CHECK(callNode(*module, "recall", {key("fits")}).value.text == nested(64));
+        CHECK(callNode(*module, "recall", {key("deeper")}).value.text == "null");
+        CHECK(module->crashes() == 0);
+    }
+
+    const fs::path file = scratch / "store.json";
+    writeFile(file, R"({"kept":1,"deep":)" + nested(30000) + "}");
+    const std::unique_ptr<exthost::InProcessModule> inside = exthost::InProcessModule::load(
+        {.dll = kTestDll, .store = file, .granted = {}, .services = nullptr}, problem);
+    REQUIRE_MESSAGE(inside != nullptr, problem);
+    CHECK(callNode(*inside, "recall", {key("kept")}).value.text == "null");
+    CHECK_FALSE(callNode(*inside, "remember", {key("deep"), json(nested(30000))}).value.flag);
+    CHECK(callNode(*inside, "remember", {key("kept"), json("2")}).value.flag);
+    CHECK(callNode(*inside, "recall", {key("kept")}).value.text == "2");
+}
+
+TEST_CASE("ADR-0112: a list of devices or phones from a DLL nested more than 64 levels deep is left out, so that it "
+          "cannot overflow the stack of GameScrcpy")
+{
+    ApplicationScope application;
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.native/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    app::NativeWanted wanted = testWanted(folder);
+    wanted.native.nodes = {
+        {.name = "setBoxes", .params = {{"boxes", "json"}}, .returns = "number", .description = {}, .permissions = {}},
+        {.name = "setPhones", .params = {{"phones", "json"}}, .returns = "number", .description = {}, .permissions = {}}};
+    wanted.native.deviceProviders = {{.name = "boxes", .title = "Boxes", .kinds = {"touchBox"}}};
+    wanted.native.transports = {{.name = "loop", .title = "Loopback", .icon = {}}};
+    wanted.granted = {"devices.provide", "transport"};
+    registry.apply({wanted});
+    const auto setList = [&registry](std::string_view node, const std::string& json) {
+        REQUIRE(registry.call("gstest.native", node, {script::NodeValue{.type = script::NodeType::Json, .text = json}})
+                    .problem.empty());
+        for (int round = 0; round < 20; ++round) {
+            QCoreApplication::processEvents();
+        }
+    };
+    const std::string deep = std::string(30000, '[') + std::string(30000, ']');
+    const std::string box = R"({"id":"box-1","name":"Box","kind":"touchBox")";
+
+    setList("setBoxes", "[" + box + R"(,"capture":)" + deep + "}]");
+    CHECK(registry.providedDevices().empty());
+    setList("setBoxes", "[" + box + "}]");
+    REQUIRE(registry.providedDevices().size() == 1);
+    CHECK(registry.providedDevices()[0].id == "box-1");
+
+    setList("setPhones", "[" + deep + "]");
+    CHECK(registry.transportPhones().empty());
+    setList("setPhones", R"([{"id":"echo","name":"Echo"}])");
+    REQUIRE(registry.transportPhones().size() == 1);
+    CHECK(registry.transportPhones()[0].id == "echo");
 }

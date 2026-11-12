@@ -96,6 +96,21 @@ TEST_CASE("gs mcp answers initialize with an error asking to turn the setting on
     CHECK(relay.readAllStandardError().contains("not accepting AI connections"));
 }
 
+TEST_CASE("ADR-0112: gs mcp ignores a request whose id is nested more than 64 levels deep instead of running out of "
+          "stack")
+{
+    const gs::test::McpApplication application;
+    QProcess relay;
+    startRelay(relay, gs::test::uniquePipe());
+    const QByteArray deep = QByteArray(30000, '[') + QByteArray(30000, ']');
+    relay.write("{\"id\":" + deep + ",\"jsonrpc\":\"2.0\",\"method\":\"initialize\"}\n");
+    relay.write(lineOf(hello(7, QStringLiteral("Test client"))));
+    REQUIRE(ended(relay));
+    CHECK(relay.exitCode() == 1);
+    const QJsonObject reply = QJsonDocument::fromJson(relay.readAllStandardOutput().trimmed()).object();
+    CHECK(reply.value(QStringLiteral("id")).toInt() == 7);
+}
+
 TEST_CASE("gs mcp carries lines both ways unchanged and ends with its input once every request is answered")
 {
     const gs::test::McpApplication application;

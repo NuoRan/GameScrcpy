@@ -1059,6 +1059,23 @@ TEST_CASE("profile editor: a default saved before the components were split no l
     std::filesystem::remove(file, ignored);
 }
 
+TEST_CASE("ADR-0112: profile editor: component defaults nested more than 64 levels deep are not read, so that they "
+          "cannot overflow the stack")
+{
+    const std::filesystem::path file = freshFile("gs-component-defaults-deep.json");
+    std::string deep;
+    for (std::size_t level = 0; level < 30000; ++level) {
+        deep += R"({"a":)";
+    }
+    deep += '1';
+    deep += std::string(30000, '}');
+    writeText(file, R"({"format": "gamescrcpy.componentDefaults", "version": 1, "components": {"deep":)" + deep + "}}");
+    gs::app::ComponentDefaults defaults(file);
+    CHECK_FALSE(defaults.contains("deep"));
+    std::error_code ignored;
+    std::filesystem::remove(file, ignored);
+}
+
 TEST_CASE("profile editor: a saved default's key goes on a new key when it is free, so no key press is asked for")
 {
     const std::filesystem::path file = freshFile("gs-component-defaults-free.json");

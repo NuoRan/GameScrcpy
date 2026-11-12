@@ -31,6 +31,7 @@ gs_add_unit_test(gs_base_tests
         unit/base/ClockTests.cpp
         unit/base/ExpectedTests.cpp
         unit/base/InplaceVectorTests.cpp
+        unit/base/JsonNestingTests.cpp
         unit/base/LogTests.cpp
         unit/base/SpscQueueTests.cpp
         unit/base/ThreadCheckerTests.cpp

@@ -47,6 +47,7 @@ add_library(gs_base STATIC
     include/gs/base/Clock.h
     include/gs/base/Expected.h
     include/gs/base/InplaceVector.h
+    include/gs/base/JsonNesting.h
     include/gs/base/Log.h
     include/gs/base/SpscQueue.h
     include/gs/base/ThreadChecker.h

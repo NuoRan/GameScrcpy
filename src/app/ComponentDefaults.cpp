@@ -1,5 +1,6 @@
 #include "ComponentDefaults.h"
 
+#include <gs/base/JsonNesting.h>
 #include <gs/base/Log.h>
 #include <gs/platform/AtomicFile.h>
 
@@ -115,6 +116,11 @@ void ComponentDefaults::load()
     std::ifstream in(m_file, std::ios::binary);
     const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
     in.close();
+    if (!jsonNestingWithin(text, kMostJsonNesting)) {
+        log::warning("defaults", "{} is nested more than 64 levels deep: using the factory defaults", utf8(m_file));
+        m_readOnly = true;
+        return;
+    }
     const Json root = Json::parse(text, nullptr, false);
     const auto format = root.is_object() ? root.find("format") : root.end();
     if (format == root.end() || !format->is_string() || format->get_ref<const std::string&>() != kFormatName) {

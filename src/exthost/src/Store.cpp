@@ -2,6 +2,7 @@
 
 #include "gs/exthost/Module.h"
 
+#include <gs/base/JsonNesting.h>
 #include <gs/platform/AtomicFile.h>
 
 #include <nlohmann/json.hpp>
@@ -26,7 +27,8 @@ void ModuleStore::loadOnce()
         return;
     }
     std::string contents;
-    if (platform::readFile(m_file, kStoreQuota, contents, platform::WhenBusy::GiveUp)) {
+    if (platform::readFile(m_file, kStoreQuota, contents, platform::WhenBusy::GiveUp) ||
+        !jsonNestingWithin(contents, kMostJsonNesting + 1)) {
         return;
     }
     const nlohmann::json root = nlohmann::json::parse(contents, nullptr, false);
@@ -67,7 +69,7 @@ StoreResult ModuleStore::set(std::string_view key, std::optional<std::string_vie
     if (key.empty() || key.size() > kMostStoreKeyBytes || !validUtf8(key)) {
         return StoreResult::BadArgument;
     }
-    if (json && (!validUtf8(*json) || !nlohmann::json::accept(*json))) {
+    if (json && (!validUtf8(*json) || !jsonNestingWithin(*json, kMostJsonNesting) || !nlohmann::json::accept(*json))) {
         return StoreResult::BadArgument;
     }
     const std::scoped_lock lock(m_mutex);
