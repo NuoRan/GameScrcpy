@@ -77,7 +77,7 @@
     </message>
     <message>
         <source>The AI provider %1 in Settings &gt; AI is not available: its extension is not installed, is turned off or may not provide AI.</source>
-        <translation>“设置 &gt; AI”里选的 AI 服务提供者 %1 现在用不了：提供它的扩展没有安装、已关闭，或没有提供 AI 的权限。</translation>
+        <translation>“设置 &gt; AI”里选的 AI 服务提供者 %1 现在用不了：提供它的扩展没有安装、已关闭，或不再提供 AI。</translation>
     </message>
     <message>
         <source>Choose the model in Settings &gt; AI.</source>
@@ -1156,7 +1156,7 @@
     </message>
     <message>
         <source>The extension that adds it is not installed, is turned off or may not provide AI. The assistant and logic that ask AI get an error until it is back or you choose another service.</source>
-        <translation>提供它的扩展没有安装、已关闭，或没有提供 AI 的权限。在它恢复或你换用别的服务之前，助手和调用 AI 的逻辑都会报错。</translation>
+        <translation>提供它的扩展没有安装、已关闭，或不再提供 AI。在它恢复或你换用别的服务之前，助手和调用 AI 的逻辑都会报错。</translation>
     </message>
     <message>
         <source>API key</source>
@@ -5268,7 +5268,7 @@
     </message>
     <message>
         <source>sponsor donate support afdian thanks</source>
-        <translation>赞助 打赏 支持 爱发电 感谢 sponsor donate</translation>
+        <translation>赞助 打赏 支持 爱发电 感谢</translation>
     </message>
     <message>
         <source>Help</source>
@@ -6232,7 +6232,7 @@
     </message>
     <message>
         <source>guided tours</source>
-        <translation>功能引导</translation>
+        <translation>引导</translation>
     </message>
     <message>
         <source>interface languages</source>
@@ -6256,7 +6256,7 @@
     </message>
     <message>
         <source>Device settings on the devices page</source>
-        <translation>设备页里设备的设置</translation>
+        <translation>设备页上各设备的设置</translation>
     </message>
     <message>
         <source>Section in Settings</source>
@@ -6288,11 +6288,11 @@
     </message>
     <message>
         <source>Imports %1 files as %2</source>
-        <translation>把 %1 文件导入为%2</translation>
+        <translation>把 %1 文件导入为 %2</translation>
     </message>
     <message>
         <source>Exports %1 as .%2 files</source>
-        <translation>把%1导出为 .%2 文件</translation>
+        <translation>把 %1 导出为 .%2 文件</translation>
     </message>
     <message>
         <source>Touch methods: %1</source>
@@ -6336,7 +6336,7 @@
     </message>
     <message>
         <source>Picture readers: %1</source>
-        <translation>读取画面：%1</translation>
+        <translation>读取画面的扩展：%1</translation>
     </message>
     <message>
         <source>AI model services: %1</source>
@@ -8386,7 +8386,7 @@
     </message>
     <message>
         <source>Downloaded from %1; its SHA-256 matches the link</source>
-        <translation>从 %1 下载，SHA-256 与链接一致</translation>
+        <translation>从 %1 下载；SHA-256 与链接一致</translation>
     </message>
     <message>
         <source>Unsigned native code</source>
@@ -14863,7 +14863,7 @@
     </message>
     <message>
         <source>A device in a list: its icon, name and a line under it, with a pill for its state; stateText words the pill. icon is the name of a GameScrcpy icon or &quot;svg:&quot; and the path of an SVG in the extension&apos;s folder. With an id, clicking it sends click.</source>
-        <translation>列表里的一台设备：图标、名字和下面一行说明，并用胶囊显示状态；stateText 是胶囊上的文字。icon 是 GameScrcpy 图标的名字，或 &quot;svg:&quot; 加扩展目录里 SVG 的路径。有 id 时点击它发出 click。</translation>
+        <translation>列表里的一台设备：图标、名字和下面一行说明，并用胶囊显示状态；stateText 是胶囊上的文字。icon 是 GameScrcpy 图标的名字，或 &quot;svg:&quot; 加扩展文件夹里 SVG 的路径。有 id 时点击它发出 click。</translation>
     </message>
     <message>
         <source>The steps of something done in turn, 2 to 8 titles of up to 40 characters: those before current are done, current is going on (or went wrong with failed), and current equal to the number of steps means all are done.</source>
@@ -14943,7 +14943,7 @@
     </message>
     <message>
         <source>A speech engine: &quot;system&quot; is Windows, the others are &quot;extension id/name&quot;. say and listen tell what it can do, dictation whether it takes any words rather than only a list of commands, and languages the languages it listens in.</source>
-        <translation>一个语音引擎：&quot;system&quot; 是 Windows，其余的是“扩展 id/名字”。say 与 listen 说明它能做什么，dictation 说明它能不能自由听写（而不只是听一组命令），languages 是它能听的语言。</translation>
+        <translation>一个语音引擎：&quot;system&quot; 是 Windows，其余的是 &quot;扩展 id/名字&quot;。say 与 listen 说明它能做什么，dictation 说明它能不能自由听写（而不只是听一组命令），languages 是它能听的语言。</translation>
     </message>
     <message>
         <source>Bytes to send: a Uint8Array, another typed array or a list of numbers from 0 to 255.</source>
@@ -15371,7 +15371,7 @@
     </message>
     <message>
         <source>Recognize from a session script.</source>
-        <translation>改在每台手机一份的脚本里识别。</translation>
+        <translation>改在会话脚本里识别。</translation>
     </message>
     <message>
         <source>An engine by its id, with read(), detect() and classify() as short ways to call recognize(); the id is checked only when it is used.</source>
@@ -15399,7 +15399,7 @@
     </message>
     <message>
         <source>the model service in Settings, AI, is the AI provider of an extension that is not installed, is turned off or may not provide AI</source>
-        <translation>“设置 &gt; AI”里的模型服务是某个扩展的 AI 服务提供者，而这个扩展没有安装、已关闭或没有提供 AI 的权限</translation>
+        <translation>“设置 &gt; AI”里的模型服务是某个扩展的 AI 服务提供者，而这个扩展没有安装、已关闭或不再提供 AI</translation>
     </message>
     <message>
         <source>Hands the phone&apos;s picture to a handler: the frame shown when it starts, then new ones, at most fps a second (2 by default), made smaller so that the long side is at most size pixels (640 by default), and cut to region when one is given. The image is a CapturedImage as vision.capture() gives; it stays usable while its handler runs and until two newer frames came. Frames taken in a task stop when the task ends, ones taken at the top level when the logic stops.</source>
@@ -15459,7 +15459,7 @@
     </message>
     <message>
         <source>Add &quot;files.pick&quot; to the permissions in the extension&apos;s manifest, with a reason.</source>
-        <translation>在扩展清单的权限里加上 &quot;files.pick&quot;，并写明理由。</translation>
+        <translation>在扩展清单的 permissions 里加上 &quot;files.pick&quot; 并写明理由。</translation>
     </message>
     <message>
         <source>the logic belongs to an extension whose manifest does not ask for the permission files.pick</source>
@@ -18367,7 +18367,7 @@
     </message>
     <message>
         <source>speech say read aloud voice tts text to speech engine</source>
-        <translation>朗读 语音 声音 引擎 文字转语音 tts speech say</translation>
+        <translation>朗读 语音 声音 引擎 文字转语音 tts</translation>
     </message>
     <message>
         <source>Voice</source>
@@ -18379,7 +18379,7 @@
     </message>
     <message>
         <source>speech voice read aloud tts</source>
-        <translation>朗读 声音 嗓音 语音 tts voice</translation>
+        <translation>朗读 声音 嗓音 语音 tts</translation>
     </message>
     <message>
         <source>Speaking rate</source>
@@ -18391,7 +18391,7 @@
     </message>
     <message>
         <source>speech rate speed fast slow tts</source>
-        <translation>朗读 语速 速度 快 慢 tts rate</translation>
+        <translation>朗读 语速 速度 快 慢 tts</translation>
     </message>
     <message>
         <source>Speaking volume</source>
@@ -18403,7 +18403,7 @@
     </message>
     <message>
         <source>speech volume loud quiet tts</source>
-        <translation>朗读 音量 大声 小声 tts volume</translation>
+        <translation>朗读 音量 大声 小声 tts</translation>
     </message>
     <message>
         <source>Voice command engine</source>
@@ -18415,7 +18415,7 @@
     </message>
     <message>
         <source>speech listen voice command recognition microphone engine</source>
-        <translation>语音命令 语音识别 识别 麦克风 引擎 speech listen</translation>
+        <translation>语音命令 语音识别 识别 麦克风 引擎</translation>
     </message>
     <message>
         <source>Voice command language</source>
@@ -18427,7 +18427,7 @@
     </message>
     <message>
         <source>speech listen voice command language chinese english</source>
-        <translation>语音命令 语言 中文 英文 普通话 speech listen language</translation>
+        <translation>语音命令 语言 中文 英文 普通话</translation>
     </message>
     <message>
         <source>Switch profiles with the game</source>
@@ -18591,7 +18591,7 @@
     </message>
     <message>
         <source>key hints opacity transparency fade phone companion</source>
-        <translation>key hints opacity transparency fade phone companion 键位 提示 不透明度 透明度 淡出 手机 伴侣</translation>
+        <translation>键位 提示 不透明度 透明度 淡出 手机 伴侣</translation>
     </message>
     <message>
         <source>Connect again by itself over Wi-Fi</source>
@@ -18603,7 +18603,7 @@
     </message>
     <message>
         <source>auto connect reconnect wifi lan wireless pair companion phone</source>
-        <translation>auto connect reconnect wifi lan wireless pair companion phone 自动 连接 重连 无线 局域网 配对 伴侣 手机</translation>
+        <translation>自动 连接 重连 无线 局域网 配对 伴侣 手机 wifi</translation>
     </message>
     <message>
         <source>Allow AI to connect through MCP</source>
@@ -18647,7 +18647,7 @@
     </message>
     <message>
         <source>ai assistant think thinking reasoning claude qwen openai slow quota</source>
-        <translation>ai 小助手 助手 思考 深度思考 推理 claude 通义千问 qwen openai 慢 额度</translation>
+        <translation>AI 小助手 助手 思考 深度思考 推理 慢 额度 claude qwen openai</translation>
     </message>
     <message>
         <source>Reasoning effort</source>
@@ -18659,7 +18659,7 @@
     </message>
     <message>
         <source>ai assistant reasoning effort strength minimal low medium high think gpt claude</source>
-        <translation>ai 小助手 助手 思考强度 推理 强度 最低 低 中 高 思考 gpt claude</translation>
+        <translation>AI 小助手 助手 思考强度 推理 强度 最低 低 中 高 思考 gpt claude</translation>
     </message>
     <message>
         <source>Long context</source>
@@ -18671,7 +18671,7 @@
     </message>
     <message>
         <source>ai assistant long context max million tokens 1m claude sonnet</source>
-        <translation>ai 小助手 助手 长上下文 max 百万 token 1m claude sonnet</translation>
+        <translation>AI 小助手 助手 长上下文 百万 token 1m claude sonnet</translation>
     </message>
     <message>
         <source>AI provider</source>
@@ -18755,7 +18755,7 @@
     </message>
     <message>
         <source>touch extension dll native box board method</source>
-        <translation>touch extension dll native box board method 触控 扩展 原生 触控盒 开发板 方式</translation>
+        <translation>触控 扩展 原生 触控盒 开发板 方式</translation>
     </message>
     <message>
         <source>Compatible with OpenAI covers OpenAI, DeepSeek, Qwen, Kimi, a local Ollama and many more through the Chat Completions protocol; OpenAI Responses is OpenAI&apos;s newer protocol; Anthropic is Claude. Each keeps its own address, model and API key. Extensions can add more services, which bring their own models.</source>
@@ -22492,7 +22492,7 @@
     </message>
     <message>
         <source>Feed the buttons of home-made devices into the key mapping</source>
-        <translation>把自制设备的按键送进键位</translation>
+        <translation>把自制设备的按键接入键位映射</translation>
     </message>
     <message>
         <source>Provide ways to connect to phones</source>
@@ -23318,7 +23318,7 @@
     <message numerus="yes">
         <source>Saved %n file(s) as %1: the picture changed size while recording, so each part is a file of its own</source>
         <translation>
-            <numerusform>已存为 %n 个 %1 文件：录制中画面尺寸变了，每一段单独成一个文件</numerusform>
+            <numerusform>已按 %1 保存 %n 个文件：录制中画面尺寸变了，每一段单独成一个文件</numerusform>
         </translation>
     </message>
     <message>
