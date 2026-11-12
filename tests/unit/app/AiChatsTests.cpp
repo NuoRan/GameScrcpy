@@ -476,6 +476,7 @@ TEST_CASE("ADR-0099 02:4x: the connection log keeps only the lines about connect
         u"2026-11-10 01:00:02.000 info     connecting to Pixel (R58)\n"
         u"2026-11-10 01:00:03.000 warning  [session] [R58] streaming: timeout while handshaking (no answer)\n"
         u"  the next line of that warning\n"
+        u"2026-11-10 01:00:03.500 warning  touch box for Desk box: it stopped answering\n"
         u"2026-11-10 01:00:04.000 info     key mapping on\n"
         u"2026-11-10 01:00:05.000 info     [server] [R58] pushed C:/Users/Someone/AppData/server.apk (2 bytes)\n"
         u"2026-11-10 01:00:06.000 info     the picture of Pixel comes from C:\\Users\\Someone\\card\r\n"_s;
@@ -485,6 +486,7 @@ TEST_CASE("ADR-0099 02:4x: the connection log keeps only the lines about connect
     CHECK(kept.contains(u"connecting to Pixel (R58)"));
     CHECK(kept.contains(u"[session] [R58] streaming"));
     CHECK(kept.contains(u"\n  the next line of that warning"));
+    CHECK(kept.contains(u"touch box for Desk box: it stopped answering"));
     CHECK(kept.contains(u"pushed ~/AppData/server.apk"));
     CHECK(kept.contains(u"comes from ~\\card"));
     CHECK_FALSE(kept.contains(u"mcp:"));

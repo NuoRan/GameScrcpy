@@ -30,7 +30,6 @@ Card {
     required property var stats
     required property var thumbnail
     required property var capture
-    required property var esp32
     required property var picture
     required property var provided
     required property var transported
@@ -38,10 +37,9 @@ Card {
     readonly property var transports: ["device.transport.adb", "device.transport.wifi", "device.transport.auto"]
     readonly property bool isCapture: card.capture !== undefined && card.capture !== null
                                       && card.capture.isCapture === true
-    readonly property bool isEsp32: card.esp32 !== undefined && card.esp32 !== null && card.esp32.isEsp32 === true
     readonly property bool isProvided: card.provided !== undefined && card.provided !== null
                                        && card.provided.isProvided === true
-    readonly property bool isPhone: !card.isCapture && !card.isEsp32 && !card.isProvided
+    readonly property bool isPhone: !card.isCapture && !card.isProvided
     readonly property bool isTransported: card.transported !== undefined && card.transported !== null
                                           && card.transported.isTransported === true
     readonly property var providedActions: card.isProvided ? card.provided.actions ?? [] : []
@@ -70,8 +68,6 @@ Card {
             const phone = card.capture.phoneName ?? ""
             return qsTr("Shows %1").arg(phone !== "" ? phone : card.capture.phone ?? "")
         }
-        if (card.isEsp32)
-            return card.esp32.summary ?? ""
         if (card.isProvided) {
             const job = card.providedJob
             if (job.running === true) {
@@ -205,12 +201,11 @@ Card {
 
                     Icon {
                         anchors.centerIn: parent
-                        name: card.isEsp32 ? "usb"
-                              : card.isProvided ? (card.provided.icon !== "" ? ExtensionPanels.iconOf(card.provided.icon) : "plug")
+                        name: card.isProvided ? (card.provided.icon !== "" ? ExtensionPanels.iconOf(card.provided.icon) : "plug")
                               : "monitor-play"
                         customPath: card.isProvided ? card.provided.iconPath ?? "" : ""
                         size: Theme.size.iconLarge
-                        color: card.isEsp32 || card.isProvided ? Theme.toneInk("amber") : Theme.colors.textTertiary
+                        color: card.isProvided ? Theme.toneInk("amber") : Theme.colors.textTertiary
                     }
 
                     ThumbnailView {
@@ -308,8 +303,7 @@ Card {
                         Layout.fillWidth: true
                         textFormat: Text.PlainText
                         text: card.summary
-                        color: (card.isEsp32 && card.esp32.inUse === true) || card.providedTrouble
-                               ? Theme.colors.warningText : Theme.colors.textTertiary
+                        color: card.providedTrouble ? Theme.colors.warningText : Theme.colors.textTertiary
                         font.pixelSize: Theme.type.caption.size
                         elide: Text.ElideRight
                     }
@@ -461,16 +455,14 @@ Card {
                 }
 
                 Button {
-                    objectName: card.isEsp32 ? "esp32Control" : card.isProvided ? "providedControl" : "deviceMirror"
+                    objectName: card.isProvided ? "providedControl" : "deviceMirror"
                     visible: mirrorCommand.enabled
                     tone: "primary"
-                    iconName: card.isEsp32 || card.isProvided ? "mouse-pointer-click" : mirrorCommand.icon
+                    iconName: card.isProvided ? "mouse-pointer-click" : mirrorCommand.icon
                     text: card.failed ? qsTr("Try again")
-                          : card.isEsp32 || card.isProvided ? qsTr("Control") : mirrorCommand.title
-                    toolTip: card.isEsp32 ? qsTr("Opens a window without a picture: the keys, mouse and keyboard work "
-                                                 + "the phone through the board while you watch the phone")
-                             : card.isProvided ? qsTr("Opens a window without a picture: the keys, mouse and keyboard "
-                                                      + "work the phone through %1").arg(card.name)
+                          : card.isProvided ? qsTr("Control") : mirrorCommand.title
+                    toolTip: card.isProvided ? qsTr("Opens a window without a picture: the keys, mouse and keyboard "
+                                                    + "work the phone through %1").arg(card.name)
                              : ""
                     onClicked: mirrorCommand.trigger()
                 }
@@ -518,8 +510,7 @@ Card {
                 Button {
                     id: settingsButton
 
-                    objectName: card.isCapture ? "captureSettings" : card.isEsp32 ? "esp32Settings"
-                                : card.isProvided ? "providedSettings" : "deviceSettings"
+                    objectName: card.isCapture ? "captureSettings" : card.isProvided ? "providedSettings" : "deviceSettings"
                     visible: card.isProvided ? card.settingsAction !== null : !card.isPhone || settingsCommand.enabled
                     tone: "ghost"
                     iconName: card.isPhone ? settingsCommand.icon : "sliders-horizontal"
@@ -529,8 +520,6 @@ Card {
                     onClicked: {
                         if (card.isCapture)
                             card.captureSettingsRequested()
-                        else if (card.isEsp32)
-                            Commands.trigger("esp32.settings", card.serial)
                         else if (card.isProvided)
                             DeviceManager.runDeviceAction(card.serial, "settings")
                         else
@@ -543,7 +532,7 @@ Card {
 
                     readonly property bool ownItems: appsCommand.enabled || filesCommand.enabled || screenCommand.enabled
                                                      || followCommand.enabled || backCommand.enabled
-                                                     || endWirelessCommand.enabled || card.isCapture || card.isEsp32
+                                                     || endWirelessCommand.enabled || card.isCapture
                                                      || card.menuActions.length > 0
 
                     objectName: "deviceMore"
@@ -648,20 +637,6 @@ Card {
                             onTriggered: Commands.trigger("app.help", "capture-card")
                         }
                         MenuSeparator {
-                            visible: card.isEsp32 && backCommand.enabled
-                            height: visible ? implicitHeight : 0
-                        }
-                        MenuItem {
-                            objectName: "esp32Disconnect"
-                            visible: card.isEsp32
-                            height: visible ? implicitHeight : 0
-                            iconName: "unlink"
-                            text: qsTr("Disconnect the board")
-                            description: qsTr("Lets go of the board until it is plugged in again or connected in its "
-                                              + "settings")
-                            onTriggered: DeviceManager.disconnectBoard(card.serial)
-                        }
-                        MenuSeparator {
                             visible: extensionItems.count > 0 && moreButton.ownItems
                             height: visible ? implicitHeight : 0
                         }
@@ -682,7 +657,7 @@ Card {
         ConnectionStepper {
             Layout.topMargin: Theme.space.sm
             Layout.leftMargin: Theme.size.previewLong + Theme.space.lg
-            visible: card.stage >= 0 && !card.isCapture && !card.isEsp32 && !card.isProvided
+            visible: card.stage >= 0 && !card.isCapture && !card.isProvided
             current: card.stage
             failed: card.failed
         }

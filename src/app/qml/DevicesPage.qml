@@ -493,8 +493,8 @@ Item {
                 centered: true,
                 title: qsTr("Devices"),
                 text: qsTr("Every phone connected to this computer gets a card here, and so do capture cards and "
-                           + "ESP32 boards. A card shows up as soon as the device connects; there is nothing to "
-                           + "refresh.")
+                           + "the devices extensions add, such as touch boxes. A card shows up as soon as the device "
+                           + "connects; there is nothing to refresh.")
             },
             {
                 target: function() { return list.count > 0 ? list.itemAtIndex(0) : list.headerItem },

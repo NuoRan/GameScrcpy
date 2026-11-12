@@ -39,7 +39,6 @@ qt_add_qml_module(GameScrcpy
         qml/DeviceCard.qml
         qml/DevicePanelSheet.qml
         qml/DevicesPage.qml
-        qml/Esp32SettingsSheet.qml
         qml/ExtensionLook.js
         qml/ExtensionSettingsSheet.qml
         qml/ExtensionsPage.qml
@@ -245,12 +244,6 @@ qt_add_qml_module(GameScrcpy
         DiagnosticsOverlay.h
         DraftDiff.cpp
         DraftDiff.h
-        Esp32Boards.cpp
-        Esp32Boards.h
-        Esp32Panel.cpp
-        Esp32Panel.h
-        Esp32Session.cpp
-        Esp32Session.h
         ExtensionBisect.cpp
         ExtensionBisect.h
         ExtensionHealth.cpp
@@ -438,6 +431,8 @@ qt_add_qml_module(GameScrcpy
         ThemeTokens.h
         ThumbnailView.cpp
         ThumbnailView.h
+        TouchBoxSession.cpp
+        TouchBoxSession.h
         TouchMethods.h
         TranslateNoop.h
         TransportPhones.cpp
@@ -500,22 +495,22 @@ qt_add_resources(gs_help_articles "help_articles"
         help/en/aoa-driver.md
         help/en/capture-card.md
         help/en/connecting.md
-        help/en/esp32-touch.md
         help/en/faq.md
         help/en/keymap-editor.md
         help/en/mirror-window.md
         help/en/profiles.md
         help/en/scripts.md
+        help/en/touch-box.md
         help/en/tours.md
         help/zh_CN/aoa-driver.md
         help/zh_CN/capture-card.md
         help/zh_CN/connecting.md
-        help/zh_CN/esp32-touch.md
         help/zh_CN/faq.md
         help/zh_CN/keymap-editor.md
         help/zh_CN/mirror-window.md
         help/zh_CN/profiles.md
         help/zh_CN/scripts.md
+        help/zh_CN/touch-box.md
         help/zh_CN/tours.md
 )
 file(GLOB gs_help_api_pages CONFIGURE_DEPENDS "${PROJECT_SOURCE_DIR}/sdk/docs/*.md")
@@ -557,8 +552,6 @@ target_link_libraries(GameScrcpy PRIVATE
     Qt6::Qml
     Qt6::Quick
     gs::blueprint
-    gs::esp32
-    gs::espflash
     ws2_32
 )
 target_compile_definitions(GameScrcpy PRIVATE GS_BUILD_CONFIG="$<CONFIG>")
@@ -614,16 +607,6 @@ add_custom_target(gs_companion_package ALL
     COMMENT "Placing the companion app build next to GameScrcpy.exe"
     VERBATIM
 )
-
-if(EXISTS "${PROJECT_SOURCE_DIR}/firmware/esp32/release/firmware.json")
-    add_custom_target(gs_esp32_firmware ALL
-        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:GameScrcpy>/esp32-firmware"
-        COMMAND "${CMAKE_COMMAND}" -E copy_directory "${PROJECT_SOURCE_DIR}/firmware/esp32/release"
-            "$<TARGET_FILE_DIR:GameScrcpy>/esp32-firmware"
-        COMMENT "Placing the bundled ESP32 firmware next to GameScrcpy.exe"
-        VERBATIM
-    )
-endif()
 
 add_custom_target(gs_builtin_components
     COMMAND "${CMAKE_COMMAND}" -E rm -rf "$<TARGET_FILE_DIR:GameScrcpy>/components"

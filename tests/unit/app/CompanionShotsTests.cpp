@@ -346,7 +346,7 @@ TEST_CASE("companion link: a screenshot is asked for, put together, refused, or 
     timing.drain = 2s;
     timing.shotFirst = 5s;
     timing.shotBetween = 300ms;
-    CompanionLink link(std::move(owned), protocol::CompanionWelcome{}, "esp32-COM5",
+    CompanionLink link(std::move(owned), protocol::CompanionWelcome{}, "R58M123ABC",
                        [&notices](const CompanionNotice& notice) { notices.add(notice); }, timing);
     REQUIRE(notices.waitFor(CompanionEvent::Connected).has_value());
 

@@ -13,7 +13,6 @@ GameScrcpy mirrors an Android phone to Windows and maps keyboard, mouse and game
 - `protocol/` — the specification and the golden test vectors shared by C++ and Java.
 - `sdk/` — generated script API types and docs (`gs api write sdk`), and the C header for native extensions.
 - `tests/` — one doctest program per module, Qt Quick Tests for the interface, test data.
-- `firmware/esp32/` — ESP-IDF firmware for the ESP32 touch box, with built images.
 - `third_party/` — pinned dependencies; configuring never goes online.
 
 ## Build and test

@@ -154,7 +154,7 @@ Dialog {
                 textFormat: Text.PlainText
                 wrapMode: Text.Wrap
                 text: qsTr("The phone's picture appears on this capture card; touch can then go through USB debugging "
-                           + "(also wireless), AOA or an ESP32 box.")
+                           + "(also wireless), AOA or a touch box from an extension.")
                 color: Theme.colors.textSecondary
                 font.pixelSize: Theme.type.caption.size
             }
@@ -246,7 +246,7 @@ Dialog {
                 choiceId: "standalone"
                 iconName: "monitor-play"
                 text: qsTr("No phone: use this capture card on its own")
-                detail: qsTr("Touch it with AOA or an ESP32 box, or just watch the picture.")
+                detail: qsTr("Touch it with AOA or a touch box from an extension, or just watch the picture.")
             }
         }
     }

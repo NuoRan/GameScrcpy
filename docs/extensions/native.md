@@ -145,7 +145,7 @@ GameScrcpy 在不同的线程上调 DLL，每种回调有自己的要求：
 
 ## 触控方式
 
-`gs_ext_touch_method` 出现在设置的“触控方式”里，排在普通、UHID、AOA 之后。`open` 收到 `gs_ext_touch_open`：手机序列号和一段 JSON 选项 `{ settings, deviceSettings, phone, device, touchBox }`——扩展的全局设置、这台手机的单独设置、给 `setting_get` 用的手机 id、用户为它选的 USB / 串口 / 蓝牙设备（清单 `wantsDevice` 为 `true` 时，`{ kind, path, name }`，否则 `null`）、从触控盒卡片开始控制时的设备 id。`frame` 收到一帧触点（坐标同时给出画面比例和手机自然方向的比例），`key`、`text`、`mouse`、`gamepad` 可以为 `NULL`（交给普通方式）。任何调用返回非 `GS_EXT_OK`，触控就退回普通方式。
+`gs_ext_touch_method` 出现在设置的“触控方式”里，排在普通、UHID、AOA 之后。`open` 收到 `gs_ext_touch_open`：手机序列号和一段 JSON 选项 `{ settings, deviceSettings, phone, device, touchBox }`——扩展的全局设置、这台手机的单独设置、给 `setting_get` 用的手机 id、用户为它选的 USB / 串口 / 蓝牙设备（清单 `wantsDevice` 为 `true` 时，`{ kind, path, name }`，否则 `null`）、从触控盒卡片开始控制或采集卡配了这个触控盒时的设备 id（别的为 `null`）。`frame` 收到一帧触点（坐标同时给出画面比例和手机自然方向的比例），`key`、`text`、`mouse`、`gamepad` 可以为 `NULL`（交给普通方式）。任何调用返回非 `GS_EXT_OK`，触控就退回普通方式。
 
 ## 附加与行为
 
@@ -232,7 +232,7 @@ const result = await job.result;
 | `icon` | 图标名或 `svg:<包内路径>` |
 | `touchMethod` | 本扩展的一个触控方式；“控制”用它打开无画面的控制窗口，设备 id 放进触控选项的 `touchBox` |
 | `resource` | 设备经由的硬件（写法同 `claim`）；别人占着时卡片写“正被 某某 使用” |
-| `capture` | `true` 表示可以配采集卡画面 |
+| `capture` | `true` 表示可以配采集卡画面：盒子连着时出现在采集卡设置的“触控方式”里，选了它，采集卡就用 `touchMethod` 触控，触控选项的 `touchBox` 同样是设备 id |
 | `actions` | 最多 8 个按钮：`panel` 打开本扩展的一个面板（`where` 为 `device`），`job` 启动本扩展的一个任务，两者都没有的交给 `act` |
 
 id 为 `settings` 的动作是卡片上的设置按钮，其余进卡片的“更多”菜单。任务的参数里有字符串参数 `device` 时，卡片把设备 id 传进去。设备变了就调 `devices_changed(context, 提供者名)`，GameScrcpy 会重新 `list`。

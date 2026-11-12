@@ -187,9 +187,6 @@ QString touchMethodName(const QString& method)
     if (method == u"aoa") {
         return QStringLiteral("AOA");
     }
-    if (method == u"esp32") {
-        return QStringLiteral("ESP32");
-    }
     if (method.isEmpty() || method == u"none") {
         return QCoreApplication::translate("CaptureCards", "No touch");
     }
@@ -216,6 +213,23 @@ TouchChoice chooseCaptureTouch(const QString& method, const std::string& aoaPhon
         return {.method = none, .unavailable = touchMethodName(method)};
     }
     return {.method = method};
+}
+
+QString touchBoxSerial(const ProvidedDevice& device)
+{
+    return QStringLiteral("box:%1/%2/%3")
+        .arg(QString::fromStdString(device.extension), QString::fromStdString(device.provider),
+             QString::fromStdString(device.id));
+}
+
+bool isTouchBoxSerial(QStringView serial) noexcept
+{
+    return serial.startsWith(u"box:");
+}
+
+bool pairsWithCapture(const ProvidedDevice& device, bool listed) noexcept
+{
+    return listed && device.capture && !device.touchMethod.empty();
 }
 
 CaptureCardWatcher::CaptureCardWatcher(Lister lister, QObject* parent) : QObject(parent), m_lister(std::move(lister)) {}

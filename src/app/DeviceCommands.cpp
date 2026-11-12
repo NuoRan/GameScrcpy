@@ -1,6 +1,5 @@
 #include "DeviceCommands.h"
 
-#include "Esp32Boards.h"
 #include "TranslateNoop.h"
 
 #include <algorithm>
@@ -497,19 +496,6 @@ void addHubCommands(CommandTable& table, DeviceCommandHost& host, const UiReques
     addUi(table, request, "app.assistant", GS_TRANSLATE_NOOP("Commands", "AI assistant"),
           GS_TRANSLATE_NOOP("Commands", "ai assistant chat ask question help bubble"), "sparkles",
           CommandScope::Global, QKeyCombination(Qt::ControlModifier, Qt::Key_J));
-
-    Command board;
-    board.id = QStringLiteral("esp32.settings");
-    board.title = GS_TRANSLATE_NOOP("Commands", "ESP32 touch box settings");
-    board.keywords = GS_TRANSLATE_NOOP("Commands", "esp32 board serial port wifi firmware flash");
-    board.icon = QStringLiteral("usb");
-    board.enabled = [](const QString&) {
-        const Esp32Boards* boards = Esp32Boards::instance();
-        return boards != nullptr && boards->active();
-    };
-    board.run = [request](const QString&) { request(QStringLiteral("esp32.settings"), {}); };
-    [[maybe_unused]] const bool boardAdded = table.add(std::move(board));
-    Q_ASSERT_X(boardAdded, "addHubCommands", "invalid or duplicate command");
 
     const auto mirroring = [&host] {
         const std::vector<DeviceFacts> facts = host.devices();

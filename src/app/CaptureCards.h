@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ControlChannel.h"
+#include "ProvidedDevice.h"
 #include "Settings.h"
 
 #include <gs/capture/CaptureDevices.h>
@@ -75,6 +76,9 @@ struct TouchChoice {
 
 [[nodiscard]] TouchChoice chooseCaptureTouch(const QString& method, const std::string& aoaPhone,
                                              const std::vector<platform::UsbPhone>& phones, bool extensionReady);
+[[nodiscard]] QString touchBoxSerial(const ProvidedDevice& device);
+[[nodiscard]] bool isTouchBoxSerial(QStringView serial) noexcept;
+[[nodiscard]] bool pairsWithCapture(const ProvidedDevice& device, bool listed) noexcept;
 
 class DroppingSink final : public ControlSink
 {

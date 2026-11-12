@@ -156,8 +156,8 @@ SettingsSheet {
             width: parent.width
             title: qsTr("Touch method")
             description: qsTr("How your taps reach the phone: not at all, so you only watch the picture; over the "
-                              + "phone's USB cable with AOA; or through a way an extension adds, such as the ESP32 "
-                              + "touch box.")
+                              + "phone's USB cable with AOA; or through a way an extension adds, such as a touch box "
+                              + "on the devices page.")
 
             Select {
                 id: touchChoice

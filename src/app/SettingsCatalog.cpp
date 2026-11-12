@@ -23,8 +23,8 @@ namespace gs::app {
 
 namespace {
 
-constexpr std::array<std::string_view, 10> kPageNames{"",           "general",    "video",    "audio", "input",
-                                                      "connection", "appearance", "advanced", "ai",    "assistant"};
+constexpr std::array<std::string_view, 9> kPageNames{"",           "general",  "video", "audio",    "input",
+                                                     "appearance", "advanced", "ai",    "assistant"};
 constexpr std::array<std::string_view, 4> kKindNames{"choice", "integer", "boolean", "text"};
 static_assert(kPageNames.size() == static_cast<std::size_t>(settings::Page::Assistant) + 1);
 static_assert(kKindNames.size() == static_cast<std::size_t>(settings::Kind::Text) + 1);
@@ -36,16 +36,6 @@ QString translated(std::string_view text)
 
 constexpr int kMostDecimals = 4;
 constexpr double kMostSliderStops = 200.0;
-constexpr std::string_view kEsp32Extension = "gamescrcpy.esp32";
-constexpr std::string_view kEsp32Settings = "esp32.";
-
-bool esp32Installed()
-{
-    const ExtensionHost* host = ExtensionHost::instance();
-    return host != nullptr && std::ranges::any_of(host->extensions(), [](const ExtensionHost::Extension& extension) {
-               return extension.manifest.has_value() && extension.manifest->id == kEsp32Extension;
-           });
-}
 
 QString controlOf(const ext::SettingDeclaration& setting, double step)
 {
@@ -96,9 +86,8 @@ int decimalsOf(const ext::SettingDeclaration& setting)
 std::vector<SettingInfo> settingInfos()
 {
     std::vector<SettingInfo> infos;
-    const bool esp32 = esp32Installed();
     for (const settings::Entry& entry : settings::catalog()) {
-        if (entry.page == settings::Page::None || (!esp32 && entry.path.starts_with(kEsp32Settings))) {
+        if (entry.page == settings::Page::None) {
             continue;
         }
         QStringList choices;
@@ -184,7 +173,6 @@ void SettingsCatalog::rebuild()
     m_entries.clear();
     m_searchable.clear();
     m_perDevicePages.clear();
-    const bool esp32 = esp32Installed();
     for (const settings::Entry& entry : settings::catalog()) {
         const QString path = toQString(entry.path);
         const QString page = toQString(kPageNames[static_cast<std::size_t>(entry.page)]);
@@ -208,9 +196,6 @@ void SettingsCatalog::rebuild()
                                    {QStringLiteral("perDevice"), perDevice},
                                    {QStringLiteral("defaultValue"), toVariant(entry.defaultValue)},
                                });
-        if (!esp32 && entry.path.starts_with(kEsp32Settings)) {
-            continue;
-        }
         m_searchable.push_back({path,
                                 page,
                                 perDevice,

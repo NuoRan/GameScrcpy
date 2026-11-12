@@ -27,13 +27,13 @@
           }
         },
         {
-          "slug": "esp32-touch",
+          "slug": "touch-box",
           "icon": "plug",
           "tile": "azure",
-          "title": { "en": "ESP32 touch box", "zh_CN": "ESP32 触控盒" },
+          "title": { "en": "Touch boxes", "zh_CN": "触控盒" },
           "summary": {
-            "en": "An ESP32 board becomes the phone's touch screen, keyboard, mouse and gamepad: which port goes where, flashing and BOOT.",
-            "zh_CN": "一块 ESP32 当手机的触摸屏、键盘、鼠标和手柄：哪个口接哪里、刷写固件、什么时候按 BOOT。"
+            "en": "A small board from an extension acts as the phone's touch screen and keyboard. The ESP32 touch box is now a community extension.",
+            "zh_CN": "扩展提供的小板子充当手机的触摸屏和键盘。ESP32 触控盒现在是社区扩展。"
           }
         },
         {
@@ -42,8 +42,8 @@
           "tile": "azure",
           "title": { "en": "Capture cards", "zh_CN": "采集卡" },
           "summary": {
-            "en": "Show a phone's HDMI picture through a capture card, without USB debugging; touches over AOA or ESP32.",
-            "zh_CN": "经采集卡显示手机的 HDMI 画面，不开 USB 调试也行；触控走 AOA 或 ESP32。"
+            "en": "Show a phone's HDMI picture through a capture card, without USB debugging; touches over AOA or a touch box.",
+            "zh_CN": "经采集卡显示手机的 HDMI 画面，不开 USB 调试也行；触控走 AOA 或触控盒。"
           }
         },
         {

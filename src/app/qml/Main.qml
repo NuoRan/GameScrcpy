@@ -20,8 +20,6 @@ Window {
     property AiWindow assistantWindow: null
     readonly property var pageNames: ["devices", "profiles", "tasks", "extensions", "settings"]
     readonly property var extensionPages: ExtensionPanels.panels.filter(entry => entry.where === "page")
-    readonly property bool esp32Enabled: ExtensionHost.entries.some(entry => entry.id === "gamescrcpy.esp32"
-                                                                    && entry.enabled === true)
 
     onVisibilityChanged: {
         if (visibility === Window.Maximized || visibility === Window.Windowed)
@@ -118,12 +116,6 @@ Window {
                 break
             }
         }
-    }
-
-    function openEsp32Settings() {
-        const sheet = esp32Settings.item as Esp32SettingsSheet
-        if (sheet !== null)
-            sheet.show()
     }
 
     function replayTour(key: string) {
@@ -540,14 +532,7 @@ Window {
                 root.bringForward()
                 break
             case "hub.extensions":
-                if (target === "gamescrcpy.esp32") {
-                    root.openEsp32Settings()
-                    break
-                }
                 rail.currentIndex = 3
-                break
-            case "esp32.settings":
-                root.openEsp32Settings()
                 break
             case "hub.settings":
                 SettingsCatalog.scoped = false
@@ -941,14 +926,6 @@ Window {
 
     FilePrompts {
         onAttentionWanted: question => root.attend(qsTr("A file or folder request is waiting for you"), question)
-    }
-
-    Loader {
-        id: esp32Settings
-
-        objectName: "esp32SettingsLoader"
-        active: root.esp32Enabled
-        sourceComponent: Esp32SettingsSheet {}
     }
 
     Toast {

@@ -1,7 +1,6 @@
 #include "CommandTable.h"
 #include "Commands.h"
 #include "DeviceCommands.h"
-#include "Esp32Boards.h"
 #include "SettingsCatalog.h"
 #include "ShortcutModel.h"
 
@@ -529,7 +528,7 @@ TEST_CASE("choice commands check the variant in effect")
     CHECK(host.calls == QStringList{QStringLiteral("transport A 0"), QStringLiteral("orientation A 1")});
 }
 
-TEST_CASE("ADR-0107: the connection method commands are off for capture cards and ESP32 boards")
+TEST_CASE("ADR-0107: the connection method commands are off for capture cards and touch boxes")
 {
     FakeHost host;
     host.add(QStringLiteral("A")).canConnect = true;
@@ -537,7 +536,8 @@ TEST_CASE("ADR-0107: the connection method commands are off for capture cards an
     capture.canConnect = true;
     capture.transportChoice = false;
     capture.deviceId = QStringLiteral("capture-1a2b3c4d");
-    DeviceFacts& board = host.add(QStringLiteral("esp32-COM5"));
+    const QString box = QStringLiteral("box:alice.box/boxes/desk");
+    DeviceFacts& board = host.add(box);
     board.canConnect = true;
     board.transportChoice = false;
     Commands commands(host);
@@ -548,11 +548,11 @@ TEST_CASE("ADR-0107: the connection method commands are off for capture cards an
         CHECK(commands.isEnabled(id, QStringLiteral("A")));
         CHECK_FALSE(commands.isEnabled(id, QStringLiteral("capture-1a2b3c4d")));
         CHECK_FALSE(commands.trigger(id, QStringLiteral("capture-1a2b3c4d")));
-        CHECK_FALSE(commands.isEnabled(id, QStringLiteral("esp32-COM5")));
-        CHECK_FALSE(commands.trigger(id, QStringLiteral("esp32-COM5")));
+        CHECK_FALSE(commands.isEnabled(id, box));
+        CHECK_FALSE(commands.trigger(id, box));
     }
     CHECK(commands.isEnabled(QStringLiteral("device.mirror"), QStringLiteral("capture-1a2b3c4d")));
-    CHECK(commands.isEnabled(QStringLiteral("device.mirror"), QStringLiteral("esp32-COM5")));
+    CHECK(commands.isEnabled(QStringLiteral("device.mirror"), box));
     CHECK(commands.isEnabled(QStringLiteral("device.settings"), QStringLiteral("capture-1a2b3c4d")));
     CHECK(host.calls.isEmpty());
     CHECK(DeviceFacts{}.transportChoice);
@@ -585,7 +585,8 @@ TEST_CASE("without a picture the key editor still opens and recording does not; 
           "one extension's panel (ADR-0105)")
 {
     FakeHost host;
-    DeviceFacts& board = host.add(QStringLiteral("esp32-COM5"));
+    const QString box = QStringLiteral("box:alice.box/boxes/desk");
+    DeviceFacts& board = host.add(box);
     board.connected = true;
     board.hasProfile = true;
     board.noPicture = true;
@@ -594,54 +595,23 @@ TEST_CASE("without a picture the key editor still opens and recording does not; 
     QObject::connect(&commands, &Commands::uiRequested, &commands,
                      [&requests](const QString& id, const QString& target) { requests.append(id + u' ' + target); });
 
-    CHECK(commands.isEnabled(QStringLiteral("device.editKeymap"), QStringLiteral("esp32-COM5")));
-    CHECK_FALSE(commands.isEnabled(QStringLiteral("mirror.record"), QStringLiteral("esp32-COM5")));
-    CHECK(commands.trigger(QStringLiteral("device.editKeymap"), QStringLiteral("esp32-COM5")));
-    CHECK(host.calls == QStringList{QStringLiteral("editing esp32-COM5 1")});
+    CHECK(commands.isEnabled(QStringLiteral("device.editKeymap"), box));
+    CHECK_FALSE(commands.isEnabled(QStringLiteral("mirror.record"), box));
+    CHECK(commands.trigger(QStringLiteral("device.editKeymap"), box));
+    CHECK(host.calls == QStringList{QStringLiteral("editing box:alice.box/boxes/desk 1")});
 
-    CHECK(commands.trigger(QStringLiteral("hub.extensions"), QStringLiteral("gamescrcpy.esp32")));
+    CHECK(commands.trigger(QStringLiteral("hub.extensions"), QStringLiteral("alice.box")));
     CHECK(commands.trigger(QStringLiteral("hub.extensions")));
-    CHECK(requests ==
-          QStringList{QStringLiteral("hub.extensions gamescrcpy.esp32"), QStringLiteral("hub.extensions ")});
+    CHECK(requests == QStringList{QStringLiteral("hub.extensions alice.box"), QStringLiteral("hub.extensions ")});
 }
 
-TEST_CASE("ADR-0107: the ESP32 settings command is offered only while the ESP32 extension is on and asks the interface "
-          "for the settings sheet")
+TEST_CASE("ADR-0112: there is no ESP32 settings command any more; a touch box's settings are on its card")
 {
     FakeHost host;
-    host.add(QStringLiteral("esp32-COM5")).connected = true;
     Commands commands(host);
-    QStringList requests;
-    QObject::connect(&commands, &Commands::uiRequested, &commands,
-                     [&requests](const QString& id, const QString& target) { requests.append(id + u' ' + target); });
-    const QString id = QStringLiteral("esp32.settings");
-
-    const Command* settings = commands.table().find(id);
-    REQUIRE(settings != nullptr);
-    CHECK(settings->scope == CommandScope::Global);
-    CHECK(settings->target == gs::app::CommandTarget::None);
-    CHECK(settings->shortcut == QKeyCombination());
-    CHECK(commands.title(id) == QStringLiteral("ESP32 touch box settings"));
-    CHECK(commands.icon(id) == QStringLiteral("usb"));
-    CHECK_FALSE(commands.isEnabled(id));
-    CHECK_FALSE(commands.trigger(id));
-
-    {
-        gs::app::Esp32Boards boards(gs::app::Esp32Hooks{.watchUsb = false});
-        CHECK_FALSE(commands.isEnabled(id));
-        boards.setActive(true);
-        CHECK(commands.isEnabled(id));
-        CHECK(commands.trigger(id, QStringLiteral("esp32-COM5")));
-        boards.setActive(false);
-        CHECK_FALSE(commands.isEnabled(id));
-        CHECK_FALSE(commands.trigger(id));
-        boards.setActive(true);
-        CHECK(commands.isEnabled(id));
-    }
-    CHECK_FALSE(commands.isEnabled(id));
-    CHECK_FALSE(commands.trigger(id));
-    CHECK(requests == QStringList{QStringLiteral("esp32.settings ")});
-    CHECK(host.calls.isEmpty());
+    CHECK(commands.table().find(u"esp32.settings") == nullptr);
+    CHECK_FALSE(commands.isEnabled(QStringLiteral("esp32.settings")));
+    CHECK_FALSE(commands.trigger(QStringLiteral("esp32.settings")));
 }
 
 TEST_CASE("the grid needs two phones mirroring and tiling one; the interface carries both out (ADR-0096)")

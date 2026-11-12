@@ -14,7 +14,7 @@
 
 namespace gs::app::settings {
 
-enum class Page : std::uint8_t { None, General, Video, Audio, Input, Connection, Appearance, Advanced, Ai, Assistant };
+enum class Page : std::uint8_t { None, General, Video, Audio, Input, Appearance, Advanced, Ai, Assistant };
 
 enum class Scope : std::uint8_t { Global, Device };
 
@@ -416,7 +416,7 @@ struct Touch {
                                                              "UHID and AOA. While the extension is off or fails, "
                                                              "touches go the normal way. Takes effect the next time "
                                                              "the phone connects."),
-                .keywords = GS_TRANSLATE_NOOP("Settings", "touch extension dll native esp32 board method"),
+                .keywords = GS_TRANSLATE_NOOP("Settings", "touch extension dll native box board method"),
                 .scope = Scope::Device});
         v.text("device", m.device, kMaxDeviceLength,
                {.title = GS_TRANSLATE_NOOP("Settings", "Device for the touch method"),
@@ -870,45 +870,6 @@ struct Assistant {
     friend bool operator==(const Assistant&, const Assistant&) = default;
 };
 
-enum class Esp32Connection : std::uint8_t { Serial, Wifi };
-inline constexpr std::array<std::string_view, 2> kEsp32ConnectionNames{"serial", "wifi"};
-inline constexpr std::string_view kEsp32AutomaticPort = "auto";
-
-struct Esp32 {
-    static constexpr std::size_t kMaxPortLength = 16;
-    static constexpr std::size_t kMaxAddressLength = 255;
-
-    std::string port = std::string(kEsp32AutomaticPort);
-    Esp32Connection link = Esp32Connection::Serial;
-    std::string address;
-
-    template <typename V, typename Self>
-    static void visit(V& v, Self& m)
-    {
-        v.text("port", m.port, kMaxPortLength,
-               {.title = GS_TRANSLATE_NOOP("Settings", "ESP32 serial port"),
-                .description = GS_TRANSLATE_NOOP("Settings", "The serial port of the ESP32 touch box. Automatic tries "
-                                                             "the Espressif, CH34x and CP210x ports one after another."),
-                .keywords = GS_TRANSLATE_NOOP("Settings", "esp32 serial port com usb touch box"),
-                .scope = Scope::Device});
-        v.choice("link", m.link, kEsp32ConnectionNames,
-                 {.title = GS_TRANSLATE_NOOP("Settings", "ESP32 connection"),
-                  .description = GS_TRANSLATE_NOOP("Settings", "Serial uses the board's USB serial port, with the least "
-                                                               "delay. Wi-Fi needs the board on the same network and adds "
-                                                               "1 to 3 ms."),
-                  .keywords = GS_TRANSLATE_NOOP("Settings", "esp32 wifi wireless serial udp connection touch box"),
-                  .scope = Scope::Device});
-        v.text("address", m.address, kMaxAddressLength,
-               {.title = GS_TRANSLATE_NOOP("Settings", "ESP32 address"),
-                .description = GS_TRANSLATE_NOOP("Settings", "The board's address on the network. Empty finds it "
-                                                             "automatically."),
-                .keywords = GS_TRANSLATE_NOOP("Settings", "esp32 wifi address ip mdns touch box"),
-                .scope = Scope::Device});
-    }
-
-    friend bool operator==(const Esp32&, const Esp32&) = default;
-};
-
 using Scalar = std::variant<bool, std::int64_t, double, std::string>;
 using Scalars = std::map<std::string, Scalar, std::less<>>;
 
@@ -985,7 +946,6 @@ struct Settings {
     ExtensionStates extensions;
     Mcp mcp;
     Assistant assistant;
-    Esp32 esp32;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -1014,7 +974,6 @@ struct Settings {
         v.map("extensions", m.extensions, kMaxExtensionIdLength);
         v.object("mcp", m.mcp, Page::Ai);
         v.object("assistant", m.assistant, Page::Assistant);
-        v.object("esp32", m.esp32, Page::Connection);
     }
 
     friend bool operator==(const Settings&, const Settings&) = default;
@@ -1070,7 +1029,7 @@ enum class CaptureKind : std::uint8_t { Automatic, CaptureCard, NotCaptureCard }
 inline constexpr std::array<std::string_view, 3> kCaptureKindNames{"automatic", "captureCard", "notCaptureCard"};
 
 struct CaptureSettings {
-    static constexpr std::size_t kMaxTouchLength = 64 + 1 + 64;
+    static constexpr std::size_t kMaxTouchLength = 4 + 64 + 1 + 64 + 1 + 64;
     static constexpr std::size_t kMaxPhoneLength = 128;
     static constexpr std::size_t kMaxFormatLength = 64;
     static constexpr std::int64_t kCropScale = 10000;

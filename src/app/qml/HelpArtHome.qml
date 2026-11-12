@@ -22,7 +22,7 @@ Item {
         to: 1
         duration: 2 * Theme.motion.pulse
         loops: Animation.Infinite
-        running: art.moving && ["hero", "connecting", "scripts", "aoa-driver", "esp32-touch", "capture-card"].includes(art.kind)
+        running: art.moving && ["hero", "connecting", "scripts", "aoa-driver", "touch-box", "capture-card"].includes(art.kind)
     }
 
     component Dot: Rectangle {
@@ -704,10 +704,10 @@ Item {
 
         Item {
             anchors.fill: parent
-            visible: art.kind === "esp32-touch"
+            visible: art.kind === "touch-box"
 
             HelpScreen {
-                id: espMonitor
+                id: boxMonitor
 
                 kind: "monitor"
                 x: 18
@@ -717,17 +717,17 @@ Item {
             }
 
             Rectangle {
-                id: espLeftWire
+                id: boxLeftWire
 
-                x: espMonitor.x + espMonitor.width
-                y: espBoard.y + espBoard.height / 2 - height / 2
-                width: espBoard.x - x
+                x: boxMonitor.x + boxMonitor.width
+                y: boxBoard.y + boxBoard.height / 2 - height / 2
+                width: boxBoard.x - x
                 height: Theme.size.focusRing
                 color: Theme.colors.strokeStrong
             }
 
             Rectangle {
-                id: espBoard
+                id: boxBoard
 
                 x: 112
                 y: 47
@@ -785,7 +785,7 @@ Item {
                     Text {
                         anchors.centerIn: parent
                         textFormat: Text.PlainText
-                        text: "ESP32"
+                        text: "HID"
                         color: Theme.colors.accentText
                         font.pixelSize: Theme.type.micro.size - 2
                         font.weight: Font.DemiBold
@@ -794,24 +794,24 @@ Item {
             }
 
             Rectangle {
-                id: espRightWire
+                id: boxRightWire
 
-                x: espBoard.x + espBoard.width
-                y: espBoard.y + espBoard.height / 2 - height / 2
-                width: espPhone.x - x
+                x: boxBoard.x + boxBoard.width
+                y: boxBoard.y + boxBoard.height / 2 - height / 2
+                width: boxPhone.x - x
                 height: Theme.size.focusRing
                 color: Theme.colors.strokeStrong
             }
 
             Dot {
                 visible: art.moving
-                x: art.flow < 0.5 ? espLeftWire.x + (espLeftWire.width - width) * art.flow * 2
-                                  : espRightWire.x + (espRightWire.width - width) * (art.flow - 0.5) * 2
-                y: espLeftWire.y + espLeftWire.height / 2 - height / 2
+                x: art.flow < 0.5 ? boxLeftWire.x + (boxLeftWire.width - width) * art.flow * 2
+                                  : boxRightWire.x + (boxRightWire.width - width) * (art.flow - 0.5) * 2
+                y: boxLeftWire.y + boxLeftWire.height / 2 - height / 2
             }
 
             HelpScreen {
-                id: espPhone
+                id: boxPhone
 
                 kind: "phone"
                 scene: "lobby"

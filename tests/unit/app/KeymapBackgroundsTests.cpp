@@ -91,7 +91,7 @@ TEST_CASE("a background picture's kind and size come from its header alone (HID-
 TEST_CASE("the file name of a background keeps letters, digits, dots, dashes and underscores (HID-008)")
 {
     CHECK(backgroundStem(u"R58N123ABC") == QStringLiteral("R58N123ABC"));
-    CHECK(backgroundStem(u"esp32-COM5") == QStringLiteral("esp32-COM5"));
+    CHECK(backgroundStem(u"box:alice.box/boxes/desk-1") == QStringLiteral("box_alice.box_boxes_desk-1"));
     CHECK(backgroundStem(u"a b/c\\d:e*") == QStringLiteral("a_b_c_d_e_"));
     CHECK(backgroundStem(u"") == QStringLiteral("phone"));
     CHECK(backgroundStem(QString(200, u'x')).size() == 96);

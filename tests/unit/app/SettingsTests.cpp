@@ -550,7 +550,7 @@ TEST_CASE("the touch method is normal by default, set on the input page and per 
 
     DeviceSettings device;
     CHECK(setOverride(device, "touch.method", Value(std::string("uhid"))));
-    CHECK_FALSE(setOverride(device, "touch.method", Value(std::string("esp32"))));
+    CHECK_FALSE(setOverride(device, "touch.method", Value(std::string("bluetooth"))));
     CHECK(effectiveSettings(Settings{}, device).touch.method == TouchMethod::Uhid);
     CHECK(effectiveSettings(Settings{}, DeviceSettings{}).touch.method == TouchMethod::Inject);
 
@@ -704,45 +704,39 @@ TEST_CASE("ADR-0108: files written before picture sources read as they did")
     CHECK(phone.picture.source == PictureSource::Phone);
 }
 
-TEST_CASE("the ESP32 settings sit on the connection page, can be set for one phone, and survive the files (ADR-0105, "
-          "HID-008)")
+TEST_CASE("ADR-0112: the ESP32 settings of GameScrcpy 2.0 load without errors and are dropped, for every phone and for "
+          "one")
 {
-    const Entry* port = findSetting("esp32.port");
-    const Entry* link = findSetting("esp32.link");
-    const Entry* address = findSetting("esp32.address");
-    REQUIRE(port != nullptr);
-    REQUIRE(link != nullptr);
-    REQUIRE(address != nullptr);
-    for (const Entry* entry : {port, link, address}) {
-        CHECK(entry->page == Page::Connection);
-        CHECK(entry->facets.scope == Scope::Device);
+    const auto noErrors = [](const std::vector<Diagnostic>& diagnostics) {
+        return std::none_of(diagnostics.begin(), diagnostics.end(),
+                            [](const Diagnostic& d) { return d.severity == Severity::Error; });
+    };
+    for (const std::string_view path : {"esp32.port", "esp32.link", "esp32.address"}) {
+        CHECK(findSetting(path) == nullptr);
     }
-    CHECK(port->kind == Kind::Text);
-    CHECK(port->defaultValue == Value(std::string("auto")));
-    CHECK(link->kind == Kind::Choice);
-    CHECK(link->choices == std::vector<std::string_view>{"serial", "wifi"});
-    CHECK(link->defaultValue == Value(std::string("serial")));
-    CHECK(address->kind == Kind::Text);
-    CHECK(address->defaultValue == Value(std::string()));
+
+    const Loaded<Settings> loaded = load<Settings>(
+        R"({"format": "gamescrcpy.settings", "version": 1, "video": {"maxFps": 90},)"
+        R"( "esp32": {"port": "COM7", "link": "wifi", "address": "192.168.1.20:4545"}})");
+    CHECK(loaded.usable);
+    CHECK(noErrors(loaded.diagnostics));
+    CHECK(loaded.document.video.maxFps == 90);
+    CHECK(save(loaded.document).find("esp32") == std::string::npos);
+
+    const Loaded<Devices> devices = load<Devices>(
+        R"({"format": "gamescrcpy.devices", "version": 1, "devices": {"R58M123ABC": {"overrides":)"
+        R"( {"esp32.link": "wifi", "esp32.port": "COM7", "touch.method": "uhid"}}}})");
+    CHECK(devices.usable);
+    CHECK(noErrors(devices.diagnostics));
+    const DeviceSettings& phone = devices.document.byId.at("R58M123ABC");
+    CHECK(phone.overrides.size() == 1);
+    CHECK(effectiveSettings(Settings{}, phone).touch.method == TouchMethod::Uhid);
+    CHECK(save(devices.document).find("esp32") == std::string::npos);
 
     DeviceSettings device;
-    CHECK(setOverride(device, "esp32.link", Value(std::string("wifi"))));
-    CHECK(setOverride(device, "esp32.address", Value(std::string("192.168.1.20:4545"))));
-    CHECK_FALSE(setOverride(device, "esp32.link", Value(std::string("bluetooth"))));
-    const Settings mine = effectiveSettings(Settings{}, device);
-    CHECK(mine.esp32.link == Esp32Connection::Wifi);
-    CHECK(mine.esp32.address == "192.168.1.20:4545");
-    CHECK(mine.esp32.port == "auto");
-    CHECK(effectiveSettings(Settings{}, DeviceSettings{}).esp32.link == Esp32Connection::Serial);
-
-    Settings settings;
-    REQUIRE(assign(settings, "esp32.port", Value(std::string("COM7"))));
-    const Loaded<Settings> loaded = load<Settings>(save(settings));
-    CHECK(loaded.diagnostics.empty());
-    CHECK(loaded.document.esp32.port == "COM7");
-    CHECK(clearOverride(device, "esp32.link"));
-    CHECK(effectiveSettings(settings, device).esp32.link == Esp32Connection::Serial);
-    CHECK(effectiveSettings(settings, device).esp32.port == "COM7");
+    CHECK_FALSE(setOverride(device, "esp32.port", Value(std::string("COM7"))));
+    CHECK_FALSE(setOverride(device, "touch.method", Value(std::string("esp32"))));
+    CHECK(device == DeviceSettings{});
 }
 
 TEST_CASE("a phone remembers how its control window was held and its screen size, and only when they differ "

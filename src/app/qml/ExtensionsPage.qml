@@ -329,10 +329,7 @@ Item {
     }
 
     function openSettings(entry: var) {
-        if (entry.id === "gamescrcpy.esp32")
-            Commands.trigger("esp32.settings", "")
-        else
-            settingsSheet.openFor(entry)
+        settingsSheet.openFor(entry)
     }
 
     component Badge: Rectangle {
@@ -1555,7 +1552,7 @@ Item {
                 centered: true,
                 title: qsTr("Extensions"),
                 text: qsTr("Extensions add to GameScrcpy: new components, picture filters, themes, hardware such as "
-                           + "an ESP32 board, side panels, and new blocks for profiles and logic.")
+                           + "a touch box, side panels, and new blocks for profiles and logic.")
             },
             {
                 target: function() { return tour.findItem(page, "extensionCard") },

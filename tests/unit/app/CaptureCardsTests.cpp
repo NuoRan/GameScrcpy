@@ -404,16 +404,50 @@ TEST_CASE("touch on a capture card falls back to none when its way is not there,
         CHECK_FALSE(missing.phone);
     }
 
-    const TouchChoice off = chooseCaptureTouch(QStringLiteral("esp32"), {}, phones, false);
+    const QString box = QStringLiteral("box:alice.box/boxes/desk");
+    const TouchChoice off = chooseCaptureTouch(box, {}, phones, false);
     CHECK(off.method == QStringLiteral("none"));
-    CHECK(off.unavailable == QStringLiteral("ESP32"));
-    CHECK(chooseCaptureTouch(QStringLiteral("esp32"), {}, phones, true).method == QStringLiteral("esp32"));
+    CHECK(off.unavailable == box);
+    CHECK(chooseCaptureTouch(box, {}, phones, true).method == box);
     CHECK(chooseCaptureTouch(QStringLiteral("hid-bridge"), {}, {}, false).unavailable == QStringLiteral("hid-bridge"));
     CHECK(touchMethodName(QStringLiteral("none")) == QStringLiteral("No touch"));
 
     DroppingSink dropping;
     CHECK(dropping.send(protocol::TouchFrame{}));
     CHECK(dropping.send(protocol::Key{}));
+}
+
+TEST_CASE("ADR-0112: a capture card pairs with any touch box that offers it, chosen by the box's serial, which always "
+          "fits in the card's touch setting")
+{
+    const ProvidedDevice desk{.extension = "alice.box",
+                              .provider = "boxes",
+                              .id = "desk",
+                              .name = QStringLiteral("Desk box"),
+                              .touchMethod = "alice.box/hid",
+                              .capture = true};
+    CHECK(touchBoxSerial(desk) == QStringLiteral("box:alice.box/boxes/desk"));
+    CHECK(isTouchBoxSerial(touchBoxSerial(desk)));
+    CHECK_FALSE(isTouchBoxSerial(u"alice.box/hid"));
+    CHECK_FALSE(isTouchBoxSerial(u"capture-1a2b"));
+    CHECK(pairsWithCapture(desk, true));
+    CHECK_FALSE(pairsWithCapture(desk, false));
+    ProvidedDevice watchOnly = desk;
+    watchOnly.capture = false;
+    CHECK_FALSE(pairsWithCapture(watchOnly, true));
+    ProvidedDevice untouchable = desk;
+    untouchable.touchMethod.clear();
+    CHECK_FALSE(pairsWithCapture(untouchable, true));
+
+    const ProvidedDevice longest{
+        .extension = std::string(64, 'a'), .provider = std::string(64, 'b'), .id = std::string(64, 'c')};
+    const std::string serial = touchBoxSerial(longest).toStdString();
+    CHECK(serial.size() == settings::CaptureSettings::kMaxTouchLength);
+    settings::Devices devices;
+    devices.byId["capture-1a2b"].capture.touch = serial;
+    const settings::Loaded<settings::Devices> loaded = settings::load<settings::Devices>(settings::save(devices));
+    CHECK(loaded.diagnostics.empty());
+    CHECK(loaded.document.byId.at("capture-1a2b").capture.touch == serial);
 }
 
 TEST_CASE("ADR-0107: a capture card's summary line names the picture size it would use, its touch and its profile")
@@ -427,8 +461,8 @@ TEST_CASE("ADR-0107: a capture card's summary line names the picture size it wou
     CHECK_FALSE(captureResolution({}, {}).isValid());
     CHECK_FALSE(captureResolution({QStringLiteral("not a format")}, "garbage").isValid());
 
-    CHECK(captureSummary(QSize(1920, 1080), QStringLiteral("ESP32 touch box"), QStringLiteral("Genshin · Default")) ==
-          QStringLiteral("Capture card · 1920 × 1080 · Touch: ESP32 touch box · Profile: Genshin · Default"));
+    CHECK(captureSummary(QSize(1920, 1080), QStringLiteral("Desk box"), QStringLiteral("Genshin · Default")) ==
+          QStringLiteral("Capture card · 1920 × 1080 · Touch: Desk box · Profile: Genshin · Default"));
     CHECK(captureSummary({}, QStringLiteral("No touch"), {}) == QStringLiteral("Capture card · Touch: No touch"));
     CHECK(captureSummary(QSize(1280, 720), {}, QStringLiteral("Shooter")) ==
           QStringLiteral("Capture card · 1280 × 720 · Profile: Shooter"));

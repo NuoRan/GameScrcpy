@@ -156,31 +156,6 @@ gs_apply_compiler_policy(gs_test_native_sizes)
 add_library(gs_test_native_old SHARED fakes/native/TestNativeOld.cpp)
 gs_apply_compiler_policy(gs_test_native_old)
 
-gs_add_unit_test(gs_esp32_tests
-    SOURCES
-        unit/esp32/ContactSlotsTests.cpp
-        unit/esp32/DiagnosisTests.cpp
-        unit/esp32/FakeBoard.h
-        unit/esp32/FakeRom.h
-        unit/esp32/FirmwareTests.cpp
-        unit/esp32/FlasherTests.cpp
-        unit/esp32/KeysTests.cpp
-        unit/esp32/LinkTests.cpp
-        unit/esp32/PortTests.cpp
-        unit/esp32/ProtocolTests.cpp
-        unit/esp32/TestSupport.h
-    LIBRARIES
-        gs::esp32
-        gs::espflash
-        gs::miniz
-        gs::nlohmann_json
-        gs::platform
-)
-target_compile_definitions(gs_esp32_tests PRIVATE
-    GS_ESP32_VECTORS="${PROJECT_SOURCE_DIR}/protocol/esp32/vectors.json"
-    GS_ESP32_RELEASE_DIR="${PROJECT_SOURCE_DIR}/firmware/esp32/release"
-)
-
 gs_add_unit_test(gs_hardware_tests
     SOURCES
         unit/hardware/HardwareTests.cpp
@@ -440,8 +415,6 @@ if(GS_BUILD_APP)
             unit/app/DevicePresentationTests.cpp
             unit/app/DiagnosticsBundleTests.cpp
             unit/app/DraftDiffTests.cpp
-            unit/app/Esp32BoardsTests.cpp
-            unit/app/Esp32SessionTests.cpp
             unit/app/ExtensionBisectTests.cpp
             unit/app/ExtensionHostInstallTests.cpp
             unit/app/ExtensionHostListTests.cpp
@@ -507,6 +480,7 @@ if(GS_BUILD_APP)
             unit/app/SystemPanelServiceTests.cpp
             unit/app/TaskExamplesTests.cpp
             unit/app/TaskLibraryTests.cpp
+            unit/app/TouchBoxSessionTests.cpp
             unit/app/TouchSinkContractTests.cpp
             unit/app/TouchSinkFakes.h
             unit/app/TrayNoticesTests.cpp
@@ -607,12 +581,6 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/DiagnosticsBundle.h"
             "${PROJECT_SOURCE_DIR}/src/app/DraftDiff.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/DraftDiff.h"
-            "${PROJECT_SOURCE_DIR}/src/app/Esp32Boards.cpp"
-            "${PROJECT_SOURCE_DIR}/src/app/Esp32Boards.h"
-            "${PROJECT_SOURCE_DIR}/src/app/Esp32Panel.cpp"
-            "${PROJECT_SOURCE_DIR}/src/app/Esp32Panel.h"
-            "${PROJECT_SOURCE_DIR}/src/app/Esp32Session.cpp"
-            "${PROJECT_SOURCE_DIR}/src/app/Esp32Session.h"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionBisect.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionBisect.h"
             "${PROJECT_SOURCE_DIR}/src/app/ExtensionHost.cpp"
@@ -773,6 +741,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/TaskLibrary.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/TaskLibrary.h"
             "${PROJECT_SOURCE_DIR}/src/app/ThemeTokens.h"
+            "${PROJECT_SOURCE_DIR}/src/app/TouchBoxSession.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/TouchBoxSession.h"
             "${PROJECT_SOURCE_DIR}/src/app/TransportPhones.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/TransportPhones.h"
             "${PROJECT_SOURCE_DIR}/src/app/TrayNotices.cpp"
@@ -797,8 +767,6 @@ if(GS_BUILD_APP)
             gs::adb
             gs::blueprint
             gs::capture
-            gs::esp32
-            gs::espflash
             gs::ext
             gs::exthost
             gs::hardware
@@ -933,7 +901,6 @@ if(GS_BUILD_APP)
     )
     target_include_directories(gs_shortcut_tests PRIVATE "${PROJECT_SOURCE_DIR}/src/app")
     target_link_libraries(gs_shortcut_tests PRIVATE gs::doctest gs::protocol Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Test)
-    target_link_libraries(gs_shortcut_tests PRIVATE gs::esp32)
     gs_apply_compiler_policy(gs_shortcut_tests)
     add_test(NAME gs_shortcut_tests COMMAND gs_shortcut_tests)
     set_tests_properties(gs_shortcut_tests PROPERTIES ENVIRONMENT_MODIFICATION "${GS_QT_TEST_ENVIRONMENT}")

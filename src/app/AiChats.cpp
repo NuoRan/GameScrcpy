@@ -159,12 +159,12 @@ QString aiConnectionLog(const QString& log, const QString& home, int most)
 {
     static const QRegularExpression stamped(
         u"^\\d{4}-\\d\\d-\\d\\d \\d\\d:\\d\\d:\\d\\d\\.\\d{3} \\w+\\s+(.*)$"_s);
-    static constexpr std::array<QStringView, 7> kCategories{u"[session]", u"[server]",  u"[audio]",    u"[ffmpeg]",
-                                                            u"[companion]", u"[esp32]", u"GameScrcpy "};
-    static constexpr std::array<QStringView, 22> kWords{
+    static constexpr std::array<QStringView, 6> kCategories{u"[session]", u"[server]",    u"[audio]",
+                                                            u"[ffmpeg]",  u"[companion]", u"GameScrcpy "};
+    static constexpr std::array<QStringView, 23> kWords{
         u"connect", u"adb",     u"usb",      u"aoa",     u"wireless", u"wifi",     u"wi-fi", u"pair",
         u"mirror",  u"picture", u"video",    u"audio",   u"decod",    u"encod",    u"codec", u"touch on",
-        u"uhid",    u"capture", u"transport", u"tunnel", u"latency",  u"display"};
+        u"uhid",    u"capture", u"transport", u"tunnel", u"latency",  u"display", u"touch box"};
     std::vector<QString> kept;
     bool keeping = false;
     for (QString line : log.split(u'\n')) {
@@ -229,9 +229,9 @@ QJsonArray AiChatTools::tools() const
         u"Shows the user a place in GameScrcpy's main window: a page, a settings section or a help article. It only "
         u"shows the place and never changes a setting."_s,
         QJsonObject{{u"page"_s, QJsonObject{{u"type"_s, u"string"_s}, {u"enum"_s, pages}}},
-                    {u"section"_s, stringProperty(u"For settings, one of video, audio, input, shortcuts, connection, "
-                                                  u"general, appearance, extensions, ai, about; for help, the article "
-                                                  u"slug from read_help."_s)}},
+                    {u"section"_s, stringProperty(u"For settings, one of video, audio, input, shortcuts, general, "
+                                                  u"appearance, extensions, ai, about; for help, the article slug from "
+                                                  u"read_help."_s)}},
         QJsonArray{u"page"_s}));
     all.append(toolSchema(
         u"read_blocks"_s,
@@ -247,8 +247,7 @@ QJsonArray AiChatTools::tools() const
         u"matching settings; without them, the setting names by section. It never changes a setting; to show the user "
         u"one, call open_page with page settings and its section."_s,
         QJsonObject{{u"query"_s, stringProperty(u"Words from the setting's name or description."_s)},
-                    {u"section"_s, stringProperty(u"One of video, audio, input, connection, general, appearance, "
-                                                  u"ai."_s)}}));
+                    {u"section"_s, stringProperty(u"One of video, audio, input, general, appearance, ai."_s)}}));
     all.append(toolSchema(
         u"list_commands"_s,
         u"Lists GameScrcpy's commands, the actions of the command palette and the menus, with the window each works in "

@@ -3,7 +3,6 @@
 /cmake/**           text=auto eol=lf
 /docs/**            text=auto eol=lf
 /examples/**        text=auto eol=lf
-/firmware/**        text=auto eol=lf
 /protocol/**        text=auto eol=lf
 /sdk/**             text=auto eol=lf
 /src/**             text=auto eol=lf

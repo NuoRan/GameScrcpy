@@ -49,7 +49,6 @@ editor.redo
 editor.save
 editor.selectAll
 editor.undo
-esp32.settings
 hub.devices
 hub.profiles
 hub.tasks

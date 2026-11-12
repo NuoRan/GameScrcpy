@@ -1,4 +1,4 @@
-A capture card turns the picture a phone sends over HDMI into a picture on this computer. GameScrcpy shows it like a phone's picture, with key mapping, vision and recording, even when USB debugging is off. Touches go to the phone over AOA, through the ESP32 extension, or not at all.
+A capture card turns the picture a phone sends over HDMI into a picture on this computer. GameScrcpy shows it like a phone's picture, with key mapping, vision and recording, even when USB debugging is off. Touches go to the phone over AOA, through a touch box from an extension, or not at all.
 
 ## What to buy
 
@@ -23,7 +23,7 @@ Select **Settings** on the capture card's card and choose in the **Touch** group
 
 - :monitor-play: **No touch**: you watch the picture, and vision and recording work; the keyboard and mouse do nothing on the phone.
 - :usb: **AOA over USB**: plug the phone into this computer with a USB cable as well and choose it under **Phone on USB**. The phone needs the WinUSB driver once, as [AOA touch and the WinUSB driver](help:aoa-driver) shows.
-- :plug: **ESP32**: the ESP32 extension gives the touches to the phone as a USB touch screen. Turn the extension on first; while it is off, touch stays off and the mirror window says so.
+- :plug: **A touch box**: a box from an extension, such as the ESP32 touch box, gives the touches to the phone. It is listed by its name while its extension is on and the box is connected; when it is not there, touch stays off and the mirror window says so. [Touch boxes](help:touch-box) tells how to get one.
 
 **Profile** in the **Key mapping** group of the settings window chooses the profile: without adb GameScrcpy cannot tell which game is in front.
 

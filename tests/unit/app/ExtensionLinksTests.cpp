@@ -124,9 +124,9 @@ TEST_CASE("ADR-0112: a link installs a package from an https address with its SH
     CHECK(show->id == QStringLiteral("alice.kit"));
     CHECK(show->url.isEmpty());
     const std::optional<ExtensionLink> slashed =
-        gs::app::parseExtensionLink(QStringLiteral("gamescrcpy://extension/community.esp32/"));
+        gs::app::parseExtensionLink(QStringLiteral("gamescrcpy://extension/bob.board/"));
     REQUIRE(slashed.has_value());
-    CHECK(slashed->id == QStringLiteral("community.esp32"));
+    CHECK(slashed->id == QStringLiteral("bob.board"));
 
     const QString shouted = QStringLiteral("GAMESCRCPY://extension/alice.kit");
     CHECK(gs::app::linkArgument({shouted}, commandLineOf({shouted})) == shouted);

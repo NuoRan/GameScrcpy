@@ -1,7 +1,5 @@
 .pragma library
 
-const esp32 = "gamescrcpy.esp32"
-
 function capabilities(entry) {
     const found = []
     const add = name => {
@@ -34,7 +32,7 @@ function lead(entry) {
 }
 
 function showsSettings(entry, grants) {
-    return entry.active === true && (entry.hasSettings === true || grants > 0 || entry.id === esp32)
+    return entry.active === true && (entry.hasSettings === true || grants > 0)
 }
 
 function icon(point) {

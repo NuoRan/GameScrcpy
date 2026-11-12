@@ -14,8 +14,6 @@ add_subdirectory(adb)
 add_subdirectory(session)
 add_subdirectory(media)
 add_subdirectory(record)
-add_subdirectory(esp32)
-add_subdirectory(espflash)
 add_subdirectory(capture)
 add_subdirectory(hardware)
 

@@ -27,7 +27,6 @@ if(GS_BUILD_TESTS)
         endif()
     endforeach()
     add_test(NAME gs_validate_pc-clock COMMAND gs_cli validate --official "$<TARGET_FILE_DIR:gs_ext_pc_clock>")
-    add_test(NAME gs_validate_esp32 COMMAND gs_cli validate --official "$<TARGET_FILE_DIR:gs_ext_esp32>")
 
     set(gs_cli_sample_package "${CMAKE_CURRENT_BINARY_DIR}/samples/example.pc-clock-test.gsext")
     add_test(NAME gs_pack_pc-clock_sample

@@ -195,7 +195,7 @@ TEST_CASE("every help article in the index is bundled in English and in Chinese,
             slugs.append(slug);
         }
     }
-    CHECK(slugs == QStringList{QStringLiteral("connecting"), QStringLiteral("aoa-driver"), QStringLiteral("esp32-touch"),
+    CHECK(slugs == QStringList{QStringLiteral("connecting"), QStringLiteral("aoa-driver"), QStringLiteral("touch-box"),
                                QStringLiteral("capture-card"), QStringLiteral("mirror-window"),
                                QStringLiteral("keymap-editor"), QStringLiteral("profiles"), QStringLiteral("scripts"),
                                QStringLiteral("tours"), QStringLiteral("faq")});
@@ -631,8 +631,8 @@ TEST_CASE("an article gives its layout, blocks, sections, neighbours and link ca
     CHECK(help.article(QStringLiteral("mirror-window")).value(QStringLiteral("previous")).toMap().value(QStringLiteral("slug")) ==
           QStringLiteral("capture-card"));
     CHECK(help.article(QStringLiteral("capture-card")).value(QStringLiteral("previous")).toMap().value(QStringLiteral("slug")) ==
-          QStringLiteral("esp32-touch"));
-    CHECK(help.article(QStringLiteral("esp32-touch")).value(QStringLiteral("previous")).toMap().value(QStringLiteral("slug")) ==
+          QStringLiteral("touch-box"));
+    CHECK(help.article(QStringLiteral("touch-box")).value(QStringLiteral("previous")).toMap().value(QStringLiteral("slug")) ==
           QStringLiteral("aoa-driver"));
     CHECK(help.article(QStringLiteral("faq")).value(QStringLiteral("next")).toMap().isEmpty());
 

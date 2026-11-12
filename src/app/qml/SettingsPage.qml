@@ -16,9 +16,6 @@ Item {
     property var phone: ({})
     readonly property real titleReserve: scopeRow.visible ? scopeRow.width + Theme.space.lg : 0
     readonly property int nativeSide: phone.longSide ?? 0
-    readonly property bool esp32Installed: ExtensionHost.entries.some(entry => entry.id === "gamescrcpy.esp32")
-    readonly property var esp32Entry: ExtensionHost.entries.find(entry => entry.id === "gamescrcpy.esp32"
-                                                                 && entry.superseded !== true) ?? null
     readonly property var ownGrants: HardwareAccess.grants["mine"] ?? []
     readonly property var ownFolders: FileAccess.folders["mine"] ?? []
     readonly property var settingsPanels: ExtensionPanels.panels.filter(entry => entry.where === "settings")
@@ -30,7 +27,6 @@ Item {
         { label: qsTr("Control") },
         { name: "input", text: qsTr("Input & key mapping"), icon: "gamepad-2" },
         { name: "shortcuts", text: qsTr("Keyboard shortcuts"), icon: "keyboard" },
-        { name: "connection", text: qsTr("Connection"), icon: "usb" },
         { label: qsTr("System") },
         { name: "general", text: qsTr("General"), icon: "sliders-horizontal" },
         { name: "appearance", text: qsTr("Appearance"), icon: "palette" },
@@ -38,7 +34,6 @@ Item {
         { name: "ai", text: qsTr("AI"), icon: "sparkles" },
         { name: "about", text: qsTr("About"), icon: "info" }
     ].filter(group => group.name !== "extensions" || page.extensionsShown)
-     .filter(group => group.name !== "connection" || page.esp32Installed)
 
     signal diagnosticsRequested()
 
@@ -89,8 +84,8 @@ Item {
                 target: nav,
                 title: qsTr("Groups"),
                 text: qsTr("The settings are grouped: mirroring and quality, audio, input and keys, shortcuts, "
-                           + "connection, general, appearance, extensions and AI. A number next to a group counts "
-                           + "the settings a phone has changed for itself.")
+                           + "general, appearance, extensions and AI. A number next to a group counts the settings a "
+                           + "phone has changed for itself.")
             },
             {
                 target: content,
@@ -216,8 +211,6 @@ Item {
 
         function onEntriesChanged() {
             if (page.current === "extensions" && !page.extensionsShown)
-                page.current = "video"
-            if (page.current === "connection" && !ExtensionHost.entries.some(entry => entry.id === "gamescrcpy.esp32"))
                 page.current = "video"
         }
 
@@ -800,46 +793,6 @@ Item {
                     iconName: "panel-top"
                     tone: ""
                     device: false
-                }
-            }
-
-            Section {
-                name: "connection"
-                title: qsTr("Connection")
-                titleReserve: page.titleReserve
-                shown: page.esp32Installed && page.shows(name, true)
-
-                Card {
-                    objectName: "esp32SettingsCard"
-                    width: parent ? parent.width : implicitWidth
-                    padding: 0
-                    horizontalPadding: 0
-
-                    SettingsRow {
-                        objectName: "esp32SettingsRow"
-                        width: parent ? parent.width : implicitWidth
-                        title: qsTr("ESP32 touch box")
-                        highlight: SettingsCatalog.searching ? SettingsCatalog.query : ""
-                        note: {
-                            if (SettingsCatalog.searching)
-                                return ["esp32.link", "esp32.port", "esp32.address"]
-                                    .filter(path => SettingsCatalog.hits[path] === true)
-                                    .map(path => SettingsCatalog.entries[path]?.title ?? path)
-                                    .join(" · ")
-                            if (page.esp32Entry === null || page.esp32Entry.enabled !== true)
-                                return qsTr("The extension is off. Turn it on in Extensions to use the board.")
-                            return page.esp32Entry.active === true ? "" : qsTr("The extension is not loaded.")
-                        }
-
-                        Button {
-                            objectName: "esp32OpenSettings"
-                            small: true
-                            iconName: "sliders-horizontal"
-                            enabled: page.esp32Entry !== null && page.esp32Entry.active === true
-                            text: qsTr("Open settings")
-                            onClicked: Commands.trigger("esp32.settings", "")
-                        }
-                    }
                 }
             }
 

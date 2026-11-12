@@ -17,17 +17,17 @@
 
 namespace gs::app {
 
-class Esp32BoardSink;
+class TouchBoxSink;
 
-class Esp32Session final : public QObject
+class TouchBoxSession final : public QObject
 {
     Q_OBJECT
 
 public:
-    explicit Esp32Session(QString name, QObject* parent = nullptr, std::string method = {});
-    ~Esp32Session() override;
-    Esp32Session(const Esp32Session&) = delete;
-    Esp32Session& operator=(const Esp32Session&) = delete;
+    TouchBoxSession(QString name, std::string method, QObject* parent = nullptr);
+    ~TouchBoxSession() override;
+    TouchBoxSession(const TouchBoxSession&) = delete;
+    TouchBoxSession& operator=(const TouchBoxSession&) = delete;
 
     void start(TouchMethodSource* source, const std::string& device, int rotation, QSize canvas);
     void stop();
@@ -58,7 +58,7 @@ private:
     const std::shared_ptr<render::FrameSlot> m_frames = std::make_shared<render::FrameSlot>();
     std::unique_ptr<ControlSink> m_quiet;
     std::unique_ptr<ExtensionTouch> m_touch;
-    std::unique_ptr<Esp32BoardSink> m_sink;
+    std::unique_ptr<TouchBoxSink> m_sink;
     session::SessionPhase m_phase = session::SessionPhase::Idle;
     std::uint32_t m_generation = 0;
     std::uint32_t m_padEpoch = 0;

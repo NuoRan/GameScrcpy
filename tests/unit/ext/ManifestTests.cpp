@@ -714,7 +714,7 @@ TEST_CASE("ADR-0112: native device providers load with their kinds and need the 
 {
     Json json = nativeBase();
     json["contributes"]["native"]["deviceProviders"] =
-        Json::array({{{"name", "boards"}, {"title", "ESP32 boards"}, {"kinds", {"touchBox"}}}});
+        Json::array({{{"name", "boards"}, {"title", "Touch boxes"}, {"kinds", {"touchBox"}}}});
     json["permissions"].push_back({{"name", "devices.provide"}, {"reason", "Lists the boards."}});
     LoadedManifest loaded = load(json);
     INFO(listed(loaded));
@@ -722,7 +722,7 @@ TEST_CASE("ADR-0112: native device providers load with their kinds and need the 
     CHECK(loaded.diagnostics.empty());
     REQUIRE(loaded.manifest.contributes.native.has_value());
     CHECK(loaded.manifest.contributes.native->deviceProviders ==
-          std::vector<NativeDeviceProvider>{{.name = "boards", .title = "ESP32 boards", .kinds = {"touchBox"}}});
+          std::vector<NativeDeviceProvider>{{.name = "boards", .title = "Touch boxes", .kinds = {"touchBox"}}});
     const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
     CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
     CHECK(again.manifest == loaded.manifest);

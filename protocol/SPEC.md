@@ -584,7 +584,7 @@ control（通道 0）与 bulk（通道 3）各是一条双向的可靠字节流�
 
 ### 11.8 截图（没有画面时编辑键位的背景，ADR-0105 第 5 节）
 
-没有画面的控制窗口（AOA、ESP32）里编辑键位时，电脑可以向伴侣要一张手机当前画面的截图当编辑器的背景。adb 连接与局域网连接都能用。不做实时画面。
+没有画面的控制窗口（AOA、触控盒）里编辑键位时，电脑可以向伴侣要一张手机当前画面的截图当编辑器的背景。adb 连接与局域网连接都能用。不做实时画面。
 
 - **请求**：电脑发 `ScreenshotRequest`。同一条连接上同一时间最多一个请求在等回复；伴侣在上一个请求还没回完时收到新的，回 `ScreenshotFailed(busy)`。`requestId` 由电脑选，伴侣原样带回。
 - **录屏授权**：这条连接上第一次收到请求时，伴侣在手机上弹出系统的录屏确认（`MediaProjectionManager.createScreenCaptureIntent()`）。用户拒绝 → `ScreenshotFailed(refused)`。同意后伴侣开始录屏：前台服务加上类型 `mediaProjection`（权限 `FOREGROUND_SERVICE_MEDIA_PROJECTION`），状态栏显示录屏图标；画面经 `VirtualDisplay` 进 `ImageReader`。授权一直保持到这条连接结束（电脑发 `Goodbye`、连接断开或失效），之后的请求直接截图、不再确认；连接结束时伴侣停止录屏。电脑在无画面的控制窗口关闭时结束伴侣连接，录屏随之停止。系统不让录屏（如没有录屏服务）→ `ScreenshotFailed(unsupported)`。

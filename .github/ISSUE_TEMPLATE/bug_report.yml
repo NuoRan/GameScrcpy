@@ -47,7 +47,7 @@ body:
         - 无线调试 / Wireless debugging
         - WiFi 直连 / WiFi direct
         - AOA
-        - ESP32 触控盒 / ESP32 touch box
+        - 扩展提供的触控盒 / Touch box from an extension
         - 采集卡 / Capture card
         - 不涉及手机 / Not about a phone
   - type: textarea

@@ -12,7 +12,7 @@ flowchart LR
         LG["逻辑<br/>蓝图 / TypeScript（blueprint、script）"]
         SS["会话<br/>握手、通道、续连（session）"]
         MD["解码与显示<br/>FFmpeg D3D11VA（media）→ 共享 D3D11 设备（render）"]
-        HW["其他触控方式<br/>AOA（libusb）、ESP32 触控盒"]
+        HW["其他触控方式<br/>AOA（libusb）、扩展提供的触控盒"]
     end
     subgraph Phone["安卓手机"]
         SV["服务端<br/>Java，app_process"]
@@ -38,7 +38,8 @@ flowchart LR
 | `gs-scripthost.exe` | 在低权限沙箱里运行扩展带来的逻辑 |
 | 手机端服务端 | 由 adb 推到手机、经 `app_process` 以 shell 身份运行：采集画面与声音并用 MediaCodec 编码、注入触控与按键、剪贴板、应用与文件操作；断开后自己清理退出 |
 | 伴侣应用 | 可选装的安卓应用：手机上的光标与键位提示、输入法、扫码连接 |
-| ESP32 固件 | 刷进 ESP32 开发板，以 USB 或蓝牙 HID 的身份把触控、按键、鼠标和手柄送进手机 |
+
+ESP32 触控盒（固件、刷写与板子的协议）在 2.1 改为社区扩展 `community.esp32`，单独的项目 GameScrcpy-ESP32，只用公开的扩展接口：触控方式、设备提供者、长任务、事件、设置、面板与硬件占用。
 
 ## 电脑端模块（`src/`）
 
@@ -55,7 +56,6 @@ flowchart LR
 | `render` | 应用自建的 Direct3D 11 设备，解码器与 Qt Quick 共用；解码出的画面直接被界面采样，不经过内存拷贝 |
 | `input` | 输入源（键盘、鼠标、手柄）、方案格式 v2、坐标换算（锚点加短边单位）与把按键变成触控帧的映射引擎 |
 | `hardware` | 设备扩展点：扩展访问串口、HID 与低功耗蓝牙设备的统一接口 |
-| `esp32`、`espflash` | ESP32 触控盒的串口与 Wi-Fi 协议、开发板发现；按乐鑫公开的串口协议刷写固件 |
 | `capture` | 采集卡：Media Foundation 采集画面与声音、自动裁掉黑边 |
 | `record` | 录像：录下画面、声音与操作，导出 MP4，回放时提供录下的画面给识图 |
 | `vision` | 识图：模板匹配、找色、积分图与 SIMD 加速 |

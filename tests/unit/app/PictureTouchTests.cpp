@@ -129,7 +129,7 @@ TEST_CASE("ADR-0108: the demo device counts as having adb")
 TEST_CASE("ADR-0108: nothing is greyed while the phone is not online")
 {
     const LinkChoices choices = linkChoices(
-        {.extensions = {ExtensionTouchOffer{.key = QStringLiteral("gamescrcpy.esp32/esp32"), .on = false}}});
+        {.extensions = {ExtensionTouchOffer{.key = QStringLiteral("bob.pad/pad"), .on = false}}});
     for (const LinkChoice& choice : choices.picture) {
         checkOpen(choice);
     }
@@ -145,12 +145,12 @@ TEST_CASE("ADR-0108: a touch method from an extension is listed by its key and g
         linkChoices({.online = true,
                      .adb = true,
                      .extensions = {ExtensionTouchOffer{.key = QStringLiteral("alice.box/box"), .on = true},
-                                    ExtensionTouchOffer{.key = QStringLiteral("gamescrcpy.esp32/esp32"), .on = false}}});
+                                    ExtensionTouchOffer{.key = QStringLiteral("bob.pad/pad"), .on = false}}});
     CHECK(idsOf(choices.touch) == QStringList{QStringLiteral("inject"), QStringLiteral("uhid"), QStringLiteral("aoa"),
                                               QStringLiteral("none"), QStringLiteral("alice.box/box"),
-                                              QStringLiteral("gamescrcpy.esp32/esp32")});
+                                              QStringLiteral("bob.pad/pad")});
     checkOpen(choiceOf(choices.touch, QStringLiteral("alice.box/box")));
-    checkGrey(choiceOf(choices.touch, QStringLiteral("gamescrcpy.esp32/esp32")), kExtensionOff);
+    checkGrey(choiceOf(choices.touch, QStringLiteral("bob.pad/pad")), kExtensionOff);
 }
 
 TEST_CASE("ADR-0108: the choice lists for QML carry ids, labels only for pictures, whether enabled and the reason")

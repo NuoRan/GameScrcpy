@@ -217,28 +217,21 @@ TEST_CASE("extension setting groups are listed by extension name in the interfac
     CHECK(catalog.extensionGroups().first().toMap().value(QStringLiteral("name")) == QVariant(QStringLiteral("Alpha")));
 }
 
-TEST_CASE("the ESP32 settings are searched and offered per phone only while the ESP32 extension is installed (ADR-0105)")
+TEST_CASE("ADR-0112: no extension brings back the connection page or the ESP32 settings, not even one with the old "
+          "built-in id")
 {
     const Fixture fixture;
-    fs::create_directories(fixture.builtin);
+    writeFile(fixture.builtin / "gamescrcpy.esp32" / "1.0.0" / "manifest.json",
+              manifest("gamescrcpy.esp32", "ESP32 touch box", "", ""));
     AppSettings settings(fixture.data);
     ExtensionHost host(settings, {fixture.user, fixture.builtin});
     host.start(false);
     SettingsCatalog catalog;
     catalog.setQuery(QStringLiteral("esp32"));
-    CHECK(catalog.entries().contains(QStringLiteral("esp32.port")));
-    CHECK_FALSE(catalog.hits().contains(QStringLiteral("esp32.port")));
+    CHECK_FALSE(catalog.entries().contains(QStringLiteral("esp32.port")));
+    CHECK(catalog.hits().isEmpty());
     CHECK_FALSE(catalog.pageHits().contains(QStringLiteral("connection")));
     CHECK_FALSE(catalog.perDevicePages().contains(QStringLiteral("connection")));
-
-    writeFile(fixture.builtin / "gamescrcpy.esp32" / "1.0.0" / "manifest.json",
-              manifest("gamescrcpy.esp32", "ESP32 touch box", "", ""));
-    host.start(false);
-    CHECK(catalog.hits().contains(QStringLiteral("esp32.port")));
-    CHECK(catalog.hits().contains(QStringLiteral("esp32.link")));
-    CHECK(catalog.hits().contains(QStringLiteral("esp32.address")));
-    CHECK(catalog.pageHits().value(QStringLiteral("connection")).toInt() == 3);
-    CHECK(catalog.perDevicePages().contains(QStringLiteral("connection")));
 }
 
 TEST_CASE("an extension's settings leave the settings catalog when the extension is uninstalled or removed")

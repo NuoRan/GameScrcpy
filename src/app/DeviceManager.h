@@ -121,9 +121,7 @@ struct PhoneSource;
 struct CaptureRow;
 enum class CaptureEvent : std::uint8_t;
 enum class AoaState : std::uint8_t;
-class Esp32Boards;
-class Esp32Session;
-struct Esp32Found;
+class TouchBoxSession;
 class KeymapBackgrounds;
 struct StoredBackground;
 struct DevicePresentation;
@@ -192,7 +190,6 @@ public:
         FactsRole,
         HelpRole,
         CaptureRole,
-        Esp32Role,
         PictureRole,
         ProvidedRole,
         TransportedRole,
@@ -361,8 +358,6 @@ public:
     Q_INVOKABLE bool importBackground(const QString& serial, const QUrl& file);
     Q_INVOKABLE bool shootBackground(const QString& serial);
     Q_INVOKABLE void clearBackground(const QString& serial);
-    Q_INVOKABLE void disconnectBoard(const QString& serial);
-    Q_INVOKABLE QVariantList esp32Ports() const;
     Q_INVOKABLE void runDeviceAction(const QString& serial, const QString& action);
 
     [[nodiscard]] std::optional<script::DeviceInfo> deviceInfo(const QString& serial) const;
@@ -557,9 +552,7 @@ private:
         std::shared_ptr<ControlChannel> pictureChannel;
         QString pictureNotice;
         bool skipCapture = false;
-        Esp32Session* esp32 = nullptr;
-        QString esp32Where;
-        bool esp32Wifi = false;
+        TouchBoxSession* touchBox = nullptr;
         std::optional<ProvidedDevice> provided;
         QVariantMap providedJob;
         std::optional<TransportPhone> transported;
@@ -746,7 +739,6 @@ private:
     [[nodiscard]] std::shared_ptr<ExtensionTouch> extensionTouchSink(const QString& method, Row& row);
     void captureTouchFell(const QString& serial, std::uint32_t generation);
     [[nodiscard]] QString captureTouchName(const QString& method) const;
-    [[nodiscard]] std::string touchOptionsFor(std::string_view key, std::string_view device) const;
     [[nodiscard]] std::string touchDeviceOptions(std::string_view key, std::string_view device) const;
     [[nodiscard]] QVariantMap captureState(const Row& row) const;
     [[nodiscard]] std::optional<Advice> captureAdviceOf(const Row& row) const;
@@ -776,7 +768,6 @@ private:
     void probeEvent(const QString& captureSerial, CaptureEvent event);
     void finishProbe(const QString& captureSerial, bool compare);
     void matcherSuggested(int matcherTicket, const QString& captureSerial, const QString& deviceId, double score);
-    [[nodiscard]] static bool isEsp32Row(const Row& row) noexcept;
     [[nodiscard]] static bool isBoxRow(const Row& row) noexcept;
     [[nodiscard]] static bool noPictureOf(const Row& row) noexcept;
     void syncProvided();
@@ -792,14 +783,6 @@ private:
     [[nodiscard]] std::function<std::unique_ptr<session::ServerHost>()> transportHost(const TransportPhone& phone) const;
     [[nodiscard]] static QVariantMap transportedState(const Row& row);
     [[nodiscard]] static std::optional<Advice> transportedAdviceOf(const Row& row);
-    void syncEsp32();
-    void esp32BoardsChanged();
-    void connectEsp32(Row& row);
-    [[nodiscard]] std::optional<Esp32Found> esp32BoardOf(const Row& row) const;
-    [[nodiscard]] bool esp32Usable(const Row& row) const;
-    [[nodiscard]] QVariantMap esp32State(const Row& row) const;
-    [[nodiscard]] std::optional<Advice> esp32AdviceOf(const Row& row) const;
-    [[nodiscard]] DevicePresentation esp32Presentation(const Row& row) const;
     [[nodiscard]] QString backgroundKeyOf(const Row& row) const;
     void bumpBackgrounds();
     void backgroundStored(Row& row, const StoredBackground& stored, bool fromPhone);
@@ -893,7 +876,6 @@ private:
     std::map<QString, PushedSync> m_pushedSync;
     std::unique_ptr<CaptureCardWatcher> m_captureWatcher;
     QVariantList m_otherVideoDevices;
-    std::unique_ptr<Esp32Boards> m_esp32;
     std::unique_ptr<KeymapBackgrounds> m_backgrounds;
     int m_backgroundRevision = 0;
     std::uint32_t m_lastShot = 0;

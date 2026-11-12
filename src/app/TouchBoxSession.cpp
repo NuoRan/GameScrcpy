@@ -1,6 +1,5 @@
-#include "Esp32Session.h"
+#include "TouchBoxSession.h"
 
-#include "Esp32Boards.h"
 #include "ExtensionTouchSink.h"
 
 #include <gs/exthost/Module.h>
@@ -35,12 +34,12 @@ int notchesOf(int units) noexcept
 
 }
 
-class Esp32BoardSink final : public ControlSink
+class TouchBoxSink final : public ControlSink
 {
 public:
-    Esp32BoardSink(ExtensionTouch& touch, ExtensionTouchSink* board) noexcept
+    TouchBoxSink(ExtensionTouch& touch, ExtensionTouchSink* box) noexcept
         : m_touch(touch)
-        , m_board(board)
+        , m_box(box)
     {
     }
 
@@ -58,40 +57,40 @@ public:
 
     [[nodiscard]] bool mouse(int dx, int dy, int wheel)
     {
-        return m_board != nullptr && m_board->mouse(exthost::MouseEvent{.buttons = m_buttons.load(std::memory_order_acquire),
-                                                                        .dx = dx,
-                                                                        .dy = dy,
-                                                                        .wheel = wheel});
+        return m_box != nullptr && m_box->mouse(exthost::MouseEvent{.buttons = m_buttons.load(std::memory_order_acquire),
+                                                                    .dx = dx,
+                                                                    .dy = dy,
+                                                                    .wheel = wheel});
     }
 
     void setButtons(std::uint32_t buttons) noexcept { m_buttons.store(buttons, std::memory_order_release); }
 
 private:
     ExtensionTouch& m_touch;
-    ExtensionTouchSink* const m_board;
+    ExtensionTouchSink* const m_box;
     std::atomic<std::uint32_t> m_buttons{0};
 };
 
-Esp32Session::Esp32Session(QString name, QObject* parent, std::string method)
+TouchBoxSession::TouchBoxSession(QString name, std::string method, QObject* parent)
     : QObject(parent)
     , m_name(std::move(name))
-    , m_method(method.empty() ? std::string(kEsp32Method) : std::move(method))
+    , m_method(std::move(method))
     , m_quiet(std::make_unique<QuietSink>())
 {
 }
 
-Esp32Session::~Esp32Session()
+TouchBoxSession::~TouchBoxSession()
 {
     release();
 }
 
-bool Esp32Session::active() const noexcept
+bool TouchBoxSession::active() const noexcept
 {
     return m_phase != session::SessionPhase::Idle && m_phase != session::SessionPhase::Stopped &&
            m_phase != session::SessionPhase::Failed;
 }
 
-void Esp32Session::start(TouchMethodSource* source, const std::string& device, int rotation, QSize canvas)
+void TouchBoxSession::start(TouchMethodSource* source, const std::string& device, int rotation, QSize canvas)
 {
     if (active()) {
         return;
@@ -115,7 +114,7 @@ void Esp32Session::start(TouchMethodSource* source, const std::string& device, i
         return;
     }
     m_touch = std::move(touch);
-    m_sink = std::make_unique<Esp32BoardSink>(*m_touch, dynamic_cast<ExtensionTouchSink*>(m_touch.get()));
+    m_sink = std::make_unique<TouchBoxSink>(*m_touch, dynamic_cast<ExtensionTouchSink*>(m_touch.get()));
     m_channel->attach(*m_sink);
     setOrientation(rotation, canvas);
     qInfo("touch box for %s: touches, keys and the mouse go through %s, without a picture", qUtf8Printable(m_name),
@@ -123,7 +122,7 @@ void Esp32Session::start(TouchMethodSource* source, const std::string& device, i
     enter(session::SessionPhase::Streaming);
 }
 
-void Esp32Session::stop()
+void TouchBoxSession::stop()
 {
     if (!active()) {
         return;
@@ -133,7 +132,7 @@ void Esp32Session::stop()
     enter(session::SessionPhase::Stopped);
 }
 
-void Esp32Session::setOrientation(int rotation, QSize canvas)
+void TouchBoxSession::setOrientation(int rotation, QSize canvas)
 {
     m_canvas = canvas;
     m_rotation = rotation & 3;
@@ -145,7 +144,7 @@ void Esp32Session::setOrientation(int rotation, QSize canvas)
                         static_cast<std::uint16_t>(canvas.height()));
 }
 
-void Esp32Session::pressKey(std::uint32_t keycode)
+void TouchBoxSession::pressKey(std::uint32_t keycode)
 {
     protocol::Key key;
     key.keycode = keycode;
@@ -154,18 +153,18 @@ void Esp32Session::pressKey(std::uint32_t keycode)
     key.action = protocol::KeyAction::Up;
     const bool up = m_channel->send(key);
     if (!down || !up) {
-        qInfo("ESP32 touch box for %s: key %u did not reach the board", qUtf8Printable(m_name), keycode);
+        qInfo("touch box for %s: key %u did not reach it", qUtf8Printable(m_name), keycode);
     }
 }
 
-void Esp32Session::moveMouse(int dx, int dy)
+void TouchBoxSession::moveMouse(int dx, int dy)
 {
     if (m_sink != nullptr) {
         static_cast<void>(m_sink->mouse(dx, dy, 0));
     }
 }
 
-void Esp32Session::setMouseButtons(int buttons)
+void TouchBoxSession::setMouseButtons(int buttons)
 {
     if (m_sink == nullptr) {
         return;
@@ -174,22 +173,22 @@ void Esp32Session::setMouseButtons(int buttons)
     static_cast<void>(m_sink->mouse(0, 0, 0));
 }
 
-void Esp32Session::fellBack(std::uint32_t generation)
+void TouchBoxSession::fellBack(std::uint32_t generation)
 {
     if (generation != m_generation || !active() || m_touch == nullptr || !m_touch->fellBack()) {
         return;
     }
-    qWarning("ESP32 touch box for %s: the board stopped answering", qUtf8Printable(m_name));
+    qWarning("touch box for %s: it stopped answering", qUtf8Printable(m_name));
     const session::SessionPhase during = m_phase;
     release();
     session::SessionFailure failure;
     failure.kind = session::FailureKind::ConnectionLost;
     failure.phase = during;
-    failure.detail = "the ESP32 touch box stopped answering";
+    failure.detail = "the touch box stopped answering";
     enter(session::SessionPhase::Failed, failure);
 }
 
-void Esp32Session::enter(session::SessionPhase phase, std::optional<session::SessionFailure> failure)
+void TouchBoxSession::enter(session::SessionPhase phase, std::optional<session::SessionFailure> failure)
 {
     const bool streams = phase == session::SessionPhase::Streaming;
     if (streams && m_phase != session::SessionPhase::Streaming) {
@@ -203,7 +202,7 @@ void Esp32Session::enter(session::SessionPhase phase, std::optional<session::Ses
     emit stateChanged({.phase = phase, .failure = std::move(failure)});
 }
 
-void Esp32Session::release()
+void TouchBoxSession::release()
 {
     m_channel->detach();
     m_sink.reset();

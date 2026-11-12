@@ -13,7 +13,7 @@
 
 请通过 GitHub 的私下报告功能提交：打开仓库的 [Security 页面](https://github.com/NuoRan/GameScrcpy/security/advisories/new)，点"Report a vulnerability"。请写清：
 
-- 受影响的版本与组件（电脑端程序、手机端服务、伴侣应用、ESP32 固件、扩展宿主、本地 MCP 服务等）；
+- 受影响的版本与组件（电脑端程序、手机端服务、伴侣应用、扩展宿主、本地 MCP 服务等）；社区扩展（比如 ESP32 触控盒）的问题请报给它自己的项目；
 - 复现步骤或概念验证；
 - 可能造成的影响。
 
@@ -25,7 +25,7 @@ Please **do not** report security problems in public issues, discussions or chat
 
 Use GitHub's private reporting instead: open the repository's [Security page](https://github.com/NuoRan/GameScrcpy/security/advisories/new) and choose "Report a vulnerability". Please include:
 
-- the affected version and component (the PC app, the phone server, the companion app, the ESP32 firmware, the extension host, the local MCP server and so on);
+- the affected version and component (the PC app, the phone server, the companion app, the extension host, the local MCP server and so on); report problems in a community extension, such as the ESP32 touch box, to its own project;
 - steps to reproduce or a proof of concept;
 - the possible impact.
 

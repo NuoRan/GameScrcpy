@@ -1,4 +1,4 @@
-#include "Esp32Session.h"
+#include "TouchBoxSession.h"
 
 #include "ExtensionTouchSink.h"
 
@@ -22,15 +22,17 @@ namespace exthost = gs::exthost;
 namespace protocol = gs::protocol;
 namespace session = gs::session;
 using gs::app::ControlSink;
-using gs::app::Esp32Session;
 using gs::app::ExtensionTouch;
 using gs::app::ExtensionTouchSink;
 using gs::app::PadRoute;
 using gs::app::SinkCapabilities;
+using gs::app::TouchBoxSession;
 using gs::app::TouchPort;
 using namespace std::chrono_literals;
 
 namespace {
+
+constexpr std::string_view kBoxMethod = "example.box/box";
 
 std::unique_ptr<QCoreApplication> ensureApp()
 {
@@ -53,7 +55,7 @@ bool settle(const std::function<bool()>& done, std::chrono::milliseconds timeout
     return done();
 }
 
-class BoardPort final : public TouchPort
+class BoxPort final : public TouchPort
 {
 public:
     [[nodiscard]] SinkCapabilities capabilities() const override
@@ -97,7 +99,7 @@ public:
     bool closed = false;
 };
 
-class BoardSource final : public gs::app::TouchMethodSource
+class BoxSource final : public gs::app::TouchMethodSource
 {
 public:
     [[nodiscard]] std::unique_ptr<ExtensionTouch> openTouch(std::string_view key, std::string_view device,
@@ -112,9 +114,9 @@ public:
         return std::make_unique<ExtensionTouchSink>(injection, port, std::move(fellBack));
     }
 
-    [[nodiscard]] QString touchTitle(std::string_view) const override { return QStringLiteral("ESP32 touch box"); }
+    [[nodiscard]] QString touchTitle(std::string_view) const override { return QStringLiteral("Touch box"); }
 
-    std::shared_ptr<BoardPort> port = std::make_shared<BoardPort>();
+    std::shared_ptr<BoxPort> port = std::make_shared<BoxPort>();
     std::vector<std::string> keys;
     std::vector<std::string> devices;
     bool refuse = false;
@@ -136,19 +138,18 @@ protocol::TouchFrame touchAt(std::uint16_t videoSession, protocol::TouchAction a
 
 }
 
-TEST_CASE("the ESP32 control session opens the board through the extension's esp32 touch method, without a picture "
-          "(HID-008)")
+TEST_CASE("a touch box session opens the box through its extension's touch method, without a picture (HID-008)")
 {
     const auto app = ensureApp();
-    BoardSource source;
-    Esp32Session control(QStringLiteral("ESP32 touch box"));
+    BoxSource source;
+    TouchBoxSession control(QStringLiteral("Touch box"), std::string(kBoxMethod));
     std::vector<session::SessionPhase> phases;
-    QObject::connect(&control, &Esp32Session::stateChanged, &control,
+    QObject::connect(&control, &TouchBoxSession::stateChanged, &control,
                      [&phases](const session::SessionState& state) { phases.push_back(state.phase); });
 
-    control.start(&source, "esp32-COM5", 1, QSize(2400, 1080));
-    CHECK(source.keys == std::vector<std::string>{"gamescrcpy.esp32/esp32"});
-    CHECK(source.devices == std::vector<std::string>{"esp32-COM5"});
+    control.start(&source, "box-1", 1, QSize(2400, 1080));
+    CHECK(source.keys == std::vector<std::string>{std::string(kBoxMethod)});
+    CHECK(source.devices == std::vector<std::string>{"box-1"});
     CHECK(control.phase() == session::SessionPhase::Streaming);
     CHECK(control.active());
     const std::vector<session::SessionPhase> started{session::SessionPhase::Connecting,
@@ -179,13 +180,13 @@ TEST_CASE("the ESP32 control session opens the board through the extension's esp
     CHECK(control.channel()->padLink().route == PadRoute::None);
 }
 
-TEST_CASE("without a picture the mouse, its buttons and the wheel go to the board's mouse; keys and text to its keyboard "
+TEST_CASE("without a picture the mouse, its buttons and the wheel go to the box's mouse; keys and text to its keyboard "
           "(HID-008)")
 {
     const auto app = ensureApp();
-    BoardSource source;
-    Esp32Session control(QStringLiteral("ESP32 touch box"));
-    control.start(&source, "esp32-COM5", 0, QSize(1080, 2400));
+    BoxSource source;
+    TouchBoxSession control(QStringLiteral("Touch box"), std::string(kBoxMethod));
+    control.start(&source, "box-1", 0, QSize(1080, 2400));
     REQUIRE(control.phase() == session::SessionPhase::Streaming);
     const std::vector<exthost::MouseEvent>& mice = source.port->mice;
 
@@ -218,12 +219,12 @@ TEST_CASE("without a picture the mouse, its buttons and the wheel go to the boar
     CHECK(source.port->texts == std::vector<std::string>{"ok"});
 }
 
-TEST_CASE("how the phone is held decides the rotation the board's touches use (HID-008)")
+TEST_CASE("how the phone is held decides the rotation the box's touches use (HID-008)")
 {
     const auto app = ensureApp();
-    BoardSource source;
-    Esp32Session control(QStringLiteral("ESP32 touch box"));
-    control.start(&source, "esp32-COM5", 1, QSize(2400, 1080));
+    BoxSource source;
+    TouchBoxSession control(QStringLiteral("Touch box"), std::string(kBoxMethod));
+    control.start(&source, "box-1", 1, QSize(2400, 1080));
     REQUIRE(control.phase() == session::SessionPhase::Streaming);
     const std::uint16_t before = control.channel()->screen()->videoSession;
 
@@ -241,31 +242,31 @@ TEST_CASE("how the phone is held decides the rotation the board's touches use (H
     CHECK(source.port->frames.back().contacts[0].naturalX == doctest::Approx(0.25).epsilon(0.001));
 }
 
-TEST_CASE("a touch method that does not open fails the session, and a board that stops answering fails it later "
+TEST_CASE("a touch method that does not open fails the session, and a box that stops answering fails it later "
           "(HID-008)")
 {
     const auto app = ensureApp();
-    BoardSource refusing;
+    BoxSource refusing;
     refusing.refuse = true;
-    Esp32Session refused(QStringLiteral("ESP32 touch box"));
+    TouchBoxSession refused(QStringLiteral("Touch box"), std::string(kBoxMethod));
     std::optional<session::SessionState> last;
-    QObject::connect(&refused, &Esp32Session::stateChanged, &refused,
+    QObject::connect(&refused, &TouchBoxSession::stateChanged, &refused,
                      [&last](const session::SessionState& state) { last = state; });
-    refused.start(&refusing, "esp32-COM5", 0, QSize(1080, 2400));
+    refused.start(&refusing, "box-1", 0, QSize(1080, 2400));
     CHECK(refused.phase() == session::SessionPhase::Failed);
     REQUIRE(last.has_value());
     REQUIRE(last->failure.has_value());
     CHECK(last->failure->kind == session::FailureKind::ConnectFailed);
-    Esp32Session nothing(QStringLiteral("ESP32 touch box"));
-    nothing.start(nullptr, "esp32-COM5", 0, QSize(1080, 2400));
+    TouchBoxSession nothing(QStringLiteral("Touch box"), std::string(kBoxMethod));
+    nothing.start(nullptr, "box-1", 0, QSize(1080, 2400));
     CHECK(nothing.phase() == session::SessionPhase::Failed);
 
-    BoardSource source;
-    Esp32Session control(QStringLiteral("ESP32 touch box"));
+    BoxSource source;
+    TouchBoxSession control(QStringLiteral("Touch box"), std::string(kBoxMethod));
     std::optional<session::SessionState> ended;
-    QObject::connect(&control, &Esp32Session::stateChanged, &control,
+    QObject::connect(&control, &TouchBoxSession::stateChanged, &control,
                      [&ended](const session::SessionState& state) { ended = state; });
-    control.start(&source, "esp32-COM5", 0, QSize(1080, 2400));
+    control.start(&source, "box-1", 0, QSize(1080, 2400));
     REQUIRE(control.phase() == session::SessionPhase::Streaming);
     source.port->broken = true;
     static_cast<void>(control.channel()->send(

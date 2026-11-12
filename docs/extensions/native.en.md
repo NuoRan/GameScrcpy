@@ -145,7 +145,7 @@ During development, `gs ext test <folder> --hosted` runs the tests in the separa
 
 ## Touch methods
 
-A `gs_ext_touch_method` is offered under Touch method in Settings, after Normal, UHID and AOA. `open` gets a `gs_ext_touch_open`: the phone's serial and options as JSON, `{ settings, deviceSettings, phone, device, touchBox }`, holding the extension's settings for all phones, this phone's own settings, the phone id for `setting_get`, the USB, serial or Bluetooth device the user picked for it (`{ kind, path, name }` when the manifest says `wantsDevice`, otherwise `null`) and the device id when control started from a touch box card. `frame` gets one frame of contacts (each position both as a ratio of the picture and as a ratio of the phone in its natural orientation); `key`, `text`, `mouse` and `gamepad` may be `NULL` to leave them to the normal way. Anything but `GS_EXT_OK` sends touches back to the normal way.
+A `gs_ext_touch_method` is offered under Touch method in Settings, after Normal, UHID and AOA. `open` gets a `gs_ext_touch_open`: the phone's serial and options as JSON, `{ settings, deviceSettings, phone, device, touchBox }`, holding the extension's settings for all phones, this phone's own settings, the phone id for `setting_get`, the USB, serial or Bluetooth device the user picked for it (`{ kind, path, name }` when the manifest says `wantsDevice`, otherwise `null`) and the device id when control started from a touch box card or a capture card is paired with the box (otherwise `null`). `frame` gets one frame of contacts (each position both as a ratio of the picture and as a ratio of the phone in its natural orientation); `key`, `text`, `mouse` and `gamepad` may be `NULL` to leave them to the normal way. Anything but `GS_EXT_OK` sends touches back to the normal way.
 
 ## Attachments and behaviors
 
@@ -232,7 +232,7 @@ The settings of the manifest's `settings` are read with `setting_get(context, ke
 | `icon` | An icon name or `svg:<package path>` |
 | `touchMethod` | One of the extension's touch methods; Control opens a window without a picture that touches through it, with the device id as `touchBox` in the touch options |
 | `resource` | The hardware it talks through, named as for `claim`; while someone else holds it, the card says who is using it |
-| `capture` | `true` when a capture card may show its picture |
+| `capture` | `true` when a capture card may show its picture: while the box is connected it is offered under Touch method in the capture card's settings, and once chosen the capture card touches through `touchMethod`, again with the device id as `touchBox` |
 | `actions` | Up to 8 buttons: `panel` opens one of the extension's panels (with `where` `device`), `job` starts one of its jobs, and those with neither go to `act` |
 
 The action with id `settings` is the card's settings button; the others go into the card's More menu. When the job has a string parameter `device`, the card passes the device id in it. Call `devices_changed(context, provider)` when the devices change, and GameScrcpy calls `list` again.

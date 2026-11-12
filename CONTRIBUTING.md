@@ -26,9 +26,8 @@
 |:--|:--|
 | `src/` | Windows 端：C++20 + Qt 6 / Qt Quick 的程序本体，以及命令行工具 `gs`（`src/cli`）；模块划分见 [docs/architecture.md](docs/architecture.md) |
 | `android/` | 手机端：`protocol`（协议）、`server`（服务端，纯 Java）、`companion`（伴侣应用，Kotlin） |
-| `protocol/` | 协议规范 `SPEC.md`、ESP32 协议，以及两端共用的金标准测试向量 |
+| `protocol/` | 协议规范 `SPEC.md`，以及两端共用的金标准测试向量 |
 | `sdk/` | 由 `gs api write` 生成的脚本接口类型声明与文档，以及原生扩展的 C 头文件 |
-| `firmware/esp32/` | ESP32 触控盒固件（ESP-IDF）与编好的镜像 |
 | `tests/` | 单元测试、集成测试、界面测试与测试数据 |
 | `examples/` | 示例组件、任务与扩展 |
 | `tools/` | 开发与发布脚本：开发环境、打包、源码规则检查、生成器等 |

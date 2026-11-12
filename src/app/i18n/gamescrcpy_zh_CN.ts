@@ -4645,8 +4645,12 @@
         <translation>指定</translation>
     </message>
     <message>
-        <source>The phone&apos;s picture appears on this capture card; touch can then go through USB debugging (also wireless), AOA or an ESP32 box.</source>
-        <translation>这张采集卡上是手机的画面；触控可以走 USB 调试（无线调试也行）、AOA 或 ESP32 盒子。</translation>
+        <source>The phone&apos;s picture appears on this capture card; touch can then go through USB debugging (also wireless), AOA or a touch box from an extension.</source>
+        <translation>这张采集卡上是手机的画面；触控可以走 USB 调试（无线调试也行）、AOA 或扩展提供的触控盒。</translation>
+    </message>
+    <message>
+        <source>Touch it with AOA or a touch box from an extension, or just watch the picture.</source>
+        <translation>用 AOA 或扩展提供的触控盒触控，或者只看画面。</translation>
     </message>
     <message>
         <source>Comparing the pictures…</source>
@@ -4667,10 +4671,6 @@
     <message>
         <source>No phone: use this capture card on its own</source>
         <translation>不指定：单独使用这张采集卡</translation>
-    </message>
-    <message>
-        <source>Touch it with AOA or an ESP32 box, or just watch the picture.</source>
-        <translation>用 AOA 或 ESP32 盒子触控，或者只看画面。</translation>
     </message>
     <message>
         <source>Looks like this one</source>
@@ -4744,8 +4744,8 @@
         <translation>触控方式</translation>
     </message>
     <message>
-        <source>How your taps reach the phone: not at all, so you only watch the picture; over the phone&apos;s USB cable with AOA; or through a way an extension adds, such as the ESP32 touch box.</source>
-        <translation>你的点击怎样传到手机：不传，只看画面；经手机的 USB 线用 AOA 传；或用扩展加的方式，比如 ESP32 触控盒。</translation>
+        <source>How your taps reach the phone: not at all, so you only watch the picture; over the phone&apos;s USB cable with AOA; or through a way an extension adds, such as a touch box on the devices page.</source>
+        <translation>你的点击怎样传到手机：不传，只看画面；经手机的 USB 线用 AOA 传；或用扩展加的方式，比如设备页上的触控盒。</translation>
     </message>
     <message>
         <source>Phone on USB</source>
@@ -5303,14 +5303,6 @@
         <translation>ai 小助手 助手 对话 聊天 提问 问题 帮助 气泡</translation>
     </message>
     <message>
-        <source>ESP32 touch box settings</source>
-        <translation>ESP32 触控盒设置</translation>
-    </message>
-    <message>
-        <source>esp32 board serial port wifi firmware flash</source>
-        <translation>esp32 开发板 串口 wifi 固件 刷写</translation>
-    </message>
-    <message>
         <source>View all phones in a grid</source>
         <translation>宫格查看所有手机</translation>
     </message>
@@ -5854,10 +5846,6 @@
         <translation>控制</translation>
     </message>
     <message>
-        <source>Opens a window without a picture: the keys, mouse and keyboard work the phone through the board while you watch the phone</source>
-        <translation>打开一个没有画面的窗口：你看着手机，按键、鼠标与键盘经这块板子操作手机</translation>
-    </message>
-    <message>
         <source>Opens a window without a picture: the keys, mouse and keyboard work the phone through %1</source>
         <translation>打开一个没有画面的窗口：按键、鼠标与键盘通过 %1 操作手机</translation>
     </message>
@@ -5876,14 +5864,6 @@
     <message>
         <source>Assign to a phone…</source>
         <translation>指定给手机…</translation>
-    </message>
-    <message>
-        <source>Disconnect the board</source>
-        <translation>断开开发板</translation>
-    </message>
-    <message>
-        <source>Lets go of the board until it is plugged in again or connected in its settings</source>
-        <translation>放开这块开发板，直到重新插上或在它的设置里重新连接</translation>
     </message>
 </context>
 <context>
@@ -6014,8 +5994,8 @@
         <translation>如何打开 USB 调试</translation>
     </message>
     <message>
-        <source>Every phone connected to this computer gets a card here, and so do capture cards and ESP32 boards. A card shows up as soon as the device connects; there is nothing to refresh.</source>
-        <translation>连在这台电脑上的每台手机在这里都有一张卡片，采集卡和 ESP32 板子也一样。设备一连上卡片就出现，不用手动刷新。</translation>
+        <source>Every phone connected to this computer gets a card here, and so do capture cards and the devices extensions add, such as touch boxes. A card shows up as soon as the device connects; there is nothing to refresh.</source>
+        <translation>连在这台电脑上的每台手机在这里都有一张卡片，采集卡和扩展添加的设备（比如触控盒）也一样。设备一连上卡片就出现，不用手动刷新。</translation>
     </message>
     <message>
         <source>Connect a phone</source>
@@ -6132,245 +6112,6 @@
     <message>
         <source>Could not install %1: %2</source>
         <translation>无法安装 %1：%2</translation>
-    </message>
-</context>
-<context>
-    <name>Esp32SettingsSheet</name>
-    <message>
-        <source>Looking for the board…</source>
-        <translation>正在查找开发板…</translation>
-    </message>
-    <message>
-        <source>Not connected</source>
-        <translation>未连接</translation>
-    </message>
-    <message>
-        <source>ESP32 with the old firmware</source>
-        <translation>装着旧固件的 ESP32</translation>
-    </message>
-    <message>
-        <source>firmware %1</source>
-        <translation>固件 %1</translation>
-    </message>
-    <message>
-        <source>round trip %1 ms</source>
-        <translation>往返 %1 ms</translation>
-    </message>
-    <message>
-        <source>Connected</source>
-        <translation>已连接</translation>
-    </message>
-    <message>
-        <source>Old firmware</source>
-        <translation>旧固件</translation>
-    </message>
-    <message>
-        <source>Connecting</source>
-        <translation>正在连接</translation>
-    </message>
-    <message>
-        <source>Flashing</source>
-        <translation>正在刷写</translation>
-    </message>
-    <message>
-        <source>In use</source>
-        <translation>使用中</translation>
-    </message>
-    <message>
-        <source>Lost</source>
-        <translation>已断开</translation>
-    </message>
-    <message>
-        <source>Not working</source>
-        <translation>不能用</translation>
-    </message>
-    <message>
-        <source>Not found</source>
-        <translation>没找到</translation>
-    </message>
-    <message>
-        <source>Connect the board to read it</source>
-        <translation>连上开发板后才能读出</translation>
-    </message>
-    <message>
-        <source>%1 · %2 available</source>
-        <translation>%1 · 有新版本 %2</translation>
-    </message>
-    <message>
-        <source>%1 · up to date</source>
-        <translation>%1 · 已是最新</translation>
-    </message>
-    <message>
-        <source>Automatic · now %1</source>
-        <translation>自动 · 现在是 %1</translation>
-    </message>
-    <message>
-        <source>Automatic</source>
-        <translation>自动</translation>
-    </message>
-    <message>
-        <source>%1 (not plugged in)</source>
-        <translation>%1（未插入）</translation>
-    </message>
-    <message>
-        <source>Could not save this text</source>
-        <translation>无法保存这段文字</translation>
-    </message>
-    <message>
-        <source>ESP32 touch box</source>
-        <translation>ESP32 触控盒</translation>
-    </message>
-    <message>
-        <source>Extension · %1 · changes apply at once</source>
-        <translation>扩展 · %1 · 改了立即生效</translation>
-    </message>
-    <message>
-        <source>Wiring guide</source>
-        <translation>接线说明</translation>
-    </message>
-    <message>
-        <source>Try it</source>
-        <translation>试一下</translation>
-    </message>
-    <message>
-        <source>Taps the middle of the phone&apos;s screen once</source>
-        <translation>在手机屏幕中央点一下</translation>
-    </message>
-    <message>
-        <source>Disconnect</source>
-        <translation>断开</translation>
-    </message>
-    <message>
-        <source>Connecting…</source>
-        <translation>正在连接…</translation>
-    </message>
-    <message>
-        <source>Connect</source>
-        <translation>连接</translation>
-    </message>
-    <message>
-        <source>Old firmware: flashing the new firmware is recommended</source>
-        <translation>旧固件，建议刷写新固件</translation>
-    </message>
-    <message>
-        <source>With the old QineTouch firmware only touches work. Keys, the mouse, the gamepad and Wi-Fi need the new firmware.</source>
-        <translation>旧的 QineTouch 固件只能触控。按键、鼠标、手柄与 Wi-Fi 需要新固件。</translation>
-    </message>
-    <message>
-        <source>Flash firmware</source>
-        <translation>刷写固件</translation>
-    </message>
-    <message>
-        <source>Connection</source>
-        <translation>连接</translation>
-    </message>
-    <message>
-        <source>Connection mode</source>
-        <translation>连接方式</translation>
-    </message>
-    <message>
-        <source>Serial port</source>
-        <translation>串口</translation>
-    </message>
-    <message>
-        <source>Wi-Fi</source>
-        <translation>Wi-Fi</translation>
-    </message>
-    <message>
-        <source>Look for serial ports again</source>
-        <translation>重新查找串口</translation>
-    </message>
-    <message>
-        <source>Address</source>
-        <translation>地址</translation>
-    </message>
-    <message>
-        <source>Connect the board to set it up</source>
-        <translation>连上开发板后才能设置</translation>
-    </message>
-    <message>
-        <source>Set up Wi-Fi…</source>
-        <translation>设置 Wi-Fi…</translation>
-    </message>
-    <message>
-        <source>Firmware</source>
-        <translation>固件</translation>
-    </message>
-    <message>
-        <source>Firmware version</source>
-        <translation>固件版本</translation>
-    </message>
-    <message>
-        <source>Upgrade firmware…</source>
-        <translation>升级固件…</translation>
-    </message>
-    <message>
-        <source>Flash firmware…</source>
-        <translation>刷写固件…</translation>
-    </message>
-    <message>
-        <source>Firmware %1 comes with GameScrcpy</source>
-        <translation>GameScrcpy 附带固件 %1</translation>
-    </message>
-    <message>
-        <source>This copy of GameScrcpy has no ESP32 firmware with it</source>
-        <translation>这份 GameScrcpy 没有附带 ESP32 固件</translation>
-    </message>
-    <message>
-        <source>Upgrade the ESP32 firmware</source>
-        <translation>升级 ESP32 固件</translation>
-    </message>
-    <message>
-        <source>Flash the ESP32 firmware</source>
-        <translation>刷写 ESP32 固件</translation>
-    </message>
-    <message>
-        <source>Upgrade</source>
-        <translation>升级</translation>
-    </message>
-    <message>
-        <source>Flash</source>
-        <translation>刷写</translation>
-    </message>
-    <message>
-        <source>Choose the serial port the board is plugged into on this computer. Firmware %1 is written; it takes about half a minute. Usually no button is needed.</source>
-        <translation>选择开发板接在这台电脑上的串口。将写入固件 %1，大约需要半分钟，一般不用按开发板上的按钮。</translation>
-    </message>
-    <message>
-        <source>No serial port found. Plug the board&apos;s serial port into this computer.</source>
-        <translation>没有找到串口。把开发板的串口接到这台电脑。</translation>
-    </message>
-    <message>
-        <source>If it says the board did not enter download mode: hold BOOT while plugging in the cable, then flash again.</source>
-        <translation>如果提示开发板没有进入下载模式：按住 BOOT 再插上数据线，然后重新刷写。</translation>
-    </message>
-    <message>
-        <source>Wi-Fi for the ESP32 touch box</source>
-        <translation>ESP32 触控盒的 Wi-Fi</translation>
-    </message>
-    <message>
-        <source>Save</source>
-        <translation>保存</translation>
-    </message>
-    <message>
-        <source>Forget Wi-Fi</source>
-        <translation>忘记 Wi-Fi</translation>
-    </message>
-    <message>
-        <source>The board joins this network and can then be reached without the cable. Only this computer gets the key that lets it talk to the board.</source>
-        <translation>开发板会加入这个网络，之后不接数据线也能连接。只有这台电脑拿到与开发板通信的密钥。</translation>
-    </message>
-    <message>
-        <source>Network name</source>
-        <translation>网络名称</translation>
-    </message>
-    <message>
-        <source>Could not send the Wi-Fi settings to the board</source>
-        <translation>没能把 Wi-Fi 设置发给开发板</translation>
-    </message>
-    <message>
-        <source>Password</source>
-        <translation>密码</translation>
     </message>
 </context>
 <context>
@@ -6828,8 +6569,8 @@
         <translation>崩溃报告 %1</translation>
     </message>
     <message>
-        <source>Extensions add to GameScrcpy: new components, picture filters, themes, hardware such as an ESP32 board, side panels, and new blocks for profiles and logic.</source>
-        <translation>扩展给 GameScrcpy 增加功能：新的组件、画面滤镜、主题、ESP32 板子这样的硬件、侧边面板，以及方案和逻辑里用的新方块。</translation>
+        <source>Extensions add to GameScrcpy: new components, picture filters, themes, hardware such as a touch box, side panels, and new blocks for profiles and logic.</source>
+        <translation>扩展给 GameScrcpy 增加功能：新的组件、画面滤镜、主题、触控盒这样的硬件、侧边面板，以及方案和逻辑里用的新方块。</translation>
     </message>
     <message>
         <source>An extension card</source>
@@ -18627,10 +18368,6 @@
         <translation>扩展添加的触控方式，排在普通、UHID 和 AOA 之后供选择。扩展关闭或出错时，触控照常走普通方式。下次手机连接时生效。</translation>
     </message>
     <message>
-        <source>touch extension dll native esp32 board method</source>
-        <translation>touch extension dll native esp32 board method 触控 扩展 原生 开发板 方式</translation>
-    </message>
-    <message>
         <source>Device for the touch method</source>
         <translation>触控方式使用的设备</translation>
     </message>
@@ -18875,44 +18612,12 @@
         <translation>深度思考</translation>
     </message>
     <message>
+        <source>touch extension dll native box board method</source>
+        <translation>touch extension dll native box board method 触控 扩展 原生 触控盒 开发板 方式</translation>
+    </message>
+    <message>
         <source>Compatible with OpenAI covers OpenAI, DeepSeek, Qwen, Kimi, a local Ollama and many more through the Chat Completions protocol; OpenAI Responses is OpenAI&apos;s newer protocol; Anthropic is Claude. Each keeps its own address, model and API key. Extensions can add more services, which bring their own models.</source>
         <translation>“兼容 OpenAI”经 Chat Completions 协议接 OpenAI、DeepSeek、通义千问、Kimi、本机的 Ollama 等很多服务；“OpenAI Responses”是 OpenAI 较新的协议；Anthropic 就是 Claude。每种各自记住地址、模型和 API 密钥。扩展还可以添加更多服务，各自带有自己的模型。</translation>
-    </message>
-    <message>
-        <source>ESP32 serial port</source>
-        <translation>ESP32 串口</translation>
-    </message>
-    <message>
-        <source>The serial port of the ESP32 touch box. Automatic tries the Espressif, CH34x and CP210x ports one after another.</source>
-        <translation>ESP32 触控盒的串口。选“自动”时依次尝试乐鑫、CH34x 和 CP210x 的串口。</translation>
-    </message>
-    <message>
-        <source>esp32 serial port com usb touch box</source>
-        <translation>esp32 serial port com usb touch box 串口 端口 触控盒</translation>
-    </message>
-    <message>
-        <source>ESP32 connection</source>
-        <translation>ESP32 连接方式</translation>
-    </message>
-    <message>
-        <source>Serial uses the board&apos;s USB serial port, with the least delay. Wi-Fi needs the board on the same network and adds 1 to 3 ms.</source>
-        <translation>串口走开发板的 USB 串口，延迟最低；Wi-Fi 要求开发板与电脑在同一网络，会多 1～3 毫秒。</translation>
-    </message>
-    <message>
-        <source>esp32 wifi wireless serial udp connection touch box</source>
-        <translation>esp32 wifi wireless serial udp connection touch box 无线 串口 连接 触控盒</translation>
-    </message>
-    <message>
-        <source>ESP32 address</source>
-        <translation>ESP32 地址</translation>
-    </message>
-    <message>
-        <source>The board&apos;s address on the network. Empty finds it automatically.</source>
-        <translation>开发板在网络上的地址。留空则自动查找。</translation>
-    </message>
-    <message>
-        <source>esp32 wifi address ip mdns touch box</source>
-        <translation>esp32 wifi address ip mdns touch box 地址 触控盒</translation>
     </message>
 </context>
 <context>
@@ -19073,18 +18778,6 @@
         <translation>手机上的 GameScrcpy 伴侣</translation>
     </message>
     <message>
-        <source>The extension is off. Turn it on in Extensions to use the board.</source>
-        <translation>扩展没有打开。在“扩展”里打开后才能用开发板。</translation>
-    </message>
-    <message>
-        <source>The extension is not loaded.</source>
-        <translation>扩展没有加载。</translation>
-    </message>
-    <message>
-        <source>Open settings</source>
-        <translation>打开设置</translation>
-    </message>
-    <message>
         <source>Devices your own logic may use</source>
         <translation>你自己的逻辑可以用的设备</translation>
     </message>
@@ -19173,12 +18866,12 @@
         <translation>手机当前 %1 Hz</translation>
     </message>
     <message>
-        <source>Connection</source>
-        <translation>连接</translation>
-    </message>
-    <message>
         <source>General</source>
         <translation>通用</translation>
+    </message>
+    <message>
+        <source>The settings are grouped: mirroring and quality, audio, input and keys, shortcuts, general, appearance, extensions and AI. A number next to a group counts the settings a phone has changed for itself.</source>
+        <translation>设置按类别分组：投屏与画质、音频、输入与键位、快捷键、通用、外观、扩展和 AI。分类旁边的数字是某台手机单独改过的设置数。</translation>
     </message>
     <message>
         <source>Follow Windows (%1)</source>
@@ -19259,10 +18952,6 @@
     <message>
         <source>Groups</source>
         <translation>分类</translation>
-    </message>
-    <message>
-        <source>The settings are grouped: mirroring and quality, audio, input and keys, shortcuts, connection, general, appearance, extensions and AI. A number next to a group counts the settings a phone has changed for itself.</source>
-        <translation>设置按类别分组：投屏与画质、音频、输入与键位、快捷键、连接、通用、外观、扩展和 AI。分类旁边的数字是某台手机单独改过的设置数。</translation>
     </message>
     <message>
         <source>The settings</source>
@@ -19383,10 +19072,6 @@
     <message>
         <source>Any window</source>
         <translation>任何窗口</translation>
-    </message>
-    <message>
-        <source>ESP32 touch box</source>
-        <translation>ESP32 触控盒</translation>
     </message>
     <message>
         <source>Scheduled tasks</source>
@@ -21941,22 +21626,6 @@
         <translation>USB · 画面 + AOA 触控</translation>
     </message>
     <message>
-        <source>No picture · ESP32 over Wi-Fi</source>
-        <translation>无画面 · ESP32 经 Wi-Fi</translation>
-    </message>
-    <message>
-        <source>No picture · ESP32 over USB serial</source>
-        <translation>无画面 · ESP32 经 USB 串口</translation>
-    </message>
-    <message>
-        <source>ESP32 over Wi-Fi</source>
-        <translation>ESP32 经 Wi-Fi</translation>
-    </message>
-    <message>
-        <source>ESP32 over USB serial</source>
-        <translation>ESP32 经 USB 串口</translation>
-    </message>
-    <message>
         <source>The phone refused the screen recording</source>
         <translation>手机拒绝了录屏</translation>
     </message>
@@ -21999,10 +21668,6 @@
     <message>
         <source>Demo device %1</source>
         <translation>演示设备 %1</translation>
-    </message>
-    <message>
-        <source>ESP32 touch box</source>
-        <translation>ESP32 触控盒</translation>
     </message>
     <message>
         <source>Needs a driver</source>
@@ -22087,10 +21752,6 @@
     <message>
         <source>There is no picture over AOA without adb, so the vision workbench has nothing to look at</source>
         <translation>没有 adb 时 AOA 没有画面，识图工作台无画面可看</translation>
-    </message>
-    <message>
-        <source>There is no picture with the ESP32 touch box, so the vision workbench has nothing to look at</source>
-        <translation>用 ESP32 触控盒时没有画面，识图工作台无画面可看</translation>
     </message>
     <message>
         <source>There is no picture with %1, so the vision workbench has nothing to look at</source>
@@ -22413,6 +22074,10 @@
         <translation>%1 不可用，触控已关闭</translation>
     </message>
     <message>
+        <source>Touch box</source>
+        <translation>触控盒</translation>
+    </message>
+    <message>
         <source>No touch</source>
         <translation>不触控</translation>
     </message>
@@ -22453,44 +22118,8 @@
         <translation>改动在下次投屏这台手机时生效</translation>
     </message>
     <message>
-        <source>the firmware flasher</source>
-        <translation>固件刷写工具</translation>
-    </message>
-    <message>
         <source>In use by %1</source>
         <translation>正被 %1 使用</translation>
-    </message>
-    <message>
-        <source>ESP32 with the old firmware, flashing the new firmware is recommended</source>
-        <translation>装着旧固件的 ESP32，建议刷写新固件</translation>
-    </message>
-    <message>
-        <source>ESP32</source>
-        <translation>ESP32</translation>
-    </message>
-    <message>
-        <source>firmware %1</source>
-        <translation>固件 %1</translation>
-    </message>
-    <message>
-        <source>Wi-Fi %1</source>
-        <translation>Wi-Fi %1</translation>
-    </message>
-    <message>
-        <source>serial port %1</source>
-        <translation>串口 %1</translation>
-    </message>
-    <message>
-        <source>The ESP32 touch box stopped answering</source>
-        <translation>ESP32 触控盒不响应了</translation>
-    </message>
-    <message>
-        <source>The ESP32 touch box did not open</source>
-        <translation>ESP32 触控盒没能打开</translation>
-    </message>
-    <message>
-        <source>Check the board&apos;s cables and that the ESP32 extension is on, then choose Control again</source>
-        <translation>检查开发板的线，并确认 ESP32 扩展已打开，然后再点“控制”</translation>
     </message>
     <message>
         <source>Controlling</source>
@@ -22623,261 +22252,6 @@
     <message>
         <source>The profile could not be saved</source>
         <translation>方案没能保存</translation>
-    </message>
-</context>
-<context>
-    <name>gs::app::Esp32Panel</name>
-    <message>
-        <source>In use by a mirror window</source>
-        <translation>正在被投屏窗口使用</translation>
-    </message>
-    <message>
-        <source>The board stopped answering. Check its cable, then connect again.</source>
-        <translation>开发板没有响应了。检查数据线后重新连接。</translation>
-    </message>
-    <message>
-        <source>The board did not answer, so it is treated as the old QineTouch firmware and only touches work. If it runs the bundled firmware, it is on the wrong port: on an ESP32-S3, connect the computer to the port marked COM or UART and the other USB port to the phone.</source>
-        <translation>开发板没有应答，所以按旧版 QineTouch 固件处理，只能发触摸。如果刷的是自带的固件，那就是接错了口：ESP32-S3 要把电脑接到标着 COM 或 UART 的口，另一个 USB 口接手机。</translation>
-    </message>
-    <message>
-        <source>A mirror window is using this board. Close it, then flash again.</source>
-        <translation>投屏窗口正在使用这块开发板，关掉它再刷写。</translation>
-    </message>
-    <message>
-        <source>Firmware %1 is on the %2. The board restarted.</source>
-        <translation>%2 已写入固件 %1，开发板已重启。</translation>
-    </message>
-    <message>
-        <source>No ESP32 touch box answered over Wi-Fi. Check that the board and this computer are on the same network, or enter the board&apos;s address.</source>
-        <translation>没有 ESP32 触控盒通过 Wi-Fi 应答。检查开发板与这台电脑是否在同一个网络，或者填写开发板的地址。</translation>
-    </message>
-    <message>
-        <source>No ESP32 touch box was found. Plug the board&apos;s serial port into this computer, or choose its port.</source>
-        <translation>没有找到 ESP32 触控盒。把开发板的串口接到这台电脑，或者手动选择它的串口。</translation>
-    </message>
-    <message>
-        <source>That serial port is not there. Check the cable or choose another port.</source>
-        <translation>这个串口不存在。检查数据线，或者换一个串口。</translation>
-    </message>
-    <message>
-        <source>Another program is using the serial port. A mirrored phone may be using the board right now.</source>
-        <translation>串口正被别的程序占用。可能有一台正在投屏的手机在用这块开发板。</translation>
-    </message>
-    <message>
-        <source>The board does not answer. On an ESP32-S3, connect the computer to the port marked COM or UART; the other USB port goes to the phone. If it still does not answer, flash the firmware.</source>
-        <translation>开发板没有应答。ESP32-S3 要把电脑接到标着 COM 或 UART 的口，另一个 USB 口接手机。还是没有应答就刷一次固件。</translation>
-    </message>
-    <message>
-        <source>Set up Wi-Fi once while the board is on the serial port; then it can be reached over Wi-Fi.</source>
-        <translation>先用串口连上开发板设置一次 Wi-Fi，之后就能通过 Wi-Fi 连接。</translation>
-    </message>
-    <message>
-        <source>That address is not valid.</source>
-        <translation>这个地址无效。</translation>
-    </message>
-    <message>
-        <source>This copy of GameScrcpy has no ESP32 firmware with it.</source>
-        <translation>这份 GameScrcpy 没有附带 ESP32 固件。</translation>
-    </message>
-    <message>
-        <source>The bundled firmware has nothing for this chip.</source>
-        <translation>附带的固件里没有适用于这款芯片的版本。</translation>
-    </message>
-    <message>
-        <source>The bundled firmware file is damaged. Reinstall GameScrcpy.</source>
-        <translation>附带的固件文件已损坏，请重新安装 GameScrcpy。</translation>
-    </message>
-    <message>
-        <source>Another program is using the serial port. Close it, then try again.</source>
-        <translation>串口正被别的程序占用。关掉它后再试一次。</translation>
-    </message>
-    <message>
-        <source>Could not enter download mode: hold BOOT while plugging in the cable, then try again.</source>
-        <translation>没有进入下载模式：按住 BOOT 再插上数据线，然后再试一次。</translation>
-    </message>
-    <message>
-        <source>The chip on this board is not one GameScrcpy supports.</source>
-        <translation>GameScrcpy 不支持这块开发板上的芯片。</translation>
-    </message>
-    <message>
-        <source>Writing the firmware failed. Try again; if it keeps failing, try another cable.</source>
-        <translation>写入固件失败。请再试一次；一直失败的话换一根数据线。</translation>
-    </message>
-    <message>
-        <source>The written firmware does not match. Flash it again.</source>
-        <translation>写入的固件校验不一致，请重新刷写。</translation>
-    </message>
-    <message>
-        <source>The board stopped answering while flashing. Check the cable, then flash again.</source>
-        <translation>刷写时开发板没有响应了。检查数据线后重新刷写。</translation>
-    </message>
-    <message>
-        <source>Flashing was cancelled.</source>
-        <translation>已取消刷写。</translation>
-    </message>
-    <message>
-        <source>Preparing…</source>
-        <translation>正在准备…</translation>
-    </message>
-    <message>
-        <source>Putting the board into download mode…</source>
-        <translation>正在让开发板进入下载模式…</translation>
-    </message>
-    <message>
-        <source>Identifying the chip…</source>
-        <translation>正在识别芯片…</translation>
-    </message>
-    <message>
-        <source>Erasing…</source>
-        <translation>正在擦除…</translation>
-    </message>
-    <message>
-        <source>Writing the firmware…</source>
-        <translation>正在写入固件…</translation>
-    </message>
-    <message>
-        <source>Checking what was written…</source>
-        <translation>正在校验写入的内容…</translation>
-    </message>
-    <message>
-        <source>Restarting the board…</source>
-        <translation>正在重启开发板…</translation>
-    </message>
-    <message>
-        <source>Done</source>
-        <translation>完成</translation>
-    </message>
-    <message>
-        <source>Phone connected over USB</source>
-        <translation>手机已通过 USB 连接</translation>
-    </message>
-    <message>
-        <source>Phone&apos;s USB is asleep</source>
-        <translation>手机的 USB 处于休眠</translation>
-    </message>
-    <message>
-        <source>Waiting for the phone on USB</source>
-        <translation>等待手机通过 USB 连接</translation>
-    </message>
-    <message>
-        <source>Phone connected over Bluetooth</source>
-        <translation>手机已通过蓝牙连接</translation>
-    </message>
-    <message>
-        <source>Bluetooth: %1</source>
-        <translation>蓝牙：%1</translation>
-    </message>
-    <message>
-        <source>Waiting for the phone to pair over Bluetooth</source>
-        <translation>等待手机通过蓝牙配对</translation>
-    </message>
-    <message>
-        <source>Bluetooth is off</source>
-        <translation>蓝牙已关闭</translation>
-    </message>
-    <message>
-        <source>Nothing answers on this port. On an ESP32-S3, connect the computer to the port marked COM or UART; the other USB port goes to the phone.</source>
-        <translation>这个口上没有应答。ESP32-S3 要把电脑接到标着 COM 或 UART 的口，另一个 USB 口接手机。</translation>
-    </message>
-    <message>
-        <source>The board keeps restarting (reset reason %1). Flash the firmware again.</source>
-        <translation>开发板一直在重启（复位原因 %1）。重新刷一次固件。</translation>
-    </message>
-    <message>
-        <source>The board keeps restarting. Flash the firmware again.</source>
-        <translation>开发板一直在重启。重新刷一次固件。</translation>
-    </message>
-    <message>
-        <source>The board is in download mode. Press RST on the board, then connect again.</source>
-        <translation>开发板处在下载模式。按一下板子上的 RST，再重新连接。</translation>
-    </message>
-    <message>
-        <source>The bytes on this port do not look like the ESP32 touch box: the port or its speed is wrong, or the board restarts before it can talk. On an ESP32-S3, connect the computer to the port marked COM or UART.</source>
-        <translation>这个口上收到的数据不像 ESP32 触控盒：口或波特率不对，或者开发板还没来得及应答就重启了。ESP32-S3 要把电脑接到标着 COM 或 UART 的口。</translation>
-    </message>
-    <message>
-        <source>The board runs the old QineTouch firmware: only touches can be sent. Flash the bundled firmware to use the keys, the mouse, the gamepad and Wi-Fi.</source>
-        <translation>开发板上是旧版 QineTouch 固件，只能发触摸。刷入自带的固件才能用键盘、鼠标、手柄和 Wi-Fi。</translation>
-    </message>
-    <message>
-        <source>did not start</source>
-        <translation>没能启动</translation>
-    </message>
-    <message>
-        <source>starting</source>
-        <translation>正在启动</translation>
-    </message>
-    <message>
-        <source>not on this board</source>
-        <translation>这块板子没有</translation>
-    </message>
-    <message>
-        <source>ready</source>
-        <translation>就绪</translation>
-    </message>
-    <message>
-        <source>asleep</source>
-        <translation>休眠中</translation>
-    </message>
-    <message>
-        <source>no phone</source>
-        <translation>没接手机</translation>
-    </message>
-    <message>
-        <source>not started</source>
-        <translation>未启动</translation>
-    </message>
-    <message>
-        <source>USB to the phone: %1</source>
-        <translation>接手机的 USB：%1</translation>
-    </message>
-    <message>
-        <source>phone connected</source>
-        <translation>手机已连接</translation>
-    </message>
-    <message>
-        <source>waiting for the phone</source>
-        <translation>等待手机</translation>
-    </message>
-    <message>
-        <source>off</source>
-        <translation>关闭</translation>
-    </message>
-    <message>
-        <source>connected</source>
-        <translation>已连接</translation>
-    </message>
-    <message>
-        <source>connecting</source>
-        <translation>正在连接</translation>
-    </message>
-    <message>
-        <source>could not connect</source>
-        <translation>连不上</translation>
-    </message>
-    <message>
-        <source>not set up</source>
-        <translation>未设置</translation>
-    </message>
-    <message>
-        <source>Wi-Fi: %1</source>
-        <translation>Wi-Fi：%1</translation>
-    </message>
-    <message>
-        <source>Wi-Fi not set up</source>
-        <translation>未设置 Wi-Fi</translation>
-    </message>
-    <message>
-        <source>Connecting to Wi-Fi…</source>
-        <translation>正在连接 Wi-Fi…</translation>
-    </message>
-    <message>
-        <source>Wi-Fi %1</source>
-        <translation>Wi-Fi %1</translation>
-    </message>
-    <message>
-        <source>Wi-Fi could not connect: check the network name and password</source>
-        <translation>Wi-Fi 连不上：请检查网络名称和密码</translation>
     </message>
 </context>
 <context>

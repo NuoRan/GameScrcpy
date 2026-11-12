@@ -7,8 +7,6 @@ CMakeUserPresets.json
 
 # ---- Dependency caches (populated by tools/, never committed) ----
 /deps/
-/firmware/esp32/managed_components/
-/firmware/esp32/dependencies.lock
 
 # ---- IDE ----
 .vs/

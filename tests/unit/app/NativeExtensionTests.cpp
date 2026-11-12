@@ -2585,6 +2585,21 @@ TEST_CASE("gs-exthost.exe starts again after a crash, and three crashes within a
     CHECK(module->openTouch(0, "phone") == 0);
 }
 
+TEST_CASE("ADR-0112: the touch method of the ESP32 touch box built into GameScrcpy 2.0 is unknown now, so a phone "
+          "that kept it touches the normal way")
+{
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.native/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    registry.apply({testWanted(folder)});
+    REQUIRE(registry.loaded("gstest.native"));
+    test::SinkLog injection;
+    CHECK(registry.openTouch("gamescrcpy.esp32/esp32", "R58M123ABC", injection, {}) == nullptr);
+    CHECK(injection.frames.empty());
+}
+
 TEST_CASE("the registry offers the nodes and touch methods of a native extension, names a missing permission and "
           "falls back to normal touch when the method fails (ADR-0097)")
 {

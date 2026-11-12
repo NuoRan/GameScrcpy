@@ -81,8 +81,8 @@ TEST_CASE("ADR-0107: an extension's capabilities say what it adds, and a native 
     Look look;
 
     const QVariantMap board = nativeEntry(
-        QStringLiteral("gamescrcpy.esp32"),
-        {{QStringLiteral("touchMethods"), QVariantList{QStringLiteral("ESP32")}},
+        QStringLiteral("alice.box"),
+        {{QStringLiteral("touchMethods"), QVariantList{QStringLiteral("Desk box")}},
          {QStringLiteral("nodes"), QVariantList{}}});
     CHECK(look.capabilities(board) == QStringList{QStringLiteral("hardware")});
     CHECK(look.lead(board) == QStringLiteral("hardware"));
@@ -146,8 +146,8 @@ TEST_CASE("ADR-0112: a language pack shows as a language, with the languages ico
     CHECK(look.tone(QStringLiteral("locale")) == QStringLiteral("azure"));
 }
 
-TEST_CASE("ADR-0107: an extension card offers Settings only when the extension is loaded and has parameters, "
-          "devices it may use or is the ESP32 touch box")
+TEST_CASE("ADR-0107, ADR-0112: an extension card offers Settings only when the extension is loaded and has "
+          "parameters or devices it may use, and the id of the old built-in ESP32 touch box is no exception")
 {
     Look look;
 
@@ -165,10 +165,9 @@ TEST_CASE("ADR-0107: an extension card offers Settings only when the extension i
     CHECK_FALSE(look.showsSettings(slate, 0));
     CHECK(look.showsSettings(slate, 1));
 
-    QVariantMap board{{QStringLiteral("id"), QStringLiteral("gamescrcpy.esp32")},
-                      {QStringLiteral("active"), true},
-                      {QStringLiteral("hasSettings"), false}};
-    CHECK(look.showsSettings(board, 0));
-    board.insert(QStringLiteral("active"), false);
+    const QVariantMap board{{QStringLiteral("id"), QStringLiteral("gamescrcpy.esp32")},
+                            {QStringLiteral("active"), true},
+                            {QStringLiteral("hasSettings"), false}};
     CHECK_FALSE(look.showsSettings(board, 0));
+    CHECK(look.showsSettings(board, 1));
 }

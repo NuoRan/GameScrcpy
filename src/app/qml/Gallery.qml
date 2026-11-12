@@ -1071,7 +1071,7 @@ Window {
         id: sheet
 
         objectName: "gallerySheet"
-        title: "ESP32 touch box"
+        title: "Touch box"
         subtitle: "Extension · 1.0.0 · changes apply at once"
         iconName: "usb"
         tone: "amber"

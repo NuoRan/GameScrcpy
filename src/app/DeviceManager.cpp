@@ -15,9 +15,6 @@
 #include "DemoFeed.h"
 #include "DeviceIdentifier.h"
 #include "DevicePresentation.h"
-#include "Esp32Boards.h"
-#include "Esp32Panel.h"
-#include "Esp32Session.h"
 #include "ExtensionHost.h"
 #include "ExtensionLogic.h"
 #include "ExtensionMedia.h"
@@ -48,12 +45,12 @@
 #include "SetupGuide.h"
 #include "SystemPanelService.h"
 #include "TaskLibrary.h"
+#include "TouchBoxSession.h"
 #include "UsbPhones.h"
 #include "VisionWorkbench.h"
 
 #include <gs/adb/ServerLauncher.h>
 #include <gs/capture/MediaFoundationSource.h>
-#include <gs/esp32/Boards.h>
 #include <gs/exthost/Module.h>
 #include <gs/input/MappingEngine.h>
 #include <gs/input/Profile.h>
@@ -101,7 +98,6 @@ namespace {
 constexpr int kStepAside = 32;
 constexpr int kMostSteps = 8;
 constexpr int kRecordingThumbnail = 160;
-constexpr std::string_view kEsp32TouchKey = "gamescrcpy.esp32/esp32";
 constexpr std::chrono::milliseconds kOfflineGrace{3000};
 constexpr int kTaskClockMs = 20000;
 constexpr int kTaskIdShift = 40;
@@ -208,25 +204,6 @@ QString aoaTouchLinkName(const QString& serial)
 QString aoaHelpSlug()
 {
     return QStringLiteral("aoa-driver");
-}
-
-QString esp32LinkName(bool wifi, bool streaming)
-{
-    if (streaming) {
-        return wifi ? DeviceManager::tr("No picture · ESP32 over Wi-Fi")
-                    : DeviceManager::tr("No picture · ESP32 over USB serial");
-    }
-    return wifi ? DeviceManager::tr("ESP32 over Wi-Fi") : DeviceManager::tr("ESP32 over USB serial");
-}
-
-esp32::Esp32Settings esp32SettingsOf(const settings::Esp32& board)
-{
-    esp32::Esp32Settings chosen;
-    chosen.port = board.port;
-    chosen.link = board.link == settings::Esp32Connection::Wifi ? esp32::LinkMode::Wifi : esp32::LinkMode::Serial;
-    chosen.address = board.address;
-    chosen.boardsFile = dataDirectory() / std::string(esp32::kBoardsFileName);
-    return chosen;
 }
 
 QString shotFailureText(ShotFailure failure)
@@ -580,11 +557,6 @@ DeviceManager::DeviceManager(adb::AdbClient adb, std::filesystem::path adbExecut
     connect(m_captureWatcher.get(), &CaptureCardWatcher::devicesChanged, this, &DeviceManager::captureDevicesChanged);
     m_captureWatcher->start();
     m_backgrounds = std::make_unique<KeymapBackgrounds>(dataDirectory() / "backgrounds");
-    m_esp32 = std::make_unique<Esp32Boards>();
-    connect(m_esp32.get(), &Esp32Boards::boardsChanged, this, &DeviceManager::esp32BoardsChanged,
-            Qt::QueuedConnection);
-    m_esp32->start();
-    syncEsp32();
     m_matcher = new CaptureMatcher(m_adb.port(), this);
     connect(m_matcher, &CaptureMatcher::suggested, this, &DeviceManager::matcherSuggested);
     connect(this, &DeviceManager::countsChanged, this, &DeviceManager::bumpLinks);
@@ -623,12 +595,11 @@ DeviceManager::~DeviceManager()
         row.controller = nullptr;
         delete row.aoa;
         row.aoa = nullptr;
-        delete row.esp32;
-        row.esp32 = nullptr;
+        delete row.touchBox;
+        row.touchBox = nullptr;
         row.demo.reset();
         row.capture.reset();
     }
-    m_esp32.reset();
     m_tracker.reset();
     s_instance = nullptr;
 }
@@ -668,9 +639,6 @@ QString DeviceManager::Row::name() const
     if (capture != nullptr) {
         return captureCardName(capture->name);
     }
-    if (!esp32Where.isEmpty()) {
-        return DeviceManager::tr("ESP32 touch box");
-    }
     if (provided) {
         return provided->name;
     }
@@ -701,9 +669,6 @@ QVariant DeviceManager::data(const QModelIndex& index, int role) const
     if (row.capture != nullptr) {
         advice = captureAdviceOf(row);
     }
-    if (isEsp32Row(row)) {
-        advice = esp32AdviceOf(row);
-    }
     if (row.provided) {
         advice = providedAdviceOf(row);
     }
@@ -722,9 +687,6 @@ QVariant DeviceManager::data(const QModelIndex& index, int role) const
         }
         if (row.aoaOnly) {
             return row.usb && row.usb->driver == platform::UsbDriver::Ready ? tr("Online") : tr("Needs a driver");
-        }
-        if (isEsp32Row(row)) {
-            return esp32Usable(row) ? tr("Online") : tr("In use");
         }
         if (row.provided) {
             return row.provided->state == u"busy"      ? tr("In use")
@@ -785,7 +747,6 @@ QVariant DeviceManager::data(const QModelIndex& index, int role) const
     case RankRole: {
         const DevicePresentation shown =
             row.provided    ? providedPresentation(row)
-            : isEsp32Row(row) ? esp32Presentation(row)
             : row.aoaOnly   ? DevicePresentation::ofAoa(phase, row.session.failure, row.listed,
                                                         row.usb && row.usb->driver == platform::UsbDriver::Ready)
             : row.transported ? DevicePresentation::of(phase, row.session.failure, row.listed, adb::DeviceState::Device)
@@ -814,8 +775,6 @@ QVariant DeviceManager::data(const QModelIndex& index, int role) const
         } else if (row.aoaOnly) {
             meta = tr("%1 / %2").arg(aoaLinkName(streaming(row) && noPictureOf(row)),
                                      row.usb ? QString::fromStdString(row.usb->serial) : row.serial);
-        } else if (isEsp32Row(row)) {
-            meta = tr("%1 / %2").arg(linkName(row), row.esp32Where);
         } else if (row.provided) {
             meta = tr("%1 / %2").arg(row.provided->extensionName, QString::fromStdString(row.provided->id));
         } else if (row.transported) {
@@ -866,7 +825,6 @@ QVariant DeviceManager::data(const QModelIndex& index, int role) const
     case FactsRole: {
         const QString attachment = row.demo != nullptr                  ? QStringLiteral("demo")
                                    : row.capture != nullptr             ? QStringLiteral("capture")
-                                   : isEsp32Row(row)                    ? QStringLiteral("esp32")
                                    : row.provided.has_value()           ? QStringLiteral("touch-box")
                                    : row.transported.has_value()        ? QStringLiteral("transport")
                                    : row.aoaOnly                        ? QStringLiteral("aoa")
@@ -890,8 +848,6 @@ QVariant DeviceManager::data(const QModelIndex& index, int role) const
         return driverHelpOf(row);
     case CaptureRole:
         return captureState(row);
-    case Esp32Role:
-        return esp32State(row);
     case ProvidedRole:
         return providedState(row);
     case PictureRole:
@@ -1005,9 +961,6 @@ bool DeviceManager::canConnect(const Row& row) const
                               settings::PictureSource::Capture &&
                           cardIndexOf(row.deviceId) >= 0;
         return row.listed && (driver || card) && !active(row.session.phase);
-    }
-    if (isEsp32Row(row)) {
-        return row.listed && esp32Usable(row) && !active(row.session.phase);
     }
     if (row.provided) {
         return row.listed && row.provided->state == u"ready" && !row.provided->touchMethod.empty() &&
@@ -1841,9 +1794,8 @@ QHash<int, QByteArray> DeviceManager::roleNames() const
             {GuideRole, "guide"},               {FactsRole, "facts"},
             {TunnelOfferRole, "tunnelOffer"},   {CardRole, "card"},
             {LinksRole, "links"},               {HelpRole, "help"},
-            {CaptureRole, "capture"},           {Esp32Role, "esp32"},
-            {PictureRole, "picture"},           {ProvidedRole, "provided"},
-            {TransportedRole, "transported"}};
+            {CaptureRole, "capture"},           {PictureRole, "picture"},
+            {ProvidedRole, "provided"},         {TransportedRole, "transported"}};
 }
 
 void DeviceManager::connectDevice(const QString& serial)
@@ -1876,10 +1828,6 @@ void DeviceManager::connectDevice(const QString& serial)
     }
     if (row.aoaOnly) {
         connectAoa(row);
-        return;
-    }
-    if (isEsp32Row(row)) {
-        connectEsp32(row);
         return;
     }
     if (row.provided) {
@@ -2119,8 +2067,8 @@ void DeviceManager::disconnectDevice(const QString& serial)
             row.aoa->stop();
         }
     } else if (isBoxRow(row)) {
-        if (row.esp32 != nullptr) {
-            row.esp32->stop();
+        if (row.touchBox != nullptr) {
+            row.touchBox->stop();
         }
     } else if (row.controller != nullptr) {
         row.controller->stop();
@@ -2464,8 +2412,8 @@ void DeviceManager::pressKey(const QString& serial, int keycode)
             row.aoa->pressKey(static_cast<std::uint32_t>(keycode));
         }
     } else if (isBoxRow(row)) {
-        if (row.esp32 != nullptr) {
-            row.esp32->pressKey(static_cast<std::uint32_t>(keycode));
+        if (row.touchBox != nullptr) {
+            row.touchBox->pressKey(static_cast<std::uint32_t>(keycode));
         }
     } else if (row.controller != nullptr) {
         row.controller->pressKey(static_cast<std::uint32_t>(keycode));
@@ -2829,9 +2777,6 @@ void DeviceManager::sessionChanged(const QString& serial, const session::Session
         row.companionHeld = false;
         row.companionRetried = false;
     }
-    if (!active(state.phase) && m_esp32 != nullptr) {
-        m_esp32->release(serial);
-    }
     if (state.phase != session::SessionPhase::Streaming) {
         row.refusalProblem.clear();
         row.refusalAction.clear();
@@ -2985,18 +2930,18 @@ void DeviceManager::openMirror(Row& row)
             }
         });
     }
-    if (row.esp32 != nullptr) {
-        row.mirror->setNoPicture(row.esp32->canvas(), controlTurnOf(row));
+    if (row.touchBox != nullptr) {
+        row.mirror->setNoPicture(row.touchBox->canvas(), controlTurnOf(row));
         connect(row.mirror, &MirrorWindow::mouseMoved, this, [this, serial](int dx, int dy) {
             const int at = indexOf(serial);
-            if (at >= 0 && m_rows[static_cast<std::size_t>(at)].esp32 != nullptr) {
-                m_rows[static_cast<std::size_t>(at)].esp32->moveMouse(dx, dy);
+            if (at >= 0 && m_rows[static_cast<std::size_t>(at)].touchBox != nullptr) {
+                m_rows[static_cast<std::size_t>(at)].touchBox->moveMouse(dx, dy);
             }
         });
         connect(row.mirror, &MirrorWindow::mouseButtonsChanged, this, [this, serial](int buttons) {
             const int at = indexOf(serial);
-            if (at >= 0 && m_rows[static_cast<std::size_t>(at)].esp32 != nullptr) {
-                m_rows[static_cast<std::size_t>(at)].esp32->setMouseButtons(buttons);
+            if (at >= 0 && m_rows[static_cast<std::size_t>(at)].touchBox != nullptr) {
+                m_rows[static_cast<std::size_t>(at)].touchBox->setMouseButtons(buttons);
             }
         });
     }
@@ -3815,9 +3760,6 @@ QString DeviceManager::visionPictureProblem(const QString& serial) const
     if (const int index = indexOf(serial); index >= 0 && m_rows[static_cast<std::size_t>(index)].aoaOnly &&
                                            noPictureOf(m_rows[static_cast<std::size_t>(index)])) {
         return tr("There is no picture over AOA without adb, so the vision workbench has nothing to look at");
-    }
-    if (const int index = indexOf(serial); index >= 0 && isEsp32Row(m_rows[static_cast<std::size_t>(index)])) {
-        return tr("There is no picture with the ESP32 touch box, so the vision workbench has nothing to look at");
     }
     if (const int index = indexOf(serial); index >= 0 && m_rows[static_cast<std::size_t>(index)].provided) {
         return tr("There is no picture with %1, so the vision workbench has nothing to look at")
@@ -6369,8 +6311,8 @@ void DeviceManager::setControlOrientation(const QString& serial, int orientation
             m_extensionLogic->updateSession(row.serial, deviceInfoOf(row), logicKeyOf(row));
         }
     }
-    if (row.esp32 != nullptr && active(row.session.phase)) {
-        row.esp32->setOrientation(rotationOf(turn), canvas);
+    if (row.touchBox != nullptr && active(row.session.phase)) {
+        row.touchBox->setOrientation(rotationOf(turn), canvas);
         row.rotation = rotationOf(turn);
         if (row.mirror != nullptr) {
             row.mirror->setNoPicture(canvas, orientation);
@@ -6858,8 +6800,9 @@ void DeviceManager::stopCompanion(Row& row)
 
 void DeviceManager::syncCompanionLan(Row& row)
 {
-    const bool wanted = row.mirror != nullptr && noPictureOf(row) && (row.aoa != nullptr || row.esp32 != nullptr) &&
-                        !row.deviceId.isEmpty() && row.session.phase == session::SessionPhase::Streaming;
+    const bool wanted = row.mirror != nullptr && noPictureOf(row) &&
+                        (row.aoa != nullptr || row.touchBox != nullptr) && !row.deviceId.isEmpty() &&
+                        row.session.phase == session::SessionPhase::Streaming;
     if (!wanted) {
         stopCompanion(row);
         row.lanToken.clear();
@@ -6878,7 +6821,7 @@ void DeviceManager::syncLanService()
 {
     std::vector<LanExpectation> expected;
     for (const Row& row : m_rows) {
-        if (!noPictureOf(row) || row.mirror == nullptr || (row.aoa == nullptr && row.esp32 == nullptr) ||
+        if (!noPictureOf(row) || row.mirror == nullptr || (row.aoa == nullptr && row.touchBox == nullptr) ||
             row.deviceId.isEmpty() || row.session.phase != session::SessionPhase::Streaming) {
             continue;
         }
@@ -7360,8 +7303,8 @@ std::shared_ptr<ControlChannel> DeviceManager::channelOf(const Row& row)
     if (row.aoa != nullptr) {
         return row.aoa->channel();
     }
-    if (row.esp32 != nullptr) {
-        return row.esp32->channel();
+    if (row.touchBox != nullptr) {
+        return row.touchBox->channel();
     }
     if (row.capture != nullptr) {
         return row.capture->channel;
@@ -7423,9 +7366,6 @@ QString DeviceManager::linkName(const Row& row)
     if (row.aoaOnly) {
         return aoaLinkName(streaming(row) && noPictureOf(row));
     }
-    if (isEsp32Row(row)) {
-        return esp32LinkName(row.esp32Wifi, streaming(row));
-    }
     if (row.provided) {
         return row.provided->extensionName;
     }
@@ -7452,8 +7392,8 @@ std::shared_ptr<render::FrameSlot> DeviceManager::framesOf(const Row& row)
     if (row.aoa != nullptr) {
         return row.aoa->frames();
     }
-    if (row.esp32 != nullptr) {
-        return row.esp32->frames();
+    if (row.touchBox != nullptr) {
+        return row.touchBox->frames();
     }
     if (row.demo != nullptr) {
         return row.demo->frames();
@@ -7481,7 +7421,6 @@ void DeviceManager::applyLiveSettings()
         rowChanged(static_cast<int>(i));
     }
     usbChanged();
-    syncEsp32();
 }
 
 void DeviceManager::setExtensions(ExtensionHost* extensions)
@@ -7502,12 +7441,11 @@ void DeviceManager::setExtensions(ExtensionHost* extensions)
                 }
             }
         });
-        connect(m_extensions, &ExtensionHost::nativeChanged, this, &DeviceManager::syncEsp32);
         connect(m_extensions, &ExtensionHost::nativeChanged, this, &DeviceManager::bumpLinks);
         connect(m_extensions, &ExtensionHost::extensionsChanged, this, &DeviceManager::bumpLinks);
         if (NativeExtensions* native = m_extensions->native()) {
             native->setTouchOptions(
-                [this](std::string_view key, std::string_view device) { return touchOptionsFor(key, device); });
+                [this](std::string_view key, std::string_view device) { return touchDeviceOptions(key, device); });
             connect(native, &NativeExtensions::moduleTrouble, this, &DeviceManager::noteModuleTrouble);
             connect(native, &NativeExtensions::providedChanged, this, &DeviceManager::syncProvided);
             connect(native, &NativeExtensions::transportPhonesChanged, this, &DeviceManager::syncTransportPhones);
@@ -7518,7 +7456,6 @@ void DeviceManager::setExtensions(ExtensionHost* extensions)
     }
     applyAllFilters();
     applyModules();
-    syncEsp32();
     syncProvided();
     syncTransportPhones();
     syncSources();
@@ -7862,9 +7799,6 @@ void DeviceManager::removeRow(int index)
     Row& row = m_rows[static_cast<std::size_t>(index)];
     const QString deviceId = row.demo == nullptr ? row.deviceId : QString();
     stopCompanion(row);
-    if (isEsp32Row(row) && m_esp32 != nullptr) {
-        m_esp32->release(row.serial);
-    }
     beginRemoveRows({}, index, index);
     if (row.mirror != nullptr) {
         row.mirror->deleteLater();
@@ -7875,8 +7809,8 @@ void DeviceManager::removeRow(int index)
     if (row.aoa != nullptr) {
         row.aoa->deleteLater();
     }
-    if (row.esp32 != nullptr) {
-        row.esp32->deleteLater();
+    if (row.touchBox != nullptr) {
+        row.touchBox->deleteLater();
     }
     m_rows.erase(m_rows.begin() + index);
     endRemoveRows();
@@ -8670,9 +8604,6 @@ void DeviceManager::detachCaptureTouch(Row& row)
     state.port.reset();
     state.extension.reset();
     state.touch.clear();
-    if (m_esp32 != nullptr) {
-        m_esp32->release(row.serial);
-    }
 }
 
 void DeviceManager::attachCaptureTouch(Row& row)
@@ -8764,9 +8695,20 @@ std::shared_ptr<ExtensionTouch> DeviceManager::extensionTouchSink(const QString&
     if (source == nullptr || row.capture == nullptr) {
         return nullptr;
     }
+    std::string key = method.toStdString();
+    std::string device = row.serial.toStdString();
+    if (isTouchBoxSerial(method)) {
+        const int box = indexOf(method);
+        if (box < 0 || !m_rows[static_cast<std::size_t>(box)].provided ||
+            m_rows[static_cast<std::size_t>(box)].provided->touchMethod.empty()) {
+            return nullptr;
+        }
+        key = m_rows[static_cast<std::size_t>(box)].provided->touchMethod;
+        device = method.toStdString();
+    }
     const QString serial = row.serial;
     const std::uint32_t generation = row.capture->touchGeneration;
-    return source->openTouch(method.toStdString(), serial.toStdString(), row.capture->dropping, [this, serial, generation] {
+    return source->openTouch(key, device, row.capture->dropping, [this, serial, generation] {
         QMetaObject::invokeMethod(
             this, [this, serial, generation] { captureTouchFell(serial, generation); }, Qt::QueuedConnection);
     });
@@ -8799,37 +8741,16 @@ void DeviceManager::captureTouchFell(const QString& serial, std::uint32_t genera
 
 QString DeviceManager::captureTouchName(const QString& method) const
 {
+    if (isTouchBoxSerial(method)) {
+        const int box = indexOf(method);
+        return box >= 0 && m_rows[static_cast<std::size_t>(box)].provided
+                   ? m_rows[static_cast<std::size_t>(box)].provided->name
+                   : tr("Touch box");
+    }
     if (method.contains(u'/') && m_extensions != nullptr && m_extensions->touchSource() != nullptr) {
         return m_extensions->touchSource()->touchTitle(method.toStdString());
     }
     return touchMethodName(method);
-}
-
-std::string DeviceManager::touchOptionsFor(std::string_view key, std::string_view device) const
-{
-    if (key != kEsp32TouchKey) {
-        return touchDeviceOptions(key, device);
-    }
-    const QString serial = QString::fromUtf8(device.data(), static_cast<qsizetype>(device.size()));
-    const int index = indexOf(serial);
-    if (index >= 0 && isEsp32Row(m_rows[static_cast<std::size_t>(index)])) {
-        const Row& row = m_rows[static_cast<std::size_t>(index)];
-        return esp32TouchOptions(row.esp32Where.toStdString(), row.esp32Wifi,
-                                 dataDirectory() / std::string(esp32::kBoardsFileName));
-    }
-    const QString deviceId = index >= 0 ? m_rows[static_cast<std::size_t>(index)].deviceId : serial;
-    const settings::Esp32 board = m_settings.effective(deviceId.toStdString()).esp32;
-    if (m_esp32 != nullptr) {
-        m_esp32->claim(serial, esp32ClaimOf(esp32SettingsOf(board)));
-    }
-    const QJsonObject options{
-        {QStringLiteral("port"), QString::fromStdString(board.port)},
-        {QStringLiteral("link"), board.link == settings::Esp32Connection::Wifi ? QStringLiteral("wifi")
-                                                                               : QStringLiteral("serial")},
-        {QStringLiteral("address"), QString::fromStdString(board.address)},
-        {QStringLiteral("boardsFile"),
-         QString::fromStdWString((dataDirectory() / std::string(esp32::kBoardsFileName)).wstring())}};
-    return QJsonDocument(options).toJson(QJsonDocument::Compact).toStdString();
 }
 
 std::string DeviceManager::touchDeviceOptions(std::string_view key, std::string_view device) const
@@ -9005,6 +8926,11 @@ QVariantMap DeviceManager::captureState(const Row& row) const
                                        {QStringLiteral("name"), entry.value(QStringLiteral("title"))}});
         }
     }
+    for (const Row& box : m_rows) {
+        if (box.provided && pairsWithCapture(*box.provided, box.listed)) {
+            methods.append(QVariantMap{{QStringLiteral("id"), box.serial}, {QStringLiteral("name"), box.provided->name}});
+        }
+    }
     const QString chosenTouch = QString::fromStdString(wanted.touch);
     if (chosenTouch.contains(u'/') && std::ranges::none_of(methods, [&chosenTouch](const QVariant& method) {
             return method.toMap().value(QStringLiteral("id")).toString() == chosenTouch;
@@ -9078,7 +9004,9 @@ void DeviceManager::setCaptureOption(const QString& serial, const QString& key, 
     const std::string id = serial.toStdString();
     settings::DeviceSettings device = m_settings.device(id);
     settings::CaptureSettings& wanted = device.capture;
-    const std::string text = value.toString().left(kMostOptionLength).toStdString();
+    const qsizetype most =
+        key == u"touch" ? static_cast<qsizetype>(settings::CaptureSettings::kMaxTouchLength) : kMostOptionLength;
+    const std::string text = value.toString().left(most).toStdString();
     if (key == u"touch") {
         wanted.touch = text.empty() ? std::string("none") : text;
     } else if (key == u"aoaPhone") {
@@ -10013,14 +9941,9 @@ void DeviceManager::matcherSuggested(int matcherTicket, const QString& captureSe
     emit phoneSuggested(ticket, captureSerial, deviceId, score);
 }
 
-bool DeviceManager::isEsp32Row(const Row& row) noexcept
-{
-    return !row.esp32Where.isEmpty();
-}
-
 bool DeviceManager::isBoxRow(const Row& row) noexcept
 {
-    return isEsp32Row(row) || row.provided.has_value();
+    return row.provided.has_value();
 }
 
 bool DeviceManager::noPictureOf(const Row& row) noexcept
@@ -10031,200 +9954,6 @@ bool DeviceManager::noPictureOf(const Row& row) noexcept
     return row.aoaOnly || isBoxRow(row);
 }
 
-void DeviceManager::syncEsp32()
-{
-    if (m_esp32 == nullptr) {
-        return;
-    }
-    m_esp32->setSettings(esp32SettingsOf(m_settings.effective({}).esp32));
-    const NativeExtensions* native = m_extensions != nullptr ? m_extensions->native() : nullptr;
-    m_esp32->setActive(native != nullptr && native->loaded(kEsp32Extension));
-}
-
-void DeviceManager::esp32BoardsChanged()
-{
-    if (m_esp32 == nullptr) {
-        return;
-    }
-    std::set<QString> present;
-    for (const Esp32Found& found : m_esp32->boards()) {
-        const QString where = QString::fromStdString(found.where);
-        const QString serial = esp32SerialOf(where);
-        present.insert(serial);
-        if (indexOf(serial) >= 0) {
-            continue;
-        }
-        const int at = static_cast<int>(m_rows.size());
-        beginInsertRows({}, at, at);
-        Row row;
-        row.serial = serial;
-        row.esp32Where = where;
-        row.esp32Wifi = found.wifi;
-        row.listed = true;
-        row.state = adb::DeviceState::Unknown;
-        row.deviceId = serial;
-        qInfo("ESP32 touch box on %s: it gets a card on the devices page", qUtf8Printable(where));
-        m_rows.push_back(std::move(row));
-        endInsertRows();
-    }
-    for (int i = static_cast<int>(m_rows.size()) - 1; i >= 0; --i) {
-        Row& row = m_rows[static_cast<std::size_t>(i)];
-        if (!isEsp32Row(row)) {
-            continue;
-        }
-        row.listed = present.contains(row.serial);
-        if (!row.listed && !active(row.session.phase)) {
-            removeRow(i);
-        }
-    }
-    if (!m_rows.empty()) {
-        emit dataChanged(index(0), index(static_cast<int>(m_rows.size()) - 1));
-    }
-    emit countsChanged();
-}
-
-void DeviceManager::connectEsp32(Row& row)
-{
-    if (active(row.session.phase) || m_esp32 == nullptr) {
-        return;
-    }
-    const QString serial = row.serial;
-    if (row.esp32 == nullptr) {
-        row.esp32 = new Esp32Session(row.name(), this);
-        connect(row.esp32, &Esp32Session::stateChanged, this,
-                [this, serial](const session::SessionState& state) { sessionChanged(serial, state); });
-        connect(row.esp32, &Esp32Session::padLinkChanged, this,
-                [this, channel = row.esp32->channel()] { m_input->padLinkChanged(channel); });
-    }
-    const int turn = controlTurnOf(row);
-    row.rotation = rotationOf(static_cast<ControlTurn>(turn));
-    m_esp32->claim(serial, Esp32Claim{.where = row.esp32Where.toStdString(), .wifi = row.esp32Wifi});
-    qInfo("controlling a phone through the ESP32 touch box on %s, without a picture",
-          qUtf8Printable(row.esp32Where));
-    TouchMethodSource* source = m_extensions != nullptr ? m_extensions->touchSource() : nullptr;
-    row.esp32->start(source, serial.toStdString(), row.rotation, controlCanvasOf(row, turn));
-}
-
-std::optional<Esp32Found> DeviceManager::esp32BoardOf(const Row& row) const
-{
-    if (m_esp32 == nullptr || !isEsp32Row(row)) {
-        return std::nullopt;
-    }
-    return m_esp32->board(row.esp32Where.toStdString(), row.esp32Wifi);
-}
-
-bool DeviceManager::esp32Usable(const Row& row) const
-{
-    const std::optional<Esp32Found> found = esp32BoardOf(row);
-    if (!found) {
-        return false;
-    }
-    return found->held ? found->heldBy == row.serial : found->connected;
-}
-
-QVariantMap DeviceManager::esp32State(const Row& row) const
-{
-    if (!isEsp32Row(row)) {
-        return {};
-    }
-    const std::optional<Esp32Found> found = esp32BoardOf(row);
-    QString chip;
-    QString firmware;
-    QString boardName;
-    QString phone;
-    const bool legacy = found && found->legacy;
-    if (found && found->info) {
-        chip = QString::fromStdString(esp32::chipName(found->info->chipId));
-        firmware = QString::fromStdString(found->info->firmware);
-        boardName = QString::fromStdString(found->info->name);
-    }
-    if (found && !legacy) {
-        phone = Esp32Panel::phoneText(found->status);
-    }
-    QString inUseBy;
-    if (found && found->held && found->heldBy != row.serial) {
-        const int at = indexOf(found->heldBy);
-        inUseBy = found->flashing ? tr("the firmware flasher")
-                  : at >= 0       ? m_rows[static_cast<std::size_t>(at)].name()
-                                  : found->heldBy;
-    }
-    QString summary;
-    if (!inUseBy.isEmpty()) {
-        summary = tr("In use by %1").arg(inUseBy);
-    } else {
-        QStringList parts;
-        parts.append(legacy ? tr("ESP32 with the old firmware, flashing the new firmware is recommended")
-                     : chip.isEmpty() ? tr("ESP32")
-                                      : chip);
-        if (!firmware.isEmpty()) {
-            parts.append(tr("firmware %1").arg(firmware));
-        }
-        parts.append(row.esp32Wifi ? tr("Wi-Fi %1").arg(row.esp32Where) : tr("serial port %1").arg(row.esp32Where));
-        if (!phone.isEmpty()) {
-            parts.append(phone);
-        }
-        summary = parts.join(QStringLiteral(" · "));
-    }
-    return {{QStringLiteral("isEsp32"), true},
-            {QStringLiteral("where"), row.esp32Where},
-            {QStringLiteral("wifi"), row.esp32Wifi},
-            {QStringLiteral("chip"), chip},
-            {QStringLiteral("firmware"), firmware},
-            {QStringLiteral("boardName"), boardName},
-            {QStringLiteral("legacy"), legacy},
-            {QStringLiteral("phone"), phone},
-            {QStringLiteral("inUse"), !inUseBy.isEmpty()},
-            {QStringLiteral("connected"), found && found->connected},
-            {QStringLiteral("summary"), summary}};
-}
-
-std::optional<Advice> DeviceManager::esp32AdviceOf(const Row& row) const
-{
-    if (row.session.phase != session::SessionPhase::Failed || !row.session.failure) {
-        return std::nullopt;
-    }
-    const bool lost = row.session.failure->kind == session::FailureKind::ConnectionLost;
-    return Advice{lost ? tr("The ESP32 touch box stopped answering") : tr("The ESP32 touch box did not open"),
-                  tr("Check the board's cables and that the ESP32 extension is on, then choose Control again")};
-}
-
-DevicePresentation DeviceManager::esp32Presentation(const Row& row) const
-{
-    const session::SessionPhase phase = row.session.phase;
-    if (phase == session::SessionPhase::Streaming && noPictureOf(row)) {
-        return {tr("Controlling"), DevicePresentation::Tone::Live, -1, false, 0};
-    }
-    if (phase != session::SessionPhase::Idle && phase != session::SessionPhase::Stopped) {
-        return DevicePresentation::of(phase, row.session.failure, row.listed, adb::DeviceState::Device);
-    }
-    if (!row.listed) {
-        return DevicePresentation::of(phase, row.session.failure, false, adb::DeviceState::Unknown);
-    }
-    if (!esp32Usable(row)) {
-        return {tr("In use"), DevicePresentation::Tone::Warn, -1, false, 2};
-    }
-    return DevicePresentation::of(phase, row.session.failure, true, adb::DeviceState::Device);
-}
-
-void DeviceManager::disconnectBoard(const QString& serial)
-{
-    const int index = indexOf(serial);
-    if (index < 0 || !isEsp32Row(m_rows[static_cast<std::size_t>(index)])) {
-        return;
-    }
-    const std::string where = m_rows[static_cast<std::size_t>(index)].esp32Where.toStdString();
-    const bool wifi = m_rows[static_cast<std::size_t>(index)].esp32Wifi;
-    disconnectDevice(serial);
-    if (m_esp32 != nullptr) {
-        m_esp32->dismiss(where, wifi);
-    }
-}
-
-QVariantList DeviceManager::esp32Ports() const
-{
-    return Esp32Panel::portsOf(esp32::listSerialPorts());
-}
-
 void DeviceManager::syncProvided()
 {
     const NativeExtensions* native = m_extensions != nullptr ? m_extensions->native() : nullptr;
@@ -10232,9 +9961,7 @@ void DeviceManager::syncProvided()
         native != nullptr ? native->providedDevices() : std::vector<ProvidedDevice>{};
     std::set<QString> present;
     for (const ProvidedDevice& device : devices) {
-        const QString serial = QStringLiteral("box:%1/%2/%3")
-                                   .arg(QString::fromStdString(device.extension), QString::fromStdString(device.provider),
-                                        QString::fromStdString(device.id));
+        const QString serial = touchBoxSerial(device);
         present.insert(serial);
         if (const int found = indexOf(serial); found >= 0) {
             Row& row = m_rows[static_cast<std::size_t>(found)];
@@ -10265,6 +9992,11 @@ void DeviceManager::syncProvided()
             removeRow(i);
         } else {
             rowChanged(i);
+        }
+    }
+    for (std::size_t index = 0; index < m_rows.size(); ++index) {
+        if (m_rows[index].capture != nullptr) {
+            rowChanged(static_cast<int>(index));
         }
     }
     emit countsChanged();
@@ -10414,19 +10146,19 @@ void DeviceManager::connectProvided(Row& row)
         return;
     }
     const QString serial = row.serial;
-    if (row.esp32 == nullptr) {
-        row.esp32 = new Esp32Session(row.name(), this, row.provided->touchMethod);
-        connect(row.esp32, &Esp32Session::stateChanged, this,
+    if (row.touchBox == nullptr) {
+        row.touchBox = new TouchBoxSession(row.name(), row.provided->touchMethod, this);
+        connect(row.touchBox, &TouchBoxSession::stateChanged, this,
                 [this, serial](const session::SessionState& state) { sessionChanged(serial, state); });
-        connect(row.esp32, &Esp32Session::padLinkChanged, this,
-                [this, channel = row.esp32->channel()] { m_input->padLinkChanged(channel); });
+        connect(row.touchBox, &TouchBoxSession::padLinkChanged, this,
+                [this, channel = row.touchBox->channel()] { m_input->padLinkChanged(channel); });
     }
     const int turn = controlTurnOf(row);
     row.rotation = rotationOf(static_cast<ControlTurn>(turn));
     qInfo("controlling a phone through %s from %s, without a picture", qUtf8Printable(row.provided->name),
           qUtf8Printable(row.provided->extensionName));
     TouchMethodSource* source = m_extensions != nullptr ? m_extensions->touchSource() : nullptr;
-    row.esp32->start(source, serial.toStdString(), row.rotation, controlCanvasOf(row, turn));
+    row.touchBox->start(source, serial.toStdString(), row.rotation, controlCanvasOf(row, turn));
 }
 
 void DeviceManager::startProvidedJob(Row& row, const QString& job, const QString& title)
