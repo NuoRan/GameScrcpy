@@ -27,6 +27,12 @@ Dialog {
     readonly property var permissions: info.permissions ?? []
     readonly property var dependencies: info.dependencies ?? []
     readonly property var problems: info.problems ?? []
+    readonly property bool needsNewer: dialog.problems.some(problem => problem.code === "host-api-missing"
+                                                                       || problem.code === "host-api-version")
+    readonly property bool madeForOlder: dialog.problems.some(problem => problem.code === "host-api-outdated")
+    readonly property string compatibilityText: [dialog.needsNewer ? qsTr("Needs a newer GameScrcpy") : "",
+                                                 dialog.madeForOlder ? qsTr("Made for an older GameScrcpy") : ""]
+                                               .filter(part => part !== "").join(" · ")
     readonly property var security: info.security ?? ({})
     readonly property bool nativeCode: dialog.security.native === true
     readonly property bool refused: dialog.nativeCode && dialog.security.refused === true
@@ -183,6 +189,15 @@ Dialog {
                 color: Theme.colors.dangerText
                 font.pixelSize: Theme.type.body.size
                 wrapMode: Text.Wrap
+            }
+
+            InlineAlert {
+                objectName: "installCompatibility"
+                width: parent.width
+                visible: dialog.compatibilityText !== ""
+                tone: "bad"
+                title: dialog.compatibilityText
+                detail: qsTr("Ask its author for a version made for this GameScrcpy, or check for updates.")
             }
 
             Column {

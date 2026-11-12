@@ -17,6 +17,7 @@ Window {
     color: Theme.colors.bgBase
 
     property bool wasMaximized: false
+    property bool extensionsNoticeWanted: false
     property AiWindow assistantWindow: null
     readonly property var pageNames: ["devices", "profiles", "tasks", "extensions", "settings"]
     readonly property var extensionPages: ExtensionPanels.panels.filter(entry => entry.where === "page")
@@ -91,6 +92,24 @@ Window {
 
     function notify(message: string, tone: string) {
         toast.show(message, tone)
+    }
+
+    function reviewExtensions() {
+        extensionsNotice.list = ExtensionHost.versionBlocked
+        if (extensionsNotice.list.length === 0)
+            return
+        root.extensionsNoticeWanted = true
+        Qt.callLater(root.maybeShowExtensionsNotice)
+    }
+
+    function maybeShowExtensionsNotice() {
+        if (!root.extensionsNoticeWanted || extensionsNotice.visible)
+            return
+        if (setupGuide.visible || sponsorDialog.visible || commandPalette.visible || about.visible
+                || installDialog.visible || bundleDialog.visible || recordingDialog.visible)
+            return
+        root.extensionsNoticeWanted = false
+        extensionsNotice.open()
     }
 
     function exportDiagnostics() {
@@ -251,6 +270,7 @@ Window {
         property: "toursQuiet"
         value: setupGuide.visible || sponsorDialog.visible || commandPalette.visible || about.visible
                || installDialog.visible || bundleDialog.visible || recordingDialog.visible
+               || extensionsNotice.visible
     }
 
     Binding {
@@ -889,6 +909,7 @@ Window {
         id: commandPalette
 
         backdrop: panel
+        onClosed: root.maybeShowExtensionsNotice()
     }
 
     Dialog {
@@ -899,6 +920,7 @@ Window {
         rejectText: ""
         alternativeText: qsTr("Sponsor")
         onAlternativeChosen: Qt.openUrlExternally(AppInfo.sponsorUrl)
+        onClosed: root.maybeShowExtensionsNotice()
 
         Column {
             width: parent.width
@@ -925,18 +947,26 @@ Window {
 
     GuideOverlay {
         id: setupGuide
+
+        onClosed: root.maybeShowExtensionsNotice()
     }
 
     SponsorDialog {
         id: sponsorDialog
+
+        onClosed: root.maybeShowExtensionsNotice()
     }
 
     InstallDialog {
         id: installDialog
+
+        onClosed: root.maybeShowExtensionsNotice()
     }
 
     BundleDialog {
         id: bundleDialog
+
+        onClosed: root.maybeShowExtensionsNotice()
     }
 
     RecordingDialog {
@@ -944,6 +974,17 @@ Window {
 
         objectName: "recordingDialog"
         onNotified: message => root.notify(message, "bad")
+        onClosed: root.maybeShowExtensionsNotice()
+    }
+
+    ExtensionCompatibilityDialog {
+        id: extensionsNotice
+
+        onCheckRequested: {
+            rail.currentIndex = 3
+            ExtensionUpdates.check()
+        }
+        onExtensionsRequested: rail.currentIndex = 3
     }
 
     McpPrompts {

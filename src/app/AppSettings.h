@@ -113,6 +113,9 @@ public:
     void countLaunch();
     [[nodiscard]] int sponsorMilestone() const;
     Q_INVOKABLE void markSponsorAsked(int milestone);
+    [[nodiscard]] QString lastVersion() const;
+    void setLastVersion(const QString& version);
+    [[nodiscard]] bool settingsFileExisted() const noexcept { return m_settingsExisted; }
     void flush();
 
     [[nodiscard]] QString language() const;
@@ -147,6 +150,7 @@ private:
 
     static inline AppSettings* s_instance = nullptr;
 
+    bool m_settingsExisted = false;
     JsonFile<settings::Settings> m_file;
     JsonFile<settings::Devices> m_devices;
     std::map<QString, Placed> m_placed;

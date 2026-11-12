@@ -816,6 +816,17 @@ const ext::HostApi& extensionHostApi()
     return ext::currentHostApi();
 }
 
+bool reviewExtensionsAfterStart(const QString& last, const QString& current, bool settingsExisted)
+{
+    if (current.isEmpty()) {
+        return false;
+    }
+    if (!last.isEmpty()) {
+        return last != current;
+    }
+    return settingsExisted;
+}
+
 QString extensionSettingPath(std::string_view id, std::string_view key)
 {
     return QStringLiteral("ext:") + QString::fromUtf8(id.data(), static_cast<qsizetype>(id.size())) + u'/' +
@@ -1774,6 +1785,15 @@ QVariantMap ExtensionHost::inspect(const QString& fileOrUrl) const
         if (installed != nullptr) {
             result.insert(QStringLiteral("changes"), changesMap(*installed->manifest, *check.manifest));
         }
+        std::vector<ext::Diagnostic> incompatible = ext::checkCompatibility(*check.manifest, ext::currentHostApi());
+        if (ext::hasErrors(incompatible)) {
+            refused = true;
+            QVariantList listed = problemList(incompatible);
+            for (const QVariant& problem : problems) {
+                listed.append(problem);
+            }
+            problems = std::move(listed);
+        }
     }
     result.insert(QStringLiteral("ok"), check.ok() && !builtin && !refused);
     result.insert(QStringLiteral("problems"), problems);
@@ -2341,6 +2361,43 @@ std::vector<ext::Diagnostic> ExtensionHost::problemsOf(std::string_view id) cons
     std::ranges::copy_if(m_problems, std::back_inserter(found),
                          [&](const ext::Diagnostic& problem) { return problem.path.starts_with(prefix); });
     return found;
+}
+
+QVariantList ExtensionHost::versionBlockedExtensions() const
+{
+    const settings::ExtensionStates& states = m_settings.extensions();
+    const QString language = m_settings.interfaceLanguage();
+    std::set<std::string, std::less<>> listed;
+    QVariantList rows;
+    for (const Extension& extension : m_extensions) {
+        if (!extension.manifest || extension.superseded || extension.active || !extension.usable()) {
+            continue;
+        }
+        const ext::Manifest& manifest = *extension.manifest;
+        const auto state = states.find(manifest.id);
+        if (state == states.end() || !state->second.enabled) {
+            continue;
+        }
+        std::optional<ext::Code> reason;
+        for (const ext::Diagnostic& problem : problemsOf(manifest.id)) {
+            if (problem.code == ext::Code::HostApiMissing || problem.code == ext::Code::HostApiVersion) {
+                reason = problem.code;
+                break;
+            }
+            if (problem.code == ext::Code::HostApiOutdated) {
+                reason = problem.code;
+            }
+        }
+        if (!reason || !listed.insert(manifest.id).second) {
+            continue;
+        }
+        rows.append(QVariantMap{{QStringLiteral("id"), QString::fromStdString(manifest.id)},
+                                {QStringLiteral("name"), extensionText(manifest, "name", manifest.name, language)},
+                                {QStringLiteral("version"), QString::fromStdString(manifest.version.text())},
+                                {QStringLiteral("reason"), toQString(ext::codeName(*reason))},
+                                {QStringLiteral("updates"), manifest.updates.has_value()}});
+    }
+    return rows;
 }
 
 std::vector<render::VideoFilter> ExtensionHost::filters(const std::string& deviceId) const

@@ -34,7 +34,10 @@ inline constexpr std::array<std::string_view, 3> kLanguageNames{"system", "zh_CN
 [[nodiscard]] bool languageTag(std::string_view text) noexcept;
 
 struct General {
+    static constexpr std::size_t kMaxVersionLength = 64;
+
     std::string language = std::string(kLanguageNames.front());
+    std::string lastVersion;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -45,6 +48,7 @@ struct General {
                         "Settings", "Following Windows shows Chinese on a Chinese Windows and English elsewhere."),
                     .keywords = GS_TRANSLATE_NOOP("Settings", "language chinese english locale"),
                     .live = true});
+        v.text("lastVersion", m.lastVersion, kMaxVersionLength);
     }
 
     friend bool operator==(const General&, const General&) = default;

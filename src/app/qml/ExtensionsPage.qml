@@ -201,6 +201,8 @@ Item {
         case "host-api-missing":
         case "host-api-version":
             return qsTr("Needs a newer GameScrcpy")
+        case "host-api-outdated":
+            return qsTr("Made for an older GameScrcpy")
         case "dependency-missing":
             return qsTr("Needs an extension that is not installed")
         case "dependency-version":

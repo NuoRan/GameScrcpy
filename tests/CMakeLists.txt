@@ -420,6 +420,7 @@ if(GS_BUILD_APP)
             unit/app/DiagnosticsBundleTests.cpp
             unit/app/DraftDiffTests.cpp
             unit/app/ExtensionBisectTests.cpp
+            unit/app/ExtensionCompatibilityTests.cpp
             unit/app/ExtensionHostInstallTests.cpp
             unit/app/ExtensionHostListTests.cpp
             unit/app/ExtensionHostTests.cpp

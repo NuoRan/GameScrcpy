@@ -55,6 +55,7 @@ struct ExtensionRoots {
 };
 
 [[nodiscard]] const ext::HostApi& extensionHostApi();
+[[nodiscard]] bool reviewExtensionsAfterStart(const QString& last, const QString& current, bool settingsExisted);
 [[nodiscard]] QString extensionSettingPath(std::string_view id, std::string_view key);
 [[nodiscard]] QString extensionText(const ext::Manifest& manifest, std::string_view key, std::string_view fallback,
                                     const QString& language);
@@ -77,6 +78,7 @@ class ExtensionHost : public QObject
     Q_PROPERTY(QVariantList nativeAttachments READ nativeAttachments NOTIFY nativeChanged FINAL)
     Q_PROPERTY(QVariantList nativeBehaviors READ nativeBehaviors NOTIFY nativeChanged FINAL)
     Q_PROPERTY(int addOnsRevision READ addOnsRevision NOTIFY addOnsChanged FINAL)
+    Q_PROPERTY(QVariantList versionBlocked READ versionBlockedExtensions NOTIFY extensionsChanged FINAL)
 
 public:
     enum class Mode : std::uint8_t { Normal, SafeRequested, SafeAfterCrash };
@@ -134,6 +136,7 @@ public:
     [[nodiscard]] QVariantList nativeAttachments() const;
     [[nodiscard]] QVariantList nativeBehaviors() const;
     [[nodiscard]] int addOnsRevision() const noexcept { return m_addOnsRevision; }
+    [[nodiscard]] QVariantList versionBlockedExtensions() const;
     [[nodiscard]] const ExtensionHealth& health() const noexcept { return *m_health; }
     [[nodiscard]] std::string diagnosticsText() const;
     [[nodiscard]] std::vector<std::filesystem::path> crashFolders() const;

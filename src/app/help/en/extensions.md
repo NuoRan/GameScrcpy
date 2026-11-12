@@ -70,6 +70,12 @@ When the new version asks for more permissions or dependencies than before, the 
 
 For an extension without an update list, download the new version from its author and install it from the file or a link as usual. The install dialog says "Replaces version …", and the extension's settings and the permissions you allowed are kept.
 
+## When an extension does not fit this GameScrcpy {#compatibility}
+
+An extension is written for the interfaces of the GameScrcpy versions it knows. One that needs a newer GameScrcpy says "Needs a newer GameScrcpy" on its card and does not load, and one made for an older GameScrcpy that no longer works with this one says "Made for an older GameScrcpy". The install dialog names the same reason and does not let you install such a package.
+
+After GameScrcpy is updated, the first start that finishes with your extensions lists the extensions you had turned on that this version does not open because of their version, with their names, versions and the reason. Choose **Check for updates** when one of them names an update list, **Open Extensions** to look at its card, or **Close**. For a version you already started once, the list does not come back.
+
 ## When something goes wrong {#trouble}
 
 - :circle-x: **Turned off by itself**: when an extension's process stops three times within a minute, or its attachments or behaviors fail three times within 10 seconds, GameScrcpy turns it off and the card says why. Once the author fixes it and you update to the new version, turn the switch on to try again.

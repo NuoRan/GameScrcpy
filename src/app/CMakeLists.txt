@@ -39,6 +39,7 @@ qt_add_qml_module(GameScrcpy
         qml/DeviceCard.qml
         qml/DevicePanelSheet.qml
         qml/DevicesPage.qml
+        qml/ExtensionCompatibilityDialog.qml
         qml/ExtensionLook.js
         qml/ExtensionSettingsSheet.qml
         qml/ExtensionsPage.qml

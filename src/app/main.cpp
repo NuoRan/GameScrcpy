@@ -436,6 +436,10 @@ int main(int argc, char* argv[])
                    .log = logFile.path()});
     extensions.start(parser.isSet(safeMode), data / "extensions.running", data / "extensions-bisect.json");
     logExtensions(extensions);
+    const QString versionNow = gs::app::toQString(gs::buildInfo().version);
+    const bool reviewVersionBlocked =
+        gs::app::reviewExtensionsAfterStart(settings.lastVersion(), versionNow, settings.settingsFileExisted());
+    settings.setLastVersion(versionNow);
     gs::app::watchLanguageHelp(help, languagePacks);
     languagePacks.follow(extensions);
     profiles.setExtensionProfiles(extensions.profiles());
@@ -733,6 +737,10 @@ int main(int argc, char* argv[])
             qInfo("hub window shown %lld ms after the process started",
                   static_cast<long long>(gs::platform::millisecondsSinceProcessStart()));
         }, Qt::QueuedConnection);
+        if (reviewVersionBlocked && !parser.isSet(gallery) &&
+            !QMetaObject::invokeMethod(hub, "reviewExtensions", Qt::QueuedConnection)) {
+            qWarning("the notice about extensions that do not fit this GameScrcpy could not be shown");
+        }
     }
     QObject::connect(&languagePacks, &gs::app::LanguagePacks::translationsChanged, &app, [&] {
         engine.retranslate();

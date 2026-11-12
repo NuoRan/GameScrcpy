@@ -24,6 +24,7 @@
 #include <chrono>
 #include <functional>
 #include <optional>
+#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -89,6 +90,12 @@ std::pair<QStringList, QJsonObject> changesOf(const settings::Settings& before, 
     return changes;
 }
 
+bool settingsFileThere(const std::filesystem::path& directory)
+{
+    std::error_code error;
+    return std::filesystem::exists(directory / "settings.json", error);
+}
+
 }
 
 std::filesystem::path dataDirectory()
@@ -106,6 +113,7 @@ std::filesystem::path dataDirectory()
 
 AppSettings::AppSettings(const std::filesystem::path& directory, QObject* parent)
     : QObject(parent),
+      m_settingsExisted(settingsFileThere(directory)),
       m_file(directory / "settings.json", std::chrono::milliseconds(500), [this] { reportBusy(); }),
       m_devices(directory / "devices.json", std::chrono::milliseconds(500), [this] { reportBusy(); })
 {
@@ -703,6 +711,22 @@ void AppSettings::markSponsorAsked(int milestone)
     next.hints.sponsorAsked = milestone;
     m_file.update(next);
     emit hintsChanged();
+}
+
+QString AppSettings::lastVersion() const
+{
+    return QString::fromStdString(m_file.document().general.lastVersion);
+}
+
+void AppSettings::setLastVersion(const QString& version)
+{
+    const std::string text = version.toStdString();
+    if (text.size() > settings::General::kMaxVersionLength || text == m_file.document().general.lastVersion) {
+        return;
+    }
+    settings::Settings next = m_file.document();
+    next.general.lastVersion = text;
+    m_file.update(next);
 }
 
 void AppSettings::flush()
