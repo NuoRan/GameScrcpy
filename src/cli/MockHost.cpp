@@ -2771,7 +2771,10 @@ std::vector<MockCliOption> cliOptions(const ext::Manifest& manifest, const ext::
         if (listed != command.params.end()) {
             option.description = listed->description;
             if (!listed->defaultValue.empty()) {
-                option.fallback = Json::parse(listed->defaultValue, nullptr, false);
+                const Json fallback = Json::parse(listed->defaultValue, nullptr, false);
+                if (!fallback.is_discarded()) {
+                    option.fallback = fallback;
+                }
             }
         }
         options.push_back(std::move(option));

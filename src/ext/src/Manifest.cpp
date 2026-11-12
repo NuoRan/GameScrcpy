@@ -969,6 +969,9 @@ void checkEntry(const CliContribution& command, const std::string& path, Context
 
 bool fitsNativeType(std::string_view type, const Json& value)
 {
+    if (value.is_discarded()) {
+        return false;
+    }
     const auto numeric = [&value](const char* key) { return value.contains(key) && value.at(key).is_number(); };
     if (type == "boolean") {
         return value.is_boolean();

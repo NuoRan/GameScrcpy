@@ -464,3 +464,36 @@ TEST_CASE("ADR-0112: a test file or a json option nested more than 64 levels dee
             .has_value());
     CHECK(problem == "--phrases is nested more than 64 levels deep");
 }
+
+TEST_CASE("ADR-0112: a cli option whose default is not JSON leaves the option without a default, so that gs ext still "
+          "prints the help of the command and says which option is missing")
+{
+    TempFolder scratch("gs-mock-tests");
+    const MockExtension extension = openMockExtension(nativeFolder(scratch, kTestDll), {});
+    REQUIRE_MESSAGE(extension.usable(), extension.problem);
+    gs::ext::Manifest manifest = *extension.manifest;
+    manifest.contributes.cli.push_back(gs::ext::CliContribution{
+        .name = "hear",
+        .description = {},
+        .job = "hear",
+        .params = {gs::ext::CliParam{.name = "phrases", .description = {}, .defaultValue = "1, 2"}}});
+    const gs::ext::CliContribution& hear = manifest.contributes.cli.back();
+    const std::vector<MockCliOption> options = cliOptions(manifest, hear);
+    REQUIRE(options.size() == 3);
+    CHECK(options[0].name == "phrases");
+    CHECK(options[0].type == "json");
+    CHECK_FALSE(options[0].fallback.has_value());
+
+    std::string problem;
+    CHECK_FALSE(cliArguments(manifest, hear, {{"language", "en"}, {"confidence", "0.5"}}, problem).has_value());
+    CHECK(problem == "hear needs --phrases");
+
+    manifest.contributes.cli.back().params[0].defaultValue = R"(["jump"])";
+    const std::vector<MockCliOption> filled = cliOptions(manifest, hear);
+    REQUIRE(filled.size() == 3);
+    REQUIRE(filled[0].fallback.has_value());
+    CHECK(*filled[0].fallback == Json::array({"jump"}));
+    const std::optional<Json> args = cliArguments(manifest, hear, {{"language", "en"}, {"confidence", "0.5"}}, problem);
+    REQUIRE_MESSAGE(args.has_value(), problem);
+    CHECK(args->at("phrases") == Json::array({"jump"}));
+}
