@@ -8,8 +8,8 @@
   "license": "Apache-2.0",
   "repository": "https://github.com/NuoRan/GameScrcpy",
   "requires": {
-    "script": "^1.0",
-    "panel": "^1.0"
+    "script": "^1.1",
+    "panel": "^1.1"
   },
   "contributes": {
     "scripts": [

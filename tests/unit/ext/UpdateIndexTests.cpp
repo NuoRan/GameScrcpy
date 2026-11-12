@@ -1,5 +1,7 @@
 #include "gs/ext/UpdateIndex.h"
 
+#include "gs/ext/Resolution.h"
+
 #include <doctest/doctest.h>
 #include <nlohmann/json.hpp>
 
@@ -249,6 +251,30 @@ TEST_CASE("ADR-0112: the version offered is the newest one above the installed o
     CHECK_FALSE(runsOn(feel.releases[3], newer));
     CHECK(runsOn(feel.releases[1], HostApi{}));
     CHECK_FALSE(runsOn(feel.releases[2], HostApi{}));
+}
+
+TEST_CASE("ADR-0113: a release made for an older GameScrcpy is not offered on this one")
+{
+    Json outdated = release("1.2.0");
+    outdated["requires"] = {{"native", "^1.0"}};
+    Json fits = release("1.3.0");
+    fits["requires"] = {{"native", "^2.0"}};
+    const ReadIndex result = read(single(Json::array({outdated, fits})));
+    REQUIRE_MESSAGE(result.index.has_value(), result.problem);
+    const IndexedExtension& feel = result.index->extensions.front();
+
+    CHECK_FALSE(runsOn(feel.releases[0], currentHostApi()));
+    CHECK(runsOn(feel.releases[1], currentHostApi()));
+    const IndexedRelease* offered = offeredRelease(feel, *Version::parse("1.0.0"), currentHostApi());
+    REQUIRE(offered != nullptr);
+    CHECK(offered->version.text() == "1.3.0");
+
+    const HostApi one = hostWith(ExtensionPoint::Native, "1.0.0");
+    CHECK(runsOn(feel.releases[0], one));
+    CHECK_FALSE(runsOn(feel.releases[1], one));
+    offered = offeredRelease(feel, *Version::parse("1.0.0"), one);
+    REQUIRE(offered != nullptr);
+    CHECK(offered->version.text() == "1.2.0");
 }
 
 TEST_CASE("ADR-0112: update addresses are https with a host and without a user name")

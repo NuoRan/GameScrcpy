@@ -7,7 +7,7 @@
 ## 脚本
 
 ```json
-"requires": { "script": "^1.0" },
+"requires": { "script": "^1.1" },
 "contributes": {
   "scripts": [
     { "name": "main", "entry": "src/main.ts", "run": "app" },

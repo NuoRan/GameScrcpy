@@ -232,6 +232,23 @@ TEST_CASE("an extension whose dependency is missing or whose extension point the
     CHECK(filters[1].id == "alice.needs/Glow");
 }
 
+TEST_CASE("ADR-0113: an extension made for native interface 1 stays off as outdated")
+{
+    const Fixture fixture;
+    writeFile(fixture.user / "bob.old/manifest.json",
+              R"({"schemaVersion": 1, "id": "bob.old", "version": "1.0.0", "name": "Old", "license": "MIT",
+                  "requires": {"native": "^1.0"}, "contributes": {"native": {"dll": "native.dll"}}})");
+    writeFile(fixture.user / "bob.old/native.dll", "a DLL for interface 1, never loaded");
+    AppSettings settings(fixture.data);
+    ExtensionHost host(settings, {fixture.user, {}});
+    host.start(false);
+    REQUIRE(host.setEnabled("bob.old", true));
+    INFO(listed(host.problems()));
+    CHECK(reports(host.problemsOf("bob.old"), gs::ext::Code::HostApiOutdated,
+                  R"($["bob.old"].requires["native"])"));
+    CHECK_FALSE(activeVersion(host, "bob.old", "1.0.0"));
+}
+
 TEST_CASE("every permission an extension can ask for is shown by its own title rather than its name")
 {
     const Fixture fixture;

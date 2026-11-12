@@ -14,6 +14,8 @@ struct HostApi {
     std::map<ExtensionPoint, std::vector<Version>> versions;
 };
 
+[[nodiscard]] const HostApi& currentHostApi();
+[[nodiscard]] std::optional<VersionRange> requirementFor(ExtensionPoint point);
 [[nodiscard]] std::vector<Diagnostic> checkCompatibility(const Manifest& manifest, const HostApi& host);
 
 struct Selected {

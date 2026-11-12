@@ -9,7 +9,7 @@
   "repository": "https://github.com/NuoRan/GameScrcpy",
   "requires": {
     "script": "^1.0",
-    "panel": "^1.0",
+    "panel": "^1.1",
     "help": "^1.0",
     "tour": "^1.0"
   },

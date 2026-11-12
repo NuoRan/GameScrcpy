@@ -12,6 +12,7 @@
 #include <gs/ext/Manifest.h>
 #include <gs/ext/NativeCheck.h>
 #include <gs/ext/Package.h>
+#include <gs/ext/Resolution.h>
 #include <gs/ext/Signing.h>
 #include <gs/input/Profile.h>
 #include <gs/input/ProfilePatch.h>
@@ -394,6 +395,11 @@ ext::PackageCheck inspect(const fs::path& input, bool folder, const ext::LoadOpt
         const Reader reader = readerFor(input, folder);
         compileFilters(*check.manifest, reader, compiler, check.diagnostics);
         checkProfiles(*check.manifest, reader, check.diagnostics);
+    }
+    if (check.manifest) {
+        std::vector<ext::Diagnostic> compatibility =
+            ext::checkCompatibility(*check.manifest, ext::currentHostApi());
+        check.diagnostics.insert(check.diagnostics.end(), compatibility.begin(), compatibility.end());
     }
     return check;
 }

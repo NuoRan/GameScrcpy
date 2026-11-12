@@ -8,7 +8,7 @@
   "license": "Apache-2.0",
   "repository": "https://github.com/NuoRan/GameScrcpy",
   "requires": {
-    "native": "^1.0"
+    "native": "^2.0"
   },
   "contributes": {
     "native": {

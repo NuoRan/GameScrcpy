@@ -16,7 +16,7 @@
   "authors": ["Alice"],
   "license": "MIT",
   "repository": "https://github.com/alice/lap-timer",
-  "requires": { "script": "^1.0", "panel": "^1.0", "help": "^1.0" },
+  "requires": { "script": "^1.1", "panel": "^1.0", "help": "^1.0" },
   "dependencies": { "alice.common": "^2.0" },
   "contributes": {
     "scripts": [
@@ -102,7 +102,44 @@ The keys of `requires` are extension points (`theme`, `filter`, `profile`, `comp
 | `1.2.3` or `=1.2.3` | Exactly this version |
 | `*` | Any version |
 
-A version with a prerelease tag matches only a range that names a prerelease of the same version. Every extension point of GameScrcpy 2.1.0 is at 1.0, so write `^1.0`.
+A version with a prerelease tag matches only a range that names a prerelease of the same version.
+
+#### How the version of an extension point grows
+
+A version has a major and a minor part:
+
+- When GameScrcpy adds to an extension point (new manifest fields, contributions, script interfaces, native host functions, events), the minor version grows and extensions written for the old one keep working.
+- When it changes or removes something, so that an extension written for the old version no longer runs as it did, the major version grows and the program offers only the new major.
+- Tightening a single field or permission (such as the fixed paths of `files.paths` in 2.1) does not grow the major version; the install and load checks warn about extensions that use it.
+
+Write the version you built against: when you use something a minor version added, write that minor version; `^1.0` is still accepted by 1.1, so write `^1.0` when you use nothing new.
+
+| Extension point | 2.0.0 offers | 2.1.0 offers | What 2.1.0 added |
+|:--|:--|:--|:--|
+| `filter` | 1.0 | 1.0 | — |
+| `theme` | 1.0 | 1.0 | — |
+| `profile` | 1.0 | 1.0 | — |
+| `script` | 1.0 | 1.1 | New script interfaces `net`, `files`, `speech`, `events` and `media`, `ext.provide` and `ext.call`, converters, new places of `ui.*` |
+| `panel` | 1.0 | 1.1 | New places `device`, `settings`, `extension`, `toolbar`, `contextMenu` and `tray`, and `on` |
+| `component` | 1.0 | 1.1 | Component scripts can use the new script interfaces |
+| `task` | 1.0 | 1.1 | Task scripts can use the new script interfaces |
+| `native` | 1.0 | 2.0 | Interface 2: `gs_ext_main`, jobs, events, settings, device providers, speech engines, input sources, transports, media, frame taps, vision engines, AI providers, the restricted sandbox |
+| `help` | — | 1.0 | New in 2.1 |
+| `tour` | — | 1.0 | New in 2.1 |
+| `locale` | — | 1.0 | New in 2.1 |
+| `command`, `preset` | — | — | Not offered yet |
+
+#### The three results of the check
+
+When it loads an extension, GameScrcpy checks `requires` against the table above: an extension that does not fit is not turned on, and its card says which of the three it is. `gs validate` and `gs pack` report the same three results, each with how to fix it.
+
+| Code | Meaning | What the card says |
+|:--|:--|:--|
+| `host-api-missing` | The program does not have this extension point | Needs a newer GameScrcpy |
+| `host-api-version` | The version asked for is newer than the program offers | Needs a newer GameScrcpy |
+| `host-api-outdated` | Every version the program offers lies above the range: the extension was made for an older GameScrcpy | Made for an older GameScrcpy |
+
+A range with only a lower bound (such as `>=1.0`) is never `host-api-outdated`. An extension made for an older version has to write the version the program offers, such as `"native": "^2.0"`; the user asks the author for a new version or checks for updates. The first time GameScrcpy starts after an update it lists the extensions you had turned on that no longer open for one of these reasons, with "Check for updates" and "Open Extensions".
 
 ### `dependencies`
 
@@ -458,6 +495,7 @@ Each result of `gs validate` has a code and a hint; these are the ones met most 
 | `version-invalid`, `range-invalid` | A version or version range is not written right |
 | `path-invalid`, `file-missing` | A package path is not written right, or the file is not in the package |
 | `extension-point-unknown`, `contribution-undeclared` | An unknown extension point, or a contribution without its extension point |
+| `host-api-missing`, `host-api-version`, `host-api-outdated` | The program does not have this extension point, the version asked for is newer than it offers, or the extension was made for an older program (see "The three results of the check" above) |
 | `permission-unknown`, `permission-reason-missing`, `permission-not-allowed`, `permission-never-granted` | An unknown permission, no reason, a kind of extension that cannot ask for permissions, or `adb.shell` |
 | `permission-hosts-missing`, `permission-host-invalid`, `permission-any-host` | `hosts` of `network` missing, not written right, or only `*` (a warning) |
 | `permission-paths-missing`, `permission-paths-fixed`, `permission-field-unused` | `files.paths` without `folders`; `paths` that do nothing (a warning); a field on a permission it does not belong to (a warning) |

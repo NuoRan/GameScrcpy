@@ -7,7 +7,7 @@ The logic of an extension is written in TypeScript (or JavaScript) against the s
 ## Scripts
 
 ```json
-"requires": { "script": "^1.0" },
+"requires": { "script": "^1.1" },
 "contributes": {
   "scripts": [
     { "name": "main", "entry": "src/main.ts", "run": "app" },

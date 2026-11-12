@@ -78,7 +78,7 @@ constexpr std::string_view kSecondSignature =
 std::string nativeManifest(std::string_view id, std::string_view more = {})
 {
     return R"({"schemaVersion": 1, "id": ")" + std::string(id) + R"(", "version": "1.0.0", "name": "Helper",
-        "license": "MIT", "requires": {"native": "^1.0"}, "contributes": {"native": {"dll": "bin/helper.dll"}})" +
+        "license": "MIT", "requires": {"native": "^2.0"}, "contributes": {"native": {"dll": "bin/helper.dll"}})" +
            std::string(more) + "}";
 }
 
@@ -272,7 +272,7 @@ TEST_CASE("ADR-0112: a restricted DLL shows as restricted in the install dialog:
                                       {"shell32.dll", {"ShellExecuteW"}}}};
     const std::string restricted =
         R"({"schemaVersion": 1, "id": "alice.restricted", "version": "1.0.0", "name": "Helper", "license": "MIT",
-            "requires": {"native": "^1.0"},
+            "requires": {"native": "^2.0"},
             "contributes": {"native": {"dll": "bin/helper.dll", "sandbox": "restricted"}},
             "permissions": [{"name": "hardware", "reason": "Talks to its board."}]})";
     const fs::path archive = fixture.pack("restricted", restricted, layout);

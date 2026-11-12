@@ -16,7 +16,7 @@
   "authors": ["Alice"],
   "license": "MIT",
   "repository": "https://github.com/alice/lap-timer",
-  "requires": { "script": "^1.0", "panel": "^1.0", "help": "^1.0" },
+  "requires": { "script": "^1.1", "panel": "^1.0", "help": "^1.0" },
   "dependencies": { "alice.common": "^2.0" },
   "contributes": {
     "scripts": [
@@ -102,7 +102,44 @@
 | `1.2.3` 或 `=1.2.3` | 恰好这个版本 |
 | `*` | 任何版本 |
 
-带预发布标签的版本只有在范围里写了同一个版本号的预发布时才算满足。GameScrcpy 2.1.0 的每个扩展点都是 1.0，所以写 `^1.0`。
+带预发布标签的版本只有在范围里写了同一个版本号的预发布时才算满足。
+
+#### 扩展点版本怎么定
+
+扩展点的版本是"主.次"：
+
+- GameScrcpy 给一个扩展点加东西（新的清单字段、贡献、脚本接口、原生宿主函数、事件）时升次版本，按旧版本写的扩展照常能用。
+- 改掉或去掉已有的东西、按旧版本写的扩展因此不能照常运行时升主版本，程序只提供新的主版本。
+- 个别字段或权限的收紧（如 2.1 里 `files.paths` 的固定路径）不升主版本，由安装与载入的检查对用到它的扩展给警告。
+
+写 `requires` 时写你照着写的那个版本：用到某个次版本才有的东西，就写那个次版本；`^1.0` 也照常被 1.1 接受，不打算用新东西时写 `^1.0` 就好。
+
+| 扩展点 | 2.0.0 提供 | 2.1.0 提供 | 2.1.0 加了什么 |
+|:--|:--|:--|:--|
+| `filter` | 1.0 | 1.0 | — |
+| `theme` | 1.0 | 1.0 | — |
+| `profile` | 1.0 | 1.0 | — |
+| `script` | 1.0 | 1.1 | `net`、`files`、`speech`、`events`、`media` 等新的脚本接口，`ext.provide` 与 `ext.call`，转换器，`ui.*` 的新位置 |
+| `panel` | 1.0 | 1.1 | 新的位置 `device`、`settings`、`extension`、`toolbar`、`contextMenu`、`tray`，以及 `on` |
+| `component` | 1.0 | 1.1 | 组件脚本能用上面新的脚本接口 |
+| `task` | 1.0 | 1.1 | 任务脚本能用上面新的脚本接口 |
+| `native` | 1.0 | 2.0 | 接口第 2 版：`gs_ext_main`、长任务、事件、设置、设备提供者、语音引擎、输入设备、连接方式、媒体、取帧、识别引擎、AI 服务、受限模式 |
+| `help` | — | 1.0 | 2.1 新加 |
+| `tour` | — | 1.0 | 2.1 新加 |
+| `locale` | — | 1.0 | 2.1 新加 |
+| `command`、`preset` | — | — | 还不提供 |
+
+#### 三种检查结果
+
+GameScrcpy 载入扩展时对照上表检查 `requires`：不满足的扩展不打开，扩展卡片上写明是哪一种。`gs validate` 与 `gs pack` 报同样三种结果，每条都带改法。
+
+| 代码 | 意思 | 卡片上的说法 |
+|:--|:--|:--|
+| `host-api-missing` | 程序没有这个扩展点 | 需要更新版本的 GameScrcpy |
+| `host-api-version` | 要的版本比程序提供的新 | 需要更新版本的 GameScrcpy |
+| `host-api-outdated` | 程序提供的每个版本都比范围允许的新，扩展是为旧版 GameScrcpy 做的 | 为旧版 GameScrcpy 制作 |
+
+只有下界的范围（如 `>=1.0`）永远不会是 `host-api-outdated`。为旧版写的扩展要把 `requires` 改成程序提供的版本，例如 `"native": "^2.0"`；用户则向作者要新版本或检查更新。GameScrcpy 更新后第一次启动时，会列出你开着、却因为这些原因打不开的扩展，并给出“检查更新”与“打开扩展页”。
 
 ### `dependencies`
 
@@ -458,6 +495,7 @@
 | `version-invalid`、`range-invalid` | 版本或版本范围写法不对 |
 | `path-invalid`、`file-missing` | 包内路径写法不对，或文件不在包里 |
 | `extension-point-unknown`、`contribution-undeclared` | 不认识的扩展点，或者贡献了东西却没声明扩展点 |
+| `host-api-missing`、`host-api-version`、`host-api-outdated` | 程序没有这个扩展点、要的版本比程序新，或者是为旧版 GameScrcpy 做的（见上文“三种检查结果”） |
 | `permission-unknown`、`permission-reason-missing`、`permission-not-allowed`、`permission-never-granted` | 不认识的权限、没写理由、这种扩展不能申请权限、申请了 `adb.shell` |
 | `permission-hosts-missing`、`permission-host-invalid`、`permission-any-host` | `network` 的 `hosts` 缺失、写法不对、只写了 `*`（警告） |
 | `permission-paths-missing`、`permission-paths-fixed`、`permission-field-unused` | `files.paths` 没写 `folders`；写了不起作用的 `paths`（警告）；字段用在了别的权限上（警告） |

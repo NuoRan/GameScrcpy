@@ -99,6 +99,8 @@ std::string_view codeName(Code code) noexcept
         return "host-api-missing";
     case Code::HostApiVersion:
         return "host-api-version";
+    case Code::HostApiOutdated:
+        return "host-api-outdated";
     case Code::ArchiveUnreadable:
         return "archive-unreadable";
     case Code::ArchiveTooManyEntries:
@@ -332,6 +334,10 @@ std::string_view fixHint(Code code) noexcept
     case Code::HostApiVersion:
         return "This GameScrcpy offers other interface versions of the extension point; update GameScrcpy or build "
                "against a version it offers.";
+    case Code::HostApiOutdated:
+        return "This extension was made for an older GameScrcpy, which offered only versions below its version range. "
+               "Write the version this GameScrcpy offers, such as \"native\": \"^2.0\", in \"requires\"; ask the "
+               "author for a new version or check for updates.";
     case Code::ArchiveUnreadable:
         return "The file is not a readable zip archive; pack the extension again with \"gs pack\".";
     case Code::ArchiveTooManyEntries:

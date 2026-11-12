@@ -53,26 +53,6 @@ constexpr int kMaxTextureSide = 8192;
 constexpr std::size_t kMaxBisectBytes = 256 * 1024;
 constexpr std::size_t kMaxProfileBytes = 1024 * 1024;
 
-const ext::HostApi& hostApi()
-{
-    static const ext::HostApi api = [] {
-        ext::HostApi offered;
-        offered.versions[ext::ExtensionPoint::Filter] = {ext::Version{1, 0, 0}};
-        offered.versions[ext::ExtensionPoint::Theme] = {ext::Version{1, 0, 0}};
-        offered.versions[ext::ExtensionPoint::Profile] = {ext::Version{1, 0, 0}};
-        offered.versions[ext::ExtensionPoint::Native] = {ext::Version{1, 0, 0}};
-        offered.versions[ext::ExtensionPoint::Component] = {ext::Version{1, 0, 0}};
-        offered.versions[ext::ExtensionPoint::Task] = {ext::Version{1, 0, 0}};
-        offered.versions[ext::ExtensionPoint::Script] = {ext::Version{1, 0, 0}};
-        offered.versions[ext::ExtensionPoint::Panel] = {ext::Version{1, 0, 0}};
-        offered.versions[ext::ExtensionPoint::Help] = {ext::Version{1, 0, 0}};
-        offered.versions[ext::ExtensionPoint::Tour] = {ext::Version{1, 0, 0}};
-        offered.versions[ext::ExtensionPoint::Locale] = {ext::Version{1, 0, 0}};
-        return offered;
-    }();
-    return api;
-}
-
 std::string memberPath(std::string_view id)
 {
     return "$[\"" + std::string(id) + "\"]";
@@ -833,7 +813,7 @@ fs::path profileFolderOf(const fs::path& directory, const std::string& file)
 
 const ext::HostApi& extensionHostApi()
 {
-    return hostApi();
+    return ext::currentHostApi();
 }
 
 QString extensionSettingPath(std::string_view id, std::string_view key)
@@ -2624,7 +2604,7 @@ void ExtensionHost::resolve()
                 state->second.version != manifest.version.text()) {
                 continue;
             }
-            std::vector<ext::Diagnostic> incompatible = ext::checkCompatibility(manifest, hostApi());
+            std::vector<ext::Diagnostic> incompatible = ext::checkCompatibility(manifest, ext::currentHostApi());
             if (ext::hasErrors(incompatible)) {
                 for (ext::Diagnostic& problem : incompatible) {
                     problem.path = memberPath(manifest.id) + problem.path.substr(1);

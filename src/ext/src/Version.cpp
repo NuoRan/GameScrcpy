@@ -264,4 +264,24 @@ bool VersionRange::contains(const Version& version) const
                                [&version](const Comparator& comparator) { return satisfies(comparator, version); });
 }
 
+bool VersionRange::aboveAll(const Version& version) const
+{
+    const Comparator* tightest = nullptr;
+    for (const Comparator& comparator : m_comparators) {
+        const bool upper = comparator.op == Op::Less || comparator.op == Op::LessEqual || comparator.op == Op::Equal;
+        if (!upper) {
+            continue;
+        }
+        if (tightest == nullptr || comparator.version < tightest->version ||
+            (comparator.version == tightest->version && comparator.op == Op::Less)) {
+            tightest = &comparator;
+        }
+    }
+    if (tightest == nullptr) {
+        return false;
+    }
+    const std::strong_ordering order = version <=> tightest->version;
+    return tightest->op == Op::Less ? order >= 0 : order > 0;
+}
+
 }

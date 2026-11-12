@@ -7,7 +7,7 @@
   "authors": ["GameScrcpy"],
   "license": "Apache-2.0",
   "requires": {
-    "native": "^1.0"
+    "native": "^2.0"
   },
   "contributes": {
     "native": {

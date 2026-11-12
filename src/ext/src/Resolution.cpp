@@ -159,6 +159,37 @@ void markCycles(const Choice& chosen, std::set<std::string, std::less<>>& failed
 
 }
 
+const HostApi& currentHostApi()
+{
+    static const HostApi api = [] {
+        HostApi offered;
+        offered.versions[ExtensionPoint::Profile] = {Version{1, 0, 0}};
+        offered.versions[ExtensionPoint::Theme] = {Version{1, 0, 0}};
+        offered.versions[ExtensionPoint::Filter] = {Version{1, 0, 0}};
+        offered.versions[ExtensionPoint::Script] = {Version{1, 1, 0}};
+        offered.versions[ExtensionPoint::Native] = {Version{2, 0, 0}};
+        offered.versions[ExtensionPoint::Component] = {Version{1, 1, 0}};
+        offered.versions[ExtensionPoint::Task] = {Version{1, 1, 0}};
+        offered.versions[ExtensionPoint::Panel] = {Version{1, 1, 0}};
+        offered.versions[ExtensionPoint::Help] = {Version{1, 0, 0}};
+        offered.versions[ExtensionPoint::Tour] = {Version{1, 0, 0}};
+        offered.versions[ExtensionPoint::Locale] = {Version{1, 0, 0}};
+        return offered;
+    }();
+    return api;
+}
+
+std::optional<VersionRange> requirementFor(ExtensionPoint point)
+{
+    const HostApi& host = currentHostApi();
+    const auto offered = host.versions.find(point);
+    if (offered == host.versions.end() || offered->second.empty()) {
+        return std::nullopt;
+    }
+    const Version& newest = *std::ranges::max_element(offered->second);
+    return VersionRange::parse("^" + std::to_string(newest.major) + "." + std::to_string(newest.minor));
+}
+
 std::vector<Diagnostic> checkCompatibility(const Manifest& manifest, const HostApi& host)
 {
     std::vector<Diagnostic> problems;
@@ -174,7 +205,10 @@ std::vector<Diagnostic> checkCompatibility(const Manifest& manifest, const HostA
             for (const Version& version : offered->second) {
                 versions.push_back(version.text());
             }
-            problems.push_back({Severity::Error, Code::HostApiVersion, path,
+            const bool outdated = std::ranges::all_of(offered->second, [&range](const Version& version) {
+                return range.aboveAll(version);
+            });
+            problems.push_back({Severity::Error, outdated ? Code::HostApiOutdated : Code::HostApiVersion, path,
                                 range.text() + " wanted, offered " + joined(versions)});
         }
     }

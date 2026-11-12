@@ -39,6 +39,7 @@ public:
     [[nodiscard]] static VersionRange any();
 
     [[nodiscard]] bool contains(const Version& version) const;
+    [[nodiscard]] bool aboveAll(const Version& version) const;
     [[nodiscard]] const std::string& text() const noexcept { return m_text; }
     [[nodiscard]] const std::vector<Comparator>& comparators() const noexcept { return m_comparators; }
 

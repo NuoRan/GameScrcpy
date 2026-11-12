@@ -80,21 +80,25 @@ DLL 还能读写自己的存储、发通知、给自己的逻辑发事件、读�
 
 ## 扩展点与版本
 
-清单的 `requires` 写出扩展用到的每个扩展点和可以接受的版本范围，例如 `"requires": { "script": "^1.0", "panel": "^1.0" }`。GameScrcpy 2.1.0 提供的扩展点都是 1.0：
+清单的 `requires` 写出扩展用到的每个扩展点和它照着写的版本，例如 `"requires": { "script": "^1.1", "panel": "^1.0" }`。版本是"主.次"：GameScrcpy 给一个扩展点加东西（新的清单字段、贡献、脚本接口、原生宿主函数、事件）时升次版本，按旧版本写的扩展照常能用；改掉或去掉已有的东西时升主版本，程序只提供新的主版本。用到某个次版本才有的东西就写那个次版本；`^1.0` 也照常被 1.1 接受。
 
-| 扩展点 | 用于 |
-|:--|:--|
-| `theme` | `contributes.themes` |
-| `filter` | `contributes.filters` |
-| `profile` | `contributes.profiles`、`contributes.profilePatches` |
-| `component` | `contributes.components` |
-| `task` | `contributes.tasks` |
-| `script` | `contributes.scripts`、`contributes.converters`，以及用到脚本的面板和服务 |
-| `panel` | `contributes.panels`（还要 `script`） |
-| `native` | `contributes.native` |
-| `help` | `contributes.help` |
-| `tour` | `contributes.tours` |
-| `locale` | `contributes.locales` |
+GameScrcpy 2.1.0 提供的版本：
+
+| 扩展点 | 版本 | 用于 |
+|:--|:--|:--|
+| `theme` | 1.0 | `contributes.themes` |
+| `filter` | 1.0 | `contributes.filters` |
+| `profile` | 1.0 | `contributes.profiles`、`contributes.profilePatches` |
+| `component` | 1.1 | `contributes.components` |
+| `task` | 1.1 | `contributes.tasks` |
+| `script` | 1.1 | `contributes.scripts`、`contributes.converters`，以及用到脚本的面板和服务 |
+| `panel` | 1.1 | `contributes.panels`（还要 `script`） |
+| `native` | 2.0 | `contributes.native` |
+| `help` | 1.0 | `contributes.help` |
+| `tour` | 1.0 | `contributes.tours` |
+| `locale` | 1.0 | `contributes.locales` |
+
+载入扩展时 GameScrcpy 照这张表检查 `requires`：程序没有这个扩展点、要的比程序提供的新、或者程序提供的每个版本都比范围新（为旧版 GameScrcpy 做的），扩展都不打开，扩展卡片与 `gs validate` 写明是哪一种。GameScrcpy 更新后第一次启动时，如果有你开着、却因为这三种原因打不开的扩展，会弹一次提示，列出它们，并给出“检查更新”和“打开扩展页”。
 
 清单格式里还留着 `command` 与 `preset` 两个扩展点，2.1.0 还不提供，写了的扩展装得上但不会被打开。贡献了东西却没在 `requires` 里声明扩展点，`gs validate` 会报 `contribution-undeclared`；声明了程序不提供的扩展点或版本，扩展页会写明原因、不打开它。以后的版本只加扩展点、只在原有扩展点上加东西，已经发布的字段与函数不改含义。
 

@@ -5,6 +5,7 @@
 #include <gs/ext/Archive.h>
 #include <gs/ext/Manifest.h>
 #include <gs/ext/Package.h>
+#include <gs/ext/Resolution.h>
 #include <gs/ext/Version.h>
 #include <gs/platform/AtomicFile.h>
 
@@ -20,6 +21,7 @@
 
 #include <algorithm>
 #include <map>
+#include <optional>
 #include <system_error>
 #include <utility>
 #include <variant>
@@ -117,7 +119,9 @@ ext::Manifest baseManifest(const QString& name, const QString& description, std:
 
 void needs(ext::Manifest& manifest, ext::ExtensionPoint point)
 {
-    manifest.requirements.insert_or_assign(point, *ext::VersionRange::parse("^1.0"));
+    if (const std::optional<ext::VersionRange> range = ext::requirementFor(point)) {
+        manifest.requirements.insert_or_assign(point, *range);
+    }
 }
 
 bool copyFolder(const fs::path& from, const fs::path& to)

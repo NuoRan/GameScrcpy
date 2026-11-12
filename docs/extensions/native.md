@@ -49,7 +49,7 @@ GS_EXT_EXPORT int32_t gs_ext_main(const gs_ext_host* host, const gs_ext_plugin**
 清单里写出同样的东西：
 
 ```json
-"requires": { "native": "^1.0" },
+"requires": { "native": "^2.0" },
 "contributes": {
   "native": {
     "dll": "native.dll",
@@ -64,7 +64,7 @@ GS_EXT_EXPORT int32_t gs_ext_main(const gs_ext_host* host, const gs_ext_plugin**
 ## 入口与结构的大小
 
 - DLL 导出 `gs_ext_main`。GameScrcpy 载入 DLL 后调它一次，传入宿主函数表 `gs_ext_host`；DLL 把指向自己的描述 `gs_ext_plugin` 的指针交回来。这份描述和它指向的一切由 DLL 持有，在 `unload` 被调用之前一直有效，GameScrcpy 从不往里写。
-- 只导出旧入口 `gs_ext_entry`（接口版本 1）的 DLL 不会被载入，扩展页提示作者用当前的 SDK 重新编译。
+- 只导出旧入口 `gs_ext_entry`（接口版本 1）的 DLL 不会被载入：接口第 1 版属于 `native` 的 1.0，2.1 只提供 2.0。这样的 DLL 要用当前的 SDK 重新编译，清单里写 `"native": "^2.0"`。
 - 每个由 DLL 填写、或者含有数组的结构，第一个字段都是 `uint32_t size`，填 `sizeof`。双方只读两边都认识的字段，读不到的当作 0，所以以后的版本只在结构末尾加字段，新 DLL 在旧程序上、旧 DLL 在新程序上都能用。数组的元素结构（`gs_ext_value`、`gs_ext_contact` 等）头文件里写明“以后不改”，没有 `size`。
 - 后加的宿主函数在用之前先问 `supports("<功能名>")`。2.1.0 认识的功能名：`jobs`、`events`、`settings`、`claims`、`job-output`、`app-events`、`input-sources`、`services`、`transports`、`media`、`frame-taps`、`vision-engines`、`devices`。
 

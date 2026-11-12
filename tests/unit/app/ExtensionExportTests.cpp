@@ -135,6 +135,7 @@ TEST_CASE("a component of mine exported as an extension package validates, insta
     CHECK(manifest.name == "Combo");
     CHECK(manifest.description == "Taps twice");
     CHECK(manifest.declares(gs::ext::ExtensionPoint::Component));
+    CHECK(manifest.requirements.at(gs::ext::ExtensionPoint::Component).text() == "^1.1");
     CHECK(manifest.contributes.components ==
           std::vector<gs::ext::ComponentContribution>{{.name = "combo", .folder = "components/combo"}});
     CHECK(archived(archive) == std::vector<std::string>{"components/combo/component.json",

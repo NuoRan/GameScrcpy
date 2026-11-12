@@ -91,7 +91,7 @@ For an extension whose manifest has `updates.index` (see the [manifest reference
           "sha256": "9f2b5c0e4d7a8b1c3e5f6a7b8c9d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70812",
           "size": 48213,
           "publisher": "RWQ…",
-          "requires": { "script": "^1.0", "panel": "^1.0" },
+          "requires": { "script": "^1.1", "panel": "^1.0" },
           "released": "2026-12-01",
           "notes": "Laps can be named."
         }
@@ -127,6 +127,7 @@ For an extension whose manifest has `updates.index` (see the [manifest reference
 ## Before you publish
 
 - `gs validate` reports no errors, ideally no warnings; scripts pass `gs check`; tests pass `gs ext test` (and native extensions once more with `--hosted`).
+- `requires` names the version of each extension point you wrote against, with the new minor version wherever you use something new (native extensions write `"native": "^2.0"`).
 - The `id` has a prefix of your own, and `license`, `authors` and `repository` are filled in; `description` says in a sentence or two what the extension does.
 - Every permission's `reason` is something users understand.
 - Names, descriptions, panel titles, tours and help have translations (`l10n` and `locales`).

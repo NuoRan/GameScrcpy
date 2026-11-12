@@ -91,7 +91,7 @@ GameScrcpy 检查签名的规则：
           "sha256": "9f2b5c0e4d7a8b1c3e5f6a7b8c9d0e1f2a3b4c5d6e7f8091a2b3c4d5e6f70812",
           "size": 48213,
           "publisher": "RWQ…",
-          "requires": { "script": "^1.0", "panel": "^1.0" },
+          "requires": { "script": "^1.1", "panel": "^1.0" },
           "released": "2026-12-01",
           "notes": "Laps can be named."
         }
@@ -127,6 +127,7 @@ GameScrcpy 检查签名的规则：
 ## 发布前检查
 
 - `gs validate` 没有错误，最好也没有警告；有脚本的过了 `gs check`；有测试的过了 `gs ext test`（原生扩展再用 `--hosted` 跑一次）。
+- `requires` 写成你照着写的那个版本的扩展点版本，用到新东西就写新的次版本（原生扩展写 `"native": "^2.0"`）。
 - `id` 用你自己的前缀，`license`、`authors`、`repository` 都写好；`description` 一两句说清扩展做什么。
 - 每项权限的 `reason` 写的是用户能看懂的理由。
 - 名字、说明、面板标题、引导与帮助有中文译文（`l10n` 与 `locales`）。

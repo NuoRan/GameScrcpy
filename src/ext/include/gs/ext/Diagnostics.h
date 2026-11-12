@@ -56,6 +56,7 @@ enum class Code : std::uint8_t {
     DependencyOptionalMissing,
     HostApiMissing,
     HostApiVersion,
+    HostApiOutdated,
     ArchiveUnreadable,
     ArchiveTooManyEntries,
     ArchiveEntryTooLarge,

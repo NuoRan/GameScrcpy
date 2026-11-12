@@ -104,3 +104,31 @@ TEST_CASE("ranges that are not one of the supported forms do not parse")
         CHECK_MESSAGE(!VersionRange::parse(bad).has_value(), bad);
     }
 }
+
+TEST_CASE("ADR-0113: a version is above a range when every version the range allows lies below it")
+{
+    const auto above = [](const char* range, const char* text) {
+        const std::optional<VersionRange> parsed = VersionRange::parse(range);
+        REQUIRE_MESSAGE(parsed.has_value(), range);
+        return parsed->aboveAll(version(text));
+    };
+    CHECK(above("^1.0", "2.0.0"));
+    CHECK(above("~1.2", "1.3.0"));
+    CHECK(above("1.2.3", "1.2.4"));
+    CHECK(above("=1.2.3", "1.2.4"));
+    CHECK(above(">=1.0 <3", "3.0.0"));
+    CHECK(above(">1 <=2.5", "2.6.0"));
+    CHECK(above(">=1.0 <2.0 <1.5", "1.6.0"));
+    CHECK_FALSE(above("^1.0", "1.9.9"));
+    CHECK_FALSE(above("^1.0", "1.0.0"));
+    CHECK_FALSE(above("^1.0", "0.9.0"));
+    CHECK_FALSE(above("~1.2", "1.2.9"));
+    CHECK_FALSE(above("1.2.3", "1.2.2"));
+    CHECK_FALSE(above("<2.0", "1.0.0"));
+    CHECK_FALSE(above(">=1.0 <3", "2.9.9"));
+    CHECK_FALSE(above(">1 <=2.5", "2.5.0"));
+    CHECK_FALSE(above(">=1.0 <2.0 <1.5", "1.4.0"));
+    CHECK_FALSE(above(">=1.0", "9.0.0"));
+    CHECK_FALSE(above("*", "9.0.0"));
+    CHECK_FALSE(above("^1.2.3-beta", "2.0.0-beta"));
+}

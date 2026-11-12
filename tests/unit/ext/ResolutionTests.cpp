@@ -43,6 +43,23 @@ bool reports(const Resolution& resolution, Code code, std::string_view path)
     });
 }
 
+std::vector<Diagnostic> against(const char* range, const char* offered)
+{
+    Manifest manifest = extension("alice.app", "1.0.0");
+    manifest.requirements.clear();
+    manifest.requirements.insert_or_assign(ExtensionPoint::Script, *VersionRange::parse(range));
+    HostApi host;
+    host.versions[ExtensionPoint::Script] = {*Version::parse(offered)};
+    return checkCompatibility(manifest, host);
+}
+
+Code verdict(const char* range, const char* offered)
+{
+    const std::vector<Diagnostic> problems = against(range, offered);
+    REQUIRE(problems.size() == 1);
+    return problems.front().code;
+}
+
 }
 
 TEST_CASE("dependencies load first, ties go in id order, and required dependencies are pulled in")
@@ -135,6 +152,91 @@ TEST_CASE("an extension needs every extension point it declares, in a version th
     host.versions[ExtensionPoint::Theme].push_back(*Version::parse("2.4.0"));
     host.versions[ExtensionPoint::Script] = {*Version::parse("1.0.0")};
     CHECK(checkCompatibility(manifest, host).empty());
+}
+
+TEST_CASE("ADR-0113: a manifest made for an older GameScrcpy is outdated, one for a newer one needs a newer GameScrcpy")
+{
+    CHECK(verdict("^1.0", "2.0.0") == Code::HostApiOutdated);
+    CHECK(verdict("~1.2", "1.3.0") == Code::HostApiOutdated);
+    CHECK(verdict("1.2.3", "1.3.0") == Code::HostApiOutdated);
+    CHECK(verdict(">=1.0 <2.0", "2.0.0") == Code::HostApiOutdated);
+    CHECK(verdict(">=1.0 <2.0 <1.5", "1.6.0") == Code::HostApiOutdated);
+
+    CHECK(verdict("^2.0", "1.0.0") == Code::HostApiVersion);
+    CHECK(verdict("~1.2", "1.1.0") == Code::HostApiVersion);
+    CHECK(verdict("1.2.3", "1.0.0") == Code::HostApiVersion);
+    CHECK(verdict(">=2.0 <3", "1.0.0") == Code::HostApiVersion);
+    CHECK(verdict(">=2.0", "1.0.0") == Code::HostApiVersion);
+    CHECK(verdict("^1.0", "1.0.0-rc.1") == Code::HostApiVersion);
+
+    CHECK(against("^1.0", "1.5.0").empty());
+    CHECK(against(">=1.0", "9.0.0").empty());
+    CHECK(against("*", "9.0.0").empty());
+    CHECK(against("1.2.3", "1.2.3").empty());
+
+    const std::vector<Diagnostic> problems = against("^1.0", "2.0.0");
+    REQUIRE(problems.size() == 1);
+    CHECK(problems.front().severity == Severity::Error);
+    CHECK(problems.front().path == R"($.requires["script"])");
+    CHECK(problems.front().detail == "^1.0 wanted, offered 2.0.0");
+    CHECK(codeName(Code::HostApiOutdated) == "host-api-outdated");
+    CHECK(std::string(fixHint(Code::HostApiOutdated)).find("\"native\": \"^2.0\"") != std::string::npos);
+}
+
+TEST_CASE("ADR-0113: the versions GameScrcpy offers")
+{
+    const HostApi& host = currentHostApi();
+    const auto offered = [&host](ExtensionPoint point) {
+        const auto found = host.versions.find(point);
+        REQUIRE(found != host.versions.end());
+        REQUIRE(found->second.size() == 1);
+        return found->second.front().text();
+    };
+    CHECK(offered(ExtensionPoint::Filter) == "1.0.0");
+    CHECK(offered(ExtensionPoint::Theme) == "1.0.0");
+    CHECK(offered(ExtensionPoint::Profile) == "1.0.0");
+    CHECK(offered(ExtensionPoint::Script) == "1.1.0");
+    CHECK(offered(ExtensionPoint::Component) == "1.1.0");
+    CHECK(offered(ExtensionPoint::Task) == "1.1.0");
+    CHECK(offered(ExtensionPoint::Panel) == "1.1.0");
+    CHECK(offered(ExtensionPoint::Native) == "2.0.0");
+    CHECK(offered(ExtensionPoint::Help) == "1.0.0");
+    CHECK(offered(ExtensionPoint::Tour) == "1.0.0");
+    CHECK(offered(ExtensionPoint::Locale) == "1.0.0");
+    CHECK(host.versions.size() == 11);
+    CHECK_FALSE(host.versions.contains(ExtensionPoint::Command));
+    CHECK_FALSE(host.versions.contains(ExtensionPoint::Preset));
+
+    Manifest native = extension("bob.native", "1.0.0");
+    native.requirements.clear();
+    native.requirements.insert_or_assign(ExtensionPoint::Native, *VersionRange::parse("^1.0"));
+    const std::vector<Diagnostic> problems = checkCompatibility(native, host);
+    REQUIRE(problems.size() == 1);
+    CHECK(problems.front().code == Code::HostApiOutdated);
+    CHECK(problems.front().detail == "^1.0 wanted, offered 2.0.0");
+
+    native.requirements.insert_or_assign(ExtensionPoint::Native, *VersionRange::parse("^2.0"));
+    CHECK(checkCompatibility(native, host).empty());
+}
+
+TEST_CASE("ADR-0113: an author tool writes the version this GameScrcpy offers as a caret range")
+{
+    const std::optional<VersionRange> native = requirementFor(ExtensionPoint::Native);
+    REQUIRE(native.has_value());
+    CHECK(native->text() == "^2.0");
+    CHECK(native->contains(*Version::parse("2.0.0")));
+    CHECK_FALSE(native->contains(*Version::parse("3.0.0")));
+
+    const std::optional<VersionRange> script = requirementFor(ExtensionPoint::Script);
+    REQUIRE(script.has_value());
+    CHECK(script->text() == "^1.1");
+
+    const std::optional<VersionRange> help = requirementFor(ExtensionPoint::Help);
+    REQUIRE(help.has_value());
+    CHECK(help->text() == "^1.0");
+
+    CHECK_FALSE(requirementFor(ExtensionPoint::Command).has_value());
+    CHECK_FALSE(requirementFor(ExtensionPoint::Preset).has_value());
 }
 
 TEST_CASE("an update names the permissions it adds or widens and the dependencies it adds")

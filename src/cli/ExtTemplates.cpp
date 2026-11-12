@@ -3,11 +3,13 @@
 #include "ScriptProject.h"
 
 #include <gs/ext/Manifest.h>
+#include <gs/ext/Resolution.h>
 #include <gs/script/ApiFiles.h>
 
 #include <nlohmann/json.hpp>
 
 #include <iostream>
+#include <optional>
 #include <system_error>
 #include <utility>
 #include <vector>
@@ -317,6 +319,13 @@ Json baseManifest(const std::string& id, const std::string& name, std::string_vi
     return manifest;
 }
 
+void require(Json& manifest, ext::ExtensionPoint point)
+{
+    if (const std::optional<ext::VersionRange> range = ext::requirementFor(point)) {
+        manifest["requires"][std::string(ext::nameOf(point))] = range->text();
+    }
+}
+
 Json testFile(Json steps)
 {
     Json test = Json::object();
@@ -330,7 +339,7 @@ std::vector<std::pair<std::string, std::string>> nativeFiles(const std::string& 
                                                              const std::string& slug)
 {
     Json manifest = baseManifest(id, name, "A native extension with a node and a job.");
-    manifest["requires"]["native"] = "^1.0";
+    require(manifest, ext::ExtensionPoint::Native);
     Json greet = Json::object();
     greet["name"] = "greet";
     greet["params"] = Json::array({Json{{"name", "name"}, {"type", "string"}}});
@@ -375,8 +384,8 @@ std::vector<std::pair<std::string, std::string>> nativeFiles(const std::string& 
 std::vector<std::pair<std::string, std::string>> scriptFiles(const std::string& id, const std::string& name)
 {
     Json manifest = baseManifest(id, name, "A script extension with a page in the main window.");
-    manifest["requires"]["script"] = "^1.0";
-    manifest["requires"]["panel"] = "^1.0";
+    require(manifest, ext::ExtensionPoint::Script);
+    require(manifest, ext::ExtensionPoint::Panel);
     manifest["contributes"]["scripts"] =
         Json::array({Json{{"name", "main"}, {"entry", "src/main.ts"}, {"run", "app"}}});
     manifest["contributes"]["panels"] =
@@ -396,7 +405,7 @@ std::vector<std::pair<std::string, std::string>> scriptFiles(const std::string& 
 std::vector<std::pair<std::string, std::string>> themeFiles(const std::string& id, const std::string& name)
 {
     Json manifest = baseManifest(id, name, "A color theme for GameScrcpy.");
-    manifest["requires"]["theme"] = "^1.0";
+    require(manifest, ext::ExtensionPoint::Theme);
     Json theme = Json::object();
     theme["name"] = titleOf(name);
     theme["dark"] = Json{{"bgBase", "#10161B"},     {"bgRaised", "#161E25"},      {"bgOverlay", "#1C262F"},

@@ -1364,7 +1364,7 @@ TEST_CASE("ADR-0112: the extension host gives a native extension its settings an
   "description": "Reads its settings.",
   "authors": ["GameScrcpy"],
   "license": "Apache-2.0",
-  "requires": {"native": "^1.0"},
+  "requires": {"native": "^2.0"},
   "settings": [
     {"key": "port", "type": "text", "title": "Port", "default": "COM3", "scope": "device"},
     {"key": "speed", "type": "integer", "title": "Speed", "default": 2, "min": 1, "max": 9}
@@ -2624,7 +2624,7 @@ TEST_CASE("ADR-0112: the extension host lists an extension's input devices and n
   "version": "1.0.0",
   "name": "Pedal probe",
   "license": "Apache-2.0",
-  "requires": {"native": "^1.0"},
+  "requires": {"native": "^2.0"},
   "contributes": {"native": {"dll": "native.dll", "inputSources": [
     {"name": "pad", "title": "Test pad", "slots": [{"name": "a", "kind": "button", "title": "Button A"},
                                                    {"name": "stick", "kind": "stick"}]}

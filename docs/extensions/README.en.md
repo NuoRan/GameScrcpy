@@ -80,21 +80,25 @@ A DLL can also keep a store, show notifications, send events to its own logic, r
 
 ## Extension points and versions
 
-`requires` in the manifest lists every extension point the extension uses with the range of versions it accepts, such as `"requires": { "script": "^1.0", "panel": "^1.0" }`. GameScrcpy 2.1.0 offers version 1.0 of each:
+`requires` in the manifest lists every extension point the extension uses with the version it was written against, such as `"requires": { "script": "^1.1", "panel": "^1.0" }`. A version is a major and a minor: when GameScrcpy adds to an extension point (new manifest fields, contributions, script interfaces, native host functions, events) the minor version grows and extensions written for the old one keep working; when it changes or removes something the major version grows and the program offers only the new major. Write the minor version whose features you use; `^1.0` is still accepted by 1.1.
 
-| Extension point | For |
-|:--|:--|
-| `theme` | `contributes.themes` |
-| `filter` | `contributes.filters` |
-| `profile` | `contributes.profiles`, `contributes.profilePatches` |
-| `component` | `contributes.components` |
-| `task` | `contributes.tasks` |
-| `script` | `contributes.scripts`, `contributes.converters`, and the panels and services that use scripts |
-| `panel` | `contributes.panels` (with `script`) |
-| `native` | `contributes.native` |
-| `help` | `contributes.help` |
-| `tour` | `contributes.tours` |
-| `locale` | `contributes.locales` |
+The versions GameScrcpy 2.1.0 offers:
+
+| Extension point | Version | For |
+|:--|:--|:--|
+| `theme` | 1.0 | `contributes.themes` |
+| `filter` | 1.0 | `contributes.filters` |
+| `profile` | 1.0 | `contributes.profiles`, `contributes.profilePatches` |
+| `component` | 1.1 | `contributes.components` |
+| `task` | 1.1 | `contributes.tasks` |
+| `script` | 1.1 | `contributes.scripts`, `contributes.converters`, and the panels and services that use scripts |
+| `panel` | 1.1 | `contributes.panels` (with `script`) |
+| `native` | 2.0 | `contributes.native` |
+| `help` | 1.0 | `contributes.help` |
+| `tour` | 1.0 | `contributes.tours` |
+| `locale` | 1.0 | `contributes.locales` |
+
+When it loads an extension, GameScrcpy checks `requires` against this table: an extension point the program does not have, a version newer than the program offers, or a range that every version the program offers lies above (an extension made for an older GameScrcpy) keeps the extension off, and the card and `gs validate` say which of the three it is. The first time GameScrcpy starts after an update, if extensions you had turned on no longer open for one of these reasons, it shows one prompt that lists them with "Check for updates" and "Open Extensions".
 
 The manifest format also keeps the extension points `command` and `preset`; 2.1.0 does not offer them yet, so an extension that asks for them installs but is never turned on. A contribution whose extension point is missing from `requires` makes `gs validate` report `contribution-undeclared`; an extension point or version the program does not offer keeps the extension off, with the reason on the Extensions page. Later versions only add extension points and add to existing ones; published fields and functions keep their meaning.
 
