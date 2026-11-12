@@ -430,6 +430,7 @@ if(GS_BUILD_APP)
             unit/app/CompanionLanTests.cpp
             unit/app/CompanionLinkTests.cpp
             unit/app/CompanionShotsTests.cpp
+            unit/app/CompanionSyncTests.cpp
             unit/app/ComponentLibraryTests.cpp
             unit/app/CrashReportTests.cpp
             unit/app/DebugRecordTests.cpp
@@ -580,6 +581,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/CompanionLink.h"
             "${PROJECT_SOURCE_DIR}/src/app/CompanionShots.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/CompanionShots.h"
+            "${PROJECT_SOURCE_DIR}/src/app/CompanionSync.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/CompanionSync.h"
             "${PROJECT_SOURCE_DIR}/src/app/ComponentDefaults.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/ComponentLibrary.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/ComponentDefaults.h"

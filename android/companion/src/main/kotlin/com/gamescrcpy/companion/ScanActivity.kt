@@ -8,12 +8,10 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowInsets
-import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -35,7 +33,7 @@ class ScanActivity : Activity(), LifecycleOwner {
     private val decoder = QrDecoder()
     private lateinit var preview: PreviewView
     private lateinit var status: TextView
-    private lateinit var settings: Button
+    private lateinit var settings: TextView
     private var analysis: ExecutorService? = null
 
     @Volatile
@@ -47,41 +45,41 @@ class ScanActivity : Activity(), LifecycleOwner {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         registry.currentState = Lifecycle.State.CREATED
-        val padding = dp(PADDING_DP)
+        val ui = Ui(this, Look.palette(this, null))
+        val padding = ui.px(Look.SPACE_XL)
+        val margin = ui.px(Look.SPACE_MD)
         preview = PreviewView(this).apply { scaleType = PreviewView.ScaleType.FILL_CENTER }
-        status = TextView(this).apply {
-            setText(R.string.scan_title)
-            setTextColor(KeyHintLook.TEXT)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, BODY_SP)
+        status = ui.text(Look.BODY, ui.palette.textPrimary, R.string.scan_title).apply {
             gravity = Gravity.CENTER
         }
-        settings = Button(this).apply {
-            setText(R.string.overlay_open)
+        settings = ui.button(ButtonKind.SECONDARY, R.string.scan_open_settings).apply {
             visibility = View.GONE
             setOnClickListener {
                 startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
             }
         }
-        val cancel = Button(this).apply {
-            setText(R.string.scan_cancel)
+        val cancel = ui.button(ButtonKind.GHOST, R.string.action_cancel).apply {
             setOnClickListener { finish() }
         }
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setBackgroundColor(PANEL_COLOR)
-            setPadding(padding, padding, padding, padding)
-            addView(status)
-            addView(settings)
-            addView(cancel)
+        val wide = { LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT) }
+        val panel = ui.column(Look.SPACE_MD).apply {
+            background = ui.rounded(Look.alpha(ui.palette.bgElevated, PANEL_ALPHA), Look.RADIUS_XL, ui.palette.strokeStrong)
+            setPadding(padding, padding, padding, ui.px(Look.SPACE_MD))
+            addView(status, wide())
+            addView(settings, wide())
+            addView(cancel, wide())
         }
         val root = FrameLayout(this)
+        root.setBackgroundColor(ui.palette.bgBase)
         root.addView(preview, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        root.addView(
-            panel,
-            FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM),
-        )
+        val placed = FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.BOTTOM)
+        placed.setMargins(margin, margin, margin, margin)
+        root.addView(panel, placed)
         panel.setOnApplyWindowInsetsListener { view, insets ->
-            view.setPadding(padding, padding, padding, padding + bottomInset(insets))
+            val layout = view.layoutParams as FrameLayout.LayoutParams
+            layout.bottomMargin = margin + bottomInset(insets)
+            view.layoutParams = layout
             insets
         }
         setContentView(root)
@@ -216,13 +214,8 @@ class ScanActivity : Activity(), LifecycleOwner {
     @Suppress("DEPRECATION")
     private fun legacyBottom(insets: WindowInsets): Int = insets.systemWindowInsetBottom
 
-    private fun dp(value: Float): Int =
-        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, resources.displayMetrics).toInt()
-
     private companion object {
         const val REQUEST_CAMERA = 1
-        const val PADDING_DP = 20f
-        const val BODY_SP = 16f
-        const val PANEL_COLOR = 0xCC0B0C0F.toInt()
+        const val PANEL_ALPHA = 0.92f
     }
 }

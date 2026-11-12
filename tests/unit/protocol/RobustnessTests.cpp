@@ -335,6 +335,78 @@ TEST_CASE("the companion's screenshot messages stay in their context and within 
     CHECK(enumName(ScreenshotProblem::Refused) == "refused");
 }
 
+TEST_CASE("ADR-0112: the companion's settings snapshot and setting change stay in their context and within their "
+          "ranges")
+{
+    const auto allowed = [](FrameContext context, MessageType type) {
+        return isAllowedIn(context, static_cast<std::uint16_t>(type));
+    };
+    for (const MessageType type : {MessageType::CompanionSettings, MessageType::CompanionSettingChange}) {
+        CHECK(allowed(FrameContext::Companion, type));
+        CHECK_FALSE(allowed(FrameContext::Control, type));
+        CHECK_FALSE(allowed(FrameContext::Handshake, type));
+    }
+    CHECK(directionOf(static_cast<std::uint16_t>(MessageType::CompanionSettings)) == Direction::ToServer);
+    CHECK(directionOf(static_cast<std::uint16_t>(MessageType::CompanionSettingChange)) == Direction::ToClient);
+    CHECK(kCompanionVersion == 2);
+    CHECK(kCompanionSettingsVersion == 2);
+    CHECK(CompanionHello{}.version == 2);
+
+    const CompanionSettings defaults;
+    CHECK(defaults.hintOpacity == kDefaultPhoneHintOpacity);
+    CHECK(defaults.ime);
+    CHECK(defaults.autoConnect);
+    CHECK_FALSE(defaults.cursor);
+    CHECK_FALSE(defaults.hints);
+
+    CompanionSettings longest;
+    longest.name = std::string(kMaxComputerName, 'n');
+    longest.accent = kAccentMask;
+    longest.applied = 0xFFFFFFFFU;
+    const auto encoded = encodeFrame(longest);
+    REQUIRE(encoded.has_value());
+    const auto decoded = decodeToServerFrame(FrameContext::Companion, *encoded);
+    REQUIRE(decoded.has_value());
+    const auto* settings = std::get_if<CompanionSettings>(&*decoded);
+    REQUIRE(settings != nullptr);
+    CHECK(*settings == longest);
+
+    CompanionSettings named = longest;
+    named.name.push_back('n');
+    const auto wordy = encodeFrame(named);
+    REQUIRE_FALSE(wordy.has_value());
+    CHECK(wordy.error() == EncodeError::FieldTooLong);
+    CompanionSettings tinted = longest;
+    tinted.accent = 0x01FF6B3DU;
+    const auto colored = encodeFrame(tinted);
+    REQUIRE_FALSE(colored.has_value());
+    CHECK(colored.error() == EncodeError::ValueOutOfRange);
+    for (const std::uint8_t opacity : {std::uint8_t{9}, std::uint8_t{101}}) {
+        CompanionSettings faint = longest;
+        faint.hintOpacity = opacity;
+        const auto shown = encodeFrame(faint);
+        REQUIRE_FALSE(shown.has_value());
+        CHECK(shown.error() == EncodeError::ValueOutOfRange);
+    }
+
+    CHECK(encodeFrame(CompanionSettingChange{.change = 1, .item = CompanionItem::Cursor, .value = 1}).has_value());
+    CHECK(encodeFrame(CompanionSettingChange{.change = 1, .item = CompanionItem::HintOpacity, .value = 10})
+              .has_value());
+    for (const CompanionSettingChange& wrong :
+         {CompanionSettingChange{.change = 0, .item = CompanionItem::Cursor, .value = 1},
+          CompanionSettingChange{.change = 1, .item = CompanionItem::Ime, .value = 2},
+          CompanionSettingChange{.change = 1, .item = CompanionItem::AutoConnect, .value = 60},
+          CompanionSettingChange{.change = 1, .item = CompanionItem::HintOpacity, .value = 9},
+          CompanionSettingChange{.change = 1, .item = CompanionItem::HintOpacity, .value = 101},
+          CompanionSettingChange{.change = 1, .item = static_cast<CompanionItem>(5), .value = 1}}) {
+        const auto refused = encodeFrame(wrong);
+        REQUIRE_FALSE(refused.has_value());
+        CHECK(refused.error() == EncodeError::ValueOutOfRange);
+    }
+    CHECK(enumName(CompanionItem::HintOpacity) == "hintOpacity");
+    CHECK(enumName(ComputerLink::Lan) == "lan");
+}
+
 TEST_CASE("UTF-8 validation is strict")
 {
     CHECK(isValidUtf8(asBytes("plain ascii")));

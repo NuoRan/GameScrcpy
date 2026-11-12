@@ -2,74 +2,57 @@ package com.gamescrcpy.companion
 
 import android.app.Activity
 import android.content.Intent
-import android.net.Uri
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
-import android.util.TypedValue
 import android.view.View
+import android.view.ViewGroup
 import android.view.WindowInsets
-import android.view.inputmethod.InputMethodManager
-import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.TextView
 
-class MainActivity : Activity() {
-    private lateinit var permission: TextView
-    private lateinit var openSettings: Button
-    private lateinit var connection: TextView
-    private lateinit var lan: TextView
-    private lateinit var connectNow: Button
-    private lateinit var ime: TextView
-    private val listener = CompanionState.Listener { runOnUiThread { refresh() } }
+class MainActivity : Activity(), Shell {
+    override val activity: Activity
+        get() = this
+    override lateinit var ui: Ui
+    override val sync: SettingsSync by lazy { SettingsSync.of(this) }
+    override val options: PhoneOptions by lazy { PhoneOptions.of(this) }
+
+    private lateinit var host: FrameLayout
+    private lateinit var nav: NavBar
+    private var pages: List<Page> = emptyList()
+    private var current = Page.HOME
+    private var accent = 0
+    private var top = 0
+    private val asked = HashSet<String>()
+    private val stateListener = CompanionState.Listener { runOnUiThread { refresh() } }
+    private val syncListener = SettingsSync.Listener { runOnUiThread { refresh() } }
+    private val optionsListener = PhoneOptions.Listener { runOnUiThread { refresh() } }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val padding = dp(PADDING_DP)
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(padding, padding, padding, padding)
-        }
-        content.addView(text(R.string.app_name, TITLE_SP))
-        content.addView(text(R.string.overlay_title, HEADING_SP).apply { setPadding(0, padding, 0, 0) })
-        permission = text(R.string.overlay_missing, BODY_SP)
-        content.addView(permission)
-        openSettings = button(R.string.overlay_open) { openOverlaySettings() }
-        content.addView(openSettings)
-        content.addView(text(R.string.connection_title, HEADING_SP).apply { setPadding(0, padding, 0, 0) })
-        connection = text(R.string.connection_none, BODY_SP)
-        content.addView(connection)
-        content.addView(text(R.string.lan_title, HEADING_SP).apply { setPadding(0, padding, 0, 0) })
-        lan = text(R.string.lan_none, BODY_SP)
-        content.addView(lan)
-        content.addView(button(R.string.lan_scan) { startActivity(Intent(this, ScanActivity::class.java)) })
-        connectNow = button(R.string.lan_connect) {
-            startForegroundService(Intent(this, CompanionService::class.java).setAction(CompanionService.ACTION_CONNECT))
-        }
-        content.addView(connectNow)
-        content.addView(text(R.string.ime_title, HEADING_SP).apply { setPadding(0, padding, 0, 0) })
-        ime = text(R.string.ime_disabled, BODY_SP)
-        content.addView(ime)
-        content.addView(button(R.string.ime_enable) { startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS)) })
-        content.addView(button(R.string.ime_choose) { inputMethods().showInputMethodPicker() })
-        content.setOnApplyWindowInsetsListener { view, insets ->
-            val bars = barsOf(insets)
-            view.setPadding(padding + bars[0], padding + bars[1], padding + bars[2], padding + bars[3])
-            insets
-        }
-        setContentView(ScrollView(this).apply { addView(content) })
+        current = savedInstanceState?.getInt(PAGE, Page.HOME)?.coerceIn(Page.HOME, Page.ABOUT) ?: Page.HOME
+        build()
     }
 
     override fun onResume() {
         super.onResume()
-        CompanionState.addListener(listener)
+        CompanionState.addListener(stateListener)
+        sync.addListener(syncListener)
+        options.addListener(optionsListener)
         refresh()
     }
 
     override fun onPause() {
-        CompanionState.removeListener(listener)
+        CompanionState.removeListener(stateListener)
+        sync.removeListener(syncListener)
+        options.removeListener(optionsListener)
         super.onPause()
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putInt(PAGE, current)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -79,60 +62,113 @@ class MainActivity : Activity() {
         }
     }
 
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        refresh()
+    }
+
+    override fun open(page: Int) {
+        if (page == current) {
+            return
+        }
+        current = page
+        nav.select(page)
+        show(animate = true)
+    }
+
+    override fun scan() {
+        startActivity(Intent(this, ScanActivity::class.java))
+    }
+
+    override fun connectNow() {
+        startForegroundService(Intent(this, CompanionService::class.java).setAction(CompanionService.ACTION_CONNECT))
+    }
+
+    override fun stopCompanion() {
+        startService(Intent(this, CompanionService::class.java).setAction(CompanionService.ACTION_STOP))
+    }
+
+    override fun ask(permission: String): Boolean {
+        if (checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED || !asked.add(permission)) {
+            return false
+        }
+        requestPermissions(arrayOf(permission), REQUEST_PERMISSION)
+        return true
+    }
+
+    private fun build() {
+        accent = wantedAccent()
+        ui = Ui(this, Look.palette(this, accent))
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setBackgroundColor(ui.palette.bgRaised)
+        }
+        host = FrameLayout(this)
+        root.addView(host, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+        nav = NavBar(ui) { open(it) }
+        nav.add(NavBar.Entry(R.drawable.ic_nav_home, R.string.nav_home))
+        nav.add(NavBar.Entry(R.drawable.ic_nav_computers, R.string.nav_computers))
+        nav.add(NavBar.Entry(R.drawable.ic_nav_features, R.string.nav_features))
+        nav.add(NavBar.Entry(R.drawable.ic_nav_permissions, R.string.nav_permissions))
+        nav.add(NavBar.Entry(R.drawable.ic_nav_about, R.string.nav_about))
+        root.addView(nav.view, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT))
+        pages = listOf(HomePage(this), ComputersPage(this), FeaturesPage(this), PermissionsPage(this), AboutPage(this))
+        root.setOnApplyWindowInsetsListener { view, insets ->
+            val bars = barsOf(insets)
+            view.setPadding(bars[0], 0, bars[2], 0)
+            top = bars[1]
+            pages.forEach { it.inset(top) }
+            nav.view.setPadding(0, 0, 0, bars[3])
+            insets
+        }
+        setContentView(root)
+        pages.forEach { it.inset(top) }
+        nav.select(current)
+        show(animate = false)
+    }
+
+    private fun show(animate: Boolean) {
+        val page = pages[current]
+        val incoming = page.view
+        for (index in 0 until host.childCount) {
+            host.getChildAt(index).animate().cancel()
+        }
+        val outgoing = (0 until host.childCount).map { host.getChildAt(it) }.filter { it !== incoming }
+        if (incoming.parent == null) {
+            host.addView(incoming, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT))
+        }
+        page.refresh()
+        incoming.visibility = View.VISIBLE
+        if (!animate || Look.reducedMotion()) {
+            outgoing.forEach { host.removeView(it) }
+            incoming.alpha = 1f
+            incoming.translationY = 0f
+            return
+        }
+        incoming.bringToFront()
+        incoming.alpha = 0f
+        incoming.translationY = Look.dp(this, Look.PAGE_SHIFT)
+        incoming.animate().alpha(1f).translationY(0f).setDuration(Look.BASE).setInterpolator(Look.standard).start()
+        outgoing.forEach { view ->
+            view.animate().alpha(0f).setDuration(Look.FAST).setInterpolator(Look.exit)
+                .withEndAction { host.removeView(view) }.start()
+        }
+    }
+
     private fun refresh() {
-        val granted = Settings.canDrawOverlays(this)
-        permission.setText(if (granted) R.string.overlay_granted else R.string.overlay_missing)
-        openSettings.visibility = if (granted) View.GONE else View.VISIBLE
-        connection.setText(
-            when {
-                CompanionState.localConnected -> R.string.connection_connected
-                CompanionState.listening -> R.string.connection_waiting
-                else -> R.string.connection_none
-            },
-        )
-        val paired = PairingStore(this).all().isNotEmpty()
-        lan.setText(
-            when {
-                CompanionState.lanConnected -> R.string.lan_connected
-                CompanionState.lan == LanState.PAIRING || CompanionState.lan == LanState.SEARCHING -> R.string.lan_searching
-                CompanionState.lan == LanState.FAILED -> R.string.lan_failed
-                paired -> R.string.lan_paired
-                else -> R.string.lan_none
-            },
-        )
-        connectNow.visibility = if (paired && !CompanionState.lanConnected) View.VISIBLE else View.GONE
-        ime.setText(
-            when {
-                imeChosen() -> R.string.ime_ready
-                imeEnabled() -> R.string.ime_enabled
-                else -> R.string.ime_disabled
-            },
-        )
+        if (!::ui.isInitialized) {
+            return
+        }
+        if (wantedAccent() != accent) {
+            build()
+            return
+        }
+        pages.getOrNull(current)?.refresh()
     }
 
-    private fun imeEnabled(): Boolean = inputMethods().enabledInputMethodList.any { it.packageName == packageName }
-
-    private fun imeChosen(): Boolean =
-        Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)?.startsWith("$packageName/") == true
-
-    private fun inputMethods(): InputMethodManager = getSystemService(InputMethodManager::class.java)
-
-    private fun openOverlaySettings() {
-        startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
-    }
-
-    private fun text(resource: Int, sizeSp: Float): TextView = TextView(this).apply {
-        setText(resource)
-        setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp)
-    }
-
-    private fun button(resource: Int, action: () -> Unit): Button = Button(this).apply {
-        setText(resource)
-        setOnClickListener { action() }
-    }
-
-    private fun dp(value: Float): Int =
-        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, resources.displayMetrics).toInt()
+    private fun wantedAccent(): Int = sync.connected?.accent ?: (Look.EMBER and Look.RGB)
 
     private fun barsOf(insets: WindowInsets): IntArray {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -151,9 +187,7 @@ class MainActivity : Activity() {
     )
 
     private companion object {
-        const val PADDING_DP = 24f
-        const val TITLE_SP = 22f
-        const val HEADING_SP = 17f
-        const val BODY_SP = 15f
+        const val PAGE = "page"
+        const val REQUEST_PERMISSION = 7
     }
 }

@@ -26,6 +26,7 @@ class CompanionServer(
     private val ime: ImePort = ImeBridge,
     private val persistent: Boolean = false,
     private val screenshots: ScreenshotPort = ScreenshotPort.NONE,
+    private val sync: SettingsSync? = null,
 ) : AutoCloseable {
 
     data class Timing(
@@ -58,6 +59,10 @@ class CompanionServer(
         var lastBox: InputBox? = null
         var clientGoodbye = false
         var writing = false
+        var version = Constants.COMPANION_VERSION
+
+        @Volatile
+        var session: SettingsSync.Link? = null
 
         @Volatile
         var shooting = false
@@ -259,7 +264,7 @@ class CompanionServer(
             refuse(link, ErrorCode.UNEXPECTED_MESSAGE, "expected CompanionHello, got ${first.type().specName()}")
             return
         }
-        if (first.version != Constants.COMPANION_VERSION) {
+        if (first.version < 1) {
             refuse(
                 link,
                 ErrorCode.VERSION_MISMATCH,
@@ -267,6 +272,7 @@ class CompanionServer(
             )
             return
         }
+        link.version = minOf(first.version, Constants.COMPANION_VERSION)
         when (admit(link, first.token)) {
             Admission.CLOSED -> return
             Admission.REFUSED -> {
@@ -274,6 +280,10 @@ class CompanionServer(
                 return
             }
             Admission.ADMITTED -> Unit
+        }
+        if (link.version >= Constants.COMPANION_SETTINGS_VERSION && sync != null) {
+            val pc = (connection as? LanConnection)?.pc.orEmpty()
+            link.session = sync.open(pc) { change -> link.enqueue(Outgoing.Send(change)) }
         }
         link.writing = true
         spawn("companion-writer") { writeLoop(link) }
@@ -317,6 +327,16 @@ class CompanionServer(
                         screenshot(link, message)
                     }
                 }
+                is Messages.CompanionSettings -> {
+                    if (link.version < Constants.COMPANION_SETTINGS_VERSION) {
+                        refuse(link, ErrorCode.UNEXPECTED_MESSAGE, "unexpected CompanionSettings on version 1")
+                        return
+                    }
+                    val session = link.session
+                    if (active === link && session != null) {
+                        sync?.snapshot(session, message)
+                    }
+                }
                 is Messages.Ping -> link.enqueue(Outgoing.Send(pong(message)))
                 is Messages.Goodbye -> {
                     link.clientGoodbye = true
@@ -342,7 +362,7 @@ class CompanionServer(
             previous = active
             active = link
             link.lastOverlay = overlayInfo
-            link.enqueue(Outgoing.Send(welcome(overlayInfo)))
+            link.enqueue(Outgoing.Send(welcome(overlayInfo, link.version)))
             val box = ime.box
             link.lastBox = box
             if (box != InputBox.HIDDEN) {
@@ -441,6 +461,10 @@ class CompanionServer(
     private fun release(link: Link) {
         var wasActive = false
         var goodbye = false
+        link.session?.let { session ->
+            link.session = null
+            sync?.close(session)
+        }
         lock.withLock {
             links.remove(link)
             if (active === link) {
@@ -476,9 +500,9 @@ class CompanionServer(
         else -> ErrorCode.MALFORMED_FRAME
     }
 
-    private fun welcome(info: OverlayInfo): Messages.CompanionWelcome {
+    private fun welcome(info: OverlayInfo, version: Int): Messages.CompanionWelcome {
         val message = Messages.CompanionWelcome()
-        message.version = Constants.COMPANION_VERSION
+        message.version = version
         message.overlay = statusOf(info)
         message.width = dimension(info, info.width)
         message.height = dimension(info, info.height)

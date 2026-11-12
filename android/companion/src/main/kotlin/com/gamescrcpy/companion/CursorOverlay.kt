@@ -95,6 +95,10 @@ class CursorOverlay(context: Context, private val report: (OverlayInfo) -> Unit)
         hints.setState(state)
     }
 
+    fun cursorLook(size: CursorSize, style: CursorStyle) {
+        cursor.setLook(size, style)
+    }
+
     private fun requestFrame() {
         choreographer.postFrameCallback(frame)
     }

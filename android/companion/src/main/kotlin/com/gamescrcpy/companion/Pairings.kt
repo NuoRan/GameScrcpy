@@ -67,6 +67,8 @@ object Pairings {
     fun remember(pairings: List<Pairing>, latest: Pairing): List<Pairing> =
         (listOf(latest) + pairings.filter { it.pc != latest.pc }).take(MOST)
 
+    fun forget(pairings: List<Pairing>, pc: String): List<Pairing> = pairings.filter { it.pc != pc }
+
     private fun valid(hex: String, size: Int): Boolean = Hex.decode(hex)?.size == size
 }
 
@@ -89,6 +91,11 @@ class PairingStore(context: Context) : PairingSource {
     @Synchronized
     override fun remember(latest: Pairing) {
         save(Pairings.remember(all(), latest))
+    }
+
+    @Synchronized
+    fun forget(pc: String) {
+        save(Pairings.forget(all(), pc))
     }
 
     private fun save(pairings: List<Pairing>) {

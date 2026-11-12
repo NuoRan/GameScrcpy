@@ -53,6 +53,12 @@ SHOT_CHUNK_MAX = 15 * 1024
 SHOT_CHUNKS_MAX = 274
 SHOT_TOTAL_MAX = 4 * 1024 * 1024
 assert (SHOT_CHUNKS_MAX - 1) * SHOT_CHUNK_MAX < SHOT_TOTAL_MAX <= SHOT_CHUNKS_MAX * SHOT_CHUNK_MAX
+COMPUTER_LINK = ["usb", "wireless", "lan"]
+COMPANION_ITEM = ["cursor", "hints", "hintOpacity", "ime", "autoConnect"]
+COMPUTER_NAME_MAX = 64
+PHONE_HINT_OPACITY_MIN = 10
+PHONE_HINT_OPACITY_MAX = 100
+ACCENT_MAX = 0xFFFFFF
 ERROR_CODE = [
     "none", "versionMismatch", "authenticationFailed", "unsupportedAndroid", "malformedFrame",
     "frameTooLarge", "unknownType", "wrongDirection", "unexpectedMessage", "channelUnavailable",
@@ -586,6 +592,37 @@ def _screenshot_failed(w: Writer, f: dict) -> None:
     w.u32(f["requestId"])
     w.u8(enum_value(SCREENSHOT_PROBLEM, f["reason"]))
     w.string("u16", f["message"], 1024)
+
+
+@message("CompanionSettings", 0x0608, "companion")
+def _companion_settings(w: Writer, f: dict) -> None:
+    assert 0 <= f["accent"] <= ACCENT_MAX
+    assert PHONE_HINT_OPACITY_MIN <= f["hintOpacity"] <= PHONE_HINT_OPACITY_MAX
+    w.fixed(f["computer"], 16)
+    w.string("u8", f["name"], COMPUTER_NAME_MAX)
+    w.u8(enum_value(COMPUTER_LINK, f["link"]))
+    w.u32(f["accent"])
+    w.u32(f["applied"])
+    w.boolean(f["cursor"])
+    w.boolean(f["hints"])
+    w.u8(f["hintOpacity"])
+    w.boolean(f["ime"])
+    w.boolean(f["autoConnect"])
+
+
+def companion_item_range(item: str) -> tuple[int, int]:
+    if item == "hintOpacity":
+        return PHONE_HINT_OPACITY_MIN, PHONE_HINT_OPACITY_MAX
+    return 0, 1
+
+
+@message("CompanionSettingChange", 0x8606, "companion")
+def _companion_setting_change(w: Writer, f: dict) -> None:
+    low, high = companion_item_range(f["item"])
+    assert f["change"] >= 1 and low <= f["value"] <= high
+    w.u32(f["change"])
+    w.u8(enum_value(COMPANION_ITEM, f["item"]))
+    w.u8(f["value"])
 
 
 def frame_limit(channel: str) -> int:
@@ -1139,11 +1176,45 @@ def companion_vectors() -> list[dict]:
            {"requestId": 3, "reason": "busy", "message": "a screenshot is still being taken"}),
         ok("screenshot-failed-error", "ScreenshotFailed",
            {"requestId": 0xFFFFFFFF, "reason": "error", "message": "无法读取画面"}),
+        ok("companion-hello-version-2", "CompanionHello", {"version": 2, "token": pattern(16, 0x20)}),
+        ok("companion-welcome-version-2", "CompanionWelcome",
+           {"version": 2, "overlay": "granted", "width": 1080, "height": 2400, "rotation": 0}),
+        ok("companion-settings-usb", "CompanionSettings",
+           {"computer": pattern(16, 0xA0), "name": "DESKTOP-7Q2K1LM", "link": "usb", "accent": 0xFF6B3D,
+            "applied": 0, "cursor": False, "hints": False, "hintOpacity": 60, "ime": True, "autoConnect": True}),
+        ok("companion-settings-lan-applied", "CompanionSettings",
+           {"computer": "ff" * 16, "name": "游戏电脑", "link": "lan", "accent": 0x22D3C5, "applied": 7,
+            "cursor": True, "hints": True, "hintOpacity": 10, "ime": False, "autoConnect": False}),
+        ok("companion-settings-wireless-empty-name", "CompanionSettings",
+           {"computer": "00" * 16, "name": "", "link": "wireless", "accent": 0, "applied": 1,
+            "cursor": False, "hints": True, "hintOpacity": 35, "ime": True, "autoConnect": False}),
+        ok("companion-settings-max", "CompanionSettings",
+           {"computer": pattern(16, 0xF0), "name": "n" * COMPUTER_NAME_MAX, "link": "wireless",
+            "accent": ACCENT_MAX, "applied": 0xFFFFFFFF, "cursor": True, "hints": True,
+            "hintOpacity": PHONE_HINT_OPACITY_MAX, "ime": True, "autoConnect": True}),
+        ok("companion-setting-change-cursor-on", "CompanionSettingChange",
+           {"change": 1, "item": "cursor", "value": 1}),
+        ok("companion-setting-change-hints-off", "CompanionSettingChange",
+           {"change": 2, "item": "hints", "value": 0}),
+        ok("companion-setting-change-opacity", "CompanionSettingChange",
+           {"change": 3, "item": "hintOpacity", "value": 35}),
+        ok("companion-setting-change-opacity-least", "CompanionSettingChange",
+           {"change": 4, "item": "hintOpacity", "value": PHONE_HINT_OPACITY_MIN}),
+        ok("companion-setting-change-ime-off", "CompanionSettingChange",
+           {"change": 5, "item": "ime", "value": 0}),
+        ok("companion-setting-change-auto-connect-max", "CompanionSettingChange",
+           {"change": 0xFFFFFFFF, "item": "autoConnect", "value": 1}),
     ]
 
 
 def key_hint(shape: str, x: int, y: int, label: str, width: int = 0, height: int = 0) -> dict:
     return {"shape": shape, "x": x, "y": y, "width": width, "height": height, "label": label}
+
+
+def companion_settings_payload(name: bytes = b"PC", link: int = 0, accent: int = 0xFF6B3D, cursor: int = 0,
+                               opacity: int = 60) -> bytes:
+    return (bytes(range(16)) + struct.pack(">B", len(name)) + name
+            + struct.pack(">BIIBBBBB", link, accent, 0, cursor, 0, opacity, 1, 1))
 
 
 def malformed_vectors() -> list[dict]:
@@ -1377,6 +1448,50 @@ def malformed_vectors() -> list[dict]:
             raw_frame(0x8605, struct.pack(">IB", 1, 0))),
         bad("screenshot-failed-on-bulk", "bulk", "toClient", "UnexpectedType",
             raw_frame(0x8605, struct.pack(">IBH", 1, 0, 0))),
+        bad("companion-settings-name-too-long", "companion", "toServer", "LengthExceeded",
+            raw_frame(0x0608, companion_settings_payload(name=b"n" * (COMPUTER_NAME_MAX + 1)))),
+        bad("companion-settings-name-malformed-utf8", "companion", "toServer", "MalformedUtf8",
+            raw_frame(0x0608, companion_settings_payload(name=b"\xff\xfe"))),
+        bad("companion-settings-invalid-link", "companion", "toServer", "InvalidEnum",
+            raw_frame(0x0608, companion_settings_payload(link=len(COMPUTER_LINK)))),
+        bad("companion-settings-accent-reserved", "companion", "toServer", "ReservedBitsSet",
+            raw_frame(0x0608, companion_settings_payload(accent=0x01FF6B3D))),
+        bad("companion-settings-invalid-bool", "companion", "toServer", "InvalidBool",
+            raw_frame(0x0608, companion_settings_payload(cursor=2))),
+        bad("companion-settings-opacity-too-low", "companion", "toServer", "OutOfRange",
+            raw_frame(0x0608, companion_settings_payload(opacity=PHONE_HINT_OPACITY_MIN - 1))),
+        bad("companion-settings-opacity-too-high", "companion", "toServer", "OutOfRange",
+            raw_frame(0x0608, companion_settings_payload(opacity=PHONE_HINT_OPACITY_MAX + 1))),
+        bad("companion-settings-truncated", "companion", "toServer", "Truncated",
+            raw_frame(0x0608, companion_settings_payload()[:-1])),
+        bad("companion-settings-trailing", "companion", "toServer", "TrailingBytes",
+            raw_frame(0x0608, companion_settings_payload() + b"\x00")),
+        bad("companion-settings-wrong-direction", "companion", "toClient", "WrongDirection",
+            raw_frame(0x0608, companion_settings_payload())),
+        bad("companion-settings-on-control", "control", "toServer", "UnexpectedType",
+            raw_frame(0x0608, companion_settings_payload())),
+        bad("companion-setting-change-invalid-item", "companion", "toClient", "InvalidEnum",
+            raw_frame(0x8606, struct.pack(">IBB", 1, len(COMPANION_ITEM), 1))),
+        bad("companion-setting-change-invalid-item-before-zero", "companion", "toClient", "InvalidEnum",
+            raw_frame(0x8606, struct.pack(">IBB", 0, len(COMPANION_ITEM), 1))),
+        bad("companion-setting-change-zero", "companion", "toClient", "OutOfRange",
+            raw_frame(0x8606, struct.pack(">IBB", 0, 0, 1))),
+        bad("companion-setting-change-switch-two", "companion", "toClient", "OutOfRange",
+            raw_frame(0x8606, struct.pack(">IBB", 1, COMPANION_ITEM.index("cursor"), 2))),
+        bad("companion-setting-change-opacity-too-low", "companion", "toClient", "OutOfRange",
+            raw_frame(0x8606, struct.pack(">IBB", 1, COMPANION_ITEM.index("hintOpacity"),
+                                          PHONE_HINT_OPACITY_MIN - 1))),
+        bad("companion-setting-change-opacity-too-high", "companion", "toClient", "OutOfRange",
+            raw_frame(0x8606, struct.pack(">IBB", 1, COMPANION_ITEM.index("hintOpacity"),
+                                          PHONE_HINT_OPACITY_MAX + 1))),
+        bad("companion-setting-change-truncated", "companion", "toClient", "Truncated",
+            raw_frame(0x8606, struct.pack(">IB", 1, 0))),
+        bad("companion-setting-change-trailing", "companion", "toClient", "TrailingBytes",
+            raw_frame(0x8606, struct.pack(">IBBB", 1, 0, 1, 0))),
+        bad("companion-setting-change-wrong-direction", "companion", "toServer", "WrongDirection",
+            raw_frame(0x8606, struct.pack(">IBB", 1, 0, 1))),
+        bad("companion-setting-change-on-control", "control", "toClient", "UnexpectedType",
+            raw_frame(0x8606, struct.pack(">IBB", 1, 0, 1))),
         bad("media-header-truncated", "video", "toClient", "Truncated",
             media_header(2, 0, 1, 0, 0)[:19]),
         bad("media-invalid-kind", "video", "toClient", "InvalidEnum",

@@ -2210,6 +2210,179 @@
         "message": "无法读取画面"
       },
       "hex": "860500000019ffffffff030012e697a0e6b395e8afbbe58f96e794bbe99da2"
+    },
+    {
+      "name": "companion-hello-version-2",
+      "message": "CompanionHello",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "version": 2,
+        "token": "202122232425262728292a2b2c2d2e2f"
+      },
+      "hex": "060100000013000210202122232425262728292a2b2c2d2e2f"
+    },
+    {
+      "name": "companion-welcome-version-2",
+      "message": "CompanionWelcome",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "version": 2,
+        "overlay": "granted",
+        "width": 1080,
+        "height": 2400,
+        "rotation": 0
+      },
+      "hex": "8601000000080002000438096000"
+    },
+    {
+      "name": "companion-settings-usb",
+      "message": "CompanionSettings",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "computer": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+        "name": "DESKTOP-7Q2K1LM",
+        "link": "usb",
+        "accent": 16739133,
+        "applied": 0,
+        "cursor": false,
+        "hints": false,
+        "hintOpacity": 60,
+        "ime": true,
+        "autoConnect": true
+      },
+      "hex": "06080000002ea0a1a2a3a4a5a6a7a8a9aaabacadaeaf0f4445534b544f502d3751324b314c4d0000ff6b3d0000000000003c0101"
+    },
+    {
+      "name": "companion-settings-lan-applied",
+      "message": "CompanionSettings",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "computer": "ffffffffffffffffffffffffffffffff",
+        "name": "游戏电脑",
+        "link": "lan",
+        "accent": 2282437,
+        "applied": 7,
+        "cursor": true,
+        "hints": true,
+        "hintOpacity": 10,
+        "ime": false,
+        "autoConnect": false
+      },
+      "hex": "06080000002bffffffffffffffffffffffffffffffff0ce6b8b8e6888fe794b5e88491020022d3c50000000701010a0000"
+    },
+    {
+      "name": "companion-settings-wireless-empty-name",
+      "message": "CompanionSettings",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "computer": "00000000000000000000000000000000",
+        "name": "",
+        "link": "wireless",
+        "accent": 0,
+        "applied": 1,
+        "cursor": false,
+        "hints": true,
+        "hintOpacity": 35,
+        "ime": true,
+        "autoConnect": false
+      },
+      "hex": "06080000001f00000000000000000000000000000000000100000000000000010001230100"
+    },
+    {
+      "name": "companion-settings-max",
+      "message": "CompanionSettings",
+      "channel": "companion",
+      "direction": "toServer",
+      "fields": {
+        "computer": "f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff",
+        "name": "nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn",
+        "link": "wireless",
+        "accent": 16777215,
+        "applied": 4294967295,
+        "cursor": true,
+        "hints": true,
+        "hintOpacity": 100,
+        "ime": true,
+        "autoConnect": true
+      },
+      "hex": "06080000005ff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff406e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e0100ffffffffffffff0101640101"
+    },
+    {
+      "name": "companion-setting-change-cursor-on",
+      "message": "CompanionSettingChange",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "change": 1,
+        "item": "cursor",
+        "value": 1
+      },
+      "hex": "860600000006000000010001"
+    },
+    {
+      "name": "companion-setting-change-hints-off",
+      "message": "CompanionSettingChange",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "change": 2,
+        "item": "hints",
+        "value": 0
+      },
+      "hex": "860600000006000000020100"
+    },
+    {
+      "name": "companion-setting-change-opacity",
+      "message": "CompanionSettingChange",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "change": 3,
+        "item": "hintOpacity",
+        "value": 35
+      },
+      "hex": "860600000006000000030223"
+    },
+    {
+      "name": "companion-setting-change-opacity-least",
+      "message": "CompanionSettingChange",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "change": 4,
+        "item": "hintOpacity",
+        "value": 10
+      },
+      "hex": "86060000000600000004020a"
+    },
+    {
+      "name": "companion-setting-change-ime-off",
+      "message": "CompanionSettingChange",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "change": 5,
+        "item": "ime",
+        "value": 0
+      },
+      "hex": "860600000006000000050300"
+    },
+    {
+      "name": "companion-setting-change-auto-connect-max",
+      "message": "CompanionSettingChange",
+      "channel": "companion",
+      "direction": "toClient",
+      "fields": {
+        "change": 4294967295,
+        "item": "autoConnect",
+        "value": 1
+      },
+      "hex": "860600000006ffffffff0401"
     }
   ]
 }

@@ -18699,6 +18699,30 @@
         <translation>key hints keymap overlay labels phone companion 键位 提示 覆盖层 标签 手机 伴侣</translation>
     </message>
     <message>
+        <source>Opacity of the key hints on the phone</source>
+        <translation>手机上键位提示的不透明度</translation>
+    </message>
+    <message>
+        <source>How strongly the key hints on the phone&apos;s own screen show once they have faded. GameScrcpy Companion on the phone can change it too.</source>
+        <translation>键位提示淡出后在手机自己的屏幕上显示得多明显。手机上的 GameScrcpy 伴侣也能修改它。</translation>
+    </message>
+    <message>
+        <source>key hints opacity transparency fade phone companion</source>
+        <translation>key hints opacity transparency fade phone companion 键位 提示 不透明度 透明度 淡出 手机 伴侣</translation>
+    </message>
+    <message>
+        <source>Connect again by itself over Wi-Fi</source>
+        <translation>经 Wi-Fi 自动重新连接</translation>
+    </message>
+    <message>
+        <source>GameScrcpy Companion on a phone paired over Wi-Fi looks for this computer by itself and connects again after the connection drops. The phone can change it too.</source>
+        <translation>经 Wi-Fi 配对的手机上的 GameScrcpy 伴侣会自己寻找这台电脑，连接断开后自动重新连接。手机上也能修改它。</translation>
+    </message>
+    <message>
+        <source>auto connect reconnect wifi lan wireless pair companion phone</source>
+        <translation>auto connect reconnect wifi lan wireless pair companion phone 自动 连接 重连 无线 局域网 配对 伴侣 手机</translation>
+    </message>
+    <message>
         <source>Allow AI to connect through MCP</source>
         <translation>允许 AI 通过 MCP 连接</translation>
     </message>

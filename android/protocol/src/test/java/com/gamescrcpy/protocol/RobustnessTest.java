@@ -21,6 +21,7 @@ import com.gamescrcpy.protocol.Messages.Welcome;
 import java.util.Arrays;
 import java.util.List;
 import java.util.SplittableRandom;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.function.Executable;
 
@@ -274,6 +275,64 @@ class RobustnessTest {
         final Messages.ScreenshotFailed blank = new Messages.ScreenshotFailed();
         blank.reason = null;
         assertEncodeError(EncodeError.VALUE_OUT_OF_RANGE, () -> Codec.encodeFrame(blank));
+    }
+
+    @Test
+    @DisplayName("ADR-0112: the companion's settings snapshot and setting change stay in their context and ranges")
+    void theCompanionsSettingsMessagesStayInTheirContextAndWithinTheirRanges() {
+        for (MessageType type : List.of(MessageType.COMPANION_SETTINGS, MessageType.COMPANION_SETTING_CHANGE)) {
+            assertTrue(FrameContext.COMPANION.allows(type));
+            assertFalse(FrameContext.CONTROL.allows(type));
+            assertFalse(FrameContext.HANDSHAKE.allows(type));
+        }
+        assertEquals(Direction.TO_SERVER, MessageType.COMPANION_SETTINGS.direction());
+        assertEquals(Direction.TO_CLIENT, MessageType.COMPANION_SETTING_CHANGE.direction());
+        assertEquals(2, Constants.COMPANION_VERSION);
+        assertEquals(2, new Messages.CompanionHello().version);
+
+        final Messages.CompanionSettings longest = new Messages.CompanionSettings();
+        longest.name = "n".repeat(Constants.MAX_COMPUTER_NAME);
+        longest.accent = Constants.ACCENT_MASK;
+        longest.applied = 0xFFFF_FFFFL;
+        final byte[] wire = Codec.encodeFrame(longest);
+        final Messages.CompanionSettings decoded = (Messages.CompanionSettings) Codec.decodeFrame(
+                FrameContext.COMPANION, Direction.TO_SERVER, wire, 0, wire.length);
+        assertEquals(longest.name, decoded.name);
+        assertEquals(Constants.ACCENT_MASK, decoded.accent);
+        assertEquals(Constants.DEFAULT_PHONE_HINT_OPACITY, decoded.hintOpacity);
+        assertTrue(decoded.ime && decoded.autoConnect && !decoded.cursor && !decoded.hints);
+
+        final Messages.CompanionSettings named = new Messages.CompanionSettings();
+        named.name = "n".repeat(Constants.MAX_COMPUTER_NAME + 1);
+        assertEncodeError(EncodeError.FIELD_TOO_LONG, () -> Codec.encodeFrame(named));
+        final Messages.CompanionSettings tinted = new Messages.CompanionSettings();
+        tinted.accent = 0x01FF_6B3DL;
+        assertEncodeError(EncodeError.VALUE_OUT_OF_RANGE, () -> Codec.encodeFrame(tinted));
+        for (int opacity : new int[] {Constants.MIN_PHONE_HINT_OPACITY - 1, Constants.MAX_PHONE_HINT_OPACITY + 1}) {
+            final Messages.CompanionSettings faint = new Messages.CompanionSettings();
+            faint.hintOpacity = opacity;
+            assertEncodeError(EncodeError.VALUE_OUT_OF_RANGE, () -> Codec.encodeFrame(faint));
+        }
+        final Messages.CompanionSettings shortId = new Messages.CompanionSettings();
+        shortId.computer = new byte[Constants.COMPANION_COMPUTER_ID_SIZE - 1];
+        assertEncodeError(EncodeError.VALUE_OUT_OF_RANGE, () -> Codec.encodeFrame(shortId));
+
+        assertTrue(Codec.encodeFrame(change(1, Enums.CompanionItem.CURSOR, 1)).length > 0);
+        assertTrue(Codec.encodeFrame(change(1, Enums.CompanionItem.HINT_OPACITY, 10)).length > 0);
+        for (Messages.CompanionSettingChange wrong : List.of(change(0, Enums.CompanionItem.CURSOR, 1),
+                change(1, Enums.CompanionItem.IME, 2), change(1, Enums.CompanionItem.AUTO_CONNECT, 60),
+                change(1, Enums.CompanionItem.HINT_OPACITY, 9), change(1, Enums.CompanionItem.HINT_OPACITY, 101),
+                change(1, null, 1))) {
+            assertEncodeError(EncodeError.VALUE_OUT_OF_RANGE, () -> Codec.encodeFrame(wrong));
+        }
+    }
+
+    private static Messages.CompanionSettingChange change(long number, Enums.CompanionItem item, int value) {
+        final Messages.CompanionSettingChange change = new Messages.CompanionSettingChange();
+        change.change = number;
+        change.item = item;
+        change.value = value;
+        return change;
     }
 
     @Test

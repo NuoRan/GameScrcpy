@@ -185,7 +185,7 @@ TEST_CASE("golden vectors: every message encodes and decodes byte for byte")
         }
         covered.insert(name);
     }
-    CHECK(covered.size() == 65);
+    CHECK(covered.size() == 67);
 }
 
 TEST_CASE("golden vectors: malformed inputs fail with the error mandated by SPEC 3.3")

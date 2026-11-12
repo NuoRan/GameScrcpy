@@ -3,6 +3,7 @@ package com.gamescrcpy.companion
 import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
 class PairingsTest {
@@ -47,6 +48,14 @@ class PairingsTest {
         val moved = pairing(4, "192.168.9.9")
         pairings = Pairings.remember(pairings, moved)
         assertEquals(listOf(moved, pairing(6), pairing(5), pairing(3)), pairings)
+    }
+
+    @Test
+    @DisplayName("ADR-0112: removing a computer forgets only its pairing")
+    fun removingAComputerForgetsOnlyItsPairing() {
+        val pairings = listOf(pairing(1), pairing(2), pairing(3))
+        assertEquals(listOf(pairing(1), pairing(3)), Pairings.forget(pairings, pairing(2).pc))
+        assertEquals(pairings, Pairings.forget(pairings, "00".repeat(LanCodec.ID_SIZE)))
     }
 
     @Test

@@ -318,6 +318,12 @@ std::string previousInputMethod(std::string_view current, std::string_view enabl
     return {};
 }
 
+bool companionRefusesVersion(const protocol::ToClientMessage& reply) noexcept
+{
+    const auto* goodbye = std::get_if<protocol::ServerGoodbye>(&reply);
+    return goodbye != nullptr && goodbye->reason == protocol::ErrorCode::VersionMismatch;
+}
+
 std::vector<std::string> splitCommitText(std::string_view utf8)
 {
     std::vector<std::string> parts;
@@ -497,6 +503,18 @@ void CompanionLink::requestScreenshot(std::uint32_t requestId, std::uint16_t max
     if (ended) {
         notify(shotNotice(*ended));
     }
+}
+
+void CompanionLink::setSettings(const protocol::CompanionSettings& settings)
+{
+    {
+        const std::lock_guard lock(m_mutex);
+        if (m_settings == settings) {
+            return;
+        }
+        m_settings = settings;
+    }
+    m_wake.notify_all();
 }
 
 void CompanionLink::stop()
@@ -720,30 +738,50 @@ Expected<std::unique_ptr<CompanionChannel>, CompanionNotice> CompanionLink::hand
     if (channel == nullptr) {
         return makeUnexpected(noticeOf(CompanionEvent::Failed, "there is no connection to the companion"));
     }
-    channel->setTimeouts(m_timing.reply, m_timing.reply);
-    {
-        const std::lock_guard lock(m_mutex);
-        if (m_hurry) {
-            return makeUnexpected(noticeOf(CompanionEvent::Ended));
+    Expected<protocol::ToClientMessage, CompanionRead> reply = greet(*channel, token, protocol::kCompanionVersion);
+    if (reply && companionRefusesVersion(*reply)) {
+        log::info(kLog, "[{}] the companion app speaks only version 1 of its protocol; greeting it again", m_serial);
+        channel.reset();
+        std::optional<platform::TcpStream> stream = platform::TcpStream::connectLoopback(m_port);
+        if (!stream) {
+            return makeUnexpected(
+                noticeOf(CompanionEvent::Failed, std::format("nothing accepts the forwarded port {}", m_port)));
         }
-        m_handshaking = channel.get();
-    }
-    protocol::CompanionHello hello;
-    hello.token.assign(token.begin(), token.end());
-    std::vector<std::uint8_t> buffer;
-    Expected<protocol::ToClientMessage, CompanionRead> reply = makeUnexpected(CompanionRead::Closed);
-    if (writeFrame(*channel, hello)) {
-        reply = readMessage(*channel, buffer);
-    }
-    {
-        const std::lock_guard lock(m_mutex);
-        m_handshaking = nullptr;
+        channel = plainCompanionChannel(std::move(*stream));
+        reply = greet(*channel, token, 1);
     }
     if (!reply) {
         return makeUnexpected(stopping() ? noticeOf(CompanionEvent::Ended)
                                          : noticeOf(CompanionEvent::Failed, readEndText(reply.error())));
     }
     return admitted(std::move(channel), *reply);
+}
+
+Expected<protocol::ToClientMessage, CompanionRead> CompanionLink::greet(CompanionChannel& channel,
+                                                                        std::span<const std::uint8_t> token,
+                                                                        std::uint16_t version)
+{
+    channel.setTimeouts(m_timing.reply, m_timing.reply);
+    {
+        const std::lock_guard lock(m_mutex);
+        if (m_hurry) {
+            return makeUnexpected(CompanionRead::Closed);
+        }
+        m_handshaking = &channel;
+    }
+    protocol::CompanionHello hello;
+    hello.version = version;
+    hello.token.assign(token.begin(), token.end());
+    std::vector<std::uint8_t> buffer;
+    Expected<protocol::ToClientMessage, CompanionRead> reply = makeUnexpected(CompanionRead::Closed);
+    if (writeFrame(channel, hello)) {
+        reply = readMessage(channel, buffer);
+    }
+    {
+        const std::lock_guard lock(m_mutex);
+        m_handshaking = nullptr;
+    }
+    return reply;
 }
 
 Expected<std::unique_ptr<CompanionChannel>, CompanionNotice> CompanionLink::admitted(
@@ -762,20 +800,22 @@ Expected<std::unique_ptr<CompanionChannel>, CompanionNotice> CompanionLink::admi
         return makeUnexpected(
             noticeOf(CompanionEvent::Failed, std::format("expected CompanionWelcome, got {}", nameOf(reply))));
     }
-    if (welcome->version != protocol::kCompanionVersion) {
+    if (welcome->version == 0 || welcome->version > protocol::kCompanionVersion) {
         return makeUnexpected(noticeOf(CompanionEvent::Failed,
-                                       std::format("the companion speaks version {}, this client version {}",
+                                       std::format("the companion answered with version {}, this client speaks up to {}",
                                                    welcome->version, protocol::kCompanionVersion)));
     }
+    m_version = welcome->version;
     const bool granted = welcome->overlay == protocol::OverlayStatus::Granted;
-    log::info(kLog, "[{}] the companion is connected{}{}", m_serial, m_lan ? " over the local network" : "",
-              granted ? "" : ", without the overlay permission");
+    log::info(kLog, "[{}] the companion is connected with protocol version {}{}{}", m_serial, m_version,
+              m_lan ? " over the local network" : "", granted ? "" : ", without the overlay permission");
     {
         const std::lock_guard lock(m_mutex);
         m_connected = true;
     }
     CompanionNotice connected = noticeOf(CompanionEvent::Connected);
     connected.overlay = granted;
+    connected.version = m_version;
     notify(connected);
     if (!granted) {
         openPermissionPage();
@@ -813,6 +853,8 @@ CompanionNotice CompanionLink::talk(CompanionChannel& channel)
     std::optional<protocol::CursorState> sent;
     std::optional<protocol::KeyHintLayout> sentHints;
     std::optional<protocol::KeyHintState> sentHintState;
+    std::optional<protocol::CompanionSettings> sentSettings;
+    const bool syncs = m_version >= protocol::kCompanionSettingsVersion;
     Clock::time_point sentAt{};
     Clock::time_point pingAt = Clock::now() + m_timing.ping;
     std::uint32_t nonce = 0;
@@ -820,6 +862,7 @@ CompanionNotice CompanionLink::talk(CompanionChannel& channel)
         std::optional<protocol::CursorState> cursor;
         std::optional<protocol::KeyHintLayout> hints;
         std::optional<protocol::KeyHintState> hintState;
+        std::optional<protocol::CompanionSettings> settings;
         std::deque<std::vector<std::uint8_t>> outbox;
         std::optional<bool> ime;
         std::optional<ShotOutcome> expired;
@@ -848,6 +891,9 @@ CompanionNotice CompanionLink::talk(CompanionChannel& channel)
                 if (m_hintState && m_hintState != sentHintState) {
                     hintState = m_hintState;
                 }
+                if (syncs && m_settings && m_settings != sentSettings) {
+                    settings = m_settings;
+                }
                 outbox.swap(m_outbox);
                 if (!m_lan) {
                     if (m_imeWanted && (!m_imeApplied || m_imeRetry)) {
@@ -860,7 +906,8 @@ CompanionNotice CompanionLink::talk(CompanionChannel& channel)
                 ping = now >= pingAt;
                 permission = std::exchange(m_permissionWanted, false);
                 expired = m_shots.expire(now);
-                if (cursor || hints || hintState || !outbox.empty() || ime || ping || permission || expired) {
+                if (cursor || hints || hintState || settings || !outbox.empty() || ime || ping || permission ||
+                    expired) {
                     break;
                 }
                 Clock::time_point due = fresh ? std::min(pingAt, cursorAt) : pingAt;
@@ -887,6 +934,12 @@ CompanionNotice CompanionLink::talk(CompanionChannel& channel)
             } else {
                 restoreIme();
             }
+        }
+        if (settings) {
+            if (!writeFrame(channel, *settings)) {
+                return noticeOf(CompanionEvent::Lost, "the connection to the companion broke");
+            }
+            sentSettings = std::move(settings);
         }
         for (const std::vector<std::uint8_t>& frame : outbox) {
             if (!channel.send(frame)) {
@@ -955,6 +1008,13 @@ void CompanionLink::listen(CompanionChannel& channel)
         if (const auto* box = std::get_if<protocol::InputBoxChanged>(&*message)) {
             CompanionNotice changed = noticeOf(CompanionEvent::InputBox);
             changed.box = *box;
+            notify(changed);
+            continue;
+        }
+        if (const auto* change = std::get_if<protocol::CompanionSettingChange>(&*message);
+            change != nullptr && m_version >= protocol::kCompanionSettingsVersion) {
+            CompanionNotice changed = noticeOf(CompanionEvent::SettingChanged);
+            changed.change = *change;
             notify(changed);
             continue;
         }

@@ -586,9 +586,20 @@ Item {
                         objectName: "phoneHintsSwitch"
                         path: "companion.hints"
                     }
+                    SliderSetting {
+                        objectName: "phoneHintOpacity"
+                        path: "companion.hintOpacity"
+                        unit: "%"
+                        step: 5
+                        nested: true
+                    }
                     SwitchSetting {
                         objectName: "phoneCursorSwitch"
                         path: "companion.cursor"
+                    }
+                    SwitchSetting {
+                        objectName: "phoneAutoConnectSwitch"
+                        path: "companion.autoConnect"
                     }
                 }
 

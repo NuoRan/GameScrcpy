@@ -69,5 +69,4 @@ object KeyHintLook {
     const val TEXT_SP = 13f
     const val SMALL_TEXT_SP = 12f
     const val TEXT_WEIGHT = 600
-    const val FADE_MILLIS = 240L
 }

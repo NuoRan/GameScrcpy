@@ -16,7 +16,8 @@ public final class Constants {
     public static final int AUDIO_PAYLOAD_LIMIT = 64 * 1024;
 
     public static final int MAX_POINTER_ID = 31;
-    public static final int COMPANION_VERSION = 1;
+    public static final int COMPANION_VERSION = 2;
+    public static final int COMPANION_SETTINGS_VERSION = 2;
     public static final int COMPANION_TOKEN_SIZE = 16;
     public static final int COMPANION_TEXT_LIMIT = 4096;
     public static final int MAX_KEY_HINTS = 192;
@@ -26,6 +27,12 @@ public final class Constants {
     public static final int MAX_SCREENSHOT_BYTES = 4 * 1024 * 1024;
     public static final int DEFAULT_SCREENSHOT_SIDE = 1920;
     public static final int DEFAULT_SCREENSHOT_QUALITY = 90;
+    public static final int COMPANION_COMPUTER_ID_SIZE = 16;
+    public static final int MAX_COMPUTER_NAME = 64;
+    public static final long ACCENT_MASK = 0x00FF_FFFFL;
+    public static final int MIN_PHONE_HINT_OPACITY = 10;
+    public static final int MAX_PHONE_HINT_OPACITY = 100;
+    public static final int DEFAULT_PHONE_HINT_OPACITY = 60;
     public static final long CAPABILITY_MASK = 0x1FFFL;
 
     public static final long CAPABILITY_CLIPBOARD = 1L << 0;

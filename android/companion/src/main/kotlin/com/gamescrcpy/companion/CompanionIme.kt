@@ -1,14 +1,17 @@
 package com.gamescrcpy.companion
 
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.Drawable
+import android.graphics.drawable.LayerDrawable
 import android.inputmethodservice.InputMethodService
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
-import android.util.TypedValue
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.widget.Space
 import android.widget.TextView
 
 class CompanionIme : InputMethodService(), ImeTarget {
@@ -16,33 +19,49 @@ class CompanionIme : InputMethodService(), ImeTarget {
     private val fallback = ImeFallback(FALLBACK_MILLIS)
     private val check = Runnable { checkConnection() }
     private val stateListener = CompanionState.Listener { main.post { connectionChanged() } }
+    private val hostWatcher: () -> Unit = { main.post { placeHint() } }
+    private val optionsListener = PhoneOptions.Listener { main.post { placeHint() } }
     private var strip: TextView? = null
+    private var onTop = false
 
     override fun onCreate() {
         super.onCreate()
         ImeBridge.attach(this)
         CompanionState.addListener(stateListener)
+        ImeBridge.watchHost(hostWatcher)
+        PhoneOptions.of(this).addListener(optionsListener)
         connectionChanged()
     }
 
     override fun onDestroy() {
         main.removeCallbacksAndMessages(null)
         CompanionState.removeListener(stateListener)
+        ImeBridge.unwatchHost(hostWatcher)
+        PhoneOptions.of(this).removeListener(optionsListener)
         ImeBridge.detach(this)
         strip = null
         super.onDestroy()
     }
 
     override fun onCreateInputView(): View {
-        val padding = dp(STRIP_PADDING_DP)
-        val view = TextView(this).apply {
+        onTop = wantsTop()
+        if (onTop) {
+            strip = null
+            return Space(this)
+        }
+        val ui = Ui(this, Look.palette(this, null))
+        val face = ColorDrawable(ui.palette.bgElevated)
+        val edge = ColorDrawable(ui.palette.strokeSubtle)
+        val view = ui.text(Look.LABEL, ui.palette.textPrimary).apply {
             gravity = Gravity.CENTER
-            setTextColor(KeyHintLook.TEXT)
-            setBackgroundColor(STRIP_COLOR)
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, STRIP_TEXT_SP)
-            minHeight = dp(STRIP_HEIGHT_DP)
-            setPadding(padding, padding / 2, padding, padding / 2)
-            setOnClickListener { switchBack() }
+            minHeight = ui.px(STRIP_HEIGHT_DP)
+            setPaddingRelative(ui.px(Look.SPACE_MD), ui.px(Look.SPACE_XS), ui.px(Look.SPACE_MD), ui.px(Look.SPACE_XS))
+            background = LayerDrawable(arrayOf<Drawable>(face, edge)).apply {
+                setLayerGravity(1, Gravity.TOP or Gravity.FILL_HORIZONTAL)
+                setLayerHeight(1, ui.px(Look.STROKE))
+            }
+            ui.lead(this, R.drawable.ic_keyboard, ui.palette.accent)
+            setOnClickListener { switchToPhoneKeyboard() }
         }
         strip = view
         refreshStrip()
@@ -82,6 +101,18 @@ class CompanionIme : InputMethodService(), ImeTarget {
         main.post { performNow(action) }
     }
 
+    override fun switchBack() {
+        main.post { switchToPhoneKeyboard() }
+    }
+
+    private fun wantsTop(): Boolean = PhoneOptions.of(this).imeBar == ImeBar.TOP && ImeBridge.topHost
+
+    private fun placeHint() {
+        if (wantsTop() != onTop) {
+            setInputView(onCreateInputView())
+        }
+    }
+
     private fun performNow(action: Int) {
         val connection = currentInputConnection ?: return
         when (action) {
@@ -100,13 +131,13 @@ class CompanionIme : InputMethodService(), ImeTarget {
 
     private fun checkConnection() {
         if (fallback.due(CompanionState.connected, SystemClock.uptimeMillis())) {
-            switchBack()
+            switchToPhoneKeyboard()
         } else {
             connectionChanged()
         }
     }
 
-    private fun switchBack() {
+    private fun switchToPhoneKeyboard() {
         if (!switchToPreviousInputMethod()) {
             switchToNextInputMethod(false)
         }
@@ -117,14 +148,8 @@ class CompanionIme : InputMethodService(), ImeTarget {
         view.setText(if (CompanionState.connected) R.string.ime_typing else R.string.ime_waiting)
     }
 
-    private fun dp(value: Float): Int =
-        TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, value, resources.displayMetrics).toInt()
-
     private companion object {
         const val FALLBACK_MILLIS = 5_000L
         const val STRIP_HEIGHT_DP = 32f
-        const val STRIP_PADDING_DP = 12f
-        const val STRIP_TEXT_SP = 13f
-        const val STRIP_COLOR = 0xF01B1C1F.toInt()
     }
 }

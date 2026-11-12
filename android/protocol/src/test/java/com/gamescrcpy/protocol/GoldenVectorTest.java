@@ -74,7 +74,7 @@ class GoldenVectorTest {
                 .collect(Collectors.toCollection(TreeSet::new));
         expected.addAll(List.of("VideoSession", "AudioSession", "MediaConfig", "MediaFrame"));
         assertEquals(expected, covered);
-        assertEquals(65, covered.size());
+        assertEquals(67, covered.size());
         assertTrue(VECTORS.stream().filter(Vector::malformed).count() >= 40);
     }
 

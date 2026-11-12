@@ -36,6 +36,7 @@ constexpr std::chrono::milliseconds kHandshakeTimeout = 5s;
 constexpr std::chrono::milliseconds kDownloadTimeout = 30s;
 constexpr std::chrono::milliseconds kDrainTimeout = 2s;
 constexpr std::size_t kMostConnections = 8;
+constexpr std::size_t kMostOlderPhones = 16;
 constexpr std::string_view kApkName = "gs-companion.apk";
 
 constexpr std::string_view kPageEnglish =
@@ -245,24 +246,31 @@ std::optional<std::string> readHttpHead(LanSocket& socket, std::string text)
     return text;
 }
 
-std::optional<protocol::CompanionWelcome> provenWelcome(CompanionChannel& channel)
+struct Greeting {
+    std::optional<protocol::CompanionWelcome> welcome;
+    bool olderApp = false;
+};
+
+Greeting provenWelcome(CompanionChannel& channel, std::uint16_t version)
 {
-    const auto hello = protocol::encodeFrame(protocol::CompanionHello{});
-    if (!hello || !channel.send(*hello)) {
-        return std::nullopt;
+    protocol::CompanionHello hello;
+    hello.version = version;
+    const auto frame = protocol::encodeFrame(hello);
+    if (!frame || !channel.send(*frame)) {
+        return {};
     }
-    std::vector<std::uint8_t> frame;
-    if (channel.receive(frame) != CompanionRead::Frame) {
-        return std::nullopt;
+    std::vector<std::uint8_t> reply;
+    if (channel.receive(reply) != CompanionRead::Frame) {
+        return {};
     }
-    const auto message = protocol::decodeToClientFrame(protocol::FrameContext::Companion, frame);
+    const auto message = protocol::decodeToClientFrame(protocol::FrameContext::Companion, reply);
     if (!message) {
-        return std::nullopt;
+        return {};
     }
     if (const auto* welcome = std::get_if<protocol::CompanionWelcome>(&*message)) {
-        return *welcome;
+        return {.welcome = *welcome};
     }
-    return std::nullopt;
+    return {.olderApp = version > 1 && companionRefusesVersion(*message)};
 }
 
 struct MdnsInstance {
@@ -789,6 +797,15 @@ void CompanionLan::serve(Slot& slot)
                 break;
             }
         }
+        const auto older = std::ranges::find(m_older, decoded->phone, &OlderPhone::phone);
+        if (!arrival && decoded->token.empty() && older != m_older.end() && older->pairing &&
+            std::ranges::any_of(m_expected, [&older](const LanExpectation& expectation) {
+                return expectation.serial == older->serial && !expectation.token.empty();
+            })) {
+            key = older->pairing->key;
+            pc = older->pairing->pc;
+            arrival = LanArrival{.serial = older->serial, .paired = older->pairing};
+        }
     }
     if (!arrival) {
         static_cast<void>(socket->writeAll(encodeLanReply({.status = LanStatus::Unknown})));
@@ -804,9 +821,27 @@ void CompanionLan::serve(Slot& slot)
         return;
     }
     auto channel = std::make_unique<LanChannel>(socket, lanSessionKey(key, hello, reply));
-    const std::optional<protocol::CompanionWelcome> welcome = provenWelcome(*channel);
+    bool older = false;
+    {
+        const std::lock_guard lock(m_mutex);
+        older = std::ranges::find(m_older, decoded->phone, &OlderPhone::phone) != m_older.end();
+    }
+    const Greeting greeting = provenWelcome(*channel, older ? std::uint16_t{1} : protocol::kCompanionVersion);
+    const std::optional<protocol::CompanionWelcome>& welcome = greeting.welcome;
     if (!welcome) {
         socket->interrupt();
+        if (greeting.olderApp) {
+            const std::lock_guard lock(m_mutex);
+            std::erase_if(m_older, [&decoded](const OlderPhone& phone) { return phone.phone == decoded->phone; });
+            if (m_older.size() >= kMostOlderPhones) {
+                m_older.erase(m_older.begin());
+            }
+            m_older.push_back({.phone = decoded->phone, .serial = arrival->serial, .pairing = arrival->paired});
+            log::info(kLog, "[{}] the companion on the local network speaks only version 1 of its protocol; it is "
+                            "greeted with version 1 when it comes back",
+                      arrival->serial);
+            return;
+        }
         log::info(kLog, "[{}] turned away a companion on the local network: it did not prove it holds the key",
                   arrival->serial);
         return;

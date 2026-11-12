@@ -48,6 +48,7 @@ public enum MessageType {
     KEY_HINT_LAYOUT(0x0605, "KeyHintLayout", Messages.KeyHintLayout::new),
     KEY_HINT_STATE(0x0606, "KeyHintState", Messages.KeyHintState::new),
     SCREENSHOT_REQUEST(0x0607, "ScreenshotRequest", Messages.ScreenshotRequest::new),
+    COMPANION_SETTINGS(0x0608, "CompanionSettings", Messages.CompanionSettings::new),
 
     SERVER_HELLO(0x8001, "ServerHello", Messages.ServerHello::new),
     WELCOME(0x8003, "Welcome", Messages.Welcome::new),
@@ -74,7 +75,8 @@ public enum MessageType {
     OVERLAY_CHANGED(0x8602, "OverlayChanged", Messages.OverlayChanged::new),
     INPUT_BOX_CHANGED(0x8603, "InputBoxChanged", Messages.InputBoxChanged::new),
     SCREENSHOT_CHUNK(0x8604, "ScreenshotChunk", Messages.ScreenshotChunk::new),
-    SCREENSHOT_FAILED(0x8605, "ScreenshotFailed", Messages.ScreenshotFailed::new);
+    SCREENSHOT_FAILED(0x8605, "ScreenshotFailed", Messages.ScreenshotFailed::new),
+    COMPANION_SETTING_CHANGE(0x8606, "CompanionSettingChange", Messages.CompanionSettingChange::new);
 
     private static final MessageType[] BY_CODE = Arrays.stream(values())
             .sorted(Comparator.comparingInt(MessageType::code))

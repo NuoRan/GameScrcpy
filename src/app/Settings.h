@@ -482,6 +482,8 @@ struct Companion {
     bool cursor = false;
     bool ime = true;
     bool hints = false;
+    std::int32_t hintOpacity = 60;
+    bool autoConnect = true;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -512,6 +514,24 @@ struct Companion {
                                                                 "as in the mirror window. Without a picture, such as "
                                                                 "over AOA, they show there by themselves."),
                    .keywords = GS_TRANSLATE_NOOP("Settings", "key hints keymap overlay labels phone companion"),
+                   .scope = Scope::Device,
+                   .live = true});
+        v.integer("hintOpacity", m.hintOpacity, 10, 100,
+                  {.title = GS_TRANSLATE_NOOP("Settings", "Opacity of the key hints on the phone"),
+                   .description = GS_TRANSLATE_NOOP("Settings", "How strongly the key hints on the phone's own screen "
+                                                                "show once they have faded. GameScrcpy Companion on the "
+                                                                "phone can change it too."),
+                   .keywords = GS_TRANSLATE_NOOP("Settings", "key hints opacity transparency fade phone companion"),
+                   .scope = Scope::Device,
+                   .live = true});
+        v.boolean("autoConnect", m.autoConnect,
+                  {.title = GS_TRANSLATE_NOOP("Settings", "Connect again by itself over Wi-Fi"),
+                   .description = GS_TRANSLATE_NOOP("Settings", "GameScrcpy Companion on a phone paired over Wi-Fi "
+                                                                "looks for this computer by itself and connects again "
+                                                                "after the connection drops. The phone can change it "
+                                                                "too."),
+                   .keywords = GS_TRANSLATE_NOOP("Settings", "auto connect reconnect wifi lan wireless pair companion "
+                                                             "phone"),
                    .scope = Scope::Device,
                    .live = true});
     }

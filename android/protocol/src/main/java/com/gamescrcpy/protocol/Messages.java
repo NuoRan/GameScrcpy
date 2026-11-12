@@ -3,6 +3,8 @@ package com.gamescrcpy.protocol;
 import com.gamescrcpy.protocol.Enums.AudioCodec;
 import com.gamescrcpy.protocol.Enums.AudioStatus;
 import com.gamescrcpy.protocol.Enums.ChannelId;
+import com.gamescrcpy.protocol.Enums.CompanionItem;
+import com.gamescrcpy.protocol.Enums.ComputerLink;
 import com.gamescrcpy.protocol.Enums.CopyKey;
 import com.gamescrcpy.protocol.Enums.ErrorCode;
 import com.gamescrcpy.protocol.Enums.ImeAction;
@@ -1112,6 +1114,62 @@ public final class Messages {
             requestId = v.u32("requestId", requestId);
             reason = v.enumeration("reason", reason, ScreenshotProblem.CODEC);
             message = v.str16("message", message, 1024);
+        }
+    }
+
+    public static final class CompanionSettings implements Message {
+        public byte[] computer = new byte[Constants.COMPANION_COMPUTER_ID_SIZE];
+        public String name = "";
+        public ComputerLink link = ComputerLink.USB;
+        public long accent;
+        public long applied;
+        public boolean cursor;
+        public boolean hints;
+        public int hintOpacity = Constants.DEFAULT_PHONE_HINT_OPACITY;
+        public boolean ime = true;
+        public boolean autoConnect = true;
+
+        @Override public MessageType type() { return MessageType.COMPANION_SETTINGS; }
+
+        @Override
+        public void visit(FieldVisitor v) {
+            computer = v.bytes("computer", computer, Constants.COMPANION_COMPUTER_ID_SIZE);
+            name = v.str8("name", name, Constants.MAX_COMPUTER_NAME);
+            link = v.enumeration("link", link, ComputerLink.CODEC);
+            accent = v.u32Mask("accent", accent, Constants.ACCENT_MASK);
+            applied = v.u32("applied", applied);
+            cursor = v.bool("cursor", cursor);
+            hints = v.bool("hints", hints);
+            hintOpacity = v.u8Range("hintOpacity", hintOpacity, Constants.MIN_PHONE_HINT_OPACITY,
+                    Constants.MAX_PHONE_HINT_OPACITY);
+            ime = v.bool("ime", ime);
+            autoConnect = v.bool("autoConnect", autoConnect);
+        }
+    }
+
+    public static final class CompanionSettingChange implements Message {
+        public long change = 1;
+        public CompanionItem item = CompanionItem.CURSOR;
+        public int value;
+
+        @Override public MessageType type() { return MessageType.COMPANION_SETTING_CHANGE; }
+
+        @Override
+        public void visit(FieldVisitor v) {
+            change = v.u32("change", change);
+            item = v.enumeration("item", item, CompanionItem.CODEC);
+            value = v.u8("value", value);
+        }
+
+        @Override
+        public boolean isValid() {
+            if (change == 0) {
+                return false;
+            }
+            if (item == CompanionItem.HINT_OPACITY) {
+                return value >= Constants.MIN_PHONE_HINT_OPACITY && value <= Constants.MAX_PHONE_HINT_OPACITY;
+            }
+            return value == 0 || value == 1;
         }
     }
 }

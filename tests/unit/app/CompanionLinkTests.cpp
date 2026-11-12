@@ -363,6 +363,18 @@ public:
         m_silent = silent;
     }
 
+    void setSpeaks(std::uint16_t version)
+    {
+        const std::lock_guard lock(m_mutex);
+        m_speaks = version;
+    }
+
+    [[nodiscard]] std::vector<std::uint16_t> helloVersions() const
+    {
+        const std::lock_guard lock(m_mutex);
+        return m_helloVersions;
+    }
+
     template <typename M>
     void send(const M& message)
     {
@@ -459,9 +471,12 @@ private:
         {
             const std::lock_guard lock(m_mutex);
             m_helloToken = gs::platform::toHex(hello->token);
-            welcome = !m_refusing && m_phone != nullptr && m_helloToken == m_phone->token();
+            m_helloVersions.push_back(hello->version);
+            const bool older = m_speaks == 1 && hello->version != 1;
+            welcome = !older && !m_refusing && m_phone != nullptr && m_helloToken == m_phone->token();
             if (welcome) {
                 protocol::CompanionWelcome reply;
+                reply.version = std::min(hello->version, m_speaks);
                 reply.overlay = m_overlay;
                 reply.width = 1080;
                 reply.height = 2400;
@@ -469,8 +484,8 @@ private:
                 m_connection = &c;
             } else {
                 protocol::ServerGoodbye refusal;
-                refusal.reason = protocol::ErrorCode::AuthenticationFailed;
-                refusal.message = "wrong token";
+                refusal.reason = older ? protocol::ErrorCode::VersionMismatch : protocol::ErrorCode::AuthenticationFailed;
+                refusal.message = older ? "companion protocol version 1, client version 2" : "wrong token";
                 write(c, refusal);
             }
         }
@@ -514,6 +529,8 @@ private:
     protocol::OverlayStatus m_overlay = protocol::OverlayStatus::Granted;
     bool m_refusing = false;
     bool m_silent = false;
+    std::uint16_t m_speaks = protocol::kCompanionVersion;
+    std::vector<std::uint16_t> m_helloVersions;
     FakeConnection* m_connection = nullptr;
     std::string m_helloToken;
     std::vector<ReceivedCursor> m_cursors;
@@ -1100,4 +1117,88 @@ TEST_CASE("companion link: an input box the companion reports reaches the listen
     CHECK(*heard->box == box);
     CHECK_FALSE(gs::app::isFinal(CompanionEvent::InputBox));
     CHECK_FALSE(gs::app::isFinal(CompanionEvent::ImeRefused));
+}
+
+TEST_CASE("ADR-0112: a companion that speaks only version 1 is greeted again with version 1 and gets no settings")
+{
+    Rig rig;
+    rig.phone.reply(std::string(kListPackages), std::string(kCurrent));
+    rig.companion.setSpeaks(1);
+    CompanionTiming timing;
+    timing.ping = 60s;
+    auto link = rig.link(apkOf(2), timing);
+    link->setSettings(protocol::CompanionSettings{});
+    const auto connected = rig.notices.waitFor(CompanionEvent::Connected);
+    REQUIRE(connected);
+    CHECK(connected->version == 1);
+    CHECK(rig.companion.helloVersions() == std::vector<std::uint16_t>{protocol::kCompanionVersion, 1});
+    CHECK(rig.companion.helloToken() == rig.phone.token());
+    CHECK(std::ranges::count(rig.phone.commands(), std::string(kForward)) == 1);
+    CHECK_FALSE(rig.notices.waitFor(CompanionEvent::Failed, 0ms).has_value());
+    CHECK_FALSE(rig.companion.waitForOthers(1, 300ms));
+
+    link->commitText("gg");
+    REQUIRE(rig.companion.waitForOthers(1));
+    CHECK(othersOf<protocol::CompanionSettings>(rig.companion).empty());
+    CHECK(othersOf<protocol::CommitText>(rig.companion).size() == 1);
+}
+
+TEST_CASE("ADR-0112: the settings go to a version 2 companion when it connects and again only when they change, and "
+          "a change made on the phone reaches the listener")
+{
+    Rig rig;
+    rig.phone.reply(std::string(kListPackages), std::string(kCurrent));
+    CompanionTiming timing;
+    timing.ping = 60s;
+    auto link = rig.link(apkOf(2), timing);
+    protocol::CompanionSettings first;
+    first.name = "DESKTOP-1";
+    first.accent = 0xFF6B3DU;
+    first.computer.fill(0xA5);
+    link->setSettings(first);
+    const auto connected = rig.notices.waitFor(CompanionEvent::Connected);
+    REQUIRE(connected);
+    CHECK(connected->version == protocol::kCompanionVersion);
+    CHECK(rig.companion.helloVersions() == std::vector<std::uint16_t>{protocol::kCompanionVersion});
+    REQUIRE(rig.companion.waitForOthers(1));
+    REQUIRE(othersOf<protocol::CompanionSettings>(rig.companion).size() == 1);
+    CHECK(othersOf<protocol::CompanionSettings>(rig.companion).front() == first);
+
+    link->setSettings(first);
+    CHECK_FALSE(rig.companion.waitForOthers(2, 300ms));
+
+    protocol::CompanionSettings second = first;
+    second.cursor = true;
+    second.applied = 1;
+    link->setSettings(second);
+    REQUIRE(rig.companion.waitForOthers(2));
+    CHECK(othersOf<protocol::CompanionSettings>(rig.companion).back() == second);
+
+    rig.companion.send(
+        protocol::CompanionSettingChange{.change = 1, .item = protocol::CompanionItem::HintOpacity, .value = 35});
+    const auto heard = rig.notices.waitFor(CompanionEvent::SettingChanged);
+    REQUIRE(heard.has_value());
+    REQUIRE(heard->change.has_value());
+    CHECK(heard->change->change == 1);
+    CHECK(heard->change->item == protocol::CompanionItem::HintOpacity);
+    CHECK(heard->change->value == 35);
+    CHECK_FALSE(gs::app::isFinal(CompanionEvent::SettingChanged));
+    CHECK_FALSE(rig.notices.waitFor(CompanionEvent::Failed, 0ms).has_value());
+}
+
+TEST_CASE("ADR-0112: a setting change on a version 1 connection ends the link as a broken companion")
+{
+    Rig rig;
+    rig.phone.reply(std::string(kListPackages), std::string(kCurrent));
+    rig.companion.setSpeaks(1);
+    CompanionTiming timing;
+    timing.ping = 60s;
+    auto link = rig.link(apkOf(2), timing);
+    REQUIRE(rig.notices.waitFor(CompanionEvent::Connected));
+    rig.companion.send(
+        protocol::CompanionSettingChange{.change = 1, .item = protocol::CompanionItem::Cursor, .value = 1});
+    const auto failed = rig.notices.waitFor(CompanionEvent::Failed);
+    REQUIRE(failed.has_value());
+    CHECK(failed->detail.find("CompanionSettingChange") != std::string::npos);
+    CHECK_FALSE(rig.notices.waitFor(CompanionEvent::SettingChanged, 0ms).has_value());
 }

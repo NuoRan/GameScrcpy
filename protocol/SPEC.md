@@ -1,6 +1,6 @@
 # GameScrcpy 协议规范 v1
 
-> 状态：**v1 已定稿**（2026-10-01 用户批准，ADR-0025）。同日在发布前修订（尚无任何已部署实现，不升版本号）：触控帧与安全区（ADR-0030）、会话续连 / 可丢弃帧 / 统一时钟（ADR-0035）、服务端就绪信号（ADR-0037 R1）。接收端反馈消息 `ReceiverReport` 于 2026-10-03 补充（ADR-0051，用户确认）；WiFi 直连传输（第 10 章）在 M5 补充。`ForegroundAppChanged` 末尾的 `flags`（位 0 = 游戏）于 2026-10-30 补充（ADR-0072 第 1 节，起点面板据此判断前台是不是游戏；仍在发布前、尚无已部署实现，不升版本号）。伴侣 App 连接（第 11 章：分区 `0x06`、帧上下文"伴侣连接"、基本类型 `blob8`）于 2026-11-02 补充（ADR-0086）：只新增类型与上下文，已有消息的字节布局不变，不升版本号。设备状态（`SubscribeStatus` 0x030B、`DeviceStatus` 0x8305、能力位 11）于 2026-11-06 补充（ADR-0098）：只新增消息与能力位，已有消息的字节布局不变，不升版本号。手柄直通（`UhidCreate` 末尾的 `bus`、`UhidFeature` 0x0113、`UhidStatus` 0x8111、能力位 12）于 2026-11-06 补充（ADR-0103）：仍在发布前、尚无已部署实现，客户端与服务端随程序一起发布，不升版本号。伴侣截图（`ScreenshotRequest` 0x0607、`ScreenshotChunk` 0x8604、`ScreenshotFailed` 0x8605，11.8 节）于 2026-11-06 补充（ADR-0105 第 5 节）：只新增伴侣分区的消息，已有消息的字节布局不变，不升版本号。
+> 状态：**v1 已定稿**（2026-10-01 用户批准，ADR-0025）。同日在发布前修订（尚无任何已部署实现，不升版本号）：触控帧与安全区（ADR-0030）、会话续连 / 可丢弃帧 / 统一时钟（ADR-0035）、服务端就绪信号（ADR-0037 R1）。接收端反馈消息 `ReceiverReport` 于 2026-10-03 补充（ADR-0051，用户确认）；WiFi 直连传输（第 10 章）在 M5 补充。`ForegroundAppChanged` 末尾的 `flags`（位 0 = 游戏）于 2026-10-30 补充（ADR-0072 第 1 节，起点面板据此判断前台是不是游戏；仍在发布前、尚无已部署实现，不升版本号）。伴侣 App 连接（第 11 章：分区 `0x06`、帧上下文"伴侣连接"、基本类型 `blob8`）于 2026-11-02 补充（ADR-0086）：只新增类型与上下文，已有消息的字节布局不变，不升版本号。设备状态（`SubscribeStatus` 0x030B、`DeviceStatus` 0x8305、能力位 11）于 2026-11-06 补充（ADR-0098）：只新增消息与能力位，已有消息的字节布局不变，不升版本号。手柄直通（`UhidCreate` 末尾的 `bus`、`UhidFeature` 0x0113、`UhidStatus` 0x8111、能力位 12）于 2026-11-06 补充（ADR-0103）：仍在发布前、尚无已部署实现，客户端与服务端随程序一起发布，不升版本号。伴侣截图（`ScreenshotRequest` 0x0607、`ScreenshotChunk` 0x8604、`ScreenshotFailed` 0x8605，11.8 节）于 2026-11-06 补充（ADR-0105 第 5 节）：只新增伴侣分区的消息，已有消息的字节布局不变，不升版本号。伴侣连接的版本 2（`CompanionSettings` 0x0608、`CompanionSettingChange` 0x8606、11.2 节的版本协商与 11.9 节的设置同步）于 2026-11-11 补充（ADR-0112 第 5.2 节）：只新增伴侣分区的消息，已有消息的字节布局不变；升的是伴侣连接自己的版本（`CompanionHello.version`），主协议版本不变，电脑对只会版本 1 的伴侣照旧说版本 1。
 > 本文件是客户端（C++，`src/protocol`）、服务端与伴侣 App（Java，`android/protocol`）的唯一事实来源。
 > 改动流程：先改本文件 → 再改 `vectors/` → 两侧实现 → 两侧测试全绿，才可提交。任何字节布局变化都必须提升协议版本。
 
@@ -123,7 +123,7 @@ adb 隧道传输（v1）：服务端在抽象 socket 上监听，客户端经 `a
 6. 负载不足 `length` 字节 → `Truncated`
 7. 按字段顺序解码负载（见下）
 8. 负载有剩余字节 → `TrailingBytes`
-9. 消息级约束不满足 → `OutOfRange`（`TouchFrame`：同一帧内 `pointerId` 重复；`DeviceStatus`：`batteryPercent` 不在 0–100 且不是 255，或 `cpuPermille` 不在 0–1000 且不是 65535；`ScreenshotChunk`：`index` 不小于 `total`）
+9. 消息级约束不满足 → `OutOfRange`（`TouchFrame`：同一帧内 `pointerId` 重复；`DeviceStatus`：`batteryPercent` 不在 0–100 且不是 255，或 `cpuPermille` 不在 0–1000 且不是 65535；`ScreenshotChunk`：`index` 不小于 `total`；`CompanionSettingChange`：`change` 为 0，或 `value` 不在 `item` 允许的范围内）
 
 媒体包：包头不足 20 字节 → `Truncated`；`kind` 非法 → `InvalidEnum`；`flags` 含本 kind 不允许的位 → `ReservedBitsSet`；`session` 为 0 → `OutOfRange`；kind 0 / 1 的 `ptsUs` 或 `encodeDelayUs` 非 0 → `OutOfRange`；`size` 超上限 → `FrameTooLarge`；负载不足 → `Truncated`；会话描述按字段解码；负载有剩余 → `TrailingBytes`。
 
@@ -466,7 +466,7 @@ control（通道 0）与 bulk（通道 3）各是一条双向的可靠字节流�
 
 ## 11. 伴侣 App 连接（ADR-0086、ADR-0023 修订）
 
-> 状态：2026-11-02 补充（CMP-001～004）。四条消息的格式由金标准向量 `vectors/companion.json` 与 `vectors/malformed.json` 锁定。2026-11-06 补充第二批（ADR-0104，CMP-005～007）：输入法与键位提示的五条消息（0x0603～0x0606、0x8603）与局域网连接（11.7 节，握手、密钥与加密记录由 `vectors/companion/lan.json` 锁定）；仍在发布前，不升版本号。同日补充截图（ADR-0105 第 5 节，HID-008）：三条消息（0x0607、0x8604、0x8605）与 11.8 节，向量在 `vectors/companion.json` 与 `vectors/malformed.json`。
+> 状态：2026-11-02 补充（CMP-001～004）。四条消息的格式由金标准向量 `vectors/companion.json` 与 `vectors/malformed.json` 锁定。2026-11-06 补充第二批（ADR-0104，CMP-005～007）：输入法与键位提示的五条消息（0x0603～0x0606、0x8603）与局域网连接（11.7 节，握手、密钥与加密记录由 `vectors/companion/lan.json` 锁定）；仍在发布前，不升版本号。同日补充截图（ADR-0105 第 5 节，HID-008）：三条消息（0x0607、0x8604、0x8605）与 11.8 节，向量在 `vectors/companion.json` 与 `vectors/malformed.json`。2026-11-11 补充版本 2（ADR-0112 第 5.2 节）：版本协商（11.2 节）、两条消息（0x0608、0x8606）与设置同步（11.9 节），向量同样在 `vectors/companion.json` 与 `vectors/malformed.json`。
 
 伴侣 App（包名 `com.gamescrcpy.companion`）是装在手机上的普通应用，与服务端无关：它自己起前台服务、自己监听，电脑经 adb 转发直接连它。第一批只有手机上的光标；第二批加上输入法（识别输入框、接收电脑打的字）、手机上的键位提示，以及没有 adb 时经局域网扫码连接（11.7 节）；没有画面时编辑键位用的手机截图见 11.8 节。
 
@@ -480,16 +480,17 @@ control（通道 0）与 bulk（通道 3）各是一条双向的可靠字节流�
 ### 11.2 连接与开局
 
 1. 服务在抽象命名空间 socket `gamescrcpy-companion` 上监听；客户端经 `adb forward tcp:0 localabstract:gamescrcpy-companion` 连接。帧格式同 3.1 节，上下文为"伴侣连接"（负载上限 16 KiB，允许的类型见 3.1 节的表）。没有 `ServerHello`。
-2. 客户端连上后先发 `CompanionHello`。伴侣 5 秒内没收到它即关闭连接。
-3. 版本为 1 且令牌与当前令牌相同（常量时间比较）：伴侣回 `CompanionWelcome`，连接进入工作状态。
-4. 否则伴侣回 `Goodbye`（0x8402）：令牌不符为 `AuthenticationFailed`；版本不符为 `VersionMismatch`，`message` 写明双方版本；开局前收到其他消息为 `UnexpectedMessage`；帧解码失败按第 7 章的对应错误码（`FrameTooLarge`、`UnknownType`、`WrongDirection`、`UnexpectedMessage`，其余为 `MalformedFrame`）。之后照第 7 章"结束"读到对端关闭（最多 5 秒）再关闭。工作状态下的解码失败同样处理。
+2. 客户端连上后先发 `CompanionHello`，`version` 是客户端会说的最高版本（当前为 2）。伴侣 5 秒内没收到它即关闭连接。
+3. `version` 不为 0 且令牌与当前令牌相同（常量时间比较）：伴侣回 `CompanionWelcome`，其中 `version` 取客户端的 `version` 与伴侣自己会说的最高版本（当前为 2）中较小的一个，这就是这条连接用的版本；连接进入工作状态。版本 1 的连接上不出现 0x0608、0x8606，收到即按 `UnexpectedMessage` 处理（伴侣照第 4 步回 `Goodbye`，电脑结束连接）。
+4. 否则伴侣回 `Goodbye`（0x8402）：令牌不符为 `AuthenticationFailed`；`version` 为 0 时为 `VersionMismatch`，`message` 写明双方版本；开局前收到其他消息为 `UnexpectedMessage`；帧解码失败按第 7 章的对应错误码（`FrameTooLarge`、`UnknownType`、`WrongDirection`、`UnexpectedMessage`，其余为 `MalformedFrame`）。之后照第 7 章"结束"读到对端关闭（最多 5 秒）再关闭。工作状态下的解码失败同样处理。只会版本 1 的伴侣（2.0.0）对 `version` 不是 1 的 `CompanionHello` 也回 `VersionMismatch`。
 5. 伴侣同一时间只服务一条通过认证的连接：新连接认证通过后，伴侣直接关闭旧连接（客户端断线重连时旧连接可能还没被察觉）。
+6. 客户端以高于 1 的版本开局而伴侣回 `VersionMismatch` 时，伴侣只会版本 1：经 adb 的连接关掉这条，在新连接上用同一令牌以版本 1 重新开局；局域网上（11.7 节）电脑记住这台手机（握手里的 `phone`）只会版本 1，伴侣自己重连时以版本 1 开局，记到程序退出。`CompanionWelcome.version` 为 0 或大于客户端发出的版本时，客户端当作开局失败。
 
 ### 11.3 消息（分区 `0x06`）
 
 | 类型 | 名称 | 方向 | 负载 |
 |---|---|---|---|
-| 0x0601 | CompanionHello | 电脑 → 伴侣 | `version u16`（当前为 1）· `token blob8（≤ 16）`（客户端总是发 16 字节；长度不对等同令牌不符） |
+| 0x0601 | CompanionHello | 电脑 → 伴侣 | `version u16`（客户端会说的最高版本，当前为 2，见 11.2 节）· `token blob8（≤ 16）`（客户端总是发 16 字节；长度不对等同令牌不符） |
 | 0x0602 | CursorState | 电脑 → 伴侣 | `x u16` · `y u16` · `flags u8`（位 0 = `visible` 显示；位 1 = `pressed` 按下；其余保留） |
 | 0x8601 | CompanionWelcome | 伴侣 → 电脑 | `version u16` · `overlay u8`（0 = `granted` 已授权，1 = `noPermission` 没有悬浮窗权限）· `width u16` · `height u16` · `rotation u8（0–3）` |
 | 0x8602 | OverlayChanged | 伴侣 → 电脑 | `overlay u8` · `width u16` · `height u16` · `rotation u8（0–3）` |
@@ -501,12 +502,16 @@ control（通道 0）与 bulk（通道 3）各是一条双向的可靠字节流�
 | 0x0607 | ScreenshotRequest | 电脑 → 伴侣 | `requestId u32` · `maxSide u16`（截图的长边最多这么多像素，不放大；0 = 伴侣默认的 1920）· `quality u8（1–100）`（JPEG 质量） |
 | 0x8604 | ScreenshotChunk | 伴侣 → 电脑 | `requestId u32` · `index u16` · `total u16（1–274）` · `data blob16（≤ 15360）`；`index` 必须小于 `total` |
 | 0x8605 | ScreenshotFailed | 伴侣 → 电脑 | `requestId u32` · `reason u8`（`ScreenshotProblem`，见下）· `message str16（≤ 1024）`（给日志看的英文说明，可为空） |
+| 0x0608 | CompanionSettings | 电脑 → 伴侣（版本 2） | `computer bytes[16]` · `name str8（≤ 64）` · `link u8`（`ComputerLink`，见下）· `accent u32`（`0x00RRGGBB`，高 8 位保留为 0）· `applied u32` · `cursor bool` · `hints bool` · `hintOpacity u8（10–100）` · `ime bool` · `autoConnect bool`（11.9 节） |
+| 0x8606 | CompanionSettingChange | 伴侣 → 电脑（版本 2） | `change u32`（不为 0）· `item u8`（`CompanionItem`，见下）· `value u8`（开关项为 0 或 1，`hintOpacity` 为 10–100）（11.9 节） |
 
 伴侣连接里另外沿用 `Ping`（0x0401）、`Goodbye`（0x0402）、`Pong`（0x8401）与 `Goodbye`（0x8402）。
 
 - **`ImeAction`**（u8，与 Android `EditorInfo.IME_ACTION_*` 同值）：0 `unspecified`、1 `none`、2 `go`、3 `search`、4 `send`、5 `next`、6 `done`、7 `previous`。
 - **`ScreenshotProblem`**（u8）：0 `refused` 用户在手机上拒绝了录屏授权；1 `unsupported` 手机做不了截图（系统不让这个应用录屏、或没有可截的画面）；2 `busy` 上一张还没截完；3 `error` 其它错误（`message` 写明）。
 - **`KeyHintShape`**（u8，照投屏窗口键位提示的形状，ADR-0077、设计系统 KeyHint）：0 `tap` 圆标、1 `hold` 按住（外圈整圈）、2 `longPress` 长按（外圈进度弧）、3 `turbo` 连发（右上残影）、4 `camera` 视角（准星短线）、5 `aim` 技能施法（外圈虚线）、6 `freeLook` 自由视角（眼形）、7 `swipe` 滑动（向右的虚线箭头）、8 `key` 小方键帽（摇杆环上的方向键、环里的其余键）、9 `ring` 摇杆或方向轮盘的圆环（没有文字）、10 `unbound` 没填键（虚线圈，写组件名）。
+- **`ComputerLink`**（u8）：0 `usb` 经 USB 调试的 adb；1 `wireless` 经无线调试的 adb；2 `lan` 局域网直连（11.7 节）。
+- **`CompanionItem`**（u8，括号里是电脑上这台手机的设置）：0 `cursor` 手机上的光标（`companion.cursor`）；1 `hints` 手机上的键位提示（`companion.hints`）；2 `hintOpacity` 手机上的键位提示淡化后的不透明度，10–100（`companion.hintOpacity`）；3 `ime` 用电脑键盘打字（`companion.ime`）；4 `autoConnect` 自动连接（`companion.autoConnect`）。
 
 ### 11.4 语义
 
@@ -586,3 +591,17 @@ control（通道 0）与 bulk（通道 3）各是一条双向的可靠字节流�
 - **截图**：取最近的一帧，方向与手机当前方向一致（宽高与主显示器当前方向的宽高同向），长边缩到 `maxSide`（0 时 1920）以内、不放大，编码成 JPEG（质量 `quality`）。超过 4 MiB（4194304 字节）时伴侣逐步降低质量重编，仍超过 → `ScreenshotFailed(error)`。
 - **分块**：伴侣按 `index` 从 0 起依次发 `ScreenshotChunk`；`total` 是块数，每块都相同；除最后一块外每块正好 15360 字节，最后一块 1～15360 字节，按 `index` 拼起来就是 JPEG 文件。总长不超过 4 MiB，所以 `total` ≤ 274（伴侣连接每条消息最多 16 KiB，见 3.1 节）。
 - **电脑收块**：只收正在等的 `requestId` 的块与失败，其余丢弃；`total` 与先到的块不同、同一 `index` 重复、拼起来超过 4 MiB：这次截图失败。还没收到任何块时等 30 秒（用户要在手机上确认），收到块之后两块之间最多等 5 秒，超时即失败；连接结束时还在等的请求失败。
+
+### 11.9 设置同步（版本 2，ADR-0112 第 5.2 节）
+
+手机上的光标、手机上的键位提示（显示与淡化后的不透明度）、用电脑键盘打字与自动连接在电脑上和伴侣里都能开关，两边保持一致。它们是电脑上这台手机自己的设置（`CompanionItem` 括号里的设置，按设备保存）：电脑上的值是存档，伴侣记着每台电脑最后发来的一份。只在版本 2 的连接上（11.2 节）。
+
+- **快照**（`CompanionSettings`）：连接进入工作状态后电脑先发一份；之后这些项、电脑的名字、强调色或 `applied` 变了再发完整的一份，与上次发出的完全相同则不发。
+  - `computer`：电脑的编号，同一台电脑经 USB、无线调试与局域网都相同，伴侣按它分开记每台电脑。电脑把 ASCII `GameScrcpy companion computer`、一个 0 字节与 Windows 的机器编号（读不到时用计算机名）连起来做 SHA-256，取前 16 字节，不直接发出机器编号。它与局域网配对的 `pc`（11.7 节）无关。
+  - `name`：电脑的计算机名，超过 64 字节时在字符边界截断，可为空。`link`：这条连接是怎么连的。`accent`：电脑当前的强调色（如 Ember 为 `0xFF6B3D`），伴侣连着这台电脑时用它画强调色。
+  - `applied`：这条连接上电脑已经处理过的最后一条 `CompanionSettingChange` 的 `change`，还没有时为 0。
+- **手机上改**（`CompanionSettingChange`）：用户在伴侣里改一项时，伴侣把新值发给每条已收到快照的版本 2 连接；`change` 在每条连接上从 1 起每条加 1。电脑按到达的顺序处理：把值存为这台手机的设置，再发一份 `applied` 等于这条 `change` 的快照（值没变也发，当作回执）；存不下时（例如还不知道这台手机的设备编号）同样回执，快照里是电脑上原来的值。
+- **两边都改**：以后到电脑的为准。伴侣收到的快照 `applied` 小于它某一项最后发出的 `change` 时，这一项仍显示手机上改的值（电脑还没处理到），其余项照快照；`applied` 达到后整份照快照，所以电脑在那之后改的值会盖过手机上的。
+- **没连着时改**：伴侣把改动记下来（重启手机也在）并显示在开关上；连上一台说版本 2 的电脑、收到它的第一份快照后，把与快照不同的项逐项发出，相同的直接作废。发出后连接断了、没等到回执的，下次连上再发。只说版本 1 的电脑收不到这些改动，伴侣继续记着。
+- **伴侣记的**：每台电脑（按 `computer`）的名字、连接方式、强调色、最后一份快照与最后连上的时间。没连着时开关显示最近连过的那台电脑的值，再加上还没发出的改动。
+- **自动连接**（`autoConnect`）：关掉时伴侣不在后台重连局域网上配对过的电脑（11.7 节"重连"：断开后、网络变化时都不再自己去连），只在用户点"现在连接"或扫码时连一次；经 adb 的连接由电脑发起，不受影响。电脑只保存这一项。

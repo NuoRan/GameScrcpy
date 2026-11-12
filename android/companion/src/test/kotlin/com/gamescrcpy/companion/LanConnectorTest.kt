@@ -14,6 +14,7 @@ import java.net.Socket
 import java.security.SecureRandom
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.concurrent.thread
 import org.junit.jupiter.api.Assertions.assertArrayEquals
@@ -22,6 +23,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
 class LanConnectorTest {
@@ -212,6 +214,59 @@ class LanConnectorTest {
                     live.sendMessage(Messages.Ping().also { it.nonce = 5 })
                     assertEquals(5L, assertInstanceOf(Messages.Pong::class.java, live.receiveMessage()).nonce)
                 }
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("ADR-0112: with auto connect off, a dropped connection is not joined again and a failed try is not repeated")
+    fun withAutoConnectOffTheConnectorStopsAfterOneTry() {
+        FakeComputer(key, pc).use { computer ->
+            val store = MemoryPairings(listOf(Pairing(Hex.encode(pc), Hex.encode(key), "127.0.0.1", computer.port)))
+            val events = Recorder()
+            val delivered = LinkedBlockingQueue<LanConnection>()
+            LanConnector(store, Discovery { _, _ -> emptyMap() }, { delivered.put(it) }, events, timing) { false }.use { connector ->
+                connector.start(null)
+                val first = delivered.poll(5, TimeUnit.SECONDS) ?: throw AssertionError("nothing was delivered")
+                assertEquals(Hex.encode(pc), first.pc)
+                computer.next()
+                first.close()
+                assertTrue(events.reaches(LanState.IDLE))
+                assertNull(delivered.poll(400, TimeUnit.MILLISECONDS))
+
+                computer.answer = { LanStatus.UNKNOWN }
+                connector.start(null)
+                assertTrue(events.reaches(LanState.FAILED))
+                assertNull(delivered.poll(400, TimeUnit.MILLISECONDS))
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("ADR-0112: once auto connect is back on, starting again joins the computer and joins it again after a drop")
+    fun startingAgainOnceAutoConnectIsBackKeepsJoining() {
+        FakeComputer(key, pc).use { computer ->
+            val store = MemoryPairings(listOf(Pairing(Hex.encode(pc), Hex.encode(key), "127.0.0.1", computer.port)))
+            val events = Recorder()
+            val delivered = LinkedBlockingQueue<LanConnection>()
+            val wanted = AtomicBoolean(false)
+            LanConnector(store, Discovery { _, _ -> emptyMap() }, { delivered.put(it) }, events, timing) { wanted.get() }.use { connector ->
+                connector.start(null)
+                val first = delivered.poll(5, TimeUnit.SECONDS) ?: throw AssertionError("nothing was delivered")
+                computer.next()
+                first.close()
+                assertTrue(events.reaches(LanState.IDLE))
+
+                wanted.set(true)
+                connector.start(null)
+                val second = delivered.poll(5, TimeUnit.SECONDS) ?: throw AssertionError("nothing was delivered again")
+                computer.next()
+                second.close()
+                val third = delivered.poll(5, TimeUnit.SECONDS)
+                    ?: throw AssertionError("the dropped connection was not joined again")
+                assertEquals(Hex.encode(pc), third.pc)
+                computer.next()
+                third.close()
             }
         }
     }

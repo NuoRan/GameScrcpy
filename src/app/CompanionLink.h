@@ -47,6 +47,7 @@ struct CompanionApk {
 [[nodiscard]] bool imeSelected(std::string_view output) noexcept;
 [[nodiscard]] std::string previousInputMethod(std::string_view current, std::string_view enabled);
 [[nodiscard]] std::vector<std::string> splitCommitText(std::string_view utf8);
+[[nodiscard]] bool companionRefusesVersion(const protocol::ToClientMessage& reply) noexcept;
 
 enum class CompanionEvent : std::uint8_t {
     InstallNeeded,
@@ -59,6 +60,7 @@ enum class CompanionEvent : std::uint8_t {
     ImeRefused,
     Screenshot,
     ScreenshotFailed,
+    SettingChanged,
     InstallFailed,
     Failed,
     Lost,
@@ -79,6 +81,8 @@ struct CompanionNotice {
     std::uint32_t shot = 0;
     std::shared_ptr<const std::vector<std::uint8_t>> picture;
     std::optional<ShotFailure> shotFailure;
+    std::optional<protocol::CompanionSettingChange> change;
+    std::uint16_t version = 0;
 };
 
 struct CompanionTiming {
@@ -130,6 +134,7 @@ public:
     void setKeyHints(const protocol::KeyHintLayout& layout);
     void setKeyHintState(const protocol::KeyHintState& state);
     void requestScreenshot(std::uint32_t requestId, std::uint16_t maxSide, std::uint8_t quality);
+    void setSettings(const protocol::CompanionSettings& settings);
     void stop();
 
 private:
@@ -143,6 +148,9 @@ private:
     [[nodiscard]] Expected<std::unique_ptr<CompanionChannel>, CompanionNotice> launch();
     [[nodiscard]] Expected<std::unique_ptr<CompanionChannel>, CompanionNotice> handshake(
         std::unique_ptr<CompanionChannel> channel, std::span<const std::uint8_t> token);
+    [[nodiscard]] Expected<protocol::ToClientMessage, CompanionRead> greet(CompanionChannel& channel,
+                                                                           std::span<const std::uint8_t> token,
+                                                                           std::uint16_t version);
     [[nodiscard]] Expected<std::unique_ptr<CompanionChannel>, CompanionNotice> admitted(
         std::unique_ptr<CompanionChannel> channel, const protocol::ToClientMessage& reply);
     [[nodiscard]] CompanionNotice converse(std::unique_ptr<CompanionChannel> channel);
@@ -177,12 +185,14 @@ private:
     std::deque<std::vector<std::uint8_t>> m_outbox;
     std::optional<protocol::KeyHintLayout> m_hints;
     std::optional<protocol::KeyHintState> m_hintState;
+    std::optional<protocol::CompanionSettings> m_settings;
     std::optional<CompanionNotice> m_readerEnd;
     ShotAssembly m_shots;
     adb::ShellProcess* m_process = nullptr;
     CompanionChannel* m_handshaking = nullptr;
 
     std::uint16_t m_port = 0;
+    std::uint16_t m_version = 0;
     bool m_serviceStarted = false;
     bool m_permissionPageOpened = false;
     bool m_imeSwitched = false;

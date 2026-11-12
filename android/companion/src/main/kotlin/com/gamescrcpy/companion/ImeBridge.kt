@@ -51,6 +51,8 @@ interface ImeTarget {
     fun commit(text: String)
 
     fun perform(action: Int)
+
+    fun switchBack() = Unit
 }
 
 interface ImePort {
@@ -67,6 +69,7 @@ interface ImePort {
 
 object ImeBridge : ImePort {
     private val listeners = CopyOnWriteArrayList<(InputBox) -> Unit>()
+    private val hostListeners = CopyOnWriteArrayList<() -> Unit>()
 
     @Volatile
     private var target: ImeTarget? = null
@@ -74,6 +77,30 @@ object ImeBridge : ImePort {
     @Volatile
     override var box: InputBox = InputBox.HIDDEN
         private set
+
+    @Volatile
+    var topHost: Boolean = false
+        private set
+
+    fun hostTop(on: Boolean) {
+        if (topHost == on) {
+            return
+        }
+        topHost = on
+        hostListeners.forEach { it() }
+    }
+
+    fun watchHost(listener: () -> Unit) {
+        hostListeners.addIfAbsent(listener)
+    }
+
+    fun unwatchHost(listener: () -> Unit) {
+        hostListeners.remove(listener)
+    }
+
+    fun switchBack() {
+        target?.switchBack()
+    }
 
     fun attach(ime: ImeTarget) {
         target = ime

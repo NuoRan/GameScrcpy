@@ -39,6 +39,7 @@ class LanConnector(
     private val deliver: (LanConnection) -> Unit,
     private val events: Events,
     private val timing: Timing = Timing(),
+    private val keepTrying: () -> Boolean = { true },
 ) : AutoCloseable {
 
     data class Timing(
@@ -133,6 +134,20 @@ class LanConnector(
                 deliver(connection)
                 connection.awaitClosed(Long.MAX_VALUE)
                 current = null
+                if (!keepTrying()) {
+                    val idle = lock.withLock {
+                        val stop = pending == null
+                        if (stop) {
+                            worker = null
+                        }
+                        stop
+                    }
+                    if (idle) {
+                        events.state(LanState.IDLE)
+                        return
+                    }
+                    continue
+                }
                 if (System.nanoTime() - began >= TimeUnit.MILLISECONDS.toNanos(timing.stableMillis)) {
                     backoff = timing.firstBackoffMillis
                     continue
@@ -142,15 +157,16 @@ class LanConnector(
                 backoff = (backoff * 2).coerceAtMost(timing.mostBackoffMillis)
                 continue
             }
+            val paired = pairings.all().isNotEmpty()
             val exhausted = lock.withLock {
-                val none = pending == null && pairings.all().isEmpty()
+                val none = pending == null && (!paired || !keepTrying())
                 if (none) {
                     worker = null
                 }
                 none
             }
             if (exhausted) {
-                events.state(if (link != null) LanState.FAILED else LanState.IDLE)
+                events.state(if (link != null || paired) LanState.FAILED else LanState.IDLE)
                 return
             }
             events.state(if (link != null) LanState.FAILED else LanState.SEARCHING)
@@ -218,7 +234,8 @@ class LanConnector(
                 return null
             }
             socket.soTimeout = 0
-            return Joined(LanConnection(socket, LanCodec.sessionKey(key, hello, answer)), reply.pc)
+            val session = LanCodec.sessionKey(key, hello, answer)
+            return Joined(LanConnection(socket, session, Hex.encode(reply.pc)), reply.pc)
         } catch (e: IOException) {
             runCatching { socket.close() }
             return null

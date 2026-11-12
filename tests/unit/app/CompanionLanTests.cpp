@@ -714,6 +714,86 @@ TEST_CASE("companion LAN: a phone id without the pairing key never reaches the a
     CHECK(notices.waitFor(CompanionEvent::Ended).has_value());
 }
 
+TEST_CASE("ADR-0112: a companion on the local network that speaks only version 1 is greeted with version 1 when it "
+          "comes back, and pairing with it by scanning still works")
+{
+    Arrivals arrivals;
+    CompanionLan lan(apk(), [&arrivals](LanArrival arrival) { arrivals.add(std::move(arrival)); }, 0, true);
+    REQUIRE(lan.listening());
+    protocol::ServerGoodbye older;
+    older.reason = protocol::ErrorCode::VersionMismatch;
+    older.message = "companion protocol version 1, client version 2";
+
+    const LanPairing pairing{.phone = newLanId(), .key = newLanKey(), .pc = newLanId()};
+    const LanKey key = newLanKey();
+    const std::string token = newLanToken();
+    lan.expect({LanExpectation{.serial = "aoa-1", .paired = pairing, .announce = true},
+                LanExpectation{.serial = "aoa-2", .token = token, .qrKey = key}});
+    {
+        LanPhone phone(lan.port());
+        REQUIRE(phone.greet(helloFrom("", pairing.phone), pairing.key).has_value());
+        const auto hello = phone.readAs<protocol::CompanionHello>();
+        REQUIRE(hello.has_value());
+        CHECK(hello->version == protocol::kCompanionVersion);
+        REQUIRE(phone.sendMessage(older));
+        CHECK_FALSE(arrivals.next(300ms).has_value());
+    }
+    {
+        LanPhone phone(lan.port());
+        REQUIRE(phone.greet(helloFrom("", pairing.phone), pairing.key).has_value());
+        const auto hello = phone.readAs<protocol::CompanionHello>();
+        REQUIRE(hello.has_value());
+        CHECK(hello->version == 1);
+        protocol::CompanionWelcome welcome;
+        welcome.version = 1;
+        REQUIRE(phone.sendMessage(welcome));
+        const std::optional<LanArrival> arrival = arrivals.next();
+        REQUIRE(arrival.has_value());
+        CHECK(arrival->serial == "aoa-1");
+        CHECK(arrival->welcome.version == 1);
+        CHECK_FALSE(arrival->paired.has_value());
+    }
+
+    const LanId scanner = newLanId();
+    LanId pc{};
+    {
+        LanPhone phone(lan.port());
+        const auto reply = phone.greet(helloFrom(token, scanner), key);
+        REQUIRE(reply.has_value());
+        REQUIRE(reply->status == LanStatus::Accepted);
+        pc = reply->pc;
+        REQUIRE(phone.readAs<protocol::CompanionHello>().has_value());
+        REQUIRE(phone.sendMessage(older));
+        CHECK_FALSE(arrivals.next(300ms).has_value());
+    }
+    {
+        LanPhone stranger(lan.port());
+        const auto reply = stranger.greet(helloFrom("", newLanId()), key);
+        REQUIRE(reply.has_value());
+        CHECK(reply->status == LanStatus::Unknown);
+    }
+    {
+        LanPhone phone(lan.port());
+        const auto reply = phone.greet(helloFrom("", scanner), key);
+        REQUIRE(reply.has_value());
+        CHECK(reply->status == LanStatus::Accepted);
+        CHECK(reply->pc == pc);
+        const auto hello = phone.readAs<protocol::CompanionHello>();
+        REQUIRE(hello.has_value());
+        CHECK(hello->version == 1);
+        protocol::CompanionWelcome welcome;
+        welcome.version = 1;
+        REQUIRE(phone.sendMessage(welcome));
+        const std::optional<LanArrival> arrival = arrivals.next();
+        REQUIRE(arrival.has_value());
+        CHECK(arrival->serial == "aoa-2");
+        REQUIRE(arrival->paired.has_value());
+        CHECK(arrival->paired->phone == scanner);
+        CHECK(arrival->paired->key == key);
+        CHECK(arrival->paired->pc == pc);
+    }
+}
+
 TEST_CASE("companion LAN: the pairing key is stored protected by Windows, and a key stored in plain text is "
           "protected when it is read")
 {

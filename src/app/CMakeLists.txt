@@ -213,6 +213,8 @@ qt_add_qml_module(GameScrcpy
         CompanionLink.h
         CompanionShots.cpp
         CompanionShots.h
+        CompanionSync.cpp
+        CompanionSync.h
         ComponentDefaults.cpp
         ComponentDefaults.h
         ComponentLibrary.cpp

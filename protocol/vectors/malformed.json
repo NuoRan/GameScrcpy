@@ -760,6 +760,153 @@
       "hex": "86050000000700000001000000"
     },
     {
+      "name": "companion-settings-name-too-long",
+      "channel": "companion",
+      "direction": "toServer",
+      "error": "LengthExceeded",
+      "hex": "060800000060000102030405060708090a0b0c0d0e0f416e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e0000ff6b3d0000000000003c0101"
+    },
+    {
+      "name": "companion-settings-name-malformed-utf8",
+      "channel": "companion",
+      "direction": "toServer",
+      "error": "MalformedUtf8",
+      "hex": "060800000021000102030405060708090a0b0c0d0e0f02fffe0000ff6b3d0000000000003c0101"
+    },
+    {
+      "name": "companion-settings-invalid-link",
+      "channel": "companion",
+      "direction": "toServer",
+      "error": "InvalidEnum",
+      "hex": "060800000021000102030405060708090a0b0c0d0e0f0250430300ff6b3d0000000000003c0101"
+    },
+    {
+      "name": "companion-settings-accent-reserved",
+      "channel": "companion",
+      "direction": "toServer",
+      "error": "ReservedBitsSet",
+      "hex": "060800000021000102030405060708090a0b0c0d0e0f0250430001ff6b3d0000000000003c0101"
+    },
+    {
+      "name": "companion-settings-invalid-bool",
+      "channel": "companion",
+      "direction": "toServer",
+      "error": "InvalidBool",
+      "hex": "060800000021000102030405060708090a0b0c0d0e0f0250430000ff6b3d0000000002003c0101"
+    },
+    {
+      "name": "companion-settings-opacity-too-low",
+      "channel": "companion",
+      "direction": "toServer",
+      "error": "OutOfRange",
+      "hex": "060800000021000102030405060708090a0b0c0d0e0f0250430000ff6b3d000000000000090101"
+    },
+    {
+      "name": "companion-settings-opacity-too-high",
+      "channel": "companion",
+      "direction": "toServer",
+      "error": "OutOfRange",
+      "hex": "060800000021000102030405060708090a0b0c0d0e0f0250430000ff6b3d000000000000650101"
+    },
+    {
+      "name": "companion-settings-truncated",
+      "channel": "companion",
+      "direction": "toServer",
+      "error": "Truncated",
+      "hex": "060800000020000102030405060708090a0b0c0d0e0f0250430000ff6b3d0000000000003c01"
+    },
+    {
+      "name": "companion-settings-trailing",
+      "channel": "companion",
+      "direction": "toServer",
+      "error": "TrailingBytes",
+      "hex": "060800000022000102030405060708090a0b0c0d0e0f0250430000ff6b3d0000000000003c010100"
+    },
+    {
+      "name": "companion-settings-wrong-direction",
+      "channel": "companion",
+      "direction": "toClient",
+      "error": "WrongDirection",
+      "hex": "060800000021000102030405060708090a0b0c0d0e0f0250430000ff6b3d0000000000003c0101"
+    },
+    {
+      "name": "companion-settings-on-control",
+      "channel": "control",
+      "direction": "toServer",
+      "error": "UnexpectedType",
+      "hex": "060800000021000102030405060708090a0b0c0d0e0f0250430000ff6b3d0000000000003c0101"
+    },
+    {
+      "name": "companion-setting-change-invalid-item",
+      "channel": "companion",
+      "direction": "toClient",
+      "error": "InvalidEnum",
+      "hex": "860600000006000000010501"
+    },
+    {
+      "name": "companion-setting-change-invalid-item-before-zero",
+      "channel": "companion",
+      "direction": "toClient",
+      "error": "InvalidEnum",
+      "hex": "860600000006000000000501"
+    },
+    {
+      "name": "companion-setting-change-zero",
+      "channel": "companion",
+      "direction": "toClient",
+      "error": "OutOfRange",
+      "hex": "860600000006000000000001"
+    },
+    {
+      "name": "companion-setting-change-switch-two",
+      "channel": "companion",
+      "direction": "toClient",
+      "error": "OutOfRange",
+      "hex": "860600000006000000010002"
+    },
+    {
+      "name": "companion-setting-change-opacity-too-low",
+      "channel": "companion",
+      "direction": "toClient",
+      "error": "OutOfRange",
+      "hex": "860600000006000000010209"
+    },
+    {
+      "name": "companion-setting-change-opacity-too-high",
+      "channel": "companion",
+      "direction": "toClient",
+      "error": "OutOfRange",
+      "hex": "860600000006000000010265"
+    },
+    {
+      "name": "companion-setting-change-truncated",
+      "channel": "companion",
+      "direction": "toClient",
+      "error": "Truncated",
+      "hex": "8606000000050000000100"
+    },
+    {
+      "name": "companion-setting-change-trailing",
+      "channel": "companion",
+      "direction": "toClient",
+      "error": "TrailingBytes",
+      "hex": "86060000000700000001000100"
+    },
+    {
+      "name": "companion-setting-change-wrong-direction",
+      "channel": "companion",
+      "direction": "toServer",
+      "error": "WrongDirection",
+      "hex": "860600000006000000010001"
+    },
+    {
+      "name": "companion-setting-change-on-control",
+      "channel": "control",
+      "direction": "toClient",
+      "error": "UnexpectedType",
+      "hex": "860600000006000000010001"
+    },
+    {
       "name": "media-header-truncated",
       "channel": "video",
       "direction": "toClient",

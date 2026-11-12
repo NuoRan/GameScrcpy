@@ -84,6 +84,8 @@ enum class MessageType : std::uint16_t {
     ScreenshotRequest = 0x0607,
     ScreenshotChunk = 0x8604,
     ScreenshotFailed = 0x8605,
+    CompanionSettings = 0x0608,
+    CompanionSettingChange = 0x8606,
 };
 
 using Nonce = std::array<std::uint8_t, 16>;
@@ -1365,6 +1367,69 @@ struct ScreenshotFailed {
     }
 
     friend bool operator==(const ScreenshotFailed&, const ScreenshotFailed&) = default;
+};
+
+struct CompanionSettings {
+    static constexpr MessageType kType = MessageType::CompanionSettings;
+    static constexpr std::string_view kName = "CompanionSettings";
+
+    std::array<std::uint8_t, kCompanionComputerIdSize> computer{};
+    std::string name;
+    ComputerLink link = ComputerLink::Usb;
+    std::uint32_t accent = 0;
+    std::uint32_t applied = 0;
+    bool cursor = false;
+    bool hints = false;
+    std::uint8_t hintOpacity = kDefaultPhoneHintOpacity;
+    bool ime = true;
+    bool autoConnect = true;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.bytes("computer", m.computer);
+        v.str8("name", m.name, kMaxComputerName);
+        v.enumeration("link", m.link);
+        v.u32Mask("accent", m.accent, kAccentMask);
+        v.u32("applied", m.applied);
+        v.boolean("cursor", m.cursor);
+        v.boolean("hints", m.hints);
+        v.u8Range("hintOpacity", m.hintOpacity, kMinPhoneHintOpacity, kMaxPhoneHintOpacity);
+        v.boolean("ime", m.ime);
+        v.boolean("autoConnect", m.autoConnect);
+    }
+
+    friend bool operator==(const CompanionSettings&, const CompanionSettings&) = default;
+};
+
+struct CompanionSettingChange {
+    static constexpr MessageType kType = MessageType::CompanionSettingChange;
+    static constexpr std::string_view kName = "CompanionSettingChange";
+
+    std::uint32_t change = 1;
+    CompanionItem item = CompanionItem::Cursor;
+    std::uint8_t value = 0;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.u32("change", m.change);
+        v.enumeration("item", m.item);
+        v.u8("value", m.value);
+    }
+
+    static bool isValid(const CompanionSettingChange& m) noexcept
+    {
+        if (m.change == 0) {
+            return false;
+        }
+        if (m.item == CompanionItem::HintOpacity) {
+            return m.value >= kMinPhoneHintOpacity && m.value <= kMaxPhoneHintOpacity;
+        }
+        return m.value <= 1;
+    }
+
+    friend bool operator==(const CompanionSettingChange&, const CompanionSettingChange&) = default;
 };
 
 struct VideoSessionInfo {

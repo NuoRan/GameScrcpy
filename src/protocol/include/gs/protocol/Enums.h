@@ -88,6 +88,8 @@ enum class KeyHintShape : std::uint8_t {
     Unbound = 10,
 };
 enum class ScreenshotProblem : std::uint8_t { Refused = 0, Unsupported = 1, Busy = 2, Error = 3 };
+enum class ComputerLink : std::uint8_t { Usb = 0, Wireless = 1, Lan = 2 };
+enum class CompanionItem : std::uint8_t { Cursor = 0, Hints = 1, HintOpacity = 2, Ime = 3, AutoConnect = 4 };
 
 enum class ErrorCode : std::uint16_t {
     None = 0,
@@ -273,6 +275,26 @@ struct EnumTraits<ScreenshotProblem> {
         {ScreenshotProblem::Unsupported, "unsupported"},
         {ScreenshotProblem::Busy, "busy"},
         {ScreenshotProblem::Error, "error"},
+    }};
+};
+
+template <>
+struct EnumTraits<ComputerLink> {
+    static constexpr std::array<EnumEntry<ComputerLink>, 3> entries{{
+        {ComputerLink::Usb, "usb"},
+        {ComputerLink::Wireless, "wireless"},
+        {ComputerLink::Lan, "lan"},
+    }};
+};
+
+template <>
+struct EnumTraits<CompanionItem> {
+    static constexpr std::array<EnumEntry<CompanionItem>, 5> entries{{
+        {CompanionItem::Cursor, "cursor"},
+        {CompanionItem::Hints, "hints"},
+        {CompanionItem::HintOpacity, "hintOpacity"},
+        {CompanionItem::Ime, "ime"},
+        {CompanionItem::AutoConnect, "autoConnect"},
     }};
 };
 

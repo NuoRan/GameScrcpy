@@ -59,7 +59,12 @@ class KeyHintView(context: Context) : View(context) {
 
     fun setState(state: HintState) {
         animate().cancel()
-        animate().alpha(KeyHints.alphaOf(state)).setDuration(KeyHintLook.FADE_MILLIS).start()
+        val target = KeyHints.alphaOf(state)
+        if (Look.reducedMotion()) {
+            alpha = target
+            return
+        }
+        animate().alpha(target).setDuration(Look.SLOW).setInterpolator(Look.standard).start()
     }
 
     override fun onDraw(canvas: Canvas) {

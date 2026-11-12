@@ -71,6 +71,12 @@ private:
     class Announcer;
     struct Slot;
 
+    struct OlderPhone {
+        LanId phone{};
+        std::string serial;
+        std::optional<LanPairing> pairing;
+    };
+
     void acceptLoop();
     void serve(Slot& slot);
 
@@ -82,6 +88,7 @@ private:
     std::atomic<bool> m_closing{false};
     std::mutex m_mutex;
     std::vector<LanExpectation> m_expected;
+    std::vector<OlderPhone> m_older;
     std::vector<std::shared_ptr<Slot>> m_slots;
     std::unique_ptr<Announcer> m_announcer;
     std::jthread m_acceptor;

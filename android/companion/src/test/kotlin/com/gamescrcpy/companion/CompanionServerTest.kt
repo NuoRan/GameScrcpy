@@ -3,6 +3,8 @@ package com.gamescrcpy.companion
 import com.gamescrcpy.protocol.Codec
 import com.gamescrcpy.protocol.Constants
 import com.gamescrcpy.protocol.Direction
+import com.gamescrcpy.protocol.Enums.CompanionItem
+import com.gamescrcpy.protocol.Enums.ComputerLink
 import com.gamescrcpy.protocol.Enums.ErrorCode
 import com.gamescrcpy.protocol.Enums.ImeAction
 import com.gamescrcpy.protocol.Enums.KeyHintShape
@@ -29,6 +31,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertInstanceOf
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 
 class CompanionServerTest {
@@ -115,10 +118,10 @@ class CompanionServerTest {
             server.setToken(token)
             server.start()
             Client(listener.port).use { client ->
-                client.send(hello(version = 2))
+                client.send(hello(version = 0))
                 val goodbye = assertInstanceOf(Messages.ServerGoodbye::class.java, client.read())
                 assertEquals(ErrorCode.VERSION_MISMATCH, goodbye.reason)
-                assertTrue(goodbye.message.contains("1") && goodbye.message.contains("2"))
+                assertTrue(goodbye.message.contains("0") && goodbye.message.contains("2"))
             }
             Client(listener.port).use { client ->
                 client.send(Messages.Ping())
@@ -395,6 +398,138 @@ class CompanionServerTest {
                 assertEquals(1, shots.requests.size)
             }
             assertEquals(true, shots.stops.poll(5, TimeUnit.SECONDS))
+        }
+    }
+
+    @Test
+    @DisplayName("ADR-0112: a version 1 computer is welcomed with version 1 and a newer one with this companion's version")
+    fun theWelcomeCarriesTheLowerOfBothVersions() {
+        val recorder = Recorder()
+        val listener = SocketListener()
+        CompanionServer(listener, recorder, recorder, timing, ime = FakeIme()).use { server ->
+            server.setToken(token)
+            server.start()
+            for ((offered, answered) in listOf(1 to 1, 2 to 2, 7 to Constants.COMPANION_VERSION)) {
+                Client(listener.port).use { client ->
+                    client.send(hello(version = offered))
+                    val welcome = assertInstanceOf(Messages.CompanionWelcome::class.java, client.read())
+                    assertEquals(answered, welcome.version)
+                    client.send(Messages.Ping().also { it.nonce = offered.toLong() })
+                    assertEquals(offered.toLong(), assertInstanceOf(Messages.Pong::class.java, client.read()).nonce)
+                }
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("ADR-0112: the computer's snapshot reaches the phone's settings and a change made on the phone goes back")
+    fun snapshotsAndChangesTravelOnAVersionTwoConnection() {
+        val recorder = Recorder()
+        val listener = SocketListener()
+        val sync = SettingsSync(MemoryStore()) { 42L }
+        CompanionServer(listener, recorder, recorder, timing, ime = FakeIme(), sync = sync).use { server ->
+            server.setToken(token)
+            server.start()
+            Client(listener.port).use { client ->
+                client.send(hello())
+                assertInstanceOf(Messages.CompanionWelcome::class.java, client.read())
+                client.send(settings(applied = 0, cursor = false))
+                assertTrue(waitFor { sync.connected != null })
+                assertEquals("DESKTOP-1", sync.connected?.name)
+                assertFalse(sync.values.cursor)
+
+                sync.change(CompanionItem.CURSOR, 1)
+                val change = assertInstanceOf(Messages.CompanionSettingChange::class.java, client.read())
+                assertEquals(1L, change.change)
+                assertEquals(CompanionItem.CURSOR, change.item)
+                assertEquals(1, change.value)
+                assertTrue(sync.values.cursor)
+                client.send(settings(applied = 1, cursor = true))
+                assertTrue(waitFor { sync.pendingItems.isEmpty() })
+                client.send(Messages.Goodbye())
+                assertNull(client.read())
+            }
+            assertTrue(waitFor { sync.connected == null })
+        }
+    }
+
+    @Test
+    @DisplayName("ADR-0112: a change made before connecting goes out after the first snapshot unless the computer has it")
+    fun offlineChangesFollowTheFirstSnapshot() {
+        val recorder = Recorder()
+        val listener = SocketListener()
+        val sync = SettingsSync(MemoryStore()) { 42L }
+        sync.change(CompanionItem.HINTS, 1)
+        sync.change(CompanionItem.IME, 0)
+        CompanionServer(listener, recorder, recorder, timing, ime = FakeIme(), sync = sync).use { server ->
+            server.setToken(token)
+            server.start()
+            Client(listener.port).use { client ->
+                client.send(hello())
+                assertInstanceOf(Messages.CompanionWelcome::class.java, client.read())
+                client.send(settings(applied = 0, cursor = false, ime = false))
+                val change = assertInstanceOf(Messages.CompanionSettingChange::class.java, client.read())
+                assertEquals(CompanionItem.HINTS, change.item)
+                assertEquals(1, change.value)
+                client.send(Messages.Ping().also { it.nonce = 4 })
+                assertEquals(4L, assertInstanceOf(Messages.Pong::class.java, client.read()).nonce)
+                assertEquals(setOf(CompanionItem.HINTS), sync.pendingItems)
+            }
+        }
+    }
+
+    @Test
+    @DisplayName("ADR-0112: a version 1 connection gets no changes and a snapshot on it is refused")
+    fun aVersionOneConnectionDoesNotSync() {
+        val recorder = Recorder()
+        val listener = SocketListener()
+        val sync = SettingsSync(MemoryStore()) { 42L }
+        CompanionServer(listener, recorder, recorder, timing, ime = FakeIme(), sync = sync).use { server ->
+            server.setToken(token)
+            server.start()
+            Client(listener.port).use { client ->
+                client.send(hello(version = 1))
+                assertEquals(1, assertInstanceOf(Messages.CompanionWelcome::class.java, client.read()).version)
+                sync.change(CompanionItem.CURSOR, 1)
+                client.send(Messages.Ping().also { it.nonce = 6 })
+                assertEquals(6L, assertInstanceOf(Messages.Pong::class.java, client.read()).nonce)
+                client.send(settings(applied = 0, cursor = false))
+                val goodbye = assertInstanceOf(Messages.ServerGoodbye::class.java, client.read())
+                assertEquals(ErrorCode.UNEXPECTED_MESSAGE, goodbye.reason)
+            }
+            assertNull(sync.connected)
+            assertEquals(setOf(CompanionItem.CURSOR), sync.pendingItems)
+        }
+    }
+
+    private fun settings(applied: Long, cursor: Boolean, ime: Boolean = true) = Messages.CompanionSettings().also {
+        it.computer = ByteArray(16) { index -> (0xA0 + index).toByte() }
+        it.name = "DESKTOP-1"
+        it.link = ComputerLink.USB
+        it.accent = 0xFF6B3D
+        it.applied = applied
+        it.cursor = cursor
+        it.ime = ime
+    }
+
+    private fun waitFor(condition: () -> Boolean): Boolean {
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5)
+        while (!condition()) {
+            if (System.nanoTime() > deadline) {
+                return false
+            }
+            Thread.onSpinWait()
+        }
+        return true
+    }
+
+    private class MemoryStore : SyncStore {
+        private val values = HashMap<String, String?>()
+
+        override fun read(key: String): String? = values[key]
+
+        override fun write(key: String, value: String?) {
+            values[key] = value
         }
     }
 

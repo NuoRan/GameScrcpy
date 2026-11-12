@@ -56,6 +56,14 @@ class CompanionService : Service(), ProjectionHost {
     private var overlay: CursorOverlay? = null
     private var overlayInfo = OverlayInfo.NONE
     private var lastStartId = 0
+    private var foreground = false
+    private var topHint: TopHint? = null
+    private val sync: SettingsSync by lazy { SettingsSync.of(this) }
+    private val options: PhoneOptions by lazy { PhoneOptions.of(this) }
+    private var autoConnect = true
+    private val syncListener = SettingsSync.Listener { main.post { syncChanged() } }
+    private val optionsListener = PhoneOptions.Listener { main.post { applyOptions() } }
+    private val boxWatcher: (InputBox) -> Unit = { main.post { refreshTopHint() } }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -70,6 +78,10 @@ class CompanionService : Service(), ProjectionHost {
         getSystemService(AppOpsManager::class.java)
             .startWatchingMode(AppOpsManager.OPSTR_SYSTEM_ALERT_WINDOW, packageName, permissionWatcher)
         capture = ScreenCapture(this, this)
+        autoConnect = sync.values.autoConnect
+        sync.addListener(syncListener)
+        options.addListener(optionsListener)
+        ImeBridge.watch(boxWatcher)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -113,6 +125,13 @@ class CompanionService : Service(), ProjectionHost {
     }
 
     override fun onDestroy() {
+        sync.removeListener(syncListener)
+        options.removeListener(optionsListener)
+        ImeBridge.unwatch(boxWatcher)
+        ImeBridge.hostTop(false)
+        topHint?.hide()
+        topHint = null
+        foreground = false
         getSystemService(AppOpsManager::class.java).stopWatchingMode(permissionWatcher)
         networkWatcher?.let { callback ->
             runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(callback) }
@@ -151,6 +170,7 @@ class CompanionService : Service(), ProjectionHost {
             CompanionServer.Timing(),
             hints,
             screenshots = capture ?: ScreenshotPort.NONE,
+            sync = sync,
         )
         events.owner = created
         created.overlayChanged(overlayInfo)
@@ -179,16 +199,32 @@ class CompanionService : Service(), ProjectionHost {
                 hints,
                 persistent = true,
                 screenshots = capture ?: ScreenshotPort.NONE,
+                sync = sync,
             )
             events.owner = created
             created.overlayChanged(overlayInfo)
             created.start()
             lanServer = created
-            connector = LanConnector(pairings, NsdDiscovery(this), { connection -> queue.offer(connection) }, events)
+            connector = LanConnector(
+                pairings,
+                NsdDiscovery(this),
+                { connection -> queue.offer(connection) },
+                events,
+                keepTrying = { sync.values.autoConnect },
+            )
             watchNetwork()
             refreshOverlay()
         }
         connector?.start(link)
+    }
+
+    private fun syncChanged() {
+        val wanted = sync.values.autoConnect
+        if (wanted && !autoConnect) {
+            connector?.start(null)
+        }
+        autoConnect = wanted
+        refreshNotification()
     }
 
     private fun watchNetwork() {
@@ -235,6 +271,7 @@ class CompanionService : Service(), ProjectionHost {
             overlay?.detach()
             overlay = null
             overlayChanged(OverlayInfo(granted = false, width = 0, height = 0, rotation = rotation()))
+            refreshTopHint()
             return
         }
         if (overlay != null) {
@@ -248,10 +285,34 @@ class CompanionService : Service(), ProjectionHost {
         if (created != null && created.attach()) {
             created.showHints(hintItems)
             created.hintState(hintState)
+            created.cursorLook(options.cursorSize, options.cursorStyle)
             overlay = created
             overlayChanged(OverlayInfo(granted = true, width = 0, height = 0, rotation = rotation()))
         } else {
             overlayChanged(OverlayInfo(granted = false, width = 0, height = 0, rotation = rotation()))
+        }
+        refreshTopHint()
+    }
+
+    private fun applyOptions() {
+        overlay?.cursorLook(options.cursorSize, options.cursorStyle)
+        refreshTopHint()
+    }
+
+    private fun refreshTopHint() {
+        val host = options.imeBar == ImeBar.TOP && overlay != null
+        ImeBridge.hostTop(host)
+        if (host && ImeBridge.box.shown) {
+            val hint = topHint ?: TopHint(this) { ImeBridge.switchBack() }.also { topHint = it }
+            hint.show()
+        } else {
+            topHint?.hide()
+        }
+    }
+
+    private fun refreshNotification() {
+        if (foreground) {
+            goForeground()
         }
     }
 
@@ -320,14 +381,34 @@ class CompanionService : Service(), ProjectionHost {
             Intent(this, CompanionService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_IMMUTABLE,
         )
-        val notification = Notification.Builder(this, CHANNEL)
+        val computer = sync.connected
+        val connected = CompanionState.connected
+        val lan = CompanionState.lan
+        val title = when {
+            connected && computer != null -> getString(R.string.notification_connected_to, Labels.name(this, computer))
+            connected -> getString(R.string.notification_connected)
+            lan == LanState.SEARCHING || lan == LanState.PAIRING -> getString(R.string.notification_searching)
+            else -> getString(R.string.notification_waiting)
+        }
+        val builder = Notification.Builder(this, CHANNEL)
             .setSmallIcon(icon)
-            .setContentTitle(getString(R.string.notification_running))
+            .setColor(Look.OPAQUE or (computer?.accent ?: Look.EMBER))
+            .setContentTitle(title)
             .setContentIntent(open)
             .setOngoing(true)
             .setCategory(Notification.CATEGORY_SERVICE)
             .addAction(Notification.Action.Builder(icon, getString(R.string.notification_stop), stop).build())
-            .build()
+        if (connected) {
+            val overLan = CompanionState.lanConnected && !CompanionState.localConnected
+            builder.setContentText(getString(Labels.link(computer, overLan)))
+                .setWhen(CompanionState.connectedAt)
+                .setShowWhen(true)
+                .setUsesChronometer(true)
+        } else {
+            builder.setShowWhen(false)
+        }
+        val notification = builder.build()
+        foreground = true
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             val type = if (projecting) {
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
@@ -354,6 +435,7 @@ class CompanionService : Service(), ProjectionHost {
             main.post {
                 if (owner === server) {
                     CompanionState.update(listening = true, connected = connected)
+                    refreshNotification()
                 }
             }
         }
@@ -379,6 +461,7 @@ class CompanionService : Service(), ProjectionHost {
             main.post {
                 if (owner === lanServer) {
                     CompanionState.updateLan(CompanionState.lan, connected)
+                    refreshNotification()
                 }
             }
         }
@@ -389,6 +472,7 @@ class CompanionService : Service(), ProjectionHost {
             main.post {
                 if (owner === lanServer) {
                     CompanionState.updateLan(state, CompanionState.lanConnected)
+                    refreshNotification()
                 }
             }
         }
@@ -401,7 +485,7 @@ class CompanionService : Service(), ProjectionHost {
         const val EXTRA_LINK = "link"
         const val ACTION_PAIR = "com.gamescrcpy.companion.action.PAIR"
         const val ACTION_CONNECT = "com.gamescrcpy.companion.action.CONNECT"
-        private const val ACTION_STOP = "com.gamescrcpy.companion.action.STOP"
+        const val ACTION_STOP = "com.gamescrcpy.companion.action.STOP"
         private const val SOCKET = "gamescrcpy-companion"
         private const val CHANNEL = "companion"
         private const val NOTIFICATION_ID = 1

@@ -1,6 +1,7 @@
 package com.gamescrcpy.companion
 
 import com.gamescrcpy.protocol.Codec
+import com.gamescrcpy.protocol.Constants
 import com.gamescrcpy.protocol.DecodeError
 import com.gamescrcpy.protocol.DecodeException
 import com.gamescrcpy.protocol.Messages
@@ -28,7 +29,7 @@ class FrameReaderTest {
         val reader = FrameReader(Trickle(Codec.encodeFrame(hello) + Codec.encodeFrame(cursor)))
 
         val first = assertInstanceOf(Messages.CompanionHello::class.java, reader.read())
-        assertEquals(1, first.version)
+        assertEquals(Constants.COMPANION_VERSION, first.version)
         assertArrayEquals(token, first.token)
         val second = assertInstanceOf(Messages.CursorState::class.java, reader.read())
         assertEquals(100, second.x)

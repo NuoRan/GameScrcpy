@@ -283,6 +283,39 @@ public final class Enums {
         @Override public String specName() { return name; }
     }
 
+    public enum ComputerLink implements WireEnum {
+        USB(0, "usb"), WIRELESS(1, "wireless"), LAN(2, "lan");
+
+        public static final EnumCodec<ComputerLink> CODEC = EnumCodec.u8(ComputerLink.class);
+        private final int value;
+        private final String name;
+
+        ComputerLink(int value, String name) {
+            this.value = value;
+            this.name = name;
+        }
+
+        @Override public int wireValue() { return value; }
+        @Override public String specName() { return name; }
+    }
+
+    public enum CompanionItem implements WireEnum {
+        CURSOR(0, "cursor"), HINTS(1, "hints"), HINT_OPACITY(2, "hintOpacity"), IME(3, "ime"),
+        AUTO_CONNECT(4, "autoConnect");
+
+        public static final EnumCodec<CompanionItem> CODEC = EnumCodec.u8(CompanionItem.class);
+        private final int value;
+        private final String name;
+
+        CompanionItem(int value, String name) {
+            this.value = value;
+            this.name = name;
+        }
+
+        @Override public int wireValue() { return value; }
+        @Override public String specName() { return name; }
+    }
+
     public enum ErrorCode implements WireEnum {
         NONE(0, "none"), VERSION_MISMATCH(1, "versionMismatch"),
         AUTHENTICATION_FAILED(2, "authenticationFailed"), UNSUPPORTED_ANDROID(3, "unsupportedAndroid"),

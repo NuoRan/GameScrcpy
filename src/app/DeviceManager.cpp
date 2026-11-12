@@ -82,6 +82,7 @@
 #include <QRegularExpression>
 #include <QScreen>
 #include <QStandardPaths>
+#include <QSysInfo>
 #include <QUrl>
 
 #include <algorithm>
@@ -6781,6 +6782,7 @@ void DeviceManager::syncCompanion(Row& row)
 {
     if (row.controller == nullptr && (noPictureOf(row) || row.aoaOnly)) {
         syncCompanionLan(row);
+        pushCompanionSettings(row);
         return;
     }
     const settings::Companion companion = companionSettingsOf(m_settings, row.deviceId);
@@ -6803,6 +6805,7 @@ void DeviceManager::syncCompanion(Row& row)
         row.companion->setIme(companion.ime);
         row.companion->setCursor(phoneCursorFor(row.aoaOnly, companion.cursor, row.mirror->phoneCursor()));
         pushPhoneHints(row);
+        pushCompanionSettings(row);
         return;
     }
     if (std::ranges::any_of(m_endingCompanions,
@@ -6831,12 +6834,14 @@ void DeviceManager::startCompanionLink(Row& row, quint64 ticket, std::unique_ptr
 {
     row.companionTicket = ticket;
     row.companionOverlay = true;
+    row.companionApplied = 0;
     row.companion = std::move(link);
     row.companionCursor = companionSettingsOf(m_settings, row.deviceId).cursor;
     if (row.mirror != nullptr) {
         row.companion->setCursor(phoneCursorFor(noPictureOf(row), row.companionCursor, row.mirror->phoneCursor()));
     }
     pushPhoneHints(row);
+    pushCompanionSettings(row);
 }
 
 void DeviceManager::stopCompanion(Row& row)
@@ -7010,11 +7015,69 @@ void DeviceManager::pushPhoneHints(Row& row)
     if (row.companion == nullptr || row.mirror == nullptr) {
         return;
     }
+    const settings::Companion companion = companionSettingsOf(m_settings, row.deviceId);
     protocol::KeyHintState state = row.mirror->phoneHintState();
-    state.shown = state.shown &&
-                  (row.aoaOnly || row.mirror->noPicture() || companionSettingsOf(m_settings, row.deviceId).hints);
+    state.shown = state.shown && (row.aoaOnly || row.mirror->noPicture() || companion.hints);
+    if (state.faded) {
+        state.opacity = static_cast<std::uint8_t>(std::clamp<std::int32_t>(
+            companion.hintOpacity, protocol::kMinPhoneHintOpacity, protocol::kMaxPhoneHintOpacity));
+    }
     row.companion->setKeyHints(row.mirror->phoneHints());
     row.companion->setKeyHintState(state);
+}
+
+void DeviceManager::pushCompanionSettings(Row& row)
+{
+    if (row.companion == nullptr) {
+        return;
+    }
+    const protocol::ComputerLink link = row.companion->overLan() ? protocol::ComputerLink::Lan
+                                        : isWireless(row.serial) ? protocol::ComputerLink::Wireless
+                                                                 : protocol::ComputerLink::Usb;
+    row.companion->setSettings(companionSnapshot(companionSettingsOf(m_settings, row.deviceId), thisComputer(), link,
+                                                 accentColor(m_settings.effective({}).appearance.accent),
+                                                 row.companionApplied));
+}
+
+void DeviceManager::companionSettingChanged(const QString& serial, const protocol::CompanionSettingChange& change)
+{
+    const int index = indexOf(serial);
+    if (index < 0) {
+        return;
+    }
+    m_rows[static_cast<std::size_t>(index)].companionApplied = change.change;
+    const QString deviceId = m_rows[static_cast<std::size_t>(index)].deviceId;
+    const QString name = m_rows[static_cast<std::size_t>(index)].name();
+    const std::string_view path = companionSettingPath(change.item);
+    const std::optional<settings::Value> value = companionSettingValue(change);
+    if (!deviceId.isEmpty() && !path.empty() && value) {
+        const QVariant stored = std::holds_alternative<bool>(*value)
+                                    ? QVariant(std::get<bool>(*value))
+                                    : QVariant(static_cast<int>(std::get<std::int64_t>(*value)));
+        const QString key = QString::fromUtf8(path.data(), static_cast<qsizetype>(path.size()));
+        if (m_settings.setDeviceValue(deviceId, key, stored)) {
+            qInfo("companion on %s: %s set to %d on the phone", qUtf8Printable(name), qUtf8Printable(key),
+                  static_cast<int>(change.value));
+        } else {
+            qWarning("companion on %s: %s from the phone could not be stored", qUtf8Printable(name),
+                     qUtf8Printable(key));
+        }
+    }
+    if (const int again = indexOf(serial); again >= 0) {
+        pushCompanionSettings(m_rows[static_cast<std::size_t>(again)]);
+    }
+}
+
+const CompanionComputer& DeviceManager::thisComputer()
+{
+    if (!m_thisComputer) {
+        const QByteArray machine = QSysInfo::machineUniqueId();
+        const QByteArray host = QSysInfo::machineHostName().toUtf8();
+        const std::string_view machineId(machine.constData(), static_cast<std::size_t>(machine.size()));
+        const std::string_view hostName(host.constData(), static_cast<std::size_t>(host.size()));
+        m_thisComputer = companionComputer(machineId, hostName);
+    }
+    return *m_thisComputer;
 }
 
 void DeviceManager::companionNotice(const QString& serial, quint64 ticket, const CompanionNotice& notice)
@@ -7078,6 +7141,11 @@ void DeviceManager::companionNotice(const QString& serial, quint64 ticket, const
     case CompanionEvent::Screenshot:
     case CompanionEvent::ScreenshotFailed:
         shotArrived(row, notice);
+        return;
+    case CompanionEvent::SettingChanged:
+        if (notice.change) {
+            companionSettingChanged(serial, *notice.change);
+        }
         return;
     case CompanionEvent::ImeRefused:
         if (mirror != nullptr) {

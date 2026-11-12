@@ -3,6 +3,7 @@
 #include "CompanionInput.h"
 #include "CompanionLan.h"
 #include "CompanionLink.h"
+#include "CompanionSync.h"
 #include "ControlChannel.h"
 #include "DeviceBatch.h"
 #include "DeviceCommands.h"
@@ -512,6 +513,7 @@ private:
         PhoneInputBox inputBox;
         bool enterToCompanion = false;
         bool companionCursor = false;
+        std::uint32_t companionApplied = 0;
         std::string lanToken;
         LanKey lanKey{};
         std::optional<LanPairing> lanPairing;
@@ -663,6 +665,9 @@ private:
     void companionInputBox(Row& row, const protocol::InputBoxChanged& box);
     void dropInputBox(Row& row);
     void pushPhoneHints(Row& row);
+    void pushCompanionSettings(Row& row);
+    void companionSettingChanged(const QString& serial, const protocol::CompanionSettingChange& change);
+    [[nodiscard]] const CompanionComputer& thisComputer();
     [[nodiscard]] QVariantMap companionQrOf(const Row& row) const;
     void aimAt(const QString& serial);
     [[nodiscard]] static std::shared_ptr<ControlChannel> channelOf(const Row& row);
@@ -842,6 +847,7 @@ private:
     std::vector<EndingCompanion> m_endingCompanions;
     quint64 m_lastCompanionTicket = 0;
     std::unique_ptr<CompanionLan> m_companionLan;
+    std::optional<CompanionComputer> m_thisComputer;
     std::vector<Row> m_rows;
     std::optional<session::SessionFailure> m_adbFailure;
     QString m_adbProblem;

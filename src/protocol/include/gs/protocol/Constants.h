@@ -20,7 +20,8 @@ inline constexpr std::uint32_t kAudioPayloadLimit = 64U * 1024U;
 
 inline constexpr std::uint8_t kMaxPointerId = 31;
 
-inline constexpr std::uint16_t kCompanionVersion = 1;
+inline constexpr std::uint16_t kCompanionVersion = 2;
+inline constexpr std::uint16_t kCompanionSettingsVersion = 2;
 inline constexpr std::size_t kCompanionTokenSize = 16;
 inline constexpr std::size_t kCompanionTextLimit = 4096;
 inline constexpr std::size_t kMaxKeyHints = 192;
@@ -30,6 +31,12 @@ inline constexpr std::uint16_t kMaxScreenshotChunks = 274;
 inline constexpr std::size_t kMaxScreenshotBytes = 4U * 1024U * 1024U;
 inline constexpr std::uint16_t kDefaultScreenshotSide = 1920;
 inline constexpr std::uint8_t kDefaultScreenshotQuality = 90;
+inline constexpr std::size_t kCompanionComputerIdSize = 16;
+inline constexpr std::size_t kMaxComputerName = 64;
+inline constexpr std::uint32_t kAccentMask = 0x00FFFFFFU;
+inline constexpr std::uint8_t kMinPhoneHintOpacity = 10;
+inline constexpr std::uint8_t kMaxPhoneHintOpacity = 100;
+inline constexpr std::uint8_t kDefaultPhoneHintOpacity = 60;
 
 enum class FrameContext : std::uint8_t {
     Handshake,

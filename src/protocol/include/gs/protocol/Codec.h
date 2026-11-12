@@ -33,7 +33,8 @@ using ToServerMessage = std::variant<
     Ping, Goodbye, ReceiverReport,
     CompanionHello, CursorState,
     CommitText, EditorAction, KeyHintLayout, KeyHintState,
-    ScreenshotRequest>;
+    ScreenshotRequest,
+    CompanionSettings>;
 
 using ToClientMessage = std::variant<
     ServerHello, Welcome, HandshakeError, ChannelAccepted,
@@ -42,7 +43,8 @@ using ToClientMessage = std::variant<
     AppList, AppIcon, Screenshot, RequestFailed,
     CompanionWelcome, OverlayChanged,
     InputBoxChanged,
-    ScreenshotChunk, ScreenshotFailed>;
+    ScreenshotChunk, ScreenshotFailed,
+    CompanionSettingChange>;
 
 struct FrameHeader {
     std::uint16_t type = 0;
