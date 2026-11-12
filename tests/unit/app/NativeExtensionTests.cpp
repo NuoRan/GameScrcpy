@@ -3943,6 +3943,8 @@ TEST_CASE("ADR-0112: a restricted DLL runs in gs-exthost.exe inside an AppContai
 
     hosted.reset();
     CHECK(exthost::forgetContainer("gstest.restricted"));
+    static_cast<void>(exthost::forgetContainer("gstest.restricted"));
+    static_cast<void>(exthost::forgetContainer("gstest.never-ran"));
 }
 
 TEST_CASE("ADR-0112: a restricted DLL gets an AppContainer named after a SHA-256 of its id and a bare environment, "

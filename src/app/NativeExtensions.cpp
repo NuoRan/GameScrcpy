@@ -742,9 +742,11 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
     std::string problem;
     const std::string holder = "native:" + wanted.id + "#" + std::to_string(++g_lastHolder);
     auto slot = std::make_shared<ModuleSlot>();
-    const ClaimHolder claimer{holder, wanted.name, [slot](const std::string& resource, const QString& by) {
+    const ClaimHolder claimer{holder, wanted.name,
+                              [slot](const std::string& resource, const QString& by) {
                                   return slot->wanted(resource, by);
-                              }};
+                              },
+                              wanted.id};
     const bool restricted = wanted.native.sandbox == ext::NativeSandbox::Restricted;
     const std::uint64_t loadKey = entry->loadNumber;
     const NativeHardware devices{.key = loadKey,

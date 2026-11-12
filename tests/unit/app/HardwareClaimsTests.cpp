@@ -21,9 +21,10 @@ using namespace std::chrono_literals;
 namespace {
 
 app::ClaimHolder holder(std::string id, QString name,
-                        std::function<bool(const std::string&, const QString&)> wanted = {})
+                        std::function<bool(const std::string&, const QString&)> wanted = {},
+                        std::string extension = {})
 {
-    return app::ClaimHolder{std::move(id), std::move(name), std::move(wanted)};
+    return app::ClaimHolder{std::move(id), std::move(name), std::move(wanted), std::move(extension)};
 }
 
 exthost::ClaimResult claimElsewhere(app::HardwareClaims& claims, const std::string& resource,
@@ -151,6 +152,56 @@ TEST_CASE("ADR-0112: a claim made for later answers at once when it can, and oth
     REQUIRE(answer.wait_for(10s) == std::future_status::ready);
     CHECK(answer.get() == exthost::ClaimResult::Claimed);
     CHECK(claims.holderName("serial:COM9") == "Waiter");
+}
+
+TEST_CASE("ADR-0112: one extension has at most eight claims waiting at a time, and a further one is busy at once")
+{
+    std::vector<std::promise<exthost::ClaimResult>> promises(app::HardwareClaims::kMostWaiters);
+    std::vector<std::future<exthost::ClaimResult>> answers;
+    answers.reserve(promises.size());
+    for (std::promise<exthost::ClaimResult>& promise : promises) {
+        answers.push_back(promise.get_future());
+    }
+    std::promise<exthost::ClaimResult> otherPromise;
+    std::future<exthost::ClaimResult> other = otherPromise.get_future();
+
+    app::HardwareClaims claims;
+    const app::ClaimHolder keeper = holder("native:gstest.loop#1", QStringLiteral("Loop"),
+                                           [](const std::string&, const QString&) { return true; }, "gstest.loop");
+    REQUIRE(claims.claim("serial:COM9", keeper, false) == exthost::ClaimResult::Claimed);
+    const app::ClaimHolder elsewhere =
+        holder("logic:77", QStringLiteral("Elsewhere"), [](const std::string&, const QString&) { return true; });
+    REQUIRE(claims.claim("serial:COM7", elsewhere, false) == exthost::ClaimResult::Claimed);
+
+    for (std::size_t index = 0; index < promises.size(); ++index) {
+        claims.claimLater("serial:COM9",
+                          holder("native:gstest.loop#" + std::to_string(index + 2), QStringLiteral("Wait"), {},
+                                 "gstest.loop"),
+                          [&promises, index](exthost::ClaimResult result) { promises[index].set_value(result); });
+    }
+
+    std::optional<exthost::ClaimResult> refused;
+    const auto started = std::chrono::steady_clock::now();
+    claims.claimLater("serial:COM9", holder("native:gstest.loop#99", QStringLiteral("Wait"), {}, "gstest.loop"),
+                      [&refused](exthost::ClaimResult result) { refused = result; });
+    CHECK(std::chrono::steady_clock::now() - started < 1s);
+    CHECK(refused == exthost::ClaimResult::Busy);
+
+    claims.claimLater("serial:COM7", holder("native:gstest.other#1", QStringLiteral("Other"), {}, "gstest.other"),
+                      [&otherPromise](exthost::ClaimResult result) { otherPromise.set_value(result); });
+    CHECK(other.wait_for(0s) != std::future_status::ready);
+
+    claims.release("serial:COM9", "native:gstest.loop#1");
+    std::size_t claimed = 0;
+    for (std::future<exthost::ClaimResult>& answer : answers) {
+        REQUIRE(answer.wait_for(10s) == std::future_status::ready);
+        claimed += answer.get() == exthost::ClaimResult::Claimed ? 1 : 0;
+    }
+    CHECK(claimed == 1);
+
+    claims.release("serial:COM7", "logic:77");
+    REQUIRE(other.wait_for(10s) == std::future_status::ready);
+    CHECK(other.get() == exthost::ClaimResult::Claimed);
 }
 
 TEST_CASE("ADR-0112: claims still waiting give up at once when GameScrcpy closes")

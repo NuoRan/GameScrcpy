@@ -3,6 +3,7 @@
 #include "AmsiScan.h"
 #include "AppEvents.h"
 #include "AppSettings.h"
+#include "CrashReport.h"
 #include "ExtensionHealth.h"
 #include "ExtensionIcons.h"
 #include "NativeExtensions.h"
@@ -15,6 +16,7 @@
 #include <gs/ext/Bundle.h>
 #include <gs/ext/Resolution.h>
 #include <gs/ext/Signing.h>
+#include <gs/exthost/Hosted.h>
 #include <gs/input/Profile.h>
 #include <gs/input/ProfilePatch.h>
 #include <gs/platform/AtomicFile.h>
@@ -885,6 +887,7 @@ ExtensionHost::ExtensionHost(AppSettings& settings, ExtensionRoots roots, QObjec
     Q_ASSERT(s_instance == nullptr);
     s_instance = this;
     m_scanner = scanWithAmsi;
+    m_containerForget = exthost::forgetContainer;
     connect(&m_settings, &AppSettings::languageChanged, this, &ExtensionHost::extensionsChanged);
     connect(&m_settings, &AppSettings::languageChanged, this, &ExtensionHost::bisectChanged);
     fs::path program = m_roots.hostProgram;
@@ -892,6 +895,9 @@ ExtensionHost::ExtensionHost(AppSettings& settings, ExtensionRoots roots, QObjec
         program = (QCoreApplication::applicationDirPath() + QStringLiteral("/gs-exthost.exe")).toStdWString();
     }
     const fs::path crashRoot = m_roots.data.empty() ? fs::path() : m_roots.data / "crashes" / "extensions";
+    if (!crashRoot.empty()) {
+        keepNewestCrashesInFolders(crashRoot, kKeptExtensionReports);
+    }
     m_health = std::make_unique<ExtensionHealth>(m_roots.data.empty() ? fs::path()
                                                                      : m_roots.data / "extension-health.json");
     m_native = std::make_unique<NativeExtensions>(
@@ -1192,6 +1198,11 @@ ExtensionHost* ExtensionHost::create(QQmlEngine*, QJSEngine*)
 void ExtensionHost::setScanner(ext::NativeScanner scanner)
 {
     m_scanner = std::move(scanner);
+}
+
+void ExtensionHost::setContainerForgetter(std::function<bool(std::string_view)> forget)
+{
+    m_containerForget = std::move(forget);
 }
 
 std::vector<const ext::Manifest*> ExtensionHost::settingsManifests() const
@@ -1714,6 +1725,9 @@ bool ExtensionHost::removeFolder(const QString& folder)
         }
     }
     reload();
+    if (!installed(wantedId)) {
+        forgetContainer(wantedId);
+    }
     return removed;
 }
 
@@ -2589,6 +2603,9 @@ bool ExtensionHost::uninstall(const std::string& id, const ext::Version& version
     emit filtersChanged();
     const bool removed = ext::removeInstalled(m_roots.user, id, version);
     reload();
+    if (!installed(id)) {
+        forgetContainer(id);
+    }
     emit filtersChanged();
     return removed;
 }
@@ -3150,6 +3167,21 @@ void ExtensionHost::forget(const std::string& id)
     }
     forgetConsent(id);
     static_cast<void>(ext::forgetPublisher(m_roots.user, id));
+}
+
+void ExtensionHost::forgetContainer(std::string_view id)
+{
+    if (m_containerForget) {
+        static_cast<void>(m_containerForget(id));
+    }
+}
+
+bool ExtensionHost::installed(std::string_view id) const
+{
+    return std::ranges::any_of(m_extensions, [id](const Extension& extension) {
+        return extension.manifest ? extension.manifest->id == id
+                                  : extension.directory.parent_path().filename() == pathOf(id);
+    });
 }
 
 const ext::Manifest* ExtensionHost::manifestOf(std::string_view id) const

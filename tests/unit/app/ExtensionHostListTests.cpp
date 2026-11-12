@@ -21,6 +21,7 @@
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <vector>
 
 using gs::app::AppSettings;
 using gs::app::ExtensionHost;
@@ -291,6 +292,50 @@ TEST_CASE("removing deletes a user extension from disk and from the list but ref
     CHECK(idsOf(host) == QStringList{QStringLiteral("gamescrcpy.glow")});
     CHECK_FALSE(settings.extensions().contains("alice.glow"));
     CHECK(host.filters("").empty());
+}
+
+TEST_CASE("ADR-0112: removing the last installed version of an extension forgets its AppContainer, and a version that stays keeps it")
+{
+    const Fixture fixture;
+    fixture.add(fixture.user, "alice.glow", "1.0.0");
+    fixture.add(fixture.user, "alice.glow", "2.0.0");
+    fixture.add(fixture.builtin, "gamescrcpy.glow", "1.0.0");
+    AppSettings settings(fixture.data);
+    ExtensionHost host(settings, {fixture.user, fixture.builtin});
+    host.start(false);
+    std::vector<std::string> forgotten;
+    host.setContainerForgetter([&forgotten](std::string_view id) {
+        forgotten.emplace_back(id);
+        return true;
+    });
+
+    REQUIRE(host.remove(QStringLiteral("alice.glow"), QStringLiteral("2.0.0")));
+    CHECK(forgotten.empty());
+    REQUIRE(host.remove(QStringLiteral("alice.glow"), QStringLiteral("1.0.0")));
+    CHECK(forgotten == std::vector<std::string>{"alice.glow"});
+
+    CHECK_FALSE(host.remove(QStringLiteral("gamescrcpy.glow"), QStringLiteral("1.0.0")));
+    CHECK(forgotten.size() == 1);
+}
+
+TEST_CASE("ADR-0112: an unusable folder that shares its id with an installed version keeps the AppContainer until the last one goes")
+{
+    const Fixture fixture;
+    writeFile(fixture.user / "alice.broken/1.0.0/shaders/glow.hlsl", kShader);
+    fixture.add(fixture.user, "alice.broken", "2.0.0");
+    AppSettings settings(fixture.data);
+    ExtensionHost host(settings, {fixture.user, {}});
+    host.start(false);
+    std::vector<std::string> forgotten;
+    host.setContainerForgetter([&forgotten](std::string_view id) {
+        forgotten.emplace_back(id);
+        return true;
+    });
+
+    REQUIRE(host.removeFolder(QStringLiteral("alice.broken/1.0.0")));
+    CHECK(forgotten.empty());
+    REQUIRE(host.remove(QStringLiteral("alice.broken"), QStringLiteral("2.0.0")));
+    CHECK(forgotten == std::vector<std::string>{"alice.broken"});
 }
 
 TEST_CASE("an installed extension is exported to a path or a file URL as a package that passes the package check")

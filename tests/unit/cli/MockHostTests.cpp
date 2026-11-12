@@ -497,3 +497,50 @@ TEST_CASE("ADR-0112: a cli option whose default is not JSON leaves the option wi
     REQUIRE_MESSAGE(args.has_value(), problem);
     CHECK(args->at("phrases") == Json::array({"jump"}));
 }
+
+TEST_CASE("ADR-0112: an interrupted gs ext test ends its child, forgets its container and removes its temporary folder")
+{
+    TempFolder scratch("gs-mock-tests");
+    std::vector<std::string> order;
+    MockTestCleanup cleanup([&order](std::string_view container) {
+        order.push_back("forget " + std::string(container));
+        return true;
+    });
+    const fs::path folder = scratch.path() / "left-behind";
+    writeFile(folder / "tests" / "basic.json", "{}");
+    cleanup.watchFolder(folder);
+    cleanup.watchChild("gs-test:gstest.mock", [&order] { order.push_back("child"); });
+
+    cleanup.run();
+
+    CHECK((order == std::vector<std::string>{"child", "forget gs-test:gstest.mock"}));
+    CHECK_FALSE(fs::exists(folder));
+    CHECK(fs::exists(scratch.path()));
+
+    order.clear();
+    cleanup.run();
+    CHECK(order.empty());
+}
+
+TEST_CASE("ADR-0112: an interrupted gs ext test without a running child ends nothing, forgets no container and still "
+          "removes its temporary folder")
+{
+    TempFolder scratch("gs-mock-tests");
+    std::vector<std::string> forgotten;
+    MockTestCleanup cleanup([&forgotten](std::string_view container) {
+        forgotten.emplace_back(container);
+        return true;
+    });
+    int ended = 0;
+    const fs::path folder = scratch.path() / "left-behind";
+    fs::create_directories(folder);
+    cleanup.watchFolder(folder);
+    cleanup.watchChild("gs-test:gstest.mock", [&ended] { ++ended; });
+    cleanup.forgetChild();
+
+    cleanup.run();
+
+    CHECK(ended == 0);
+    CHECK(forgotten.empty());
+    CHECK_FALSE(fs::exists(folder));
+}

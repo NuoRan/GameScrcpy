@@ -86,7 +86,7 @@ exthost::ClaimResult HardwareClaims::claim(std::string_view resource, const Clai
             return exthost::ClaimResult::Busy;
         }
         std::unique_lock lock(m_mutex);
-        m_freed.wait_for(lock, kYieldWait, [this, &key, &current] {
+        m_freed.wait_until(lock, std::chrono::steady_clock::now() + kYieldWait, [this, &key, &current] {
             const auto found = m_held.find(key);
             return m_closing || found == m_held.end() || found->second.holder != current;
         });
@@ -108,18 +108,33 @@ void HardwareClaims::claimLater(std::string resource, ClaimHolder holder, Done d
         }
         return;
     }
-    const std::scoped_lock lock(m_waitersMutex);
-    std::erase_if(m_waiters, [](const Waiter& waiter) { return waiter.finished->load(); });
-    auto finished = std::make_shared<std::atomic<bool>>(false);
-    std::jthread thread([this, resource = std::move(resource), holder = std::move(holder), done = std::move(done),
-                         finished] {
-        const exthost::ClaimResult result = claim(resource, holder, true);
-        if (done) {
-            done(result);
+    const std::string group = holder.extension.empty() ? holder.id : holder.extension;
+    bool full = false;
+    {
+        const std::scoped_lock lock(m_waitersMutex);
+        std::erase_if(m_waiters, [](const Waiter& waiter) { return waiter.finished->load(); });
+        const auto waiting = std::ranges::count_if(
+            m_waiters, [&group](const Waiter& waiter) { return waiter.group == group; });
+        if (waiting >= static_cast<std::ptrdiff_t>(kMostWaiters)) {
+            full = true;
+        } else {
+            auto finished = std::make_shared<std::atomic<bool>>(false);
+            std::jthread thread([this, resource = std::move(resource), holder = std::move(holder),
+                                 done = std::move(done), finished] {
+                const exthost::ClaimResult result = claim(resource, holder, true);
+                if (done) {
+                    done(result);
+                }
+                finished->store(true);
+            });
+            m_waiters.push_back(Waiter{std::move(thread), std::move(finished), group});
         }
-        finished->store(true);
-    });
-    m_waiters.push_back(Waiter{std::move(thread), std::move(finished)});
+    }
+    if (full) {
+        if (done) {
+            done(exthost::ClaimResult::Busy);
+        }
+    }
 }
 
 void HardwareClaims::release(std::string_view resource, std::string_view holder)

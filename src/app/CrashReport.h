@@ -20,6 +20,10 @@ class AppSettings;
 [[nodiscard]] bool isCrashFolder(std::string_view name) noexcept;
 [[nodiscard]] std::vector<std::string> crashFolders(const std::filesystem::path& directory);
 void keepNewestCrashes(const std::filesystem::path& directory, std::size_t count);
+
+inline constexpr std::size_t kKeptExtensionReports = 20;
+
+void keepNewestCrashesInFolders(const std::filesystem::path& directory, std::size_t count);
 [[nodiscard]] std::optional<std::string> unacknowledgedCrash(const std::vector<std::string>& folders,
                                                              std::string_view acknowledged);
 

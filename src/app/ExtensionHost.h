@@ -25,6 +25,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -119,6 +120,7 @@ public:
     [[nodiscard]] std::vector<std::string> grantedPermissions(std::string_view id) const;
     [[nodiscard]] QString textOf(const ext::Manifest& manifest, std::string_view key, std::string_view fallback) const;
     void setScanner(ext::NativeScanner scanner);
+    void setContainerForgetter(std::function<bool(std::string_view)> forget);
     [[nodiscard]] std::vector<const ext::Manifest*> settingsManifests() const;
     [[nodiscard]] QVariantMap values() const;
     [[nodiscard]] QVariantMap overrides() const;
@@ -253,6 +255,8 @@ private:
     void forgetConsent(const std::string& id);
     void settleConsent(const std::string& id, std::optional<ext::Manifest> wanted, const std::error_code& error);
     void forget(const std::string& id);
+    void forgetContainer(std::string_view id);
+    [[nodiscard]] bool installed(std::string_view id) const;
     void storeBisect();
     void applyBisect();
     [[nodiscard]] QString nameOf(std::string_view id) const;
@@ -286,6 +290,7 @@ private:
     std::vector<ContributedScript> m_scriptSources;
     std::vector<ExtensionScript> m_scripts;
     ext::NativeScanner m_scanner;
+    std::function<bool(std::string_view)> m_containerForget;
     bool m_installing = false;
     std::unique_ptr<NativeExtensions> m_native;
     std::unique_ptr<ExtensionHealth> m_health;

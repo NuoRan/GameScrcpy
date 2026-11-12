@@ -48,10 +48,32 @@ private:
     std::filesystem::path m_path;
 };
 
+class MockTestCleanup
+{
+public:
+    using Forget = std::function<bool(std::string_view)>;
+
+    MockTestCleanup();
+    explicit MockTestCleanup(Forget forget);
+
+    void watchFolder(std::filesystem::path folder);
+    void watchChild(std::string container, std::function<void()> endChild);
+    void forgetChild();
+    void run();
+
+private:
+    std::mutex m_mutex;
+    Forget m_forget;
+    std::filesystem::path m_folder;
+    std::string m_container;
+    std::function<void()> m_endChild;
+};
+
 struct MockOptions {
     bool hosted = false;
     bool official = false;
     std::filesystem::path exthost;
+    MockTestCleanup* cleanup = nullptr;
 };
 
 enum class MockScriptState : std::uint8_t { Loaded, Limited, Failed };

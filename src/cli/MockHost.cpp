@@ -915,6 +915,9 @@ public:
 
     ~Session()
     {
+        if (m_options.cleanup != nullptr) {
+            m_options.cleanup->forgetChild();
+        }
         m_module.reset();
         if (!m_container.empty()) {
             static_cast<void>(exthost::forgetContainer(m_container));
@@ -1121,6 +1124,13 @@ bool Session::loadModule(std::size_t number)
     if (!m_manifest.contributes.native) {
         return true;
     }
+    const bool contained = restricted();
+    if (contained) {
+        m_container = "gs-test:" + m_manifest.id;
+    }
+    if (m_options.cleanup != nullptr) {
+        m_options.cleanup->watchChild(m_container, [this] { m_module.reset(); });
+    }
     const std::string chosen = ext::nativeDllFor(*m_manifest.contributes.native, ext::hostArchitecture());
     if (chosen.empty()) {
         m_moduleProblem = "it has no DLL for " + std::string(ext::hostArchitecture());
@@ -1132,7 +1142,7 @@ bool Session::loadModule(std::size_t number)
     fs::create_directories(stores, error);
     const fs::path store = stores / std::format("test-{}.json", number);
     std::string why;
-    if (!m_options.hosted && !restricted()) {
+    if (!m_options.hosted && !contained) {
         exthost::InProcessOptions given;
         given.dll = dll;
         given.store = store;
@@ -1163,8 +1173,7 @@ bool Session::loadModule(std::size_t number)
         given.release = [shared](const std::string& resource) { releaseFor(*shared, resource); };
         given.crashed = [shared](std::uint32_t code) { shared->add("crash", Json{{"code", code}}); };
         given.touchLost = [shared](std::uint64_t session) { shared->add("touchLost", Json{{"session", session}}); };
-        if (restricted()) {
-            m_container = "gs-test:" + m_manifest.id;
+        if (contained) {
             given.container = m_container;
             given.readable = m_extension.folder;
         }
@@ -2429,6 +2438,57 @@ TempFolder::~TempFolder()
 {
     std::error_code error;
     fs::remove_all(m_path, error);
+}
+
+MockTestCleanup::MockTestCleanup()
+    : m_forget(exthost::forgetContainer)
+{
+}
+
+MockTestCleanup::MockTestCleanup(Forget forget)
+    : m_forget(std::move(forget))
+{
+}
+
+void MockTestCleanup::watchFolder(std::filesystem::path folder)
+{
+    const std::scoped_lock lock(m_mutex);
+    m_folder = std::move(folder);
+}
+
+void MockTestCleanup::watchChild(std::string container, std::function<void()> endChild)
+{
+    const std::scoped_lock lock(m_mutex);
+    m_container = std::move(container);
+    m_endChild = std::move(endChild);
+}
+
+void MockTestCleanup::forgetChild()
+{
+    const std::scoped_lock lock(m_mutex);
+    m_container.clear();
+    m_endChild = {};
+}
+
+void MockTestCleanup::run()
+{
+    const std::scoped_lock lock(m_mutex);
+    const std::function<void()> endChild = m_endChild;
+    const std::string container = m_container;
+    const std::filesystem::path folder = m_folder;
+    m_endChild = {};
+    m_container.clear();
+    m_folder.clear();
+    if (endChild) {
+        endChild();
+    }
+    if (!container.empty() && m_forget) {
+        static_cast<void>(m_forget(container));
+    }
+    if (!folder.empty()) {
+        std::error_code error;
+        fs::remove_all(folder, error);
+    }
 }
 
 bool MockTest::passed() const noexcept

@@ -8,6 +8,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstddef>
 #include <functional>
 #include <map>
 #include <memory>
@@ -23,6 +24,7 @@ struct ClaimHolder {
     std::string id;
     QString name;
     std::function<bool(const std::string& resource, const QString& by)> wanted;
+    std::string extension;
 };
 
 class HardwareClaims final : public QObject
@@ -33,6 +35,7 @@ public:
     using Done = std::function<void(exthost::ClaimResult)>;
 
     static constexpr std::chrono::milliseconds kYieldWait{3'000};
+    static constexpr std::size_t kMostWaiters = 8;
 
     explicit HardwareClaims(QObject* parent = nullptr);
     ~HardwareClaims() override;
@@ -62,6 +65,7 @@ private:
     struct Waiter {
         std::jthread thread;
         std::shared_ptr<std::atomic<bool>> finished;
+        std::string group;
     };
 
     static inline HardwareClaims* s_instance = nullptr;

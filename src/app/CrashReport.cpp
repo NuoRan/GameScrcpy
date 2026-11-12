@@ -67,6 +67,17 @@ void keepNewestCrashes(const std::filesystem::path& directory, std::size_t count
     }
 }
 
+void keepNewestCrashesInFolders(const std::filesystem::path& directory, std::size_t count)
+{
+    std::error_code error;
+    for (std::filesystem::directory_iterator it(directory, error), end; !error && it != end; it.increment(error)) {
+        std::error_code kind;
+        if (it->is_directory(kind) && !it->is_symlink(kind)) {
+            keepNewestCrashes(it->path(), count);
+        }
+    }
+}
+
 std::optional<std::string> unacknowledgedCrash(const std::vector<std::string>& folders, std::string_view acknowledged)
 {
     if (folders.empty()) {

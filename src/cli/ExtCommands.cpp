@@ -35,6 +35,7 @@ constexpr std::string_view kExtUsage =
     "       gs ext keygen <secret key file> [--force] [--json]\n";
 
 std::atomic<MockInterrupt*> g_interrupt{nullptr};
+std::atomic<MockTestCleanup*> g_testCleanup{nullptr};
 
 struct Target {
     fs::path folder;
@@ -86,6 +87,18 @@ BOOL WINAPI onBreak(DWORD signal)
     return TRUE;
 }
 
+BOOL WINAPI onTestBreak(DWORD signal)
+{
+    if (signal != CTRL_C_EVENT && signal != CTRL_BREAK_EVENT && signal != CTRL_CLOSE_EVENT &&
+        signal != CTRL_LOGOFF_EVENT && signal != CTRL_SHUTDOWN_EVENT) {
+        return FALSE;
+    }
+    if (MockTestCleanup* cleanup = g_testCleanup.load()) {
+        cleanup->run();
+    }
+    return FALSE;
+}
+
 int testCommand(const std::vector<std::wstring_view>& args)
 {
     std::optional<fs::path> input;
@@ -117,7 +130,14 @@ int testCommand(const std::vector<std::wstring_view>& args)
         return kUsage;
     }
     options.exthost = programFolder() / "gs-exthost.exe";
+    MockTestCleanup cleanup;
+    options.cleanup = &cleanup;
+    g_testCleanup.store(&cleanup);
+    SetConsoleCtrlHandler(&onTestBreak, TRUE);
     const MockExtension extension = openMockExtension(*input, options);
+    if (extension.scratch != nullptr) {
+        cleanup.watchFolder(extension.scratch->path());
+    }
     MockRun run;
     if (extension.usable()) {
         std::vector<MockSpec> specs;
@@ -138,6 +158,9 @@ int testCommand(const std::vector<std::wstring_view>& args)
     } else {
         std::cout << mockReportText(extension, run);
     }
+    cleanup.run();
+    SetConsoleCtrlHandler(&onTestBreak, FALSE);
+    g_testCleanup.store(nullptr);
     return mockExitCode(extension, run);
 }
 

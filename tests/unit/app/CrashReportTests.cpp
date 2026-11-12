@@ -92,6 +92,39 @@ TEST_CASE("only the five newest crash folders are kept, and nothing else in the 
     CHECK_FALSE(std::filesystem::exists(directory.path() / names[1]));
 }
 
+TEST_CASE("ADR-0112: each extension keeps its twenty newest crash reports, and nothing else in its crash folder is touched")
+{
+    const TemporaryDirectory directory;
+    const std::filesystem::path crashes = directory.path() / "crashes" / "extensions";
+    const auto report = [](int day) {
+        return "crash-202610" + (day < 10 ? std::string("0") : std::string()) + std::to_string(day) + "-100000-000";
+    };
+    for (const char* id : {"gstest.one", "gstest.two"}) {
+        for (int day = 1; day <= 25; ++day) {
+            const std::filesystem::path folder = crashes / id / report(day);
+            std::filesystem::create_directories(folder);
+            std::ofstream(folder / "crash.dmp") << "dump\n";
+            std::ofstream(folder / "crash.txt") << "report\n";
+        }
+        std::ofstream(crashes / id / "notes.txt") << "not a crash\n";
+    }
+    std::ofstream(crashes / "notes.txt") << "not an extension folder\n";
+
+    gs::app::keepNewestCrashesInFolders(crashes, gs::app::kKeptExtensionReports);
+
+    for (const char* id : {"gstest.one", "gstest.two"}) {
+        INFO(id);
+        const std::vector<std::string> kept = gs::app::crashFolders(crashes / id);
+        REQUIRE(kept.size() == gs::app::kKeptExtensionReports);
+        CHECK(kept.front() == report(6));
+        CHECK(kept.back() == report(25));
+        CHECK(std::filesystem::is_regular_file(crashes / id / "notes.txt"));
+        CHECK(std::filesystem::is_regular_file(crashes / id / report(6) / "crash.dmp"));
+        CHECK_FALSE(std::filesystem::exists(crashes / id / report(5)));
+    }
+    CHECK(std::filesystem::is_regular_file(crashes / "notes.txt"));
+}
+
 TEST_CASE("a crash is due for the notice until it or a newer one is acknowledged (REL-004)")
 {
     const std::vector<std::string> folders{"crash-20261029-080000-000", "crash-20261030-105812-345"};
