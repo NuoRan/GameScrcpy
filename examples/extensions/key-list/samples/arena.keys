@@ -1,0 +1,6 @@
+# Arena basics
+J 0.82 0.71 Attack
+K 0.90 0.55 Jump
+L 0.74 0.86 Skill
+Space 0.94 0.80 Dodge
+1 0.40 0.92 Potion

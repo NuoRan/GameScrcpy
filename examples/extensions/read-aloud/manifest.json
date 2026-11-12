@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "id": "example.read-aloud",
+  "version": "1.0.0",
+  "name": "Read aloud",
+  "description": "Reads the text in a part of the phone's picture with the text recognition of Windows, and reads it out.",
+  "authors": ["GameScrcpy"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/NuoRan/GameScrcpy",
+  "requires": {
+    "script": "^1.0",
+    "panel": "^1.0"
+  },
+  "contributes": {
+    "scripts": [
+      {"name": "reader", "entry": "src/main.ts", "run": "session"}
+    ],
+    "panels": [
+      {"name": "read", "title": "Read aloud", "icon": "volume-2", "where": "toolbar", "script": "reader"},
+      {"name": "area", "title": "Read aloud", "icon": "type", "where": "mirror", "script": "reader"}
+    ]
+  },
+  "permissions": [
+    {"name": "device.screen", "reason": "Reads the text in the part of the picture you choose."}
+  ],
+  "l10n": {
+    "zh_CN": {
+      "name": "读屏朗读",
+      "description": "用 Windows 自带的识字读出手机画面一块区域里的字，再读出声来。",
+      "panels.read.title": "朗读",
+      "panels.area.title": "读屏朗读"
+    }
+  }
+}

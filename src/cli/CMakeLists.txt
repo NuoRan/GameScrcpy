@@ -217,7 +217,7 @@ if(GS_BUILD_TESTS)
     add_test(NAME gs_cli_validate_packed COMMAND gs_cli validate --official "${gs_cli_test_package}")
     set_tests_properties(gs_cli_validate_packed PROPERTIES FIXTURES_REQUIRED gs_cli_packed_crt_scanlines)
 
-    foreach(gs_cli_example IN ITEMS deck-bridge voice-commands event-log tour-and-help)
+    foreach(gs_cli_example IN ITEMS deck-bridge voice-commands event-log tour-and-help key-list notes-panel read-aloud)
         set(gs_cli_example_folder "${PROJECT_SOURCE_DIR}/examples/extensions/${gs_cli_example}")
         set(gs_cli_example_package "${CMAKE_CURRENT_BINARY_DIR}/example-${gs_cli_example}.gsext")
         add_test(NAME gs_cli_check_example_${gs_cli_example} COMMAND gs_cli check "${gs_cli_example_folder}")

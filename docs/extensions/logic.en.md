@@ -20,7 +20,7 @@ The logic of an extension is written in TypeScript (or JavaScript) against the s
 |:--|:--|:--|
 | How many | One while the extension is on | One for each phone that is mirroring |
 | When it runs | From when the extension is turned on and GameScrcpy starts until it is turned off or replaced, or the program quits | From when the phone starts mirroring until it disconnects |
-| What it can use | The places of the main window (pages, Settings, card menus, the tray…), services, MCP tools, local connections, speech, hardware, program events | The places of the mirror window (side panel, right-click menu, status area, toolbar button), and this phone's touches, vision, key mapping and clipboard |
+| What it can use | The places of the main window (pages, Settings, card menus, the tray…), services, MCP tools, local connections, the network and files, speech, hardware, program events | The places of the mirror window (side panel, right-click menu, status area, toolbar button), and this phone's touches, vision and recognition, key mapping and clipboard, as well as the network and files |
 | What it cannot use | Functions that need a phone (`touch.*`, `vision.*`, `ui.toast` and the like) give `GS-API-073` or `GS-API-001` | The places of the main window |
 
 - A function that needs a permission the extension did not ask for, or the user did not allow, throws `GS-API-072`, naming the permission. The user's own logic has no such limits.
@@ -159,6 +159,45 @@ log.info("listening on", server.port);
 
 A complete example: [deck-bridge](../../examples/extensions/deck-bridge).
 
+## The network
+
+```ts
+const reply = await net.fetch("https://api.github.com/repos/NuoRan/GameScrcpy/releases/latest", {
+    headers: { accept: "application/vnd.github+json" },
+});
+if (reply.status === 200) {
+    const release = reply.json() as { tag_name?: string };
+    log.info("newest release", release.tag_name ?? "?");
+}
+```
+
+- `net.fetch(url, { method, headers, body, timeoutMs })` has GameScrcpy make an https request and resolves with the answer whatever its status: `{ status, url, headers, text, bytes, json() }` (`url` is the address after redirects, header names are lowercase). The logic of an extension needs the permission `network` and reaches only the hosts listed in `hosts` of the manifest (the rules are in the [manifest reference](manifest.en.md#permissions)), following redirects only to them and at most 5 times; the user's own logic may reach any https address.
+- The body is at most 1 MiB and the answer at most 8 MiB, and each logic has at most 8 requests going at once; `timeoutMs` is 1000 to 60000 (15000 by default) for the whole request. Cookies are not kept and nothing is cached; set the `cookie` header yourself when a service needs one. The headers GameScrcpy sets itself, such as `host` and `content-length`, and those starting with `proxy-` or `sec-` cannot be set. An invalid certificate always fails. Cancelling the task cancels the request.
+- `net.socket(url, { protocols })` opens a WebSocket over wss and resolves with a `NetSocket` once the server took it: `send(text or bytes)` (at most 1 MiB each), `close(code, reason)`, `onMessage(handler)` (queued by default, so none is lost), `onClose(handler)`, `isOpen` and `protocol`. The hosts are those of `net.fetch`, and each logic has at most 4 sockets open; one opened in a task closes when the task ends, one opened at the top level when the logic stops.
+- Errors: `GS-API-155` (no permission, an unlisted host, or a redirect to an unlisted host or an address that is not https), `GS-API-156` (not an https / wss address, a method or header that is not allowed, a body that is neither text nor bytes, `timeoutMs` out of range), `GS-API-157` (too large a body, answer or backlog, or too many requests or sockets), `GS-API-158` (unreachable, invalid certificate, broken connection, too many redirects, timeout; the message says which), `GS-API-159` (sending on a closed socket).
+
+## Files
+
+```ts
+const file = await files.pick({ filters: [{ name: "Key lists", extensions: ["keys"] }] });
+if (file) {
+    log.info(file.name, (await file.text()).length);
+}
+
+const notes = await files.folder("notes");
+await notes.write("today.txt", "Bring the map.");
+for (const entry of await notes.list()) {
+    log.info(entry.path, entry.size);
+}
+```
+
+- `files.pick({ save, filters, suggestedName })` shows the Windows dialog to open a file (to save one with `save`) and resolves with a handle to the file the user picked, or with `null` when the user cancels. The handle reads and writes only that file (up to 64 MiB) and lasts until the logic stops: `read()`, `text()`, `write(text or bytes)`, `close()`. The logic of an extension needs the permission `files.pick`.
+- `files.folder(name)` opens a folder chosen for this logic. The name is declared in `folders` of the permission `files.paths` in the manifest (the user's own logic may use any 1 to 32 lowercase letters, digits and hyphens). The first time, GameScrcpy asks the user to choose a real folder and remembers it (the dialog shows the `purpose`); the user can forget it in the extension's settings (for the user's own logic, in Settings › General). The handle lists, reads, writes and removes only what is inside that folder: `list(subfolder)` (up to 4096 entries), `read(path)`, `text(path)`, `write(path, data)` (making the missing folders), `remove(path)` and `close()`. Paths use `/`; `..`, drives and links that lead out of the folder are refused.
+- Each logic has at most 64 files and folders open and at most 8 requests waiting for the user; writes are atomic, replacing the old file only when complete.
+- Errors: `GS-API-160` (no permission, or the manifest does not declare the folder), `GS-API-161` (options, a name or a path that is not right), `GS-API-162` (Windows cannot do it, for example the file is in use or changed while it was read), `GS-API-163` (the file is too large, or too many are open or waiting), `GS-API-164` (the handle is closed, or the user closed the dialog without choosing a folder).
+
+A complete example: [notes-panel](../../examples/extensions/notes-panel).
+
 ## Reading aloud and voice commands
 
 ```ts
@@ -201,10 +240,44 @@ A node gives its result at once (within 100 ms); a job gives an `ExtensionJob`: 
 
 A session script gets a few frames of the phone's picture with `media.frames(handler, { fps, size, region })` (0.1 to 10 a second, 2 by default; the long side 64 to 1920 pixels, 640 by default), for analysis or AI: the handler gets `{ image, time }`, where `image` is what `vision.capture()` gives. The logic of an extension needs the permission `media.read`; an app script has no phone and gets `GS-API-073`; wrong options give `GS-API-120`, a phone without a picture (such as a touch box without a capture card) `GS-API-121`, and a fifth subscription `GS-API-122`.
 
+## Recognition
+
+```ts
+const lines = await vision.recognize("system", "ocr", { x: 0, y: 0.6, width: 0.4, height: 0.3 }, { language: "zh-Hans" });
+for (const line of lines ?? []) {
+    log.info(line.text, line.confidence);
+}
+```
+
+- `vision.recognize(engine, kind, region, params)` recognizes in the next frame (or in the picture already shown when no new frame comes within 0.25 s): `ocr` reads text, `detect` finds things and `classify` tells what the picture shows. The results come in the order the engine gives; `x` and `y` are the middle and `width` and `height` the size, as ratios of the whole picture, and `confidence` goes from 0 to 1. It resolves with `null` when there is no picture within 2 seconds. The region may be a region name from `res/resources.json`; without one it is the whole picture.
+- `vision.engines()` lists the engines: `system` is the text recognition of Windows (its param `language` is a tag such as `en` or `zh-Hans`, the user's languages by default, and `words: true` gives each word instead of each line); the others are the recognition engines of extensions, `<extension id>/<name>`, with the kinds and languages they recognize. `vision.engine(id)` gives one engine, whose `read()`, `detect()` and `classify()` are short ways to call `recognize`.
+- The logic of an extension needs the permission `device.screen`, and only session scripts can recognize (an app script has no phone and gets `GS-API-073`). An engine works on one picture at a time, and GameScrcpy stops waiting for an extension's engine after 5 seconds.
+- Errors: `GS-API-170` (no such engine, or its extension is off or did not load), `GS-API-171` (the engine does not recognize this kind or language), `GS-API-172` (the engine, kind or params are not right), `GS-API-173` (the engine failed or its result is not right), `GS-API-174` (it took longer than 5 seconds, is still busy with an earlier picture, or has 16 waiting already).
+
+A complete example: [read-aloud](../../examples/extensions/read-aloud); writing an engine of your own is in the [native guide](native.en.md#recognition-engines).
+
 ## MCP tools and AI
 
 - An app script can offer tools to AI clients on this computer (through GameScrcpy's MCP server) with `mcp.tool(name, { description, input }, handler)`; clients see them as `ext_<extension id>_<name>` (dots and hyphens of the id written as underscores). The user confirms each call, the answer has to come within 60 seconds, and each extension offers at most 32 tools.
-- `ai.ask(question, { picture, timeoutMs })` asks the service set up in Settings › AI; it needs the permission `ai`, and the user has to turn on "Let logic call AI" there. Each logic asks at most 10 times a minute. App scripts cannot send a picture.
+- `ai.ask(question, { picture, timeoutMs })` asks the service set up in Settings › AI; it needs the permission `ai`, and the user has to turn on "Let logic call AI" there. Each logic asks at most 10 times a minute. App scripts cannot send a picture. The service chosen there may be a model service that another extension provides (see the [native guide](native.en.md#ai-providers)); when that extension is not installed, is off or may not provide AI, `ai.ask` gets `GS-API-150`.
+
+## Converters
+
+`contributes.converters` in the manifest (see the [manifest reference](manifest.en.md#converters-extension-point-script-up-to-16)) names a script whose export named `convert` (or default export) is a function. For each file it converts, GameScrcpy loads that script in the logic sandbox and calls the function once, without a phone:
+
+```ts
+export function convert(input: ConvertInput): ConvertOutput {
+    if (input.to === "profile") {
+        return { name: "Imported.json", json: profileFrom(input.text) };
+    }
+    return { text: textFrom(input.json()) };
+}
+```
+
+- The function may be `async`; `input.signal` aborts when the user cancels or after 30 seconds. An import and an export can share one script and tell themselves apart by `input.from` and `input.to`.
+- At most 32 MiB go in and 32 MiB come out; the message of what it throws is what the user sees. Errors: `GS-API-165` (the script exports no such function), `GS-API-166` (the result is nothing GameScrcpy can write), `GS-API-167` (the result is over 32 MiB), `GS-API-168` (the file to convert could not be read).
+
+A complete example: [key-list](../../examples/extensions/key-list).
 
 ## Guided tours
 
@@ -242,3 +315,8 @@ Previous and next only move between the articles of the same extension. A comple
 | `GS-API-110` to `GS-API-113` | Speech: the engine, the arguments, an engine failure, the permission |
 | `GS-API-120` to `GS-API-122` | Picture frames: the options, no picture, too many subscriptions |
 | `GS-API-145` to `GS-API-149` | Services: not declared, nobody offers it, no dependency, not matching the schemas, failed or too slow |
+| `GS-API-150` | The model service chosen in Settings › AI belongs to an extension that cannot be used |
+| `GS-API-155` to `GS-API-159` | The network: no permission or unlisted host, address or options not right, too many or too large, unreachable or too slow, socket closed |
+| `GS-API-160` to `GS-API-164` | Files: no permission or not declared, name or path not right, Windows cannot do it, too many or too large, handle closed or no folder chosen |
+| `GS-API-165` to `GS-API-168` | Converters: no function exported, a result that cannot be written, a result too large, a file that cannot be read |
+| `GS-API-170` to `GS-API-174` | Recognition: no such engine, kind not recognized, params not right, the engine failed, too slow or too busy |

@@ -67,6 +67,7 @@
 | `license` | 是 | 许可证，建议写 SPDX 标识，如 `MIT`、`Apache-2.0`；最长 100 个字符 |
 | `repository` | | `https://` 开头的地址 |
 | `authorKey` | | 作者的 minisign 公钥（`RW` 开头的 56 个字符），用来校验包里的签名，见[打包与发布](publishing.md) |
+| `updates` | | `{ "index": "https://…" }`：更新列表的地址，见下文 |
 | `aiAssisted` | | `true` 表示扩展是借助 AI 做的 |
 | `requires` | 是 | 用到的扩展点和版本范围，至少一项，见下 |
 | `dependencies` | | 依赖的扩展，见下 |
@@ -82,7 +83,7 @@
 | 说法 | 写法 | 用在 |
 |:--|:--|:--|
 | 原生名 | 小写字母开头，后面是字母和数字，最长 64 个字符，如 `flashBoard` | 原生贡献的 `name`、节点与任务的参数名、服务名、附加与行为的参数 `key` |
-| 面板名 | 1～32 个小写字母、数字或连字符，如 `lap-list` | 面板、帮助与引导的 `id`、脚本的 `name` |
+| 面板名 | 1～32 个小写字母、数字或连字符，如 `lap-list` | 面板、帮助与引导的 `id`，脚本、转换器与 `files.paths` 文件夹的 `name` |
 | 方案名 | 1～64 个字母、数字、`_` 或 `-` | 方案、组件（最长 48）与任务的 `name` |
 | 设置键 | 字母开头，后面是字母和数字，最长 64 个字符 | `settings[].key` |
 | 包内路径 | 相对扩展文件夹、用 `/` 分隔，不能出文件夹、不能带 `\ : * ? " < > \|`，最长 260 个字符 | 各种 `file`、`entry`、`folder`、`dll` |
@@ -91,7 +92,7 @@
 
 ### `requires` 与版本范围
 
-`requires` 的键是扩展点（`theme`、`filter`、`profile`、`component`、`task`、`script`、`panel`、`native`、`help`、`tour`，以及 2.1.0 还不提供的 `command`、`preset`），值是版本范围。版本范围可以写成：
+`requires` 的键是扩展点（`theme`、`filter`、`profile`、`component`、`task`、`script`、`panel`、`native`、`help`、`tour`、`locale`，以及 2.1.0 还不提供的 `command`、`preset`），值是版本范围。版本范围可以写成：
 
 | 写法 | 意思 |
 |:--|:--|
@@ -113,6 +114,14 @@
 ```
 
 键是扩展的 `id`，值是版本范围，或者 `{ "version": 范围, "optional": true }`。必需的依赖没装、没开或版本不对时，这个扩展不会打开，卡片上写明缺什么；可选依赖不在也照常打开。依赖决定载入顺序，也决定可以调用哪些扩展的服务、收哪些扩展的事件（见[逻辑扩展指南](logic.md)）。不能依赖自己。
+
+### `updates`
+
+```json
+"updates": { "index": "https://example.com/gamescrcpy/index.json" }
+```
+
+`index` 是更新列表的地址：`https://` 开头、有主机名、不带用户名、只用可打印的 ASCII 字符，最长 2048 个字符，否则报 `url-invalid`。GameScrcpy 只在用户打开了设置 › 通用的“检查扩展更新”（启动时每天最多一次）或在扩展页点“检查更新”时去取它，请求里不带扩展的 id。列表的格式和发布的做法见[打包与发布](publishing.md#更新列表)。
 
 ## `contributes`
 
@@ -285,6 +294,10 @@
 | `mediaSinks` | 8 | `name`、`title`（必填）、`video`（`{ fps: 1～60, width, height: 16～4096 }`，最多 3840 × 2160 像素）、`audio`（`true` 要声音）；`video` 与 `audio` 至少一个；要权限 `media.output` |
 | `recordingExporters` | 8 | `name`、`title`（必填）、`extension`（必填，导出文件的扩展名，小写字母和数字、不带点，不能是 `gsrec`）；要权限 `media.output` |
 | `frameTaps` | 8 | `name`、`title`（必填）、`fps`（1～60，默认 30）、`size`（长边 64～3840 像素，默认 1280）；要权限 `media.read` |
+| `aiProviders` | 4 | `name`、`title`（必填）、`models`（必填，列出模型的节点：没有参数、返回 `json`）、`chat`（必填，回答的任务：只有一个参数 `request`（`json`）、返回 `json`）；要权限 `ai.provide`，见[原生扩展指南](native.md#ai-服务提供者) |
+| `visionEngines` | 4 | `name`、`title`（必填）、`kinds`（必填，`ocr`、`detect`、`classify` 里的一种或几种，各写一次）、`languages`（它认的语言，最多 32 个，如 `en`、`zh-Hans`）；DLL 在贡献表里登记同名的 `gs_ext_vision_engine` |
+
+`sandbox` 是 `full`（默认）或 `restricted`。`restricted` 的 DLL 在只属于这个扩展的 AppContainer 里运行，没有自己的权限：安装检查不再要求它导入的联网、文件等函数有对应的权限（在沙箱里它们本来就用不了），安装框列出沙箱挡掉的系统函数；能做什么、不能做什么见[原生扩展指南](native.md#受限模式)。
 
 节点与任务的参数和返回值用这些类型：`boolean`、`number`、`string`、`point`（画面上的点，比例）、`region`（画面上的区域，比例）、`color`（`#RRGGBB`）、`duration`（毫秒）、`json`。
 
@@ -300,6 +313,47 @@
 ```
 
 `gs ext <扩展> <name> --<参数> <值>` 在 `gs` 的模拟宿主里跑原生任务 `job`（见[测试扩展](testing.md#命令行子命令)）。`name` 是 1～32 个小写字母、数字或连字符；`description` 最长 200 个字符；`params` 只能是这个任务的参数，`default` 要符合参数的类型；任务的参数不能叫 `json`、`hosted` 或 `help`（这些是 `gs` 自己的选项）。不需要扩展点。
+
+### `converters`（扩展点 `script`，最多 16 个）
+
+```json
+"converters": [
+  { "name": "import-keys", "title": "Key list", "from": "keys", "to": "profile",
+    "script": "src/main.ts", "extensions": ["keys"] },
+  { "name": "export-keys", "title": "Key list", "from": "profile", "to": "keys", "script": "src/main.ts" }
+]
+```
+
+| 字段 | 规则 |
+|:--|:--|
+| `name` | 必填，面板名的写法 |
+| `title` | 必填，最长 40 个字符；出现在导入框的文件类型和菜单项“导出为 <title>…”里 |
+| `from`、`to` | 必填：`profile`、`task`、`recording`，或不带点的文件扩展名（1～16 个小写字母和数字）；两者恰好有一个是 GameScrcpy 的格式 |
+| `script` | 必填，包里的 `.ts` 或 `.js`，导出名为 `convert` 的函数（或默认导出） |
+| `extensions` | 导入时认哪些文件扩展名，最多 8 个，写法同上 |
+
+- `to` 为 `profile` 的是导入：方案页的“导入”、投屏窗口里的导入和把文件拖进窗口都认得 `extensions` 里的文件。`from` 为 `profile`、`task` 或 `recording` 的是导出：方案卡片、任务设置、录像的菜单里多出“导出为 <title>…”。
+- 导入只生成方案：清单允许 `to` 为 `task` 或 `recording` 的转换器，但界面不会用到它们。
+- 转换在逻辑的沙箱里跑，没有手机；进出各最多 32 MiB，一次最多 30 秒。函数收到 `ConvertInput`（文件名、`from`、`to`、`bytes`、按 UTF-8 读的 `text`、`json()` 与取消信号 `signal`；方案给的是它的 JSON 文件，任务是 `task.ts`，录像是 `session.json`），返回 `ConvertOutput`（`bytes`、`text` 或 `json`，导入时可以带 `name` 给新方案起名），也可以直接返回文字、字节或方案对象。抛错时用户看到它的信息。GameScrcpy 像检查别的导入文件一样检查导入的方案。错误：`GS-API-165`（脚本没有导出这个函数）、`GS-API-166`（结果不是能写的东西）、`GS-API-167`（结果超过 32 MiB）。例子见 [key-list](../../examples/extensions/key-list)。
+
+### `locales`（扩展点 `locale`，最多 8 个）
+
+```json
+"locales": [
+  { "locale": "ja", "name": "日本語", "translations": "i18n/ja.qm", "help": "help/ja" }
+]
+```
+
+| 字段 | 规则 |
+|:--|:--|
+| `locale` | 必填，语言代码，可以带地区，如 `ja`、`zh_TW`；`en` 与 `zh_CN` 是 GameScrcpy 自带的，不能用 |
+| `name` | 必填，最长 40 个字符，用这种语言写的语言名，出现在设置 › 通用的“界面语言”里 |
+| `translations` | 必填，包里编好的 Qt 译文（`.qm`，最大 16 MiB）。GameScrcpy 和 `gs pack` 不编译 `.ts`，写 `.ts` 会报 `locale-invalid` |
+| `help` | 包里的一个文件夹，放这种语言的帮助文章（里面至少有一个 `.md`） |
+
+- 译文的做法：复制 GameScrcpy 源码仓库里的 `src/app/i18n/gamescrcpy_zh_CN.ts`（原文是英文），把文件头的 `language` 改成你的语言，用 Qt Linguist 把每一条翻成你的语言，再用 Qt 的 `lrelease` 编译：`lrelease ja.ts -qm ja.qm`。译文装在内置英文之上，缺的条目显示英文；帮助页“接口”一组的脚本接口参考也用这份译文。
+- `help` 文件夹里放和 GameScrcpy 自带文章同名的 `<文章>.md`（如 `connecting.md`、`faq.md`，名字见源码仓库的 `src/app/help/en/`），界面是这种语言时替换那一篇，没有的仍显示英文；写法同自带的帮助。
+- 语言包是纯数据，不要权限。提供它的扩展关掉或删掉后，设置里选的语言保留，界面暂时跟随 Windows 的语言。
 
 ### `commands` 与 `presets`
 
@@ -336,6 +390,8 @@
 ```json
 "permissions": [
   { "name": "network", "reason": "Downloads the newest firmware.", "hosts": ["api.github.com", "*.githubusercontent.com"] },
+  { "name": "files.paths", "reason": "Saves your notes.",
+    "folders": [ { "name": "notes", "purpose": "Where your notes are kept as text files." } ] },
   { "name": "hardware", "reason": "Opens the board's serial port." }
 ]
 ```
@@ -344,9 +400,12 @@
 |:--|:--|
 | `name` | 必填，权限名，见[概览](README.md#权限) |
 | `reason` | 必填，最长 120 个字符，安装框里显示在权限旁边 |
-| `hosts` | `network` 必须写，最多 64 个域名；`*.` 开头表示子域名，可以带 `:端口`；只写 `*` 会得到警告 |
-| `paths` | `files.paths` 必须写，最多 64 个文件夹 |
+| `hosts` | `network` 必须写，最多 64 个主机名，见下 |
+| `folders` | `files.paths` 必须写（最多 16 个）：`{ name, purpose }`，`name` 是面板名的写法，逻辑用 `files.folder(name)` 打开；`purpose`（最长 120 个字符）在用户第一次为它选文件夹时显示 |
+| `paths` | 旧写法：固定的路径什么也不给，写了得到警告 `permission-paths-fixed`，改用 `folders` |
 | `maxDevices` | 只用于 `devices.other`，1～64 |
+
+`hosts` 的每一项是一个主机名，可以带 `:端口`（不写端口就只认 443），`*.example.com` 认它的所有子域名（不含 `example.com` 本身），只写 `*` 认任何主机但会得到警告 `permission-any-host`。比较时不分大小写；国际化域名写成 ASCII 形式（`xn--…`）；不认 IPv6 地址的写法。逻辑的 `net.fetch` / `net.socket` 只能去这些主机，重定向也只跟到这些主机。
 
 只有声明了 `script`、`component`、`task` 或 `native` 的扩展能申请权限。节点和任务的 `permissions` 里写的每一项都必须也在这里。
 
@@ -381,6 +440,9 @@
 | `behaviors.<name>.title`、`.description`、`.params.<key>…`、`.slots.<槽>.title` | 行为 |
 | `inputSources.<name>.title`、`.slots.<槽>.title` | 输入设备 |
 | `speechEngines.<name>.title` | 语音引擎 |
+| `transports.<name>.title`、`videoSources.<name>.title`、`audioSources.<name>.title`、`mediaSinks.<name>.title`、`recordingExporters.<name>.title`、`frameTaps.<name>.title` | 连接方式、画面与声音来源、媒体输出、录像导出、取帧 |
+| `aiProviders.<name>.title`、`visionEngines.<name>.title` | AI 服务提供者、识别引擎 |
+| `converters.<name>.title` | 转换器 |
 
 面板、菜单里由脚本给出的文字由脚本自己决定，不经过 `l10n`。
 
@@ -398,6 +460,11 @@
 | `extension-point-unknown`、`contribution-undeclared` | 不认识的扩展点，或者贡献了东西却没声明扩展点 |
 | `permission-unknown`、`permission-reason-missing`、`permission-not-allowed`、`permission-never-granted` | 不认识的权限、没写理由、这种扩展不能申请权限、申请了 `adb.shell` |
 | `permission-hosts-missing`、`permission-host-invalid`、`permission-any-host` | `network` 的 `hosts` 缺失、写法不对、只写了 `*`（警告） |
+| `permission-paths-missing`、`permission-paths-fixed`、`permission-field-unused` | `files.paths` 没写 `folders`；写了不起作用的 `paths`（警告）；字段用在了别的权限上（警告） |
+| `url-invalid` | `repository` 或 `updates.index` 不是带主机名的 `https://` 地址 |
+| `converter-invalid`、`locale-invalid` | 转换器的格式名不对；语言代码不对、用了自带的语言，或译文不是 `.qm` |
+| `ai-provider-invalid`、`vision-engine-invalid` | AI 服务提供者的节点或任务不合约定；识别引擎的 `kinds` 不对 |
+| `signature-invalid`、`signature-missing`、`publisher-changed`、`signing-key-mismatch` | 签名对不上、更新少了签名、换了公钥、打包用的私钥和 `authorKey` 不配（见[打包与发布](publishing.md#签名)） |
 | `native-permission-undeclared` | 节点、任务或原生贡献要的权限没在 `permissions` 里 |
 | `native-name-invalid`、`native-type-invalid`、`native-dll-invalid` | 原生名、类型或 DLL 路径写法不对 |
 | `panel-name-invalid`、`script-name-invalid`、`script-entry-invalid` | 面板名、脚本名或脚本入口不对 |

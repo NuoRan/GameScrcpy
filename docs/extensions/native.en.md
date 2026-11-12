@@ -66,7 +66,7 @@ Logic calls it as `ext.alice.hello.greet("world")` (each part of the extension i
 - The DLL exports `gs_ext_main`. GameScrcpy calls it once after loading the DLL, with the host function table `gs_ext_host`; the DLL hands back a pointer to its own description, `gs_ext_plugin`. The DLL keeps that description and everything it points to valid until `unload` is called; GameScrcpy never writes to it.
 - A DLL that only exports the old entry `gs_ext_entry` (interface version 1) is not loaded; the Extensions page asks its author to build it again with the current SDK.
 - Every struct that a DLL fills in, or that holds arrays, starts with `uint32_t size`, set to its `sizeof`. Each side reads only the fields both know and takes the others as 0, so later versions only add fields at the end of structs, and new DLLs work with older programs as old DLLs do with newer ones. The structs that are elements of arrays (`gs_ext_value`, `gs_ext_contact` and the like) are marked as never changing and have no `size`.
-- Before using a host function that a later version added, ask `supports("<feature>")`. The features 2.1.0 knows: `jobs`, `events`, `settings`, `claims`, `job-output`, `app-events`, `input-sources`, `services`, `transports`, `media`, `frame-taps`.
+- Before using a host function that a later version added, ask `supports("<feature>")`. The features 2.1.0 knows: `jobs`, `events`, `settings`, `claims`, `job-output`, `app-events`, `input-sources`, `services`, `transports`, `media`, `frame-taps`, `vision-engines`, `devices`.
 
 ## The contribution table
 
@@ -87,8 +87,9 @@ Logic calls it as `ext.alice.hello.greet("world")` (each part of the extension i
 | `media-sink` | `GS_EXT_KIND_MEDIA_SINK` | `gs_ext_media_sink` | `mediaSinks` |
 | `recording-exporter` | `GS_EXT_KIND_RECORDING_EXPORTER` | `gs_ext_recording_exporter` | `recordingExporters` |
 | `frame-tap` | `GS_EXT_KIND_FRAME_TAP` | `gs_ext_frame_tap` | `frameTaps` |
+| `vision-engine` | `GS_EXT_KIND_VISION_ENGINE` | `gs_ext_vision_engine` | `visionEngines` |
 
-Speech engines have no kind of their own: the manifest builds them from jobs and a node (see [Speech engines](#speech-engines)). The plugin description has four optional callbacks besides: `unload` (called once before unloading), `settings_changed`, `claim_wanted` and `on_event`; leave the ones you do not need `NULL`.
+Speech engines and AI providers have no kind of their own: the manifest builds them from jobs and nodes (see [Speech engines](#speech-engines) and [AI providers](#ai-providers)). The plugin description has five optional callbacks besides: `unload` (called once before unloading), `settings_changed`, `claim_wanted`, `on_event` and `device_event`; leave the ones you do not need `NULL`.
 
 ## Host functions
 
@@ -109,6 +110,7 @@ Speech engines have no kind of their own: the manifest builds them from jobs and
 | `call_service` | Calling a service of another extension |
 | `transport_changed`, `stream_opened`, `stream_data`, `stream_writable`, `stream_closed` | Transports |
 | `sources_changed`, `video_frame`, `audio_samples`, `stream_ended` | Picture and sound sources |
+| `device_list`, `device_open`, `device_write`, `device_control`, `device_close` | Using the devices the user allows, through GameScrcpy |
 
 Strings are UTF-8 with a length, not ended by a zero byte (except where a struct says "ended by a zero byte"). The results are `gs_ext_status` values: `GS_EXT_OK`, `GS_EXT_FAILED`, `GS_EXT_UNSUPPORTED`, `GS_EXT_DENIED` (a permission is missing), `GS_EXT_BAD_ARGUMENT` and `GS_EXT_BUSY`.
 
@@ -127,15 +129,18 @@ GameScrcpy calls the DLL on different threads, and each kind of callback has its
 | `claim_wanted` | Answers within a second |
 | `on_event` | One event at a time, in order, on a thread that never draws the interface; return quickly, since more than 256 waiting are dropped |
 | `call_service`, `claim` with `GS_EXT_CLAIM_WAIT` | Only from a job or the DLL's own thread, never from a node, an action, a touch method, an attachment, a behavior, a job's `start` or a callback |
-| `input_event`, `emit_event`, `job_*` | From any thread |
+| `device_list`, `device_open`, `device_write`, `device_control` | Only from the DLL's own thread, waiting at most 20 seconds; on GameScrcpy's threads they return `GS_EXT_UNSUPPORTED` |
+| `device_event` | One event at a time, in the order the devices sent them, on a thread that never draws the interface; return quickly, since more than 1024 waiting are dropped |
+| A recognition engine's `run` | On a thread GameScrcpy opens for it that never draws the interface, one picture at a time for each engine; after 5 seconds the logic gets an error, and the next picture comes only after it returns |
+| `input_event`, `emit_event`, `job_*`, `device_close` | From any thread |
 
 ## Which process it runs in
 
-The DLL of each extension the user installed runs in a `gs-exthost.exe` process of its own, which GameScrcpy talks to through a shared-memory channel; the official extensions that ship with the program are loaded into GameScrcpy's own process. The DLL sees the same interface either way, but its own process comes with these rules:
+Every DLL runs in a `gs-exthost.exe` process of its own, which GameScrcpy talks to through a shared-memory channel (only official extensions that ship with the program, with ids that start with `gamescrcpy.`, would be loaded into GameScrcpy's own process, and 2.1 has none). The separate process comes with these rules:
 
 - A node call without an answer for 2 seconds, or a broken channel, ends the process, and the Extensions page says it did not answer in time.
 - When the process stops unexpectedly, GameScrcpy writes a crash report (a minidump and `crash.txt`, which names the faulting module and offset) and records it in the extension's health; three stops within a minute turn the extension off until the user turns it on again.
-- The process runs with the user's rights; it is not a sandbox. A DLL can do whatever the user can, which is why it goes through the virus scan and the check of its imports before it is installed.
+- By default (`"sandbox": "full"`) the process runs with the user's rights; it is not a sandbox. A DLL can do whatever the user can, which is why it goes through the virus scan and the check of its imports before it is installed. With `"sandbox": "restricted"` in the manifest it runs in a sandbox; see [Restricted mode](#restricted-mode).
 
 During development, `gs ext test <folder> --hosted` runs the tests in the separate process too (see [Testing extensions](testing.en.md)).
 
@@ -297,6 +302,69 @@ These need the permission `media.capture` (sources) or `media.output` (outputs a
 A `gs_ext_frame_tap` reads the full-speed mirrored picture of each phone where the user turns it on in the mirror window's More menu; it needs the permission `media.read`, and `supports("frame-taps")` tells whether GameScrcpy has it. `open` gets the phone, the size and the rotation (a turned or resized picture closes the tap and opens it again); `frame` gets read-only BGRA frames (the long side made smaller to the manifest's `size`, at most the manifest's `fps` a second) on a thread GameScrcpy keeps for the tap, and may take its time: meanwhile only the newest frame waits. `frame` can put up to 256 shapes (rectangles, lines, points and text in a few theme colors) into the `gs_ext_overlay` to draw over the picture; the shapes of each frame replace the previous ones, and `keep` set to 1 leaves them as they were.
 
 For a few frames a second in logic, use `media.frames` (see the [logic guide](logic.en.md)).
+
+## Devices through GameScrcpy
+
+`device_list`, `device_open`, `device_write`, `device_control` and `device_close` let a DLL use, through GameScrcpy, the serial, HID and Bluetooth LE devices the user allowed the extension; they are the same as `hardware.*` in logic. The extension's logic asks the user to tick devices with `hardware.request` (from its panel, for example), and the user takes them back on the Extensions page. They need the permission `hardware`; ask `supports("devices")` first. A DLL in [restricted mode](#restricted-mode) reaches hardware only this way, and a DLL with full rights may use them as well.
+
+- `device_list(context, devices)` writes the allowed devices as a JSON array `[{ id, kind, name, present }]`: `kind` is `serial`, `hid` or `ble`, and `present` tells whether it is connected now.
+- `device_open(context, id, options, &device, answer)` opens one and gives its number; a serial device takes the options of `hardware.open` in logic (`{ baudRate, dataBits, parity, stopBits, flowControl, dtr, rts }`), other devices none. GameScrcpy also claims the device's hardware for the extension (see [Hardware claims](#hardware-claims)) and lets go when the device closes. `GS_EXT_DENIED` when there is no permission or the user did not allow the device, `GS_EXT_BAD_ARGUMENT` for options that are not possible, `GS_EXT_FAILED` when it is not connected, someone else uses it or it does not open; `answer` gets the reason. Opening a Bluetooth device can take seconds.
+- `device_write(context, device, data, size, target, answer)` sends data and returns when the device took it: to a serial device as it is, at most 65536 bytes; to a HID device as an output report with `target` `{ "report": id }`, at most 4096 bytes; to a Bluetooth LE device as the new value of a characteristic with `target` `{ "service": uuid, "characteristic": uuid, "response": true }`, at most 512 bytes (with `response` false it does not wait for the device to confirm).
+- `device_control(context, device, request, answer)` does the rest of what `hardware.control` does, with the request's `op` one of `signals` (DTR and RTS of a serial device), `sendFeature` / `getFeature` (feature reports of a HID device), `services` (the services and characteristics of a Bluetooth LE device), `read` (reads a characteristic) and `subscribe` (turns its notifications on or off); bytes are base64 text both ways.
+- `device_close(context, device)` returns at once and may be called from any thread, also from `unload`; GameScrcpy closes the DLL's devices itself when the extension or its process stops.
+- What a device sends comes to `device_event(context, gs_ext_device_event*)` of the plugin description: `GS_EXT_DEVICE_DATA` (bytes from a serial device), `GS_EXT_DEVICE_REPORT` (an input report of a HID device, `report` being its id), `GS_EXT_DEVICE_NOTIFY` (a Bluetooth LE characteristic it subscribed to changed, named by `service` and `characteristic`) and `GS_EXT_DEVICE_CLOSED` (the device closed by itself, with `reason` `removed`, `failed` or `forgotten`).
+- `device_list`, `device_open`, `device_write` and `device_control` wait for GameScrcpy (at most 20 seconds), so call them only from a thread of the DLL's own; on GameScrcpy's threads they return `GS_EXT_UNSUPPORTED`. The texts they give stay valid until the same thread calls one of them again.
+
+## Recognition engines
+
+`gs_ext_vision_engine { size, name, kinds, context, run }` reads text (`ocr`), finds things (`detect`) and tells what the picture shows (`classify`) for `vision.recognize` in logic, next to the text recognition of Windows (engine id `system`); an extension's engine id is `<extension id>/<name>`. `visionEngines` in the manifest says what it recognizes and which languages it reads; `kinds` in the struct holds bits such as `1u << GS_EXT_VISION_OCR`, at least those the manifest names. A DLL offers at most 4. It needs no permission (the logic that asks for it needs `device.screen`); ask `supports("vision-engines")` first.
+
+```cpp
+int32_t readText(void* context, uint32_t kind, const gs_ext_image* image, const char* params, size_t size,
+                 gs_ext_result* out);
+
+const gs_ext_vision_engine kReader = {sizeof(gs_ext_vision_engine), "reader", 1u << GS_EXT_VISION_OCR, nullptr,
+                                      &readText};
+```
+
+- `run(context, kind, image, params, size, out)` gets the part of the picture the logic asked for: `gs_ext_image` is BGRA (alpha always 255), 1 to 4096 pixels each way, with a `stride` of at least 4 × width, read-only and valid until `run` returns; in `gs-exthost.exe` it comes through read-only shared memory. `params` is the JSON object the logic passed (`{}` when it passed none).
+- Put the result into `out` as a JSON array with `set_text` and return `GS_EXT_OK`: `ocr` lists `{ text, x, y, width, height, confidence }` for each piece of text, `detect` `{ label, x, y, width, height, confidence }` for each thing and `classify` `{ label, confidence }` for each class. `x` and `y` are the middle and `width` and `height` the size, as ratios of the image from 0 to 1, which GameScrcpy turns into ratios of the whole picture for the logic; `confidence` goes from 0 to 1. Return `GS_EXT_BAD_ARGUMENT` for params it does not take, or call `set_error` and return `GS_EXT_FAILED`.
+- GameScrcpy calls it on a thread of its own that never draws the interface, one picture at a time for each engine, perhaps while nodes, jobs and other engines run. After 5 seconds the logic gets `GS-API-174`, and the engine takes the next picture only after it returns. The other errors in logic: `GS-API-170` (no such engine, or its extension is off), `GS-API-171` (it does not recognize this kind or language), `GS-API-172` (the arguments are not right), `GS-API-173` (the engine failed or its result is not a valid list).
+
+In logic: `await vision.engine("alice.finder/reader").read(res.region("Chat"))`, or `vision.recognize("alice.finder/reader", "ocr", region, params)`.
+
+## AI providers
+
+An AI provider adds a model service to Settings › AI: the assistant and `ai.ask` in logic can use it, and the list of models and the options for thinking, thinking effort and long context follow what it says. It has no contribution kind of its own; the manifest builds it from a node and a job, and it needs the permission `ai.provide` (and `network` with the service's hosts when it uses the network):
+
+```json
+"aiProviders": [ { "name": "cloud", "title": "My model service", "models": "models", "chat": "chat" } ],
+"nodes": [ { "name": "models", "returns": "json", "description": "The models this service offers." } ],
+"jobs": [ { "name": "chat", "title": "Answer", "params": [ { "name": "request", "type": "json" } ], "returns": "json" } ]
+```
+
+- The `models` node takes no parameters and returns a JSON array of models (up to 256), each `{ id, name, traits }`: `id` is required (at most 256 characters), `name` defaults to `id`, and `traits` tells what it can do: `think` (it can think before answering), `alwaysThinks`, `efforts` (thinking efforts, some of `minimal`, `low`, `medium` and `high`), `thinkingEffort` (the effort matters only with thinking on) and `longContext`.
+- The `chat` job starts once for each question, and its parameter `request` is:
+
+  ```json
+  { "model": "…", "system": "…", "messages": [], "tools": [ { "name": "…", "description": "…", "inputSchema": {} } ],
+    "stream": true, "maxTokens": 4096, "think": false, "effort": "", "longContext": false }
+  ```
+
+  `messages` holds, in turn, `{ "role": "user", "text", "pictures" }` (each picture `{ "type": "image", "mimeType", "data" }` with base64 `data`), `{ "role": "assistant", "text", "toolCalls": [ { id, name, arguments } ], "thinkingBlocks" }` and `{ "role": "tools", "toolResults": [ { id, name, failed, content } ] }`. When a request is over about 64 KiB, `request` becomes `{ "file": "<path>" }`: the same JSON in a temporary file, removed when the job ends (a restricted DLL can read it too).
+- While answering, hand over pieces with `job_output` as `{ "text": "…" }`, `{ "thinking": "…" }` or `{ "toolCall": "<tool name>" }`, which the interface shows as they come; end with `job_finish` and `{ text, thinking, thinkingBlocks, toolCalls: [ { id, name, arguments } ], stop, usage: { input, output } }`, where a missing `text` or `thinking` is made of the pieces handed over. When the service fails, put `{ "problem": "…", "status": 429, "code": "…" }` into the result, or call `job_fail`.
+- Two minutes without any output count as a failure; when the user cancels, GameScrcpy cancels the job. When the service chosen in Settings belongs to an extension that is not installed, is off or lacks `ai.provide`, `ai.ask` gets `GS-API-150`.
+
+## Restricted mode
+
+With `"sandbox": "restricted"` in `contributes.native`, the DLL runs in `gs-exthost.exe` inside an AppContainer of the extension's own. The interface is the same as for a DLL with full rights, but:
+
+- **It cannot** read or write files outside the extension's folder (its own folder only reads), use the network or start other programs, and it does not see the user's environment: the process has a few system variables, and `LOCALAPPDATA`, `TEMP` and `TMP` point to the container's own folder (`%LOCALAPPDATA%\Packages\gamescrcpy.extension.<hash>\AC` and its `Temp`), where temporary files go. Interface actions such as the clipboard, system settings and the windows of other programs are blocked too.
+- **It can** reach hardware only through the [device functions](#devices-through-gamescrcpy) (with the permission `hardware` and the devices the user allows; `claim` needs `hardware` too); GameScrcpy hands it its store and the temporary files of AI requests.
+- **Limits**: the process uses at most 1 GiB of memory and cannot start another process. GameScrcpy also limits it on its side: 200 log lines a second, 3 notifications in 10 seconds, 4 device changes a second and 16000 input events a second; what is over is dropped, with one line in the log the first time; the values of events must be valid UTF-8 JSON.
+- The install check no longer asks for permissions that cover the network and file functions it imports; the install dialog says "Restricted: it can only do what it declares" and lists the system functions the sandbox blocks, and an unsigned package gets only a note.
+- In `gs ext test` a restricted DLL always runs in `gs-exthost.exe` and an AppContainer too (named `gs-test:<extension id>`, removed after the test), without `--hosted`.
+- A known limit: the process in the container must be able to read and run `gs-exthost.exe` and the libraries next to it, so GameScrcpy grants that to "all application packages"; when those files belong to Administrators and GameScrcpy runs without elevation, it cannot change their permissions (error 5). That happens with a portable build unpacked to a drive other than the system drive by an elevated program; an installation under Program Files is not affected.
 
 ## One extension, several processors
 

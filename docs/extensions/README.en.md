@@ -7,8 +7,8 @@ A GameScrcpy extension is a folder with a `manifest.json`, packed into one `.gse
 | Page | Contents |
 |:--|:--|
 | [Manifest reference](manifest.en.md) | Every field of `manifest.json`, every contribution, translations and limits |
-| [Logic guide](logic.en.md) | App and session scripts, panels and places in the interface, program events, services between extensions, local connections, speech, hardware, tours and help |
-| [Native guide](native.en.md) | The C interface: entry point and contribution table, host functions, jobs, events, settings, device providers, hardware claims, input sources, services, speech engines, transports, media |
+| [Logic guide](logic.en.md) | App and session scripts, panels and places in the interface, program events, services between extensions, local connections, the network and files, speech, recognition, converters, hardware, tours and help |
+| [Native guide](native.en.md) | The C interface: entry point and contribution table, host functions, jobs, events, settings, device providers, hardware claims and devices, input sources, services, speech engines, transports, media, recognition engines, AI providers, restricted mode |
 | [Testing extensions](testing.en.md) | `gs validate`, `gs check`, the mock host `gs ext test`, trying an extension in the app |
 | [Packing and publishing](publishing.en.md) | `gs pack`, signing, `gamescrcpy://` install links, updates, bundles |
 
@@ -31,6 +31,7 @@ One extension can bring any mix of the following; for each of them the manifest 
 | Guided tours that light up the extension's card, page and settings one step at a time | `contributes.tours` | `tour` |
 | Settings, shown in Settings › Extensions and in the extension's settings window, optionally per phone | `settings` | — |
 | Translations of the name, the description and the titles | `l10n` | — |
+| Language packs: another interface language, optionally with translated help articles | `contributes.locales` | `locale` |
 
 The Profiles page, the component library of the key mapping editor and the task settings can also export your own profiles, components and tasks as extension packages, which make a good starting point.
 
@@ -42,10 +43,14 @@ The Profiles page, the component library of the key mapping editor and the task 
 | Panels and places in the interface: the mirror window's side panel, right-click menu, status area and toolbar; a page of the main window, a section of Settings, the extension's settings window, the settings of a device card, the More menu of cards, the tray menu | `contributes.panels` + `ui.*` | `panel` |
 | Services: functions that other extensions, and the user's own logic, can call | `contributes.services` + `ext.provide` / `ext.call` | — |
 | Program events: a phone connected, a profile was applied, another app came to the front… | `events.on` | other phones and windows need `events.app` |
+| The network: https sites and WebSockets reached through GameScrcpy, only on the hosts the manifest lists | `net.fetch`, `net.socket` | `network` (with the hosts in `hosts`) |
+| Files: files the user picks in the system dialog, folders the user chooses for the extension | `files.pick`, `files.folder` | `files.pick`, `files.paths` (with the folders in `folders`) |
 | Incoming local connections: an HTTP server on 127.0.0.1 that programs such as Stream Deck or OBS can call | `net.listen` | `network.listen` |
 | Reading aloud and voice commands | `speech.say` / `speech.listen` | listening needs `speech.listen` |
 | Serial ports, HID and Bluetooth LE devices; the buttons of home-made devices in the key mapping | `hardware.*`, `input.source` | `hardware` |
 | A few frames a second of the phone's picture, for analysis and AI | `media.frames` | `media.read` |
+| Recognition: reading text, finding things and telling what the picture shows with the text recognition of Windows or an engine an extension provides | `vision.recognize`, `vision.engine` | `device.screen` |
+| Converters that import files of other formats as profiles and export profiles, tasks and recordings to other formats | `contributes.converters` | `script` |
 | MCP tools for AI clients | `mcp.tool` | — |
 
 ### Native
@@ -67,9 +72,11 @@ A native extension names its DLL and what the DLL offers in `contributes.native`
 | Media sinks that take a mirror window to a virtual camera, a stream and the like | `mediaSinks` | `media.output` |
 | Recording exporters that turn recordings into other formats | `recordingExporters` | `media.output` |
 | Frame taps that read the mirrored picture at full speed and draw marks over it | `frameTaps` | `media.read` |
+| Recognition engines that read text, find things and tell what the picture shows for `vision.recognize` in logic | `visionEngines` | — |
+| AI providers: another model service in Settings › AI, used by the assistant and by `ai.ask` | `aiProviders` | `ai.provide` |
 | Command-line commands: `gs ext <extension> <command>` runs a job | `contributes.cli` | — |
 
-A DLL can also keep a store, show notifications, send events to its own logic, read the extension's settings, claim hardware, hear program events and call the services of other extensions; see the [native guide](native.en.md).
+A DLL can also keep a store, show notifications, send events to its own logic, read the extension's settings, claim hardware, use the devices the user allows through GameScrcpy, hear program events and call the services of other extensions; see the [native guide](native.en.md). With `"sandbox": "restricted"` in the manifest, the DLL runs in a restricted process without rights of its own; see "Where the code runs" below.
 
 ## Extension points and versions
 
@@ -82,11 +89,12 @@ A DLL can also keep a store, show notifications, send events to its own logic, r
 | `profile` | `contributes.profiles`, `contributes.profilePatches` |
 | `component` | `contributes.components` |
 | `task` | `contributes.tasks` |
-| `script` | `contributes.scripts`, and the panels and services that use scripts |
+| `script` | `contributes.scripts`, `contributes.converters`, and the panels and services that use scripts |
 | `panel` | `contributes.panels` (with `script`) |
 | `native` | `contributes.native` |
 | `help` | `contributes.help` |
 | `tour` | `contributes.tours` |
+| `locale` | `contributes.locales` |
 
 The manifest format also keeps the extension points `command` and `preset`; 2.1.0 does not offer them yet, so an extension that asks for them installs but is never turned on. A contribution whose extension point is missing from `requires` makes `gs validate` report `contribution-undeclared`; an extension point or version the program does not offer keeps the extension off, with the reason on the Extensions page. Later versions only add extension points and add to existing ones; published fields and functions keep their meaning.
 
@@ -97,15 +105,15 @@ An extension has no permission by default. It asks for each one in `permissions`
 | Permission | What the install dialog says | For |
 |:--|:--|:--|
 | `device.input` | Send touches and keys | `touch.*`, keys and typing in logic |
-| `device.screen` | Read the phone screen | `vision.*`: finding pictures and colors, reading text |
+| `device.screen` | Read the phone screen | `vision.*`: finding pictures and colors, reading text, `vision.recognize` |
 | `device.clipboard` | Use the phone clipboard | `clipboard.*` |
 | `device.apps` | List and open apps | the app in front, opening apps |
 | `devices.other` | Control other phones | logic acting on other phones; `maxDevices` (1 to 64) may limit how many |
 | `mapping` | Trigger controls and switch profiles | `controls`, `mapping.*`, `profile.*`, `globals` |
 | `notify` | Show system notifications | `ui.notify`, `notify` in a DLL |
-| `network` | Use the network | needs the hosts in `hosts` (`*.example.com` and ports allowed); the install check also looks at it for a DLL that imports network functions |
-| `files.pick` | Open files you choose | files picked in the system's file dialog |
-| `files.paths` | Access fixed folders | needs the folders in `paths` |
+| `network` | Use the network | `net.fetch`, `net.socket`; needs the hosts in `hosts` (`*.example.com` and ports allowed); the install check also looks at it for a DLL that imports network functions |
+| `files.pick` | Open files you choose | `files.pick`: files picked in the system's file dialog |
+| `files.paths` | Read and write folders you choose for it | `files.folder`: the folders declared in `folders`, each placed by the user the first time it is used |
 | `input.read` | Read your keyboard and mouse | `input.cursor`, `input.isDown`, key events |
 | `hardware` | Access the devices you choose | `hardware.*`, `input.source` |
 | `ai` | Use the AI service you set up (it spends your quota) | `ai.ask` |
@@ -118,6 +126,7 @@ An extension has no permission by default. It asks for each one in `permissions`
 | `media.capture` | Provide pictures or sound | native picture and sound sources |
 | `media.read` | Read the mirrored picture and sound | `media.frames`, native frame taps |
 | `media.output` | Send the picture or the sound elsewhere | native media sinks and recording exporters |
+| `ai.provide` | Provide AI model services | native AI providers; add `network` when they use the network |
 
 `adb.shell` is never granted to extensions; asking for it is a manifest error. A native DLL is also checked against the system functions it imports when it is installed: functions for the network, files, reading input or other processes without the matching permission are listed in the install dialog, and a DLL that injects code into other processes cannot be installed.
 
@@ -125,15 +134,15 @@ An extension has no permission by default. It asks for each one in `permissions`
 
 - **Data**: themes, filters, profiles, help, tours and settings carry no code. Filter shaders run on the graphics card; `gs validate` compiles them first to check them.
 - **Logic**: the scripts of extensions run in the low-privilege `gs-scripthost.exe` child process and act only through GameScrcpy, which checks every action against the permissions the manifest asks for and the user allowed. A session script (`"run": "session"`) runs once for each phone that is mirroring; an app script (`"run": "app"`) runs once while GameScrcpy runs. GameScrcpy draws every interface of an extension with its own controls; the extension gives a tree that describes it and runs no interface code.
-- **Native**: a DLL runs with all the rights of your Windows account, which is why it is checked more strictly before it is installed. Each DLL of an extension the user installed runs in its own `gs-exthost.exe` process: when it crashes GameScrcpy carries on, and when it stops answering it is ended. Only the official extensions that ship with GameScrcpy are loaded into GameScrcpy's own process. The DLL sees the same interface either way.
+- **Native**: every DLL runs in its own `gs-exthost.exe` process (GameScrcpy 2.1 comes with no extensions): when it crashes GameScrcpy carries on, and when it stops answering it is ended. By default (`"sandbox": "full"`) that process has all the rights of your Windows account, which is why the DLL is checked more strictly before it is installed. With `"sandbox": "restricted"` in `contributes.native`, the DLL runs in an AppContainer of the extension's own, without rights of its own: it cannot open your files, use the network or start other programs, and it reaches only the devices you allow, through GameScrcpy; the install dialog says "Restricted: it can only do what it declares". The DLL sees the same interface either way; see the [native guide](native.en.md#restricted-mode).
 
 ## Installing, consent and updates
 
 1. **Installing**: on the Extensions page, "Install from file…" takes a `.gsext` or a `.gsbundle`; a `gamescrcpy://install` link on a web page works too (see [Packing and publishing](publishing.en.md)). GameScrcpy checks the package first: the manifest, the paths, the number and size of the files; native code also goes through the virus scanner (the Windows antimalware interface), the signature check and the check of its imports. A package that fails is not installed, and the install dialog says why.
 2. **Consent**: the install dialog and the extension's card list every permission the extension asks for, with its reason, and the extensions it depends on. The extension is loaded only once the user turns it on and agrees.
 3. **Updates**: installing a newer version of the same `id` replaces the old one; settings and allowed permissions stay with the `id`. When the new version asks for more permissions (or more hosts in `network`, more folders in `files.paths`) or for new required dependencies, the extension waits for consent: its card says "Turn it on again to allow what's new", and it loads once the user turns it on again and agrees. Asking for less or rewording a reason needs no new consent.
-4. **Signing**: a package can carry its author's signature (`SHA512SUMS` and `SHA512SUMS.minisig`, with the author's public key as `authorKey` in the manifest). A signed extension shows a verified publisher on its card, and every later update has to be signed with the same key: an unsigned update, or one signed with another key, does not install, and switching keys means removing the extension first. An unsigned native extension gets a more prominent warning in the install dialog.
-5. **Checking for updates**: 2.1.0 neither checks for updates nor installs them by itself; users download a new version or install it through a link.
+4. **Signing**: a package can carry its author's signature (`SHA512SUMS` and `SHA512SUMS.minisig`, with the author's public key as `authorKey` in the manifest). The first time this computer sees a key, the card says "Signed with key …, which this computer has not seen before"; only later versions signed with the same key show "Verified publisher · key …". Both name the key, never the name the author gives. Every later update of a signed extension has to be signed with the same key: an unsigned update, or one signed with another key, does not install, and switching keys means removing the extension first. An unsigned native extension gets a prominent warning in the install dialog (a restricted DLL only a note).
+5. **Checking for updates**: for an extension whose manifest has `updates.index`, "Check for updates" on the Extensions page checks at any time, and with "Check extensions for updates" on in Settings › General (off by default) GameScrcpy checks at most once a day when it starts. A newer version shows "Update available" on the card and downloads only when the user chooses "Update"; the package has to match the size, SHA-256, id, version and key the update list gives, and then the usual install dialog opens. Nothing installs by itself. See [Packing and publishing](publishing.en.md#update-lists).
 
 ## When something goes wrong
 
@@ -155,3 +164,6 @@ The examples in [examples/extensions](../../examples/extensions) (build the ones
 | [voice-commands](../../examples/extensions/voice-commands) | `speech.listen` for voice commands and `speech.say` for answers |
 | [event-log](../../examples/extensions/event-log) | `events.on` with GameScrcpy's own topics |
 | [tour-and-help](../../examples/extensions/tour-and-help) | A guided tour and help articles that come with an extension |
+| [key-list](../../examples/extensions/key-list) | A pair of converters between a made-up plain-text key list and profiles |
+| [notes-panel](../../examples/extensions/notes-panel) | `files.folder` keeps notes in a folder the user chooses, `net.fetch` gets JSON from a listed host |
+| [read-aloud](../../examples/extensions/read-aloud) | A session script: `vision.recognize` reads the text in a part of the picture with the text recognition of Windows, `speech.say` reads it out |

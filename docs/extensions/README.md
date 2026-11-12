@@ -7,8 +7,8 @@ GameScrcpy 的扩展是一个带 `manifest.json` 的文件夹，打包后是一�
 | 文档 | 内容 |
 |:--|:--|
 | [清单参考](manifest.md) | `manifest.json` 的每个字段、每种贡献、文字翻译与上限 |
-| [逻辑扩展指南](logic.md) | 应用脚本与会话脚本、面板与界面位置、程序事件、扩展之间的服务、本机连接、语音、硬件、功能引导与帮助 |
-| [原生扩展指南](native.md) | C 接口：入口与贡献表、宿主函数、长任务、事件、设置、设备提供者、硬件占用、输入设备、服务、语音引擎、连接方式、媒体 |
+| [逻辑扩展指南](logic.md) | 应用脚本与会话脚本、面板与界面位置、程序事件、扩展之间的服务、本机连接、联网与文件、语音、识别、转换器、硬件、功能引导与帮助 |
+| [原生扩展指南](native.md) | C 接口：入口与贡献表、宿主函数、长任务、事件、设置、设备提供者、硬件占用与设备、输入设备、服务、语音引擎、连接方式、媒体、识别引擎、AI 服务提供者、受限模式 |
 | [测试扩展](testing.md) | `gs validate`、`gs check`，模拟宿主 `gs ext test`，在程序里试 |
 | [打包与发布](publishing.md) | `gs pack`、签名、`gamescrcpy://` 安装链接、更新、整合包 |
 
@@ -31,6 +31,7 @@ GameScrcpy 的扩展是一个带 `manifest.json` 的文件夹，打包后是一�
 | 功能引导：在主窗口里一步步照亮扩展的卡片、页面与设置 | `contributes.tours` | `tour` |
 | 设置：出现在设置 › 扩展与扩展的设置窗口，可以按手机分开 | `settings` | — |
 | 名称、说明和各种标题的译文 | `l10n` | — |
+| 语言包：一种新的界面语言，可以带帮助文章的译文 | `contributes.locales` | `locale` |
 
 方案页、键位编辑器的组件库和任务设置也能把你做好的方案、组件和任务直接导出成扩展包，可以拿来当起点。
 
@@ -42,10 +43,14 @@ GameScrcpy 的扩展是一个带 `manifest.json` 的文件夹，打包后是一�
 | 面板与界面位置：投屏窗口侧边面板、右键菜单、状态区、工具栏按钮，主窗口的页面、设置里的一节、扩展设置窗口、设备卡片的设置、卡片的“更多”菜单、托盘菜单 | `contributes.panels` + `ui.*` | `panel` |
 | 服务：给别的扩展（和用户自己的逻辑）调用的函数 | `contributes.services` + `ext.provide` / `ext.call` | — |
 | 程序事件：手机连上、方案换了、前台应用变了…… | `events.on` | 别的手机与窗口要 `events.app` |
+| 联网：经 GameScrcpy 访问 https 网站与 WebSocket，只能去清单列出的域名 | `net.fetch`、`net.socket` | `network`（在 `hosts` 里列出域名） |
+| 文件：用户在系统对话框里选的文件，用户为扩展选定的文件夹 | `files.pick`、`files.folder` | `files.pick`、`files.paths`（在 `folders` 里声明） |
 | 本机传入连接：在 127.0.0.1 上开 HTTP 服务，给 Stream Deck、OBS 这类程序调 | `net.listen` | `network.listen` |
 | 朗读与语音命令 | `speech.say` / `speech.listen` | 听要 `speech.listen` |
 | 串口、HID、低功耗蓝牙设备，自制设备的按键送进键位 | `hardware.*`、`input.source` | `hardware` |
 | 手机画面的低频帧，给分析与 AI | `media.frames` | `media.read` |
+| 识别：用 Windows 自带的识字或扩展提供的识别引擎读字、找东西、分辨画面 | `vision.recognize`、`vision.engine` | `device.screen` |
+| 转换器：把别的格式的文件导入成方案，把方案、任务、录像导出成别的格式 | `contributes.converters` | `script` |
 | 给 AI 客户端的 MCP 工具 | `mcp.tool` | — |
 
 ### 原生
@@ -67,9 +72,11 @@ GameScrcpy 的扩展是一个带 `manifest.json` 的文件夹，打包后是一�
 | 媒体输出：把投屏窗口送到虚拟摄像头、推流等 | `mediaSinks` | `media.output` |
 | 录像导出：把录像转成别的格式 | `recordingExporters` | `media.output` |
 | 取帧：读全速的投屏画面并在上面画标记 | `frameTaps` | `media.read` |
+| 识别引擎：给逻辑的 `vision.recognize` 读字、找东西、分辨画面 | `visionEngines` | — |
+| AI 服务提供者：设置 › AI 的“模型服务”里多一项，小助手与 `ai.ask` 都能用 | `aiProviders` | `ai.provide` |
 | 命令行子命令：`gs ext <扩展> <命令>` 运行一个长任务 | `contributes.cli` | — |
 
-DLL 还能读写自己的存储、发通知、给自己的逻辑发事件、读扩展的设置、占用硬件、听程序事件、调别的扩展的服务，见[原生扩展指南](native.md)。
+DLL 还能读写自己的存储、发通知、给自己的逻辑发事件、读扩展的设置、占用硬件、经 GameScrcpy 用用户允许的设备、听程序事件、调别的扩展的服务，见[原生扩展指南](native.md)。清单写 `"sandbox": "restricted"` 时，DLL 在没有自己权限的受限进程里运行，见下文“代码在哪里运行”。
 
 ## 扩展点与版本
 
@@ -82,11 +89,12 @@ DLL 还能读写自己的存储、发通知、给自己的逻辑发事件、读�
 | `profile` | `contributes.profiles`、`contributes.profilePatches` |
 | `component` | `contributes.components` |
 | `task` | `contributes.tasks` |
-| `script` | `contributes.scripts`，以及用到脚本的面板和服务 |
+| `script` | `contributes.scripts`、`contributes.converters`，以及用到脚本的面板和服务 |
 | `panel` | `contributes.panels`（还要 `script`） |
 | `native` | `contributes.native` |
 | `help` | `contributes.help` |
 | `tour` | `contributes.tours` |
+| `locale` | `contributes.locales` |
 
 清单格式里还留着 `command` 与 `preset` 两个扩展点，2.1.0 还不提供，写了的扩展装得上但不会被打开。贡献了东西却没在 `requires` 里声明扩展点，`gs validate` 会报 `contribution-undeclared`；声明了程序不提供的扩展点或版本，扩展页会写明原因、不打开它。以后的版本只加扩展点、只在原有扩展点上加东西，已经发布的字段与函数不改含义。
 
@@ -97,15 +105,15 @@ DLL 还能读写自己的存储、发通知、给自己的逻辑发事件、读�
 | 权限 | 安装框里的说法 | 用于 |
 |:--|:--|:--|
 | `device.input` | 发送触控与按键 | 逻辑里的 `touch.*`、按键与文字输入 |
-| `device.screen` | 读取手机画面 | `vision.*` 找图、找色、读字 |
+| `device.screen` | 读取手机画面 | `vision.*` 找图、找色、读字，`vision.recognize` |
 | `device.clipboard` | 读写手机剪贴板 | `clipboard.*` |
 | `device.apps` | 查看与打开应用 | 前台应用、打开应用 |
 | `devices.other` | 操作其他手机 | 逻辑操作别的手机；可以加 `maxDevices`（1～64） |
 | `mapping` | 触发控件、切换方案 | `controls`、`mapping.*`、`profile.*`、`globals` |
 | `notify` | 发送系统通知 | `ui.notify`，DLL 的 `notify` |
-| `network` | 联网 | 必须在 `hosts` 里列出域名（可以写 `*.example.com`，可以带端口）；原生 DLL 导入了联网函数时，安装检查也看它 |
-| `files.pick` | 打开你选择的文件 | 经系统的文件选择框选中的文件 |
-| `files.paths` | 访问固定的文件夹 | 必须在 `paths` 里列出文件夹 |
+| `network` | 联网 | `net.fetch`、`net.socket`；必须在 `hosts` 里列出域名（可以写 `*.example.com`，可以带端口）；原生 DLL 导入了联网函数时，安装检查也看它 |
+| `files.pick` | 打开你选择的文件 | `files.pick`：经系统的文件选择框选中的文件 |
+| `files.paths` | 读写你为它选定的文件夹 | `files.folder`：在 `folders` 里声明的文件夹，第一次用时由用户选定真正的位置 |
 | `input.read` | 读取你的键盘和鼠标 | `input.cursor`、`input.isDown`、按键事件 |
 | `hardware` | 访问你选中的设备 | `hardware.*`、`input.source` |
 | `ai` | 使用你设置好的 AI 服务（会花你的额度） | `ai.ask` |
@@ -118,6 +126,7 @@ DLL 还能读写自己的存储、发通知、给自己的逻辑发事件、读�
 | `media.capture` | 提供画面或声音 | 原生画面与声音来源 |
 | `media.read` | 读取投屏的画面与声音 | `media.frames`、原生取帧 |
 | `media.output` | 把画面或声音送到别处 | 原生媒体输出与录像导出 |
+| `ai.provide` | 提供 AI 模型服务 | 原生 AI 服务提供者；要联网的另加 `network` |
 
 `adb.shell` 永远不会授予扩展，写了就是清单错误。原生 DLL 在安装时还会按它导入的系统函数检查：用到联网、读写文件、读输入、操作别的进程的函数却没申请对应权限时，安装框里会写出来；往别的进程里注入代码的 DLL 不能安装。
 
@@ -125,15 +134,15 @@ DLL 还能读写自己的存储、发通知、给自己的逻辑发事件、读�
 
 - **数据**：主题、滤镜、方案、帮助、引导与设置没有代码。滤镜着色器在显卡上执行，`gs validate` 会先编译检查它。
 - **逻辑**：扩展的脚本在低权限的 `gs-scripthost.exe` 子进程里运行，只能经 GameScrcpy 代办来做事，每件事都按清单申请并经同意的权限检查。会话脚本（`"run": "session"`）在每台投屏的手机上各运行一份，应用脚本（`"run": "app"`）在 GameScrcpy 运行期间只有一份。扩展的界面全部由 GameScrcpy 用自己的控件来画，扩展只给一棵描述界面的树，不运行任何界面代码。
-- **原生**：DLL 以你的 Windows 账户的全部权限运行，所以安装前有更严的检查。用户装的扩展，每个 DLL 在自己的 `gs-exthost.exe` 进程里运行：它崩溃不会连累 GameScrcpy，没有及时回应会被结束。GameScrcpy 随程序发布的官方扩展才载入到 GameScrcpy 自己的进程里。两种情况下 DLL 看到的接口完全一样。
+- **原生**：每个 DLL 都在自己的 `gs-exthost.exe` 进程里运行（GameScrcpy 2.1 不自带扩展）：它崩溃不会连累 GameScrcpy，没有及时回应会被结束。默认（`"sandbox": "full"`）这个进程有你的 Windows 账户的全部权限，所以安装前有更严的检查。清单的 `contributes.native` 写 `"sandbox": "restricted"` 时，DLL 在一个只属于这个扩展的 AppContainer 里运行，没有自己的权限：打不开你的文件、上不了网、启动不了别的程序，只能经 GameScrcpy 用你允许的设备，安装框写“受限：只能做它声明的事”。两种情况下 DLL 看到的接口相同，见[原生扩展指南](native.md#受限模式)。
 
 ## 安装、同意与更新
 
 1. **安装**：在扩展页点“从文件安装…”选 `.gsext` 或 `.gsbundle`，或者打开网页上的 `gamescrcpy://install` 链接（见[打包与发布](publishing.md)）。装之前 GameScrcpy 先检查包：清单、文件路径、文件个数与大小；带原生代码的还要过杀毒扫描（Windows 自带的反恶意软件接口）、签名与导入函数的检查。检查不过的不装，安装框里写明原因。
 2. **同意**：安装框和扩展卡片列出扩展申请的每项权限、理由和它依赖的扩展。用户打开扩展时同意这些要求，扩展才会载入。
 3. **更新**：装同一个 `id` 的新版本会替换旧版本，设置与已同意的权限按 `id` 保留。新版本多申请了权限（或者在 `network` 里多了域名、在 `files.paths` 里多了文件夹），或者多了必需的依赖，扩展会停在“等待同意”，卡片上写“重新打开，同意新的要求”，用户重新打开它并同意后才载入。少申请、改理由不需要重新同意。
-4. **签名**：包可以带作者签名（`SHA512SUMS` 与 `SHA512SUMS.minisig`，清单里写作者公钥 `authorKey`）。签了名的扩展，卡片上写“已校验的发布者”，之后的更新必须用同一把钥匙签名：没签名或换了钥匙的更新装不上，要换钥匙只能先删掉旧的再装。没签名的原生扩展，安装框里有更醒目的提醒。
-5. **自动检查更新**：2.1.0 不检查更新，也不自动安装；新版本由用户自己下载或经链接安装。
+4. **签名**：包可以带作者签名（`SHA512SUMS` 与 `SHA512SUMS.minisig`，清单里写作者公钥 `authorKey`）。这台电脑第一次见到某个公钥时，卡片写“已用公钥 … 签名，这台电脑以前没见过这个公钥”；以后用同一个公钥签的版本才写“已验证的发布者 · 公钥 …”。两处都只写公钥，不写作者自称的名字。签了名的扩展，之后的更新必须用同一把钥匙签名：没签名或换了钥匙的更新装不上，要换钥匙只能先删掉旧的再装。没签名的原生扩展，安装框里有醒目的提醒（受限的 DLL 只是一条提示）。
+5. **检查更新**：清单写了 `updates.index` 的扩展，扩展页的“检查更新”随时可以查；设置 › 通用的“检查扩展更新”打开后（默认关），启动时每天最多查一次。有新版本时卡片上写“有更新”，只有用户点“更新”才下载；包要和更新列表写的大小、SHA-256、id、版本与公钥都对上，然后打开平常的安装框，从不自动安装。写法见[打包与发布](publishing.md#更新列表)。
 
 ## 出了问题
 
@@ -155,3 +164,6 @@ DLL 还能读写自己的存储、发通知、给自己的逻辑发事件、读�
 | [voice-commands](../../examples/extensions/voice-commands) | `speech.listen` 听语音命令、`speech.say` 回答 |
 | [event-log](../../examples/extensions/event-log) | `events.on` 记录 GameScrcpy 的程序事件 |
 | [tour-and-help](../../examples/extensions/tour-and-help) | 扩展自带的功能引导与帮助文章 |
+| [key-list](../../examples/extensions/key-list) | 一对转换器：一种自造的纯文本键位格式与方案互相转换 |
+| [notes-panel](../../examples/extensions/notes-panel) | `files.folder` 把笔记存在用户选定的文件夹里，`net.fetch` 从列出的网站取 JSON |
+| [read-aloud](../../examples/extensions/read-aloud) | 会话脚本：`vision.recognize` 用 Windows 自带的识字读出画面一块区域里的字，`speech.say` 读出来 |

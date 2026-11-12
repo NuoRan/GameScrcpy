@@ -67,6 +67,7 @@
 | `license` | yes | The license, best as an SPDX identifier such as `MIT` or `Apache-2.0`; at most 100 characters |
 | `repository` | | An address starting with `https://` |
 | `authorKey` | | The author's minisign public key (56 characters starting with `RW`), used to check the package's signature; see [Packing and publishing](publishing.en.md) |
+| `updates` | | `{ "index": "https://…" }`: the address of the update list; see below |
 | `aiAssisted` | | `true` says the extension was made with the help of AI |
 | `requires` | yes | The extension points used and the versions accepted, at least one; see below |
 | `dependencies` | | The extensions it depends on; see below |
@@ -82,7 +83,7 @@ The manifest writes different names in different ways; the rest of this page cal
 | Name | Written as | Used for |
 |:--|:--|:--|
 | Native name | A lowercase letter followed by letters and digits, at most 64 characters, such as `flashBoard` | The `name` of native contributions, the parameters of nodes and jobs, services, the parameter `key` of attachments and behaviors |
-| Panel name | 1 to 32 lowercase letters, digits or hyphens, such as `lap-list` | Panels, the `id` of help articles and tours, the `name` of scripts |
+| Panel name | 1 to 32 lowercase letters, digits or hyphens, such as `lap-list` | Panels, the `id` of help articles and tours, the `name` of scripts, converters and the folders of `files.paths` |
 | Profile name | 1 to 64 letters, digits, `_` or `-` | The `name` of profiles, components (at most 48) and tasks |
 | Setting key | A letter followed by letters and digits, at most 64 characters | `settings[].key` |
 | Package path | Relative to the extension folder, separated by `/`, never leaving the folder and without `\ : * ? " < > \|`, at most 260 characters | Every `file`, `entry`, `folder` and `dll` |
@@ -91,7 +92,7 @@ Files and folders whose names start with a dot (such as `.build` or `.git`) are 
 
 ### `requires` and version ranges
 
-The keys of `requires` are extension points (`theme`, `filter`, `profile`, `component`, `task`, `script`, `panel`, `native`, `help`, `tour`, and `command` and `preset`, which 2.1.0 does not offer yet); the values are version ranges, written as:
+The keys of `requires` are extension points (`theme`, `filter`, `profile`, `component`, `task`, `script`, `panel`, `native`, `help`, `tour`, `locale`, and `command` and `preset`, which 2.1.0 does not offer yet); the values are version ranges, written as:
 
 | Range | Meaning |
 |:--|:--|
@@ -113,6 +114,14 @@ A version with a prerelease tag matches only a range that names a prerelease of 
 ```
 
 The keys are extension ids and the values version ranges, or `{ "version": range, "optional": true }`. When a required dependency is not installed, not on or of the wrong version, the extension stays off and its card says what is missing; an optional one may be absent. Dependencies decide the order of loading and also whose services an extension may call and whose events it may hear (see the [logic guide](logic.en.md)). An extension cannot depend on itself.
+
+### `updates`
+
+```json
+"updates": { "index": "https://example.com/gamescrcpy/index.json" }
+```
+
+`index` is the address of the update list: `https://` with a host, without a user name, in printable ASCII, at most 2048 characters; anything else is `url-invalid`. GameScrcpy fetches it only when the user turned on "Check extensions for updates" in Settings › General (at most once a day, when it starts) or chooses "Check for updates" on the Extensions page, and the request does not carry the extension's id. The format of the list and how to publish it are in [Packing and publishing](publishing.en.md#update-lists).
 
 ## `contributes`
 
@@ -285,6 +294,10 @@ Give either `script` or `node`. Services need no extension point of their own, b
 | `mediaSinks` | 8 | `name`, `title` (required), `video` (`{ fps: 1 to 60, width, height: 16 to 4096 }`, at most 3840 × 2160 pixels), `audio` (`true` to take the sound); at least `video` or `audio`; needs the permission `media.output` |
 | `recordingExporters` | 8 | `name`, `title` (required), `extension` (required: the file extension it writes, lowercase letters and digits without the dot, not `gsrec`); needs the permission `media.output` |
 | `frameTaps` | 8 | `name`, `title` (required), `fps` (1 to 60, 30 by default), `size` (the long side, 64 to 3840 pixels, 1280 by default); needs the permission `media.read` |
+| `aiProviders` | 4 | `name`, `title` (required), `models` (required: the node that lists the models, without parameters, returning `json`), `chat` (required: the job that answers, with one parameter `request` (`json`), returning `json`); needs the permission `ai.provide`; see the [native guide](native.en.md#ai-providers) |
+| `visionEngines` | 4 | `name`, `title` (required), `kinds` (required: one or more of `ocr`, `detect` and `classify`, each once), `languages` (the languages it reads, up to 32, such as `en` or `zh-Hans`); the DLL registers a `gs_ext_vision_engine` of the same name in its contribution table |
+
+`sandbox` is `full` (the default) or `restricted`. A `restricted` DLL runs in an AppContainer of the extension's own, without rights of its own: the install check no longer asks for permissions that cover the network or file functions it imports (they do not work in the sandbox anyway), and the install dialog lists the system functions the sandbox blocks. What such a DLL can and cannot do is in the [native guide](native.en.md#restricted-mode).
 
 The parameters and results of nodes and jobs use these types: `boolean`, `number`, `string`, `point` (a point of the picture, as ratios), `region` (a part of the picture, as ratios), `color` (`#RRGGBB`), `duration` (milliseconds) and `json`.
 
@@ -300,6 +313,47 @@ The `params` of attachments and behaviors are what the user sets in the key mapp
 ```
 
 `gs ext <extension> <name> --<parameter> <value>` runs the native job `job` in the mock host of `gs` (see [Testing extensions](testing.en.md#command-line-commands)). `name` is 1 to 32 lowercase letters, digits or hyphens; `description` at most 200 characters; `params` names parameters of that job only, with a `default` of the parameter's type; the job's parameters cannot be called `json`, `hosted` or `help`, which are options of `gs` itself. No extension point is needed.
+
+### `converters` (extension point `script`, up to 16)
+
+```json
+"converters": [
+  { "name": "import-keys", "title": "Key list", "from": "keys", "to": "profile",
+    "script": "src/main.ts", "extensions": ["keys"] },
+  { "name": "export-keys", "title": "Key list", "from": "profile", "to": "keys", "script": "src/main.ts" }
+]
+```
+
+| Field | Rule |
+|:--|:--|
+| `name` | Required, a panel name |
+| `title` | Required, at most 40 characters; shown among the file types of the import dialog and in the menu item "Export as <title>…" |
+| `from`, `to` | Required: `profile`, `task`, `recording`, or a file extension without the dot (1 to 16 lowercase letters and digits); exactly one of them is a GameScrcpy format |
+| `script` | Required, a `.ts` or `.js` in the package whose export named `convert` (or default export) is the function |
+| `extensions` | The file extensions an import reads, up to 8, written the same way |
+
+- A converter whose `to` is `profile` imports: Import on the Profiles page, the import in the mirror window and dropping a file on the window all accept the files of its `extensions`. A converter whose `from` is `profile`, `task` or `recording` exports: the menus of profile cards, task settings and recordings get "Export as <title>…".
+- Imports only make profiles: the manifest allows converters whose `to` is `task` or `recording`, but the interface never uses them.
+- A conversion runs in the logic sandbox without a phone, with at most 32 MiB going in and 32 MiB coming out, in at most 30 seconds. The function gets a `ConvertInput` (the file name, `from`, `to`, `bytes`, `text` read as UTF-8, `json()` and the cancel `signal`; a profile comes as its JSON file, a task as its `task.ts`, a recording as its `session.json`) and returns a `ConvertOutput` (`bytes`, `text` or `json`, and for an import a `name` that names the new profile), or just the text, the bytes or the profile object. What it throws is what the user sees. GameScrcpy checks an imported profile as it checks any file it imports. Errors: `GS-API-165` (the script exports no such function), `GS-API-166` (the result is nothing GameScrcpy can write), `GS-API-167` (the result is over 32 MiB). See [key-list](../../examples/extensions/key-list).
+
+### `locales` (extension point `locale`, up to 8)
+
+```json
+"locales": [
+  { "locale": "ja", "name": "日本語", "translations": "i18n/ja.qm", "help": "help/ja" }
+]
+```
+
+| Field | Rule |
+|:--|:--|
+| `locale` | Required, a language code with an optional region, such as `ja` or `zh_TW`; `en` and `zh_CN` come with GameScrcpy and cannot be used |
+| `name` | Required, at most 40 characters: the language's name in that language, listed under "Interface language" in Settings › General |
+| `translations` | Required, a compiled Qt translation (`.qm`, at most 16 MiB) in the package. GameScrcpy and `gs pack` do not compile `.ts` files; a `.ts` here is `locale-invalid` |
+| `help` | A folder in the package with help articles in that language (at least one `.md`) |
+
+- Making the translation: copy `src/app/i18n/gamescrcpy_zh_CN.ts` from GameScrcpy's source repository (its source texts are English), change `language` at its top to your language, translate every entry in Qt Linguist, and compile it with Qt's `lrelease`: `lrelease ja.ts -qm ja.qm`. The translation goes over the built-in English, and missing entries show in English; the script API reference in the help page's Reference group uses it too.
+- The `help` folder holds `<article>.md` files named like GameScrcpy's own articles (such as `connecting.md` or `faq.md`; the names are in `src/app/help/en/` of the source repository). In that interface language each replaces the article of the same name, and the others stay in English; they are written like the built-in help.
+- A language pack is plain data and needs no permission. When the extension that provides it is turned off or removed, the language chosen in Settings stays, and the interface follows the language of Windows meanwhile.
 
 ### `commands` and `presets`
 
@@ -336,6 +390,8 @@ Settings appear in Settings › Extensions and in the settings window of the ext
 ```json
 "permissions": [
   { "name": "network", "reason": "Downloads the newest firmware.", "hosts": ["api.github.com", "*.githubusercontent.com"] },
+  { "name": "files.paths", "reason": "Saves your notes.",
+    "folders": [ { "name": "notes", "purpose": "Where your notes are kept as text files." } ] },
   { "name": "hardware", "reason": "Opens the board's serial port." }
 ]
 ```
@@ -344,9 +400,12 @@ Settings appear in Settings › Extensions and in the settings window of the ext
 |:--|:--|
 | `name` | Required, a permission; see the [overview](README.en.md#permissions) |
 | `reason` | Required, at most 120 characters, shown next to the permission in the install dialog |
-| `hosts` | Required for `network`, up to 64 host names; `*.` in front covers the subdomains, and `:port` may follow; a lone `*` gets a warning |
-| `paths` | Required for `files.paths`, up to 64 folders |
+| `hosts` | Required for `network`, up to 64 host names; see below |
+| `folders` | Required for `files.paths` (up to 16): `{ name, purpose }`, where `name` is a panel name that logic opens with `files.folder(name)` and `purpose` (at most 120 characters) is shown when the user chooses the folder for it the first time |
+| `paths` | The old way: fixed paths give nothing and get the warning `permission-paths-fixed`; use `folders` |
 | `maxDevices` | Only for `devices.other`, 1 to 64 |
+
+Each entry of `hosts` is a host name with an optional `:port` (without a port only 443 matches); `*.example.com` covers all its subdomains (not `example.com` itself); a lone `*` covers any host and gets the warning `permission-any-host`. Names compare without regard to case; write internationalized names in their ASCII form (`xn--…`); IPv6 addresses cannot be written. `net.fetch` and `net.socket` in logic reach only these hosts and follow redirects only to them.
 
 Only extensions that declare `script`, `component`, `task` or `native` may ask for permissions. Every permission in the `permissions` of a node or a job must be here too.
 
@@ -381,6 +440,9 @@ The keys are languages (for `zh_CN` GameScrcpy looks in `zh_CN`, then in `zh`); 
 | `behaviors.<name>.title`, `.description`, `.params.<key>…`, `.slots.<slot>.title` | Behaviors |
 | `inputSources.<name>.title`, `.slots.<slot>.title` | Input sources |
 | `speechEngines.<name>.title` | Speech engines |
+| `transports.<name>.title`, `videoSources.<name>.title`, `audioSources.<name>.title`, `mediaSinks.<name>.title`, `recordingExporters.<name>.title`, `frameTaps.<name>.title` | Transports, picture and sound sources, media sinks, recording exporters, frame taps |
+| `aiProviders.<name>.title`, `visionEngines.<name>.title` | AI providers, recognition engines |
+| `converters.<name>.title` | Converters |
 
 The texts that scripts put into panels and menus are up to the scripts and do not go through `l10n`.
 
@@ -398,6 +460,11 @@ Each result of `gs validate` has a code and a hint; these are the ones met most 
 | `extension-point-unknown`, `contribution-undeclared` | An unknown extension point, or a contribution without its extension point |
 | `permission-unknown`, `permission-reason-missing`, `permission-not-allowed`, `permission-never-granted` | An unknown permission, no reason, a kind of extension that cannot ask for permissions, or `adb.shell` |
 | `permission-hosts-missing`, `permission-host-invalid`, `permission-any-host` | `hosts` of `network` missing, not written right, or only `*` (a warning) |
+| `permission-paths-missing`, `permission-paths-fixed`, `permission-field-unused` | `files.paths` without `folders`; `paths` that do nothing (a warning); a field on a permission it does not belong to (a warning) |
+| `url-invalid` | `repository` or `updates.index` is not an `https://` address with a host |
+| `converter-invalid`, `locale-invalid` | A converter's formats are not right; a language code is not right or built in, or the translation is not a `.qm` |
+| `ai-provider-invalid`, `vision-engine-invalid` | An AI provider's node or job does not fit the convention; a recognition engine's `kinds` are not right |
+| `signature-invalid`, `signature-missing`, `publisher-changed`, `signing-key-mismatch` | The signature does not match, an update lost its signature, the key changed, or the private key used for packing does not fit `authorKey` (see [Packing and publishing](publishing.en.md#signing)) |
 | `native-permission-undeclared` | A node, job or native contribution needs a permission that `permissions` does not list |
 | `native-name-invalid`, `native-type-invalid`, `native-dll-invalid` | A native name, type or DLL path is not written right |
 | `panel-name-invalid`, `script-name-invalid`, `script-entry-invalid` | A panel name, script name or script entry is not right |

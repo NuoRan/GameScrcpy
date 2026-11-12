@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "example.key-list",
+  "version": "1.0.0",
+  "name": "Key list",
+  "description": "Imports key lists written as plain text as profiles, and exports profiles as key lists.",
+  "authors": ["GameScrcpy"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/NuoRan/GameScrcpy",
+  "requires": {
+    "script": "^1.0"
+  },
+  "contributes": {
+    "converters": [
+      {"name": "import-keys", "title": "Key list", "from": "keys", "to": "profile", "script": "src/main.ts", "extensions": ["keys"]},
+      {"name": "export-keys", "title": "Key list", "from": "profile", "to": "keys", "script": "src/main.ts"}
+    ]
+  },
+  "l10n": {
+    "zh_CN": {
+      "name": "键位清单",
+      "description": "把纯文本写的键位清单导入成方案，也能把方案导出成键位清单。",
+      "converters.import-keys.title": "键位清单",
+      "converters.export-keys.title": "键位清单"
+    }
+  }
+}

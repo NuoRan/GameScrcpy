@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "example.notes-panel",
+  "version": "1.0.0",
+  "name": "Notes",
+  "description": "Keeps short notes as text files in a folder you choose, and adds the newest GameScrcpy release as a note when you ask.",
+  "authors": ["GameScrcpy"],
+  "license": "Apache-2.0",
+  "repository": "https://github.com/NuoRan/GameScrcpy",
+  "requires": {
+    "script": "^1.0",
+    "panel": "^1.0"
+  },
+  "contributes": {
+    "scripts": [
+      {"name": "main", "entry": "src/main.ts", "run": "app"}
+    ],
+    "panels": [
+      {"name": "notes", "title": "Notes", "icon": "doc-page", "where": "page", "script": "main"}
+    ]
+  },
+  "permissions": [
+    {
+      "name": "files.paths",
+      "reason": "Keeps your notes as text files in a folder you choose.",
+      "folders": [
+        {"name": "notes", "purpose": "Where your notes are kept, one text file for each."}
+      ]
+    },
+    {"name": "network", "reason": "Reads the newest GameScrcpy release from GitHub when you ask.", "hosts": ["api.github.com"]}
+  ],
+  "l10n": {
+    "zh_CN": {
+      "name": "笔记",
+      "description": "把简短的笔记存成你选定的文件夹里的文本文件；你需要时，把 GameScrcpy 的最新版本记成一条笔记。",
+      "panels.notes.title": "笔记"
+    }
+  }
+}

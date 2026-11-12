@@ -66,7 +66,7 @@ GS_EXT_EXPORT int32_t gs_ext_main(const gs_ext_host* host, const gs_ext_plugin**
 - DLL 导出 `gs_ext_main`。GameScrcpy 载入 DLL 后调它一次，传入宿主函数表 `gs_ext_host`；DLL 把指向自己的描述 `gs_ext_plugin` 的指针交回来。这份描述和它指向的一切由 DLL 持有，在 `unload` 被调用之前一直有效，GameScrcpy 从不往里写。
 - 只导出旧入口 `gs_ext_entry`（接口版本 1）的 DLL 不会被载入，扩展页提示作者用当前的 SDK 重新编译。
 - 每个由 DLL 填写、或者含有数组的结构，第一个字段都是 `uint32_t size`，填 `sizeof`。双方只读两边都认识的字段，读不到的当作 0，所以以后的版本只在结构末尾加字段，新 DLL 在旧程序上、旧 DLL 在新程序上都能用。数组的元素结构（`gs_ext_value`、`gs_ext_contact` 等）头文件里写明“以后不改”，没有 `size`。
-- 后加的宿主函数在用之前先问 `supports("<功能名>")`。2.1.0 认识的功能名：`jobs`、`events`、`settings`、`claims`、`job-output`、`app-events`、`input-sources`、`services`、`transports`、`media`、`frame-taps`。
+- 后加的宿主函数在用之前先问 `supports("<功能名>")`。2.1.0 认识的功能名：`jobs`、`events`、`settings`、`claims`、`job-output`、`app-events`、`input-sources`、`services`、`transports`、`media`、`frame-taps`、`vision-engines`、`devices`。
 
 ## 贡献表
 
@@ -87,8 +87,9 @@ GS_EXT_EXPORT int32_t gs_ext_main(const gs_ext_host* host, const gs_ext_plugin**
 | `media-sink` | `GS_EXT_KIND_MEDIA_SINK` | `gs_ext_media_sink` | `mediaSinks` |
 | `recording-exporter` | `GS_EXT_KIND_RECORDING_EXPORTER` | `gs_ext_recording_exporter` | `recordingExporters` |
 | `frame-tap` | `GS_EXT_KIND_FRAME_TAP` | `gs_ext_frame_tap` | `frameTaps` |
+| `vision-engine` | `GS_EXT_KIND_VISION_ENGINE` | `gs_ext_vision_engine` | `visionEngines` |
 
-语音引擎没有自己的种类：它由清单把几个长任务和一个节点组合起来（见[语音引擎](#语音引擎)）。插件描述里另有四个可选回调：`unload`（卸载前调一次）、`settings_changed`、`claim_wanted`、`on_event`，用不到就填 `NULL`。
+语音引擎和 AI 服务提供者没有自己的种类：它们由清单把长任务和节点组合起来（见[语音引擎](#语音引擎)与 [AI 服务提供者](#ai-服务提供者)）。插件描述里另有五个可选回调：`unload`（卸载前调一次）、`settings_changed`、`claim_wanted`、`on_event`、`device_event`，用不到就填 `NULL`。
 
 ## 宿主函数
 
@@ -109,6 +110,7 @@ GS_EXT_EXPORT int32_t gs_ext_main(const gs_ext_host* host, const gs_ext_plugin**
 | `call_service` | 调别的扩展的服务 |
 | `transport_changed`、`stream_opened`、`stream_data`、`stream_writable`、`stream_closed` | 连接方式 |
 | `sources_changed`、`video_frame`、`audio_samples`、`stream_ended` | 画面与声音来源 |
+| `device_list`、`device_open`、`device_write`、`device_control`、`device_close` | 经 GameScrcpy 用用户允许的设备 |
 
 字符串都是 UTF-8、带长度、不要求以零结尾（结构里注明“ended by a zero byte”的除外）。返回值是 `gs_ext_status`：`GS_EXT_OK`、`GS_EXT_FAILED`、`GS_EXT_UNSUPPORTED`、`GS_EXT_DENIED`（缺权限）、`GS_EXT_BAD_ARGUMENT`、`GS_EXT_BUSY`。
 
@@ -127,15 +129,18 @@ GameScrcpy 在不同的线程上调 DLL，每种回调有自己的要求：
 | `claim_wanted` | 一秒内回答 |
 | `on_event` | 在不画界面的线程上按顺序一个一个来，要很快返回；排队超过 256 个的会被丢掉 |
 | `call_service`、带 `GS_EXT_CLAIM_WAIT` 的 `claim` | 只能在长任务或 DLL 自己的线程里用，不能在节点、动作、触控方式、附加、行为、任务的 `start` 或回调里用 |
-| `input_event`、`emit_event`、`job_*` | 任何线程都可以 |
+| `device_list`、`device_open`、`device_write`、`device_control` | 只能在 DLL 自己的线程里用，最多等 20 秒；在 GameScrcpy 的线程上返回 `GS_EXT_UNSUPPORTED` |
+| `device_event` | 在不画界面的线程上按设备发来的顺序一个一个来，要很快返回；排队超过 1024 个的会被丢掉 |
+| 识别引擎 `run` | 在 GameScrcpy 为它开的、不画界面的线程上，每个引擎一次一张图；超过 5 秒逻辑得到错误，返回后才接下一张 |
+| `input_event`、`emit_event`、`job_*`、`device_close` | 任何线程都可以 |
 
 ## 在哪个进程里运行
 
-用户装的扩展，每个 DLL 在自己的 `gs-exthost.exe` 进程里运行，GameScrcpy 经共享内存的通道和它说话；随程序发布的官方扩展载入到 GameScrcpy 自己的进程里。两种情况下 DLL 看到的接口完全一样，但独立进程里有这些规矩：
+每个 DLL 都在自己的 `gs-exthost.exe` 进程里运行，GameScrcpy 经共享内存的通道和它说话（只有随程序发布、`gamescrcpy.` 开头的官方扩展才会载入到 GameScrcpy 自己的进程里，2.1 没有这样的扩展）。独立进程里有这些规矩：
 
 - 节点调用 2 秒没有回答、或通道坏了，进程会被结束，扩展页写“没有及时回应，已被结束”。
 - 进程意外退出时，GameScrcpy 写一份崩溃报告（小型转储与写明出错模块和偏移的 `crash.txt`），记进扩展的健康状况；一分钟内停了三次，扩展被关掉，直到用户重新打开它。
-- 进程以用户的权限运行，不是沙箱：DLL 能做的事和用户能做的一样多，所以安装前要过杀毒扫描与导入函数的检查。
+- 默认（`"sandbox": "full"`）进程以用户的权限运行，不是沙箱：DLL 能做的事和用户能做的一样多，所以安装前要过杀毒扫描与导入函数的检查。清单写 `"sandbox": "restricted"` 时进程在沙箱里，见[受限模式](#受限模式)。
 
 开发时用 `gs ext test <文件夹> --hosted` 让测试也在独立进程里跑（见[测试扩展](testing.md)）。
 
@@ -297,6 +302,69 @@ DLL 自己回答服务时，服务的 `node` 指向一个只有一个 `json` 参
 `gs_ext_frame_tap` 读每台手机的全速投屏画面（用户在投屏窗口的“更多”菜单里打开它），要权限 `media.read`，先问 `supports("frame-taps")`。`open` 收到手机、尺寸与旋转（画面转了或尺寸变了会关掉再打开），`frame` 在 GameScrcpy 为它开的线程上收到只读的 BGRA 帧（长边按清单的 `size` 缩小、每秒不超过清单的 `fps`），可以慢慢处理，期间新来的帧只留最新的一帧。`frame` 可以往 `gs_ext_overlay` 里放最多 256 个形状（矩形、线、点、文字，颜色取主题的几种），画在画面上；每一帧的形状替换上一帧的，`keep` 设为 1 保留上次的。
 
 逻辑里拿低频的帧用 `media.frames`（见[逻辑扩展指南](logic.md)）。
+
+## 经 GameScrcpy 用设备
+
+`device_list`、`device_open`、`device_write`、`device_control`、`device_close` 让 DLL 经 GameScrcpy 用用户允许给这个扩展的串口、HID 与低功耗蓝牙设备，和逻辑的 `hardware.*` 是同一套：设备由扩展的逻辑用 `hardware.request` 请用户勾选（例如在它的面板上），用户在扩展页收回。要权限 `hardware`，先问 `supports("devices")`。[受限模式](#受限模式)的 DLL 只能这样碰硬件，完全权限的 DLL 也可以用。
+
+- `device_list(context, devices)` 把允许的设备写成 JSON 数组 `[{ id, kind, name, present }]`：`kind` 是 `serial`、`hid` 或 `ble`，`present` 说明现在连着没有。
+- `device_open(context, id, 选项, &device, answer)` 打开一台、给出设备号；串口的选项同逻辑的 `hardware.open`（`{ baudRate, dataBits, parity, stopBits, flowControl, dtr, rts }`），别的设备传空。GameScrcpy 顺带替扩展占用这台设备的硬件（见[硬件占用](#硬件占用)），设备关掉时放开。没有权限或用户没允许是 `GS_EXT_DENIED`，选项不可能是 `GS_EXT_BAD_ARGUMENT`，没连着、别人在用或打不开是 `GS_EXT_FAILED`，原因写在 `answer` 里。打开蓝牙设备可能要几秒。
+- `device_write(context, device, 数据, 大小, target, answer)` 发数据，设备收下才返回：串口原样发，最多 65536 字节；HID 是输出报告，`target` 写 `{ "report": id }`，最多 4096 字节；蓝牙是特征的新值，`target` 写 `{ "service": uuid, "characteristic": uuid, "response": true }`，最多 512 字节（`response` 为 `false` 时不等设备确认）。
+- `device_control(context, device, 请求, answer)` 做 `hardware.control` 能做的其余的事，请求的 `op` 是 `signals`（串口的 DTR / RTS）、`sendFeature` / `getFeature`（HID 的特性报告）、`services`（列出蓝牙设备的服务与特征）、`read`（读特征）或 `subscribe`（打开或关掉特征的通知）；字节两边都用 base64 文字。
+- `device_close(context, device)` 立即返回，任何线程都能调，`unload` 里也行；扩展停下或它的进程停了，GameScrcpy 自己关掉它的设备。
+- 设备发来的东西到插件描述的 `device_event(context, gs_ext_device_event*)`：`GS_EXT_DEVICE_DATA`（串口的字节）、`GS_EXT_DEVICE_REPORT`（HID 的输入报告，`report` 是报告号）、`GS_EXT_DEVICE_NOTIFY`（订阅的蓝牙特征变了，`service` 与 `characteristic` 写出是哪个）、`GS_EXT_DEVICE_CLOSED`（设备自己关了，`reason` 是 `removed`、`failed` 或 `forgotten`）。
+- `device_list`、`device_open`、`device_write`、`device_control` 要等 GameScrcpy（最多 20 秒），只能在 DLL 自己的线程里调，在 GameScrcpy 的线程上返回 `GS_EXT_UNSUPPORTED`；它们给的文字在同一线程下次调用前有效。
+
+## 识别引擎
+
+`gs_ext_vision_engine { size, name, kinds, context, run }` 给逻辑的 `vision.recognize` 认字（`ocr`）、找东西（`detect`）、分辨画面（`classify`），和 Windows 自带的识字（引擎 id `system`）排在一起，扩展的引擎 id 是 `<扩展 id>/<名字>`。清单的 `visionEngines` 写出它认哪几种、认哪些语言；结构里的 `kinds` 是 `1u << GS_EXT_VISION_OCR` 这样的位，至少包括清单写的那几种。每个 DLL 最多 4 个。它不要权限（调它的逻辑要 `device.screen`）；先问 `supports("vision-engines")`。
+
+```cpp
+int32_t readText(void* context, uint32_t kind, const gs_ext_image* image, const char* params, size_t size,
+                 gs_ext_result* out);
+
+const gs_ext_vision_engine kReader = {sizeof(gs_ext_vision_engine), "reader", 1u << GS_EXT_VISION_OCR, nullptr,
+                                      &readText};
+```
+
+- `run(context, kind, image, params, size, out)` 收到逻辑要看的那块画面：`gs_ext_image` 是 BGRA（alpha 总是 255），宽高 1～4096 像素，`stride` 至少 4 × 宽，只读，`run` 返回前有效；在 `gs-exthost.exe` 里经只读的共享内存交过来。`params` 是逻辑传的 JSON 对象（没传是 `{}`）。
+- 结果用 `set_text` 写成 JSON 数组、返回 `GS_EXT_OK`：`ocr` 每段字 `{ text, x, y, width, height, confidence }`，`detect` 每个东西 `{ label, x, y, width, height, confidence }`，`classify` 每个类别 `{ label, confidence }`。`x`、`y` 是中心，`width`、`height` 是大小，都是这块图的比例（0～1），GameScrcpy 换算成整个画面的比例交给逻辑；`confidence` 是 0～1。不认的 `params` 返回 `GS_EXT_BAD_ARGUMENT`，失败时 `set_error` 写原因、返回 `GS_EXT_FAILED`。
+- GameScrcpy 在自己开的、不画界面的线程上调它，每个引擎一次一张图，可能和节点、任务、别的引擎同时。超过 5 秒逻辑得到 `GS-API-174`，引擎返回后才接下一张。逻辑里的其他错误：`GS-API-170`（没有这个引擎或它的扩展没开）、`GS-API-171`（它不认这一种或这种语言）、`GS-API-172`（参数不对）、`GS-API-173`（引擎失败或结果不是合法的列表）。
+
+逻辑里这样用：`await vision.engine("alice.finder/reader").read(res.region("Chat"))`，或 `vision.recognize("alice.finder/reader", "ocr", 区域, 参数)`。
+
+## AI 服务提供者
+
+AI 服务提供者让设置 › AI 的“模型服务”里多一项：小助手和逻辑的 `ai.ask` 都能用它，模型列表与深度思考、思考强度、长上下文的选项也照它给的来。它没有自己的贡献种类，由清单把一个节点和一个长任务组合起来，要权限 `ai.provide`（要联网的另加 `network`，在 `hosts` 里列出服务的域名）：
+
+```json
+"aiProviders": [ { "name": "cloud", "title": "My model service", "models": "models", "chat": "chat" } ],
+"nodes": [ { "name": "models", "returns": "json", "description": "The models this service offers." } ],
+"jobs": [ { "name": "chat", "title": "Answer", "params": [ { "name": "request", "type": "json" } ], "returns": "json" } ]
+```
+
+- `models` 节点没有参数，返回模型的 JSON 数组（最多 256 个）：每个 `{ id, name, traits }`，`id` 必填（最多 256 个字符），`name` 省掉时用 `id`；`traits` 说它能做什么：`think`（能深度思考）、`alwaysThinks`、`efforts`（思考强度，`minimal`、`low`、`medium`、`high` 里的几种）、`thinkingEffort`（强度只在开了深度思考时有用）、`longContext`。
+- `chat` 任务每次提问启动一次，参数 `request` 是：
+
+  ```json
+  { "model": "…", "system": "…", "messages": [], "tools": [ { "name": "…", "description": "…", "inputSchema": {} } ],
+    "stream": true, "maxTokens": 4096, "think": false, "effort": "", "longContext": false }
+  ```
+
+  `messages` 依次是 `{ "role": "user", "text", "pictures" }`（`pictures` 里每张 `{ "type": "image", "mimeType", "data" }`，`data` 是 base64）、`{ "role": "assistant", "text", "toolCalls": [ { id, name, arguments } ], "thinkingBlocks" }` 与 `{ "role": "tools", "toolResults": [ { id, name, failed, content } ] }`。请求超过约 64 KiB 时 `request` 改成 `{ "file": "<路径>" }`：同样的 JSON 写在这个临时文件里，任务结束后删掉（受限的 DLL 也能读到它）。
+- 回答时用 `job_output` 一段一段交出 `{ "text": "…" }`、`{ "thinking": "…" }` 或 `{ "toolCall": "<工具名>" }`，界面边收边显示；最后 `job_finish` 交出 `{ text, thinking, thinkingBlocks, toolCalls: [ { id, name, arguments } ], stop, usage: { input, output } }`，省掉 `text` 与 `thinking` 时用交出过的拼起来。服务报错时在结果里写 `{ "problem": "…", "status": 429, "code": "…" }`，或者 `job_fail`。
+- 两分钟没有任何输出算失败；用户取消时 GameScrcpy 取消这个任务。设置里选的服务属于一个没装、关着或没有 `ai.provide` 的扩展时，`ai.ask` 得到 `GS-API-150`。
+
+## 受限模式
+
+清单的 `contributes.native` 写 `"sandbox": "restricted"`，DLL 就在一个只属于这个扩展的 AppContainer 里的 `gs-exthost.exe` 中运行。接口和完全权限的 DLL 一样，但是：
+
+- **不能**：读写扩展文件夹以外的文件（自己的文件夹也只读）、联网、启动别的程序，也看不到用户的环境变量：进程只有系统的几项变量，`LOCALAPPDATA`、`TEMP`、`TMP` 指向这个容器自己的文件夹（`%LOCALAPPDATA%\Packages\gamescrcpy.extension.<散列>\AC` 与其下的 `Temp`），临时文件放在那里。剪贴板、系统设置、别的程序的窗口这类界面操作也被挡掉。
+- **能**：碰硬件只经[设备函数](#经-gamescrcpy-用设备)（要 `hardware` 权限并经用户允许，`claim` 同样要 `hardware`）；存储、AI 请求的临时文件由 GameScrcpy 代为交给它。
+- **上限**：进程最多用 1 GiB 内存、只能有一个进程。GameScrcpy 这一边还替它限速：日志每秒 200 行、通知 10 秒 3 条、设备变化每秒 4 次、输入事件每秒 16000 个，超出的丢掉，第一次丢时日志里记一条；事件的值必须是合法的 UTF-8 JSON。
+- 安装检查不再要求它导入的联网、文件函数有对应的权限，安装框写“受限：只能做它声明的事”，并列出沙箱挡掉的系统函数；没签名时只是一条提示。
+- `gs ext test` 里受限的 DLL 也总在 `gs-exthost.exe` 与 AppContainer 里跑（容器叫 `gs-test:<扩展 id>`，测完删掉），不用加 `--hosted`。
+- 已知限制：容器里的进程要能读取、执行 `gs-exthost.exe` 与它旁边的依赖，GameScrcpy 为此给“所有应用程序包”授权；文件的属主是 Administrators、而 GameScrcpy 在普通权限下运行时改不了权限（错误 5）。便携版由管理员权限的程序解压到非系统盘时会遇到，装在 Program Files 下的不受影响。
 
 ## 一个 DLL 对应多种处理器
 

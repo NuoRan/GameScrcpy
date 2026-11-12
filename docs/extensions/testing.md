@@ -39,8 +39,8 @@ gs ext test .\alice.lap-timer-1.2.0.gsext --test .\more-tests\flash.json --json
 `gs ext test` 不用 GameScrcpy 也不用手机，就能跑扩展：
 
 1. 用 `gs validate` 的规则检查清单和文件，有错误就停下（退出码 2）。
-2. 载入每个脚本，给它 2 秒的测试时间和一台假手机。对 `ui.*` 的调用被记下来、不真正画；用到模拟宿主没有的服务（例如本机连接、语音）的脚本标成 `limited`，脚本自己出错的标成 `failed`，扩展就算载入失败。
-3. 载入 DLL：默认在 `gs` 自己的进程里，`--hosted` 时像 GameScrcpy 对待别人的扩展那样放进 `gs-exthost.exe`。模拟宿主的宿主函数记下日志、通知、事件和设备变化，实现长任务、设置、硬件占用与服务的规则。
+2. 载入每个脚本，给它 2 秒的测试时间和一台假手机。对 `ui.*` 的调用被记下来、不真正画；用到模拟宿主没有的服务（例如联网、文件、本机连接、语音）的脚本标成 `limited`，脚本自己出错的标成 `failed`，扩展就算载入失败。
+3. 载入 DLL：默认在 `gs` 自己的进程里，`--hosted` 时像 GameScrcpy 那样放进 `gs-exthost.exe`；清单写 `"sandbox": "restricted"` 的 DLL 不管加不加 `--hosted`，都在 `gs-exthost.exe` 与它自己的 AppContainer 里跑（容器叫 `gs-test:<扩展 id>`，测完删掉）。模拟宿主的宿主函数记下日志、通知、事件和设备变化，实现长任务、设置、硬件占用与服务的规则。
 4. 跑扩展文件夹里 `tests/` 下的每个 `.json`（按文件名排序），或者 `--test` 给出的文件。每个测试从新的状态开始：新载入的 DLL、清单里的默认设置、清单申请的全部权限。
 
 报告里每个测试一行，下面是每一步的结果（`pass` 或 `FAIL`、序号、测试时钟的毫秒、说明），最后是“N passed, M failed”。退出码：0 全部通过，1 有失败的步骤（或者一个测试都没有），2 扩展载入不了。`--json` 输出同样的内容。
@@ -84,9 +84,9 @@ gs ext test .\alice.lap-timer-1.2.0.gsext --test .\more-tests\flash.json --json
 | `do` | 输入 | `expect` 能查 |
 |:--|:--|:--|
 | `call` | `node`、`args`（数组） | `value`、`error` |
-| `job` | `job`、`args`（对象）、`id`、`wait`（默认 `true`；`false` 时只启动） | `result`、`error`、`progress`、`logs` |
+| `job` | `job`、`args`（对象）、`id`、`wait`（默认 `true`；`false` 时只启动） | `result`、`error`、`progress`、`logs`、`outputs` |
 | `job.cancel` | `id` | `ended` |
-| `job.wait` | `id` | `result`、`error`、`progress`、`logs` |
+| `job.wait` | `id` | `result`、`error`、`progress`、`logs`、`outputs` |
 | `touch.open` | `method`、`session`、`phone`、`device`、`touchBox`、`options` | `opened` |
 | `touch.frame` | `session`、`contacts`（`{ id, action, x, y, … }`，`action` 为 `down`、`move`、`up`、`cancel`）、`rotation` | `ok`、`sent` |
 | `touch.key` | `session`、`key` 或 `keycode`、`down`、`repeat`、`meta` | `ok` |
@@ -108,7 +108,9 @@ gs ext test .\alice.lap-timer-1.2.0.gsext --test .\more-tests\flash.json --json
 
 每一步都还能查四种“发生了的事”，都是按顺序、在这一步的等待时间内出现就算：`events`（DLL 发的事件 `{ topic, value }`）、`logged`（日志 `{ level, text }` 或一段文字）、`notified`（通知 `{ title, text }` 或一段文字）、`devicesChanged`（调了 `devices_changed` 的提供者名）。
 
-比较的规则：对象只比 `expect` 里写了的键；数组长度要一样、逐个比；数字允许极小的误差；`error` 写 `true`、`false` 或错误信息里的一段文字；`progress`、`logs` 这类列表按顺序找，文字只要包含就算。
+比较的规则：对象只比 `expect` 里写了的键；数组长度要一样、逐个比；数字允许极小的误差；`error` 写 `true`、`false` 或错误信息里的一段文字；`progress`、`logs`、`outputs`（任务用 `job_output` 交出的部分结果）这类列表按顺序找，文字只要包含就算。
+
+受限的 DLL 要从 GameScrcpy 的源码构建目录里的 `gs.exe` 测时，构建出的 `gs-exthost.exe` 属主是 Administrators，普通权限下给不了容器读取与执行的权限（错误 5）：把 `gs.exe`、`gs-exthost.exe` 和它们旁边的 DLL 复制到自己的文件夹里再跑。装好的 GameScrcpy（Program Files 下）没有这个问题。
 
 ### 测脚本扩展
 

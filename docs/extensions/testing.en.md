@@ -39,8 +39,8 @@ gs ext test .\alice.lap-timer-1.2.0.gsext --test .\more-tests\flash.json --json
 `gs ext test` runs an extension without GameScrcpy and without a phone:
 
 1. It checks the manifest and the files with the rules of `gs validate`, and stops on errors (exit code 2).
-2. It loads each script for 2 seconds of test time with a mock phone. Calls to `ui.*` are recorded instead of drawn; a script that uses a service the mock host does not have (such as local connections or speech) is marked `limited`, and a script that fails by itself is marked `failed`, which means the extension cannot be loaded.
-3. It loads the DLL: in the process of `gs` by default, or with `--hosted` in `gs-exthost.exe`, as GameScrcpy runs the extensions of others. Its host functions record logs, notifications, events and device changes, and follow the rules of jobs, settings, hardware claims and services.
+2. It loads each script for 2 seconds of test time with a mock phone. Calls to `ui.*` are recorded instead of drawn; a script that uses a service the mock host does not have (such as the network, files, local connections or speech) is marked `limited`, and a script that fails by itself is marked `failed`, which means the extension cannot be loaded.
+3. It loads the DLL: in the process of `gs` by default, or with `--hosted` in `gs-exthost.exe`, as GameScrcpy runs them; a DLL with `"sandbox": "restricted"` in its manifest always runs in `gs-exthost.exe` inside an AppContainer of its own (named `gs-test:<extension id>`, removed after the test), with or without `--hosted`. Its host functions record logs, notifications, events and device changes, and follow the rules of jobs, settings, hardware claims and services.
 4. It runs every `.json` in the extension's `tests/` folder (in the order of their names), or the files given with `--test`. Each test starts afresh: the DLL loaded again, the default settings of the manifest, every permission the manifest asks for.
 
 The report has a line for each test and below it the result of each step (`pass` or `FAIL`, its number, the test clock in milliseconds and its name), and ends with "N passed, M failed". The exit code is 0 when everything passed, 1 when a step failed (or there is no test at all) and 2 when the extension cannot be loaded. `--json` writes the same report.
@@ -84,9 +84,9 @@ The report has a line for each test and below it the result of each step (`pass`
 | `do` | Input | What `expect` can check |
 |:--|:--|:--|
 | `call` | `node`, `args` (an array) | `value`, `error` |
-| `job` | `job`, `args` (an object), `id`, `wait` (`true` by default; `false` only starts it) | `result`, `error`, `progress`, `logs` |
+| `job` | `job`, `args` (an object), `id`, `wait` (`true` by default; `false` only starts it) | `result`, `error`, `progress`, `logs`, `outputs` |
 | `job.cancel` | `id` | `ended` |
-| `job.wait` | `id` | `result`, `error`, `progress`, `logs` |
+| `job.wait` | `id` | `result`, `error`, `progress`, `logs`, `outputs` |
 | `touch.open` | `method`, `session`, `phone`, `device`, `touchBox`, `options` | `opened` |
 | `touch.frame` | `session`, `contacts` (`{ id, action, x, y, … }` with `action` `down`, `move`, `up` or `cancel`), `rotation` | `ok`, `sent` |
 | `touch.key` | `session`, `key` or `keycode`, `down`, `repeat`, `meta` | `ok` |
@@ -108,7 +108,9 @@ The report has a line for each test and below it the result of each step (`pass`
 
 Every step can also check four kinds of happenings, each matched in order within the step's wait: `events` (events the DLL sent, `{ topic, value }`), `logged` (log lines, `{ level, text }` or a piece of text), `notified` (notifications, `{ title, text }` or a piece of text) and `devicesChanged` (the providers named in `devices_changed`).
 
-How values are compared: objects only by the keys that `expect` writes; arrays by length and element by element; numbers with a tiny tolerance; `error` as `true`, `false` or a piece of the error's text; lists such as `progress` and `logs` in order, where a text matches when it contains the piece.
+How values are compared: objects only by the keys that `expect` writes; arrays by length and element by element; numbers with a tiny tolerance; `error` as `true`, `false` or a piece of the error's text; lists such as `progress`, `logs` and `outputs` (the parts of the result a job hands over with `job_output`) in order, where a text matches when it contains the piece.
+
+When you test a restricted DLL with the `gs.exe` of a GameScrcpy build made from source, the built `gs-exthost.exe` belongs to Administrators, and without elevation the container cannot be given the right to read and run it (error 5): copy `gs.exe`, `gs-exthost.exe` and the DLLs next to them into a folder of your own and run them from there. An installed GameScrcpy (under Program Files) does not have this problem.
 
 ### Testing script extensions
 

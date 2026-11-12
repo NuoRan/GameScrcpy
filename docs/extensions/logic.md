@@ -20,7 +20,7 @@
 |:--|:--|:--|
 | 几份 | 扩展打开期间只有一份 | 每台投屏中的手机各一份 |
 | 什么时候运行 | 扩展打开、GameScrcpy 启动时开始，扩展关掉、换版本或程序退出时停止 | 手机开始投屏时开始，断开时停止 |
-| 能用的 | 主窗口的界面位置（页面、设置、卡片菜单、托盘……）、服务、MCP 工具、本机连接、语音、硬件、程序事件 | 投屏窗口的界面位置（侧边面板、右键菜单、状态区、工具栏按钮）、这台手机的触控、识图、键位、剪贴板 |
+| 能用的 | 主窗口的界面位置（页面、设置、卡片菜单、托盘……）、服务、MCP 工具、本机连接、联网与文件、语音、硬件、程序事件 | 投屏窗口的界面位置（侧边面板、右键菜单、状态区、工具栏按钮）、这台手机的触控、识图与识别、键位、剪贴板，以及联网与文件 |
 | 不能用的 | 要手机的接口（`touch.*`、`vision.*`、`ui.toast` 等），会得到 `GS-API-073` 或 `GS-API-001` | 主窗口的界面位置 |
 
 - 要权限的接口在扩展没申请或用户没同意时抛 `GS-API-072`，信息里写着缺哪一项。用户自己的逻辑不受这些限制。
@@ -159,6 +159,45 @@ log.info("listening on", server.port);
 
 完整的例子见 [deck-bridge](../../examples/extensions/deck-bridge)。
 
+## 联网
+
+```ts
+const reply = await net.fetch("https://api.github.com/repos/NuoRan/GameScrcpy/releases/latest", {
+    headers: { accept: "application/vnd.github+json" },
+});
+if (reply.status === 200) {
+    const release = reply.json() as { tag_name?: string };
+    log.info("newest release", release.tag_name ?? "?");
+}
+```
+
+- `net.fetch(地址, { method, headers, body, timeoutMs })` 由 GameScrcpy 发一个 https 请求，不管状态码是多少都给出回答 `{ status, url, headers, text, bytes, json() }`（`url` 是重定向之后的地址，头的名字是小写）。扩展的逻辑要权限 `network`，只能去清单 `hosts` 里列出的主机（规则见[清单参考](manifest.md#permissions)），重定向也只跟到这些主机、最多 5 次；用户自己的逻辑可以去任何 https 地址。
+- 正文最多 1 MiB、回答最多 8 MiB，每个逻辑同时最多 8 个请求；`timeoutMs` 是 1000～60000（默认 15000），管整个请求。不保存 Cookie、不用缓存，服务要 Cookie 时自己写 `cookie` 头；`host`、`content-length` 这类 GameScrcpy 自己设的头，以及 `proxy-`、`sec-` 开头的头不能写。证书不对一律失败。取消任务就取消请求。
+- `net.socket(地址, { protocols })` 打开一条 wss 的 WebSocket，服务器接受后给出 `NetSocket`：`send(文字或字节)`（每条最多 1 MiB）、`close(code, reason)`、`onMessage(处理函数)`（默认排队，一条不丢）、`onClose(处理函数)`、`isOpen`、`protocol`。主机规则同 `net.fetch`，每个逻辑最多同时开 4 条；在任务里开的随任务关，在最上层开的随逻辑停止关。
+- 错误：`GS-API-155`（没有权限、主机没列出，或被重定向到没列出的主机、不是 https 的地址）、`GS-API-156`（地址不是 https / wss，方法或头不允许，正文不是文字或字节，`timeoutMs` 不在范围里）、`GS-API-157`（正文、回答或待发的数据太多，或请求、连接已经太多）、`GS-API-158`（连不上、证书不对、连接断了、重定向太多、超时，信息写明是哪一种）、`GS-API-159`（往已经关了的连接上发）。
+
+## 文件
+
+```ts
+const file = await files.pick({ filters: [{ name: "Key lists", extensions: ["keys"] }] });
+if (file) {
+    log.info(file.name, (await file.text()).length);
+}
+
+const notes = await files.folder("notes");
+await notes.write("today.txt", "Bring the map.");
+for (const entry of await notes.list()) {
+    log.info(entry.path, entry.size);
+}
+```
+
+- `files.pick({ save, filters, suggestedName })` 弹出 Windows 的打开对话框（`save` 时是保存对话框），给出用户选的这一个文件的句柄，用户取消时给 `null`。句柄只能读写这个文件（最大 64 MiB），逻辑停止前有效：`read()`、`text()`、`write(文字或字节)`、`close()`。扩展的逻辑要权限 `files.pick`。
+- `files.folder(名字)` 打开为这个逻辑选定的文件夹。名字要在清单 `files.paths` 权限的 `folders` 里声明（用户自己的逻辑可以用任何 1～32 个小写字母、数字或连字符）。第一次用时 GameScrcpy 请用户选一个真正的文件夹并记住它（对话框里写着 `purpose`），用户可以在扩展的设置里“忘记”它（用户自己的逻辑在设置 › 通用）。句柄只能列出、读、写、删这个文件夹里的东西：`list(子文件夹)`（最多 4096 项）、`read(路径)`、`text(路径)`、`write(路径, 数据)`（缺的文件夹一起建）、`remove(路径)`、`close()`。路径用 `/` 分隔，`..`、盘符和通到外面的链接都被拒绝。
+- 每个逻辑同时最多开 64 个文件和文件夹，最多 8 个请求在等用户回答；写入是原子的，写完才换掉原来的文件。
+- 错误：`GS-API-160`（没有权限，或清单没声明这个文件夹）、`GS-API-161`（选项、名字或路径不对）、`GS-API-162`（Windows 做不到，例如文件被别的程序占着、读的时候变了）、`GS-API-163`（文件太大，或开着的、等着的已经太多）、`GS-API-164`（句柄已经关了，或用户没选文件夹就关了对话框）。
+
+完整的例子见 [notes-panel](../../examples/extensions/notes-panel)。
+
 ## 朗读与语音命令
 
 ```ts
@@ -201,10 +240,44 @@ const result = await job.result;
 
 会话脚本用 `media.frames(处理函数, { fps, size, region })` 拿手机画面的低频帧（每秒 0.1～10 帧、默认 2 帧，长边 64～1920 像素、默认 640），给分析或 AI 用：处理函数收到 `{ image, time }`，`image` 和 `vision.capture()` 给的一样。扩展的逻辑要权限 `media.read`；应用脚本没有手机，会得到 `GS-API-073`；参数不对是 `GS-API-120`，手机没有画面（例如没配采集卡的触控盒）是 `GS-API-121`，同时已经有 4 个订阅是 `GS-API-122`。
 
+## 识别
+
+```ts
+const lines = await vision.recognize("system", "ocr", { x: 0, y: 0.6, width: 0.4, height: 0.3 }, { language: "zh-Hans" });
+for (const line of lines ?? []) {
+    log.info(line.text, line.confidence);
+}
+```
+
+- `vision.recognize(引擎, 种类, 区域, 参数)` 在下一帧里识别（0.25 秒内没有新帧时用已经显示的那一帧）：`ocr` 读字、`detect` 找东西、`classify` 分辨画面。结果按引擎给的顺序列出，`x`、`y` 是中心、`width`、`height` 是大小，都是整个画面的比例，`confidence` 是 0～1；2 秒内没有画面时给 `null`。区域可以写 `res/resources.json` 里的区域名，省掉是整个画面。
+- `vision.engines()` 列出引擎：`system` 是 Windows 自带的识字（参数 `language` 写 `en`、`zh-Hans` 这样的语言标签，默认用用户的语言；`words: true` 按词而不是按行给结果），其余是扩展提供的识别引擎 `<扩展 id>/<名字>`，带它认的种类与语言。`vision.engine(id)` 给出一个引擎，它的 `read()`、`detect()`、`classify()` 是 `recognize` 的简写。
+- 扩展的逻辑要权限 `device.screen`；只能在会话脚本里用（应用脚本没有手机，得到 `GS-API-073`）。一个引擎一次处理一张图，扩展的引擎超过 5 秒就不再等。
+- 错误：`GS-API-170`（没有这个引擎，或它的扩展关着、没载入）、`GS-API-171`（引擎不认这一种或这种语言）、`GS-API-172`（引擎、种类或参数不对）、`GS-API-173`（引擎失败或结果不对）、`GS-API-174`（超过 5 秒、还在处理上一张，或已经有 16 张在等）。
+
+完整的例子见 [read-aloud](../../examples/extensions/read-aloud)；自己写识别引擎见[原生扩展指南](native.md#识别引擎)。
+
 ## MCP 工具与 AI
 
 - 应用脚本可以用 `mcp.tool(名字, { description, input }, 处理函数)` 给本机的 AI 客户端（经 GameScrcpy 的 MCP 服务）提供工具，客户端看到的名字是 `ext_<扩展 id>_<名字>`（id 里的点和连字符写成下划线）；每次调用都要用户确认，60 秒内要回答，每个扩展最多 32 个。
-- `ai.ask(问题, { picture, timeoutMs })` 向设置 › AI 里配好的服务提问，要权限 `ai`，并且用户在那里打开了“允许逻辑调用 AI”；每个逻辑每分钟最多 10 次。应用脚本不能带画面。
+- `ai.ask(问题, { picture, timeoutMs })` 向设置 › AI 里配好的服务提问，要权限 `ai`，并且用户在那里打开了“允许逻辑调用 AI”；每个逻辑每分钟最多 10 次。应用脚本不能带画面。那里选的可以是别的扩展提供的模型服务（见[原生扩展指南](native.md#ai-服务提供者)）；它的扩展没装、关着或不能提供 AI 时得到 `GS-API-150`。
+
+## 转换器
+
+清单的 `contributes.converters`（见[清单参考](manifest.md#converters扩展点-script最多-16-个)）指向一个脚本，脚本导出名为 `convert` 的函数（或默认导出）。每转换一个文件，GameScrcpy 就在逻辑的沙箱里载入这个脚本、调一次这个函数，这时没有手机：
+
+```ts
+export function convert(input: ConvertInput): ConvertOutput {
+    if (input.to === "profile") {
+        return { name: "Imported.json", json: profileFrom(input.text) };
+    }
+    return { text: textFrom(input.json()) };
+}
+```
+
+- 函数可以是 `async` 的；`input.signal` 在用户取消或超过 30 秒时中止。导入与导出可以共用一个脚本，按 `input.from` / `input.to` 分开。
+- 进出各最多 32 MiB；抛出的错误信息就是用户看到的。错误：`GS-API-165`（脚本没有导出这个函数）、`GS-API-166`（结果不是能写的东西）、`GS-API-167`（结果超过 32 MiB）、`GS-API-168`（要转换的文件读不出来）。
+
+完整的例子见 [key-list](../../examples/extensions/key-list)。
 
 ## 功能引导
 
@@ -242,3 +315,8 @@ const result = await job.result;
 | `GS-API-110`～`GS-API-113` | 语音：引擎、参数、引擎出错、缺权限 |
 | `GS-API-120`～`GS-API-122` | 画面帧：参数、没有画面、订阅太多 |
 | `GS-API-145`～`GS-API-149` | 服务：没声明、没人提供、没依赖、不符合 schema、失败或超时 |
+| `GS-API-150` | 设置 › AI 选的模型服务属于一个用不了的扩展 |
+| `GS-API-155`～`GS-API-159` | 联网：没权限或主机没列出、地址或选项不对、太多或太大、连不上或超时、连接已关 |
+| `GS-API-160`～`GS-API-164` | 文件：没权限或没声明、名字或路径不对、Windows 做不到、太多或太大、句柄已关或没选文件夹 |
+| `GS-API-165`～`GS-API-168` | 转换器：没导出函数、结果不能写、结果太大、文件读不出来 |
+| `GS-API-170`～`GS-API-174` | 识别：没有这个引擎、不认这一种、参数不对、引擎失败、超时或太忙 |
