@@ -21,7 +21,7 @@
 
 GameScrcpy mirrors an Android phone to your PC with low latency and lets you play with a keyboard, a mouse and a gamepad, with the keys placed right on the game picture. When keys alone are not enough, you can give them logic as blueprints (nodes and wires) or TypeScript, with image and color search, text recognition and scheduled tasks. The phone-side server, the protocol and the PC app were all written from scratch for this version; the idea comes from [scrcpy](https://github.com/Genymobile/scrcpy).
 
-The user interface is available in Simplified Chinese and English.
+The user interface is available in Simplified Chinese and English, and language pack extensions can add more languages.
 
 ## Features
 
@@ -53,7 +53,7 @@ The user interface is available in Simplified Chinese and English.
 
 ### AI
 
-- **AI assistant**: in the corner of the main window and of every editor, it sees what you are working on and helps you write blueprints, explains blocks and sorts out connection problems. It uses your own OpenAI- or Anthropic-compatible endpoint and key; the key is kept in the Windows Credential Manager.
+- **AI assistant**: in the corner of the main window and of every editor, it sees what you are working on and helps you write blueprints, explains blocks and sorts out connection problems. It uses your own OpenAI- or Anthropic-compatible endpoint and key (the key is kept in the Windows Credential Manager), or a model service that an extension adds.
 - **Local MCP server**: lets AI tools such as Claude or Cursor read and write profiles and blueprints, run tests and look at recordings.
 
 ### Touch backends and hardware
@@ -66,7 +66,7 @@ The user interface is available in Simplified Chinese and English.
 ### Extensions
 
 - **`.gsext` packages**: themes, picture filters, profiles and patches, logic extensions and native DLL extensions. They can also bring devices such as touch boxes, new ways to connect phones, places pictures and sound come from and go to, reading aloud and voice commands, interface languages, AI model services, and importing and exporting other formats. GameScrcpy comes with no extensions.
-- **Safety**: an extension can do only what you allow. Packages can be signed and show a verified publisher; restricted native extensions run in a separate process without any rights, and native code is checked before it installs; `gamescrcpy://` links on web pages install extensions directly.
+- **Safety**: an extension can do only what you allow. Packages can be signed: GameScrcpy remembers the publisher's key and refuses updates signed with another key or not signed at all; restricted native extensions run in a separate process without any rights, and native code is checked before it installs; `gamescrcpy://` links on web pages download a package, check its SHA-256 and open the install dialog.
 - **Bundles and upkeep**: a `.gsbundle` installs a set of extensions at once; extensions can be checked for updates; each card shows the extension's health, and you can find out step by step which one causes a problem.
 - **Development**: the [guide to writing extensions](docs/extensions/README.en.md) covers the manifest, the logic and native interfaces, testing, signing and publishing; the C interface header is [`sdk/include`](sdk/include/gamescrcpy_ext.h), samples are in [`examples`](examples); `gs ext` tests an extension without GameScrcpy or a phone.
 
