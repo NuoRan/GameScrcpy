@@ -20,6 +20,7 @@ Item {
     readonly property var esp32Entry: ExtensionHost.entries.find(entry => entry.id === "gamescrcpy.esp32"
                                                                  && entry.superseded !== true) ?? null
     readonly property var ownGrants: HardwareAccess.grants["mine"] ?? []
+    readonly property var ownFolders: FileAccess.folders["mine"] ?? []
     readonly property var settingsPanels: ExtensionPanels.panels.filter(entry => entry.where === "settings")
     readonly property bool extensionsShown: SettingsCatalog.extensionGroups.length > 0 || page.settingsPanels.length > 0
 
@@ -892,6 +893,18 @@ Item {
                                     ExtensionLinks.registerLinks()
                             }
                         }
+                    }
+                }
+
+                SettingCard {
+                    objectName: "ownFolders"
+                    title: qsTr("Folders your own logic may use")
+                    iconName: "folder-open"
+                    tone: "amber"
+                    visible: !SettingsCatalog.searching && SettingsCatalog.device === "" && page.ownFolders.length > 0
+
+                    AllowedFolders {
+                        owner: "mine"
                     }
                 }
             }

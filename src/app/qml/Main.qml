@@ -933,6 +933,10 @@ Window {
         onAttentionWanted: question => root.attend(qsTr("A device permission is waiting for you"), question)
     }
 
+    FilePrompts {
+        onAttentionWanted: question => root.attend(qsTr("A file or folder request is waiting for you"), question)
+    }
+
     Loader {
         id: esp32Settings
 

@@ -1380,6 +1380,13 @@
     </message>
 </context>
 <context>
+    <name>AllowedFolders</name>
+    <message>
+        <source>Forget</source>
+        <translation>忘记</translation>
+    </message>
+</context>
+<context>
     <name>AppsPage</name>
     <message>
         <source>Opening %1 on an independent display</source>
@@ -6418,6 +6425,10 @@
         <source>Devices it may use</source>
         <translation>可以使用的设备</translation>
     </message>
+    <message>
+        <source>Folders it may use</source>
+        <translation>它可用的文件夹</translation>
+    </message>
 </context>
 <context>
     <name>ExtensionsPage</name>
@@ -7378,6 +7389,33 @@
     <message>
         <source>Open the pairing dialog on the phone again, then retry.</source>
         <translation>请在手机上重新打开配对窗口，然后重试。</translation>
+    </message>
+</context>
+<context>
+    <name>FilePrompts</name>
+    <message>
+        <source>Your logic wants to save a file</source>
+        <translation>你的逻辑想保存一个文件</translation>
+    </message>
+    <message>
+        <source>%1 wants to save a file</source>
+        <translation>%1 想保存一个文件</translation>
+    </message>
+    <message>
+        <source>Choose the folder %1 for your logic</source>
+        <translation>为你的逻辑选择文件夹 %1</translation>
+    </message>
+    <message>
+        <source>Choose the folder %1 for %2</source>
+        <translation>为 %2 选择文件夹 %1</translation>
+    </message>
+    <message>
+        <source>Your logic wants to open a file</source>
+        <translation>你的逻辑想打开一个文件</translation>
+    </message>
+    <message>
+        <source>%1 wants to open a file</source>
+        <translation>%1 想打开一个文件</translation>
     </message>
 </context>
 <context>
@@ -10505,6 +10543,10 @@
         <translation>有设备授权在等你确认</translation>
     </message>
     <message>
+        <source>A file or folder request is waiting for you</source>
+        <translation>有一个文件或文件夹请求在等你处理</translation>
+    </message>
+    <message>
         <source>Downloading an extension from %1 · %2%</source>
         <translation>正在从 %1 下载扩展 · %2%</translation>
     </message>
@@ -13445,10 +13487,6 @@
         <translation>用户允许的串口、USB HID 设备和蓝牙 LE 设备。每份逻辑（包括你自己的）都只能打开用户勾选的设备；扩展的逻辑还需要权限 hardware。</translation>
     </message>
     <message>
-        <source>Connections from programs on this computer over HTTP on 127.0.0.1; the logic of an extension needs the permission network.listen.</source>
-        <translation>本机程序经 127.0.0.1 上的 HTTP 发来的连接；扩展的逻辑需要权限 network.listen。</translation>
-    </message>
-    <message>
         <source>Reading text aloud and listening for voice commands, with Windows or an engine that an extension provides; the logic of an extension needs the permission speech.listen to listen.</source>
         <translation>用 Windows 或扩展提供的引擎朗读文字、听语音命令；扩展的逻辑要听语音命令，需要权限 speech.listen。</translation>
     </message>
@@ -13479,6 +13517,10 @@
     <message>
         <source>The phone&apos;s picture as frames, for analysis and AI; the logic of an extension needs the permission media.read.</source>
         <translation>以帧的形式取得手机画面，供分析与 AI 使用；扩展的逻辑需要权限 media.read。</translation>
+    </message>
+    <message>
+        <source>Files the user picks and folders the user chooses for the logic. The logic of an extension needs the permission files.pick to pick files, and files.paths, which names its folders, to open folders.</source>
+        <translation>用户为逻辑挑选的文件和选定的文件夹。扩展的逻辑要挑选文件需要 files.pick 权限，要打开文件夹需要 files.paths 权限，文件夹的名字列在这个权限里。</translation>
     </message>
     <message>
         <source>A component of the profile in use. Every type below has these members too.</source>
@@ -14533,6 +14575,98 @@
         <translation>判断画面里是什么，与 vision.recognize(id, &quot;classify&quot;, region, params) 相同。</translation>
     </message>
     <message>
+        <source>A WebSocket connection made by net.socket().</source>
+        <translation>由 net.socket() 建立的 WebSocket 连接。</translation>
+    </message>
+    <message>
+        <source>The address it is connected to.</source>
+        <translation>它连接的地址。</translation>
+    </message>
+    <message>
+        <source>The subprotocol the server took, or an empty text.</source>
+        <translation>服务器选用的子协议，没有时为空文本。</translation>
+    </message>
+    <message>
+        <source>Whether messages can still be sent.</source>
+        <translation>是否还能发送消息。</translation>
+    </message>
+    <message>
+        <source>Sends a text message, or a binary one for bytes, of at most 1 MiB. Throws GS-API-159 when the socket is closed and GS-API-157 when 16 MiB are waiting to be sent already.</source>
+        <translation>发送一条文本消息，传字节时发送二进制消息，最大 1 MiB。连接已关闭时抛出 GS-API-159，已有 16 MiB 等待发送时抛出 GS-API-157。</translation>
+    </message>
+    <message>
+        <source>Closes the socket with code 1000, or one from 3000 to 4999, and a reason of at most 123 bytes; onClose does not run for it.</source>
+        <translation>以代码 1000 或 3000 到 4999 之间的代码关闭连接，原因最多 123 字节；这样关闭不会触发 onClose。</translation>
+    </message>
+    <message>
+        <source>Starts a task for each message; by default the messages queue, so none is lost.</source>
+        <translation>每收到一条消息启动一个任务；默认消息排队，一条也不会丢。</translation>
+    </message>
+    <message>
+        <source>Starts a task when the server or the network closes the socket.</source>
+        <translation>服务器或网络关闭连接时启动一个任务。</translation>
+    </message>
+    <message>
+        <source>A file the user picked with files.pick().</source>
+        <translation>用户通过 files.pick() 挑选的文件。</translation>
+    </message>
+    <message>
+        <source>The name of the file, without its folder.</source>
+        <translation>文件名，不含所在的文件夹。</translation>
+    </message>
+    <message>
+        <source>Whether the handle can still be used.</source>
+        <translation>句柄是否还能使用。</translation>
+    </message>
+    <message>
+        <source>Reads the whole file, up to 64 MiB. Throws GS-API-162 when Windows cannot read it or it changes while it is read, GS-API-163 when it is larger and GS-API-164 when the handle is closed.</source>
+        <translation>读取整个文件，最大 64 MiB。Windows 读不了或读取期间文件有变化时抛出 GS-API-162，文件更大时抛出 GS-API-163，句柄已关闭时抛出 GS-API-164。</translation>
+    </message>
+    <message>
+        <source>Reads the whole file as UTF-8 text, leaving out a byte order mark.</source>
+        <translation>把整个文件按 UTF-8 文本读出，去掉字节顺序标记。</translation>
+    </message>
+    <message>
+        <source>Replaces the whole file with the text, as UTF-8, or the bytes, up to 64 MiB; a file the user named in the save dialog is made at the first write.</source>
+        <translation>用文本（按 UTF-8）或字节替换整个文件，最大 64 MiB；用户在保存对话框里起名的文件在第一次写入时创建。</translation>
+    </message>
+    <message>
+        <source>Gives up the file; the handle can no longer be used.</source>
+        <translation>放弃这个文件；句柄从此不能再用。</translation>
+    </message>
+    <message>
+        <source>A folder chosen for files.folder(). Paths inside it use / between names; .., drives and links that lead out of it are refused with GS-API-161, and what Windows cannot do with GS-API-162.</source>
+        <translation>为 files.folder() 选定的文件夹。其中的路径用 / 分隔名称；..、盘符和通向外面的链接以 GS-API-161 拒绝，Windows 做不到的操作以 GS-API-162 拒绝。</translation>
+    </message>
+    <message>
+        <source>The name the manifest gives the folder.</source>
+        <translation>清单给这个文件夹起的名字。</translation>
+    </message>
+    <message>
+        <source>Lists up to 4096 files and folders, sorted by name, at the top of the folder or in a folder inside it.</source>
+        <translation>按名称排序，列出文件夹顶层或其中某个文件夹里的文件和文件夹，最多 4096 项。</translation>
+    </message>
+    <message>
+        <source>Reads a file inside the folder, up to 64 MiB.</source>
+        <translation>读取文件夹里的一个文件，最大 64 MiB。</translation>
+    </message>
+    <message>
+        <source>Reads a file inside the folder as UTF-8 text, leaving out a byte order mark.</source>
+        <translation>把文件夹里的一个文件按 UTF-8 文本读出，去掉字节顺序标记。</translation>
+    </message>
+    <message>
+        <source>Replaces or makes a file inside the folder, with the folders on its path, up to 64 MiB.</source>
+        <translation>替换或新建文件夹里的一个文件，路径上缺的文件夹一并创建，最大 64 MiB。</translation>
+    </message>
+    <message>
+        <source>Removes a file, or a folder with nothing in it; resolves with false when there was nothing to remove.</source>
+        <translation>删除一个文件或一个空文件夹；没有可删的东西时得到 false。</translation>
+    </message>
+    <message>
+        <source>Gives up the folder; the handle can no longer be used.</source>
+        <translation>放弃这个文件夹；句柄从此不能再用。</translation>
+    </message>
+    <message>
         <source>The settings of a running task, as chosen on the Tasks page; the task declares them in static params.</source>
         <translation>正在运行的任务的设置，按任务页里填的；任务在 static params 里声明它们。</translation>
     </message>
@@ -14993,6 +15127,38 @@
         <translation>recognize() 找到的一项：&quot;ocr&quot; 时是 VisionText，&quot;detect&quot; 时是 VisionObject，&quot;classify&quot; 时是 VisionClass。</translation>
     </message>
     <message>
+        <source>How net.fetch() asks: the method (GET unless given), up to 64 headers besides those GameScrcpy sets itself, such as host and content-length, a body of text, sent as UTF-8 with content-type text/plain unless a header says otherwise, or of bytes, and timeoutMs, from 1000 to 60000 milliseconds (15000 by default), for the whole request.</source>
+        <translation>net.fetch() 怎样发出请求：method 为请求方法（不填为 GET）；headers 最多 64 个，不含 GameScrcpy 自己设置的，例如 host 和 content-length；body 为文本时按 UTF-8 发送，请求头没说明时 content-type 为 text/plain，也可以是字节；timeoutMs 为整个请求的时限，1000 到 60000 毫秒（默认 15000）。</translation>
+    </message>
+    <message>
+        <source>The answer to net.fetch(): its status, 404 and 500 too, the address it came from after redirects, its headers with lowercase names, and its body as text, bytes or parsed JSON.</source>
+        <translation>net.fetch() 得到的回应：状态码（404 和 500 也算）、经过重定向后的地址、名称为小写的响应头，以及文本、字节或解析后的 JSON 形式的正文。</translation>
+    </message>
+    <message>
+        <source>Up to 8 subprotocols to offer the server, such as &quot;graphql-ws&quot;; the protocol of the socket says which one it took.</source>
+        <translation>提供给服务器的子协议，最多 8 个，例如 &quot;graphql-ws&quot;；连接的 protocol 说明服务器选了哪一个。</translation>
+    </message>
+    <message>
+        <source>What onMessage receives: a text message as a string, or a binary one as bytes when binary is true.</source>
+        <translation>onMessage 收到的内容：文本消息为字符串；binary 为 true 时是二进制消息，以字节表示。</translation>
+    </message>
+    <message>
+        <source>Why a socket closed by itself: the code and reason the server gave, 1006 when the connection was lost, and whether both sides closed it cleanly.</source>
+        <translation>连接自行关闭的原因：服务器给出的代码和原因（连接中断时为 1006），以及双方是否正常关闭。</translation>
+    </message>
+    <message>
+        <source>save shows the dialog to save a file instead of the one to open a file; filters are up to 8 kinds of file the dialog offers; suggestedName is the file name the dialog starts with, without a folder.</source>
+        <translation>save 显示保存文件的对话框，而不是打开文件的对话框；filters 为对话框提供的文件类型，最多 8 种；suggestedName 为对话框开始时的文件名，不含文件夹。</translation>
+    </message>
+    <message>
+        <source>A kind of file in the dialog: its name, up to 60 characters, and 1 to 16 extensions without the dot, such as [&quot;png&quot;, &quot;jpg&quot;].</source>
+        <translation>对话框里的一种文件类型：名称（最多 60 个字符）和 1 到 16 个不带点的扩展名，例如 [&quot;png&quot;, &quot;jpg&quot;]。</translation>
+    </message>
+    <message>
+        <source>A file or folder in a FolderHandle: its name, its path from the top of the folder, whether it is a folder, its size in bytes and when it last changed, in milliseconds since 1970.</source>
+        <translation>FolderHandle 里的一个文件或文件夹：名称、从文件夹顶层算起的路径、是否为文件夹、以字节计的大小，以及最后修改的时间（自 1970 年起的毫秒数）。</translation>
+    </message>
+    <message>
         <source>Runs a handler again and again, waiting intervalMs before each run.</source>
         <translation>反复执行处理函数，每次之前等 intervalMs。</translation>
     </message>
@@ -15145,6 +15311,86 @@
         <translation>第一次要执行的内容。</translation>
     </message>
     <message>
+        <source>Asks a web service over https and resolves with its answer, whatever its status; GameScrcpy makes the request, so the logic never holds a connection of its own. The logic of an extension may only reach the hosts its manifest lists under the permission network, and redirects are followed only to such hosts; your own logic may reach any https host. The body is at most 1 MiB and the answer at most 8 MiB, and each logic may have 8 requests going at once. Cookies are not kept: set the cookie header yourself when a service needs one. Cancelling the task cancels the request.</source>
+        <translation>通过 https 请求网络服务，无论状态码如何都以回应兑现；请求由 GameScrcpy 发出，逻辑自己从不持有连接。扩展的逻辑只能访问清单在 network 权限下列出的主机，重定向也只跟到这些主机；你自己的逻辑可以访问任何 https 主机。请求正文最大 1 MiB，回应最大 8 MiB，每段逻辑同时最多 8 个请求。不保存 Cookie：服务需要时请自己设置 cookie 请求头。取消任务就取消请求。</translation>
+    </message>
+    <message>
+        <source>An https address on a host this logic may reach, up to 4096 characters.</source>
+        <translation>这段逻辑可以访问的主机上的 https 地址，最多 4096 个字符。</translation>
+    </message>
+    <message>
+        <source>The method, headers and body of the request, and how long to wait for it.</source>
+        <translation>请求的方法、请求头和正文，以及等待多久。</translation>
+    </message>
+    <message>
+        <source>List the host, such as &quot;api.example.com&quot; or &quot;*.example.com&quot;, under hosts of the permission network in the extension&apos;s manifest.</source>
+        <translation>在扩展清单 network 权限的 hosts 里列出主机，例如 &quot;api.example.com&quot; 或 &quot;*.example.com&quot;。</translation>
+    </message>
+    <message>
+        <source>the logic belongs to an extension whose manifest does not ask for the permission network or does not list the host, or the server sends the request on to a host it does not list or to an address that is not https</source>
+        <translation>这段逻辑所属扩展的清单没有申请 network 权限或没有列出该主机，或者服务器把请求转到了没有列出的主机或不是 https 的地址</translation>
+    </message>
+    <message>
+        <source>Use an https:// address and the options as NetFetchOptions describes.</source>
+        <translation>使用 https:// 地址，选项按 NetFetchOptions 的说明填写。</translation>
+    </message>
+    <message>
+        <source>the address is not https, the method is not GET, HEAD, POST, PUT, PATCH, DELETE or OPTIONS, a header is one GameScrcpy sets itself or one HTTP does not allow, the body is not text or bytes, or timeoutMs is not from 1000 to 60000</source>
+        <translation>地址不是 https，方法不是 GET、HEAD、POST、PUT、PATCH、DELETE 或 OPTIONS，某个请求头由 GameScrcpy 自己设置或 HTTP 不允许，正文不是文本或字节，或者 timeoutMs 不在 1000 到 60000 之间</translation>
+    </message>
+    <message>
+        <source>Send and ask for less, or wait for a request to finish.</source>
+        <translation>少发少要，或者等某个请求结束。</translation>
+    </message>
+    <message>
+        <source>the body is over 1 MiB, the answer over 8 MiB, or the logic has 8 requests going already</source>
+        <translation>正文超过 1 MiB、回应超过 8 MiB，或者这段逻辑已有 8 个请求在进行</translation>
+    </message>
+    <message>
+        <source>Check the address and the network, or allow more time.</source>
+        <translation>检查地址和网络，或者多给些时间。</translation>
+    </message>
+    <message>
+        <source>the host could not be reached, its certificate is not valid, the connection broke, the server sent the request on more than 5 times, or no answer came within timeoutMs; the message says which</source>
+        <translation>无法访问主机、证书无效、连接中断、服务器转发请求超过 5 次，或者在 timeoutMs 内没有回应；消息会说明是哪一种</translation>
+    </message>
+    <message>
+        <source>Opens a WebSocket connection over wss and resolves once the server has taken it; the hosts are the same as for net.fetch. Messages are text or bytes of at most 1 MiB each, and each logic may have 4 sockets open. A socket opened in a task closes when the task ends, one opened at the top level when the logic stops.</source>
+        <translation>通过 wss 建立 WebSocket 连接，服务器接受后兑现；可访问的主机与 net.fetch 相同。每条消息为文本或字节，最大 1 MiB，每段逻辑最多同时打开 4 个连接。在任务里打开的连接随任务结束而关闭，在顶层打开的随逻辑停止而关闭。</translation>
+    </message>
+    <message>
+        <source>A wss address on a host this logic may reach, up to 4096 characters.</source>
+        <translation>这段逻辑可以访问的主机上的 wss 地址，最多 4096 个字符。</translation>
+    </message>
+    <message>
+        <source>The subprotocols to offer the server.</source>
+        <translation>提供给服务器的子协议。</translation>
+    </message>
+    <message>
+        <source>Use a wss:// address and protocols such as &quot;chat&quot;.</source>
+        <translation>使用 wss:// 地址，子协议写成 &quot;chat&quot; 这样的名字。</translation>
+    </message>
+    <message>
+        <source>the address is not wss, or a protocol is not a name that HTTP allows</source>
+        <translation>地址不是 wss，或者某个子协议不是 HTTP 允许的名称</translation>
+    </message>
+    <message>
+        <source>Close a socket you no longer need.</source>
+        <translation>关掉不再需要的连接。</translation>
+    </message>
+    <message>
+        <source>the logic has 4 sockets open already</source>
+        <translation>这段逻辑已打开 4 个连接</translation>
+    </message>
+    <message>
+        <source>Check the address, the network and the protocols.</source>
+        <translation>检查地址、网络和子协议。</translation>
+    </message>
+    <message>
+        <source>the host could not be reached, its certificate is not valid, or the server did not take the WebSocket connection; the message says why</source>
+        <translation>无法访问主机、证书无效，或者服务器没有接受 WebSocket 连接；消息会说明原因</translation>
+    </message>
+    <message>
         <source>The recognition engines: &quot;system&quot;, the text recognition that comes with Windows, and those that extensions provide, with what each recognizes.</source>
         <translation>识别引擎列表：&quot;system&quot;（Windows 自带的文字识别）以及扩展提供的引擎，并写明各自识别什么。</translation>
     </message>
@@ -15295,6 +15541,70 @@
     <message>
         <source>Take frames in a session script.</source>
         <translation>改在会话脚本里取帧。</translation>
+    </message>
+    <message>
+        <source>Shows the Windows dialog to open a file, or with save to save one, and resolves with a handle to the file the user picked, or with null when the user cancels. The handle reads and writes only that file, up to 64 MiB, and lasts until the logic stops. The logic of an extension needs the permission files.pick.</source>
+        <translation>显示 Windows 打开文件的对话框，传 save 时显示保存文件的对话框；以用户所选文件的句柄兑现，用户取消时为 null。句柄只能读写这一个文件，最大 64 MiB，在逻辑停止前一直有效。扩展的逻辑需要 files.pick 权限。</translation>
+    </message>
+    <message>
+        <source>Whether to save, which kinds of file to offer and the name to start with.</source>
+        <translation>是否保存、提供哪些文件类型，以及开始时的文件名。</translation>
+    </message>
+    <message>
+        <source>Add &quot;files.pick&quot; to the permissions in the extension&apos;s manifest, with a reason.</source>
+        <translation>在扩展清单的权限里加上 &quot;files.pick&quot;，并写明理由。</translation>
+    </message>
+    <message>
+        <source>the logic belongs to an extension whose manifest does not ask for the permission files.pick</source>
+        <translation>这段逻辑所属扩展的清单没有申请 files.pick 权限</translation>
+    </message>
+    <message>
+        <source>Pass filters such as { name: &quot;Images&quot;, extensions: [&quot;png&quot;, &quot;jpg&quot;] } and a file name without a folder.</source>
+        <translation>传入 { name: &quot;Images&quot;, extensions: [&quot;png&quot;, &quot;jpg&quot;] } 这样的 filters，以及不含文件夹的文件名。</translation>
+    </message>
+    <message>
+        <source>the filters or the suggested name are not right</source>
+        <translation>filters 或建议的文件名不对</translation>
+    </message>
+    <message>
+        <source>Close the handles you no longer need, or wait for the user to answer.</source>
+        <translation>关掉不再需要的句柄，或者等用户答复。</translation>
+    </message>
+    <message>
+        <source>the logic has 64 files and folders open, or 8 requests for files and folders are waiting</source>
+        <translation>这段逻辑已打开 64 个文件和文件夹，或者已有 8 个文件和文件夹请求在等待</translation>
+    </message>
+    <message>
+        <source>Opens a folder chosen for this logic. The first time, GameScrcpy asks the user to choose the real folder and remembers it; the user can forget it in the extension&apos;s settings, or for your own logic in Settings, General. The handle lists, reads, writes and removes what is inside that folder and nothing else, and lasts until the logic stops.</source>
+        <translation>打开为这段逻辑选定的文件夹。第一次使用时，GameScrcpy 请用户选择真实的文件夹并记住它；用户可以在扩展的设置里忘记它，你自己的逻辑则在“设置 &gt; 通用”里。句柄只能列出、读取、写入和删除这个文件夹里的内容，在逻辑停止前一直有效。</translation>
+    </message>
+    <message>
+        <source>A folder that the extension&apos;s manifest names under the permission files.paths, such as &quot;exports&quot;; your own logic may use any name of 1 to 32 lowercase letters, digits and hyphens.</source>
+        <translation>扩展清单在 files.paths 权限下命名的文件夹，例如 &quot;exports&quot;；你自己的逻辑可以用任何由 1 到 32 个小写字母、数字和连字符组成的名字。</translation>
+    </message>
+    <message>
+        <source>Name the folder in folders of the permission files.paths, such as { &quot;name&quot;: &quot;exports&quot;, &quot;purpose&quot;: &quot;Where it saves your recordings.&quot; }.</source>
+        <translation>在 files.paths 权限的 folders 里命名这个文件夹，例如 { &quot;name&quot;: &quot;exports&quot;, &quot;purpose&quot;: &quot;Where it saves your recordings.&quot; }。</translation>
+    </message>
+    <message>
+        <source>the logic belongs to an extension whose manifest does not name the folder under the permission files.paths</source>
+        <translation>这段逻辑所属扩展的清单没有在 files.paths 权限下命名这个文件夹</translation>
+    </message>
+    <message>
+        <source>Use the name as the manifest declares it.</source>
+        <translation>使用清单里声明的名字。</translation>
+    </message>
+    <message>
+        <source>the name is not 1 to 32 lowercase letters, digits and hyphens</source>
+        <translation>名字不是由 1 到 32 个小写字母、数字和连字符组成</translation>
+    </message>
+    <message>
+        <source>Ask again when the user wants it, and say in the purpose why the extension needs the folder.</source>
+        <translation>等用户需要时再问，并在 purpose 里说明扩展为什么需要这个文件夹。</translation>
+    </message>
+    <message>
+        <source>the user closed the dialog without choosing a folder</source>
+        <translation>用户没有选择文件夹就关掉了对话框</translation>
     </message>
     <message>
         <source>the logic has no phone, such as the app script of an extension</source>
@@ -16307,6 +16617,10 @@
     <message>
         <source>Regions are picture ratios.</source>
         <translation>区域用画面比例表示。</translation>
+    </message>
+    <message>
+        <source>Web services over https and WebSocket, made by GameScrcpy for the logic, and connections from programs on this computer over HTTP on 127.0.0.1. The logic of an extension needs the permission network, which lists the hosts it may reach, and network.listen to listen.</source>
+        <translation>通过 https 和 WebSocket 访问网络服务（由 GameScrcpy 代逻辑发出），以及通过 127.0.0.1 上的 HTTP 接受本机其他程序的连接。扩展的逻辑需要 network 权限（其中列出可访问的主机），监听还需要 network.listen 权限。</translation>
     </message>
     <message>
         <source>Lists of values, changed in place.</source>
@@ -19045,6 +19359,10 @@
     <message>
         <source>Register gamescrcpy:// links</source>
         <translation>注册 gamescrcpy:// 链接</translation>
+    </message>
+    <message>
+        <source>Folders your own logic may use</source>
+        <translation>你自己的逻辑可用的文件夹</translation>
     </message>
     <message>
         <source>Follow Windows (light)</source>
@@ -22565,10 +22883,6 @@
         <translation>打开你选择的文件</translation>
     </message>
     <message>
-        <source>Access fixed folders</source>
-        <translation>访问固定的文件夹</translation>
-    </message>
-    <message>
         <source>Read your keyboard and mouse</source>
         <translation>读取你的键盘和鼠标</translation>
     </message>
@@ -22619,6 +22933,18 @@
     <message>
         <source>Provide AI model services</source>
         <translation>提供 AI 模型服务</translation>
+    </message>
+    <message>
+        <source>any website</source>
+        <translation>任何网站</translation>
+    </message>
+    <message>
+        <source>Websites: %1</source>
+        <translation>网站：%1</translation>
+    </message>
+    <message>
+        <source>Folders: %1</source>
+        <translation>文件夹：%1</translation>
     </message>
     <message>
         <source>Its script %1 is not in the extension</source>
@@ -22703,6 +23029,10 @@
     <message>
         <source>Its author signature does not match its files: it was changed after it was signed.</source>
         <translation>作者签名与文件对不上：签名之后被改动过。</translation>
+    </message>
+    <message>
+        <source>Read and write folders you choose for it</source>
+        <translation>读写你为它选定的文件夹</translation>
     </message>
     <message>
         <source>Its code cannot be read, so it cannot be checked.</source>

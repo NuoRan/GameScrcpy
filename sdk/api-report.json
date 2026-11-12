@@ -1313,6 +1313,32 @@
             "GS-API-101",
             "GS-API-102"
           ]
+        },
+        {
+          "name": "fetch",
+          "signature": "net.fetch(url: string, options?: NetFetchOptions): Promise<NetResponse>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-155",
+            "GS-API-156",
+            "GS-API-157",
+            "GS-API-158"
+          ]
+        },
+        {
+          "name": "socket",
+          "signature": "net.socket(url: string, options?: NetSocketOptions): Promise<NetSocket>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-155",
+            "GS-API-156",
+            "GS-API-157",
+            "GS-API-158"
+          ]
         }
       ]
     },
@@ -2445,6 +2471,36 @@
           ]
         }
       ]
+    },
+    {
+      "name": "files",
+      "functions": [
+        {
+          "name": "pick",
+          "signature": "files.pick(options?: FilePickOptions): Promise<FileHandle | null>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-160",
+            "GS-API-161",
+            "GS-API-163"
+          ]
+        },
+        {
+          "name": "folder",
+          "signature": "files.folder(name: string): Promise<FolderHandle>",
+          "stability": "stable",
+          "since": "1",
+          "permission": "",
+          "errors": [
+            "GS-API-160",
+            "GS-API-161",
+            "GS-API-163",
+            "GS-API-164"
+          ]
+        }
+      ]
     }
   ],
   "interfaces": [
@@ -3040,6 +3096,42 @@
         "read(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionText[] | null>",
         "detect(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionObject[] | null>",
         "classify(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionClass[] | null>"
+      ]
+    },
+    {
+      "name": "NetSocket",
+      "members": [
+        "readonly url: string",
+        "readonly protocol: string",
+        "readonly isOpen: boolean",
+        "send(data: string | HardwareBytes): void",
+        "close(code?: number, reason?: string): void",
+        "onMessage(handler: (event: NetMessageEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+        "onClose(handler: (event: NetCloseEvent) => void | Promise<void>, options?: ListenOptions): Subscription"
+      ]
+    },
+    {
+      "name": "FileHandle",
+      "members": [
+        "readonly name: string",
+        "readonly isOpen: boolean",
+        "read(): Promise<Uint8Array>",
+        "text(): Promise<string>",
+        "write(data: string | HardwareBytes): Promise<void>",
+        "close(): void"
+      ]
+    },
+    {
+      "name": "FolderHandle",
+      "members": [
+        "readonly name: string",
+        "readonly isOpen: boolean",
+        "list(path?: string): Promise<readonly FolderEntry[]>",
+        "read(path: string): Promise<Uint8Array>",
+        "text(path: string): Promise<string>",
+        "write(path: string, data: string | HardwareBytes): Promise<void>",
+        "remove(path: string): Promise<boolean>",
+        "close(): void"
       ]
     }
   ],
@@ -3639,6 +3731,38 @@
     {
       "name": "VisionResult",
       "definition": "VisionText | VisionObject | VisionClass"
+    },
+    {
+      "name": "NetFetchOptions",
+      "definition": "{ readonly method?: \"GET\" | \"HEAD\" | \"POST\" | \"PUT\" | \"PATCH\" | \"DELETE\" | \"OPTIONS\"; readonly headers?: Readonly<Record<string, string>>; readonly body?: string | HardwareBytes; readonly timeoutMs?: number }"
+    },
+    {
+      "name": "NetResponse",
+      "definition": "{ readonly status: number; readonly url: string; readonly headers: Readonly<Record<string, string>>; readonly text: string; readonly bytes: Uint8Array; json(): unknown }"
+    },
+    {
+      "name": "NetSocketOptions",
+      "definition": "{ readonly protocols?: readonly string[] }"
+    },
+    {
+      "name": "NetMessageEvent",
+      "definition": "TaskContext & { readonly data: string | Uint8Array; readonly binary: boolean }"
+    },
+    {
+      "name": "NetCloseEvent",
+      "definition": "TaskContext & { readonly code: number; readonly reason: string; readonly clean: boolean }"
+    },
+    {
+      "name": "FilePickOptions",
+      "definition": "{ readonly save?: boolean; readonly filters?: readonly FileFilter[]; readonly suggestedName?: string }"
+    },
+    {
+      "name": "FileFilter",
+      "definition": "{ readonly name: string; readonly extensions: readonly string[] }"
+    },
+    {
+      "name": "FolderEntry",
+      "definition": "{ readonly name: string; readonly path: string; readonly folder: boolean; readonly size: number; readonly modified: number }"
     }
   ]
 }

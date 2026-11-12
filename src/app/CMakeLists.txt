@@ -20,6 +20,7 @@ qt_add_qml_module(GameScrcpy
         qml/AiSettings.qml
         qml/AiWindow.qml
         qml/AllowedDevices.qml
+        qml/AllowedFolders.qml
         qml/AppsPage.qml
         qml/BatchBar.qml
         qml/CaptionButton.qml
@@ -43,6 +44,7 @@ qt_add_qml_module(GameScrcpy
         qml/ExtensionSettingsSheet.qml
         qml/ExtensionsPage.qml
         qml/FilesPage.qml
+        qml/FilePrompts.qml
         qml/FolderSetting.qml
         qml/Gallery.qml
         qml/GridOverlay.qml
@@ -274,6 +276,8 @@ qt_add_qml_module(GameScrcpy
         ExtensionTouchSink.h
         FailureAdvice.cpp
         FailureAdvice.h
+        FileAccess.cpp
+        FileAccess.h
         FileTransfers.cpp
         FileTransfers.h
         FilterBudget.cpp
@@ -330,6 +334,8 @@ qt_add_qml_module(GameScrcpy
         LogicReferences.h
         LogicServices.cpp
         LogicServices.h
+        LogicUploads.cpp
+        LogicUploads.h
         McpBlueprint.cpp
         McpBlueprint.h
         McpDevices.cpp
@@ -361,6 +367,8 @@ qt_add_qml_module(GameScrcpy
         NativeExtensions.h
         NativeJobs.cpp
         NativeJobs.h
+        NetAccess.cpp
+        NetAccess.h
         OfflineNetwork.cpp
         OfflineNetwork.h
         PhoneFiles.cpp
@@ -452,6 +460,8 @@ qt_add_qml_module(GameScrcpy
         WindowFit.h
         WirelessController.cpp
         WirelessController.h
+        WebSocketClient.cpp
+        WebSocketClient.h
         BlueprintLabels.cpp
         BlueprintLabels.h
         BlueprintModel.cpp

@@ -432,7 +432,7 @@ QString permissionTitle(std::string_view name)
         return ExtensionHost::tr("Open files you choose");
     }
     if (name == "files.paths") {
-        return ExtensionHost::tr("Access fixed folders");
+        return ExtensionHost::tr("Read and write folders you choose for it");
     }
     if (name == "input.read") {
         return ExtensionHost::tr("Read your keyboard and mouse");
@@ -474,6 +474,26 @@ QString permissionTitle(std::string_view name)
         return ExtensionHost::tr("Provide AI model services");
     }
     return QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()));
+}
+
+QString permissionScope(const ext::Permission& permission)
+{
+    if (permission.name == ext::kNetworkPermission && !permission.hosts.empty()) {
+        QStringList hosts;
+        for (const std::string& host : permission.hosts) {
+            hosts.append(host == "*" ? ExtensionHost::tr("any website") : QString::fromStdString(host));
+        }
+        return ExtensionHost::tr("Websites: %1").arg(hosts.join(QStringLiteral(", ")));
+    }
+    if (permission.name == ext::kFilesPathsPermission && !permission.folders.empty()) {
+        QStringList folders;
+        for (const ext::PermissionFolder& folder : permission.folders) {
+            folders.append(QStringLiteral("%1 (%2)").arg(QString::fromStdString(folder.name),
+                                                         QString::fromStdString(folder.purpose)));
+        }
+        return ExtensionHost::tr("Folders: %1").arg(folders.join(QStringLiteral("; ")));
+    }
+    return {};
 }
 
 QString panelProblem(const ext::Manifest& manifest, const ext::PanelContribution& panel)
@@ -574,7 +594,8 @@ QVariantMap describe(const std::optional<ext::Manifest>& found, const QString& l
     for (const ext::Permission& permission : manifest.permissions) {
         permissions.append(QVariantMap{{QStringLiteral("name"), QString::fromStdString(permission.name)},
                                        {QStringLiteral("title"), permissionTitle(permission.name)},
-                                       {QStringLiteral("reason"), QString::fromStdString(permission.reason)}});
+                                       {QStringLiteral("reason"), QString::fromStdString(permission.reason)},
+                                       {QStringLiteral("scope"), permissionScope(permission)}});
     }
     QVariantList dependencies;
     for (const auto& [id, dependency] : manifest.dependencies) {

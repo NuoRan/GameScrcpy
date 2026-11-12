@@ -8,7 +8,7 @@ namespace gs::script::detail {
 
 inline constexpr std::string_view kPreludeName = "<gs>";
 
-inline constexpr std::array<std::string_view, 19> kPreludeParts{
+inline constexpr std::array<std::string_view, 21> kPreludeParts{
     R"js(((host) => {
     "use strict";
     const defineProperty = Object.defineProperty;
@@ -3568,6 +3568,482 @@ inline constexpr std::array<std::string_view, 19> kPreludeParts{
         },
     };
 )js",
+    R"js(    const nfTextSlice = 98304;
+    const nfByteSlice = 393216;
+    const nfMessageMost = 1048576;
+    const nfFileMost = 67108864;
+    let nfStages = 0;
+    const nfFromBase64 = typeof Uint8Array.fromBase64 === "function" ? Uint8Array.fromBase64 : null;
+    const nfToBase64 = typeof Uint8Array.prototype.toBase64 === "function" ? Uint8Array.prototype.toBase64 : null;
+    const nfBytesOf = (text) => {
+        const letters = typeof text === "string" ? text : "";
+        return nfFromBase64 !== null ? nfFromBase64.call(Uint8Array, letters) : fromBase64(letters);
+    };
+    const nfBase64 = (bytes) => (nfToBase64 !== null ? nfToBase64.call(bytes) : toBase64(bytes));
+    const nfUtf8 = (text) => {
+        const out = new Uint8Array(text.length * 3);
+        let at = 0;
+        for (let index = 0; index < text.length; index += 1) {
+            let code = text.charCodeAt(index);
+            if (code >= 0xD800 && code <= 0xDBFF && index + 1 < text.length) {
+                const low = text.charCodeAt(index + 1);
+                if (low >= 0xDC00 && low <= 0xDFFF) {
+                    code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00);
+                    index += 1;
+                }
+            }
+            if (code >= 0xD800 && code <= 0xDFFF) {
+                code = 0xFFFD;
+            }
+            if (code < 0x80) {
+                out[at++] = code;
+            } else if (code < 0x800) {
+                out[at++] = 0xC0 | (code >> 6);
+                out[at++] = 0x80 | (code & 63);
+            } else if (code < 0x10000) {
+                out[at++] = 0xE0 | (code >> 12);
+                out[at++] = 0x80 | ((code >> 6) & 63);
+                out[at++] = 0x80 | (code & 63);
+            } else {
+                out[at++] = 0xF0 | (code >> 18);
+                out[at++] = 0x80 | ((code >> 12) & 63);
+                out[at++] = 0x80 | ((code >> 6) & 63);
+                out[at++] = 0x80 | (code & 63);
+            }
+        }
+        return out.slice(0, at);
+    };
+    const nfBytesArg = (value, wrong) => {
+        if (value instanceof Uint8Array) {
+            return value;
+        }
+        if (value instanceof ArrayBuffer) {
+            return new Uint8Array(value);
+        }
+        if (ArrayBuffer.isView(value)) {
+            return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+        }
+        if (Array.isArray(value) && value.every((each) => Number.isInteger(each) && each >= 0 && each <= 255)) {
+            return Uint8Array.from(value);
+        }
+        throw new TypeError(wrong);
+    };
+    const nfUpload = (service, value, wrong, big, most) => {
+        if (typeof value === "string") {
+            const text = value.toWellFormed();
+            if (text.length > most) {
+                throw new RangeError(big);
+            }
+            if (text.length <= nfTextSlice) {
+                return { text };
+            }
+            nfStages += 1;
+            const stage = nfStages;
+            let at = 0;
+            while (text.length - at > nfTextSlice) {
+                let end = at + nfTextSlice;
+                const unit = text.charCodeAt(end - 1);
+                if (unit >= 0xD800 && unit <= 0xDBFF) {
+                    end -= 1;
+                }
+                host.call(service, JSON.stringify({ stage, text: text.slice(at, end) }));
+                at = end;
+            }
+            return { stage, text: text.slice(at) };
+        }
+        const bytes = nfBytesArg(value, wrong);
+        if (bytes.length > most) {
+            throw new RangeError(big);
+        }
+        if (bytes.length <= nfByteSlice) {
+            return { data: nfBase64(bytes) };
+        }
+        nfStages += 1;
+        const stage = nfStages;
+        let at = 0;
+        while (bytes.length - at > nfByteSlice) {
+            host.call(service, JSON.stringify({ stage, data: nfBase64(bytes.subarray(at, at + nfByteSlice)) }));
+            at += nfByteSlice;
+        }
+        return { stage, data: nfBase64(bytes.subarray(at)) };
+    };
+    const nfAddress = (url, example) => {
+        if (typeof url !== "string" || url === "" || url.length > 4096) {
+            throw new TypeError("GS-API-156 the address must be text of 1 to 4096 characters, such as \"" + example +
+                "\"");
+        }
+        return url;
+    };
+    const nfOptions = (options, code) => {
+        if (options !== undefined && options !== null && typeof options !== "object") {
+            throw new TypeError(code + " the options must be an object");
+        }
+        return options ?? {};
+    };
+    const nfWithoutMark = (text) => (text.startsWith("\uFEFF") ? text.slice(1) : text);
+    const nfResponse = (value) => {
+        const answer = value !== null && typeof value === "object" ? value : {};
+        let bytes;
+        let text;
+        const bytesNow = () => {
+            if (bytes === undefined) {
+                bytes = typeof answer.text === "string" ? nfUtf8(answer.text) : nfBytesOf(answer.body);
+            }
+            return bytes;
+        };
+        const textNow = () => {
+            if (text === undefined) {
+                text = nfWithoutMark(typeof answer.text === "string" ? answer.text : utf8Text(bytesNow()));
+            }
+            return text;
+        };
+        return freeze({
+            status: Number(answer.status ?? 0),
+            url: String(answer.url ?? ""),
+            headers: freeze({ ...(answer.headers ?? {}) }),
+            get text() {
+                return textNow();
+            },
+            get bytes() {
+                return bytesNow();
+            },
+            json() {
+                return JSON.parse(textNow());
+            },
+        });
+    };
+    const nfMethods = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"];
+    const nfSockets = new Map();
+    const nfSocketStates = new WeakMap();
+    const nfSocketState = (socket) => {
+        const state = nfSocketStates.get(socket);
+        if (state === undefined) {
+            throw new TypeError("Illegal invocation");
+        }
+        return state;
+    };
+    const nfClosed = (state, code, reason, clean) => {
+        if (!state.open) {
+            return;
+        }
+        state.open = false;
+        nfSockets.delete(state.handle);
+        for (const listener of [...state.closes]) {
+            react(listener, { code, reason, clean });
+        }
+        for (const listener of state.closes) {
+            listener.active = false;
+        }
+        state.closes.clear();
+    };
+    class NetSocket {
+        constructor(token, state) {
+            if (token !== world) {
+                throw new TypeError("Illegal constructor");
+            }
+            nfSocketStates.set(this, state);
+        }
+        get url() {
+            return nfSocketState(this).url;
+        }
+        get protocol() {
+            return nfSocketState(this).protocol;
+        }
+        get isOpen() {
+            return nfSocketState(this).open;
+        }
+        send(data) {
+            const state = nfSocketState(this);
+            if (!state.open) {
+                throw new RangeError("GS-API-159 the socket is closed");
+            }
+            const part = nfUpload("net.socket.part", data,
+                "GS-API-156 a message must be text, a Uint8Array or a list of bytes from 0 to 255",
+                "GS-API-157 a message is at most 1 MiB", nfMessageMost);
+            host.call("net.socket.send", JSON.stringify({ handle: state.handle, binary: typeof data !== "string",
+                ...part }));
+        }
+        close(code, reason) {
+            const state = nfSocketState(this);
+            if (!state.open) {
+                return;
+            }
+            if (code !== undefined && code !== 1000 && !(Number.isInteger(code) && code >= 3000 && code <= 4999)) {
+                throw new RangeError("GS-API-156 the close code is 1000 or from 3000 to 4999");
+            }
+            if (reason !== undefined && (typeof reason !== "string" || nfUtf8(reason).length > 123)) {
+                throw new RangeError("GS-API-156 the reason is text of at most 123 bytes");
+            }
+            state.open = false;
+            nfSockets.delete(state.handle);
+            const ask = { handle: state.handle };
+            if (code !== undefined) {
+                ask.code = code;
+            }
+            if (reason !== undefined) {
+                ask.reason = reason;
+            }
+            host.call("net.socket.close", JSON.stringify(ask));
+        }
+        onMessage(handler, options) {
+            return hardwareListen(nfSocketState(this).messages, handler, options, "net.socket.onMessage");
+        }
+        onClose(handler, options) {
+            return hardwareListen(nfSocketState(this).closes, handler, options, "net.socket.onClose");
+        }
+    }
+    serviceEvents.set("netSocket", (handle, value) => {
+        const state = nfSockets.get(handle);
+        if (state === undefined || value === null || typeof value !== "object") {
+            return;
+        }
+        if (value.type === "message") {
+            const binary = value.binary === true;
+            const data = binary ? nfBytesOf(value.data) : String(value.text ?? "");
+            for (const listener of [...state.messages]) {
+                react(listener, { data, binary });
+            }
+        } else if (value.type === "closed") {
+            nfClosed(state, Number(value.code ?? 1006), String(value.reason ?? ""), value.clean === true);
+        }
+    });
+)js",
+    R"js(    const nfFileStates = new WeakMap();
+    const nfFileState = (handle) => {
+        const state = nfFileStates.get(handle);
+        if (state === undefined) {
+            throw new TypeError("Illegal invocation");
+        }
+        return state;
+    };
+    const nfOpen = (handle) => {
+        const state = nfFileState(handle);
+        if (!state.open) {
+            throw new RangeError("GS-API-164 the " + (state.folder ? "folder" : "file") + " is closed");
+        }
+        return state;
+    };
+    const nfPath = (path, what) => {
+        if (typeof path !== "string" || path === "" || path.length > 260) {
+            throw new TypeError("GS-API-161 " + what + " is a path inside the folder, such as \"saves/today.json\"");
+        }
+        return path.replaceAll("\\", "/");
+    };
+    const nfWritten = (data) => nfUpload("files.part", data,
+        "GS-API-161 what is written must be text, a Uint8Array or a list of bytes from 0 to 255",
+        "GS-API-163 a file is at most 64 MiB", nfFileMost);
+    const nfChanged = () => new Error("GS-API-162 the file changed while it was read");
+    const nfRead = async (service, ask) => {
+        const first = await host.request(service, JSON.stringify({ ...ask, offset: 0 }));
+        const total = Number(first?.size ?? 0);
+        const out = new Uint8Array(total);
+        let part = first;
+        let at = 0;
+        for (;;) {
+            const bytes = nfBytesOf(part?.data);
+            if (bytes.length === 0 || at + bytes.length > total) {
+                break;
+            }
+            out.set(bytes, at);
+            at += bytes.length;
+            if (at >= total) {
+                break;
+            }
+            part = await host.request(service, JSON.stringify({ ...ask, offset: at }));
+            if (Number(part?.size) !== total || part?.modified !== first?.modified) {
+                throw nfChanged();
+            }
+        }
+        if (at !== total) {
+            throw nfChanged();
+        }
+        return out;
+    };
+    const nfReadText = async (service, ask) => {
+        const parts = [];
+        let offset = 0;
+        let first = null;
+        for (;;) {
+            const part = await host.request(service, JSON.stringify({ ...ask, offset, text: true }));
+            if (first === null) {
+                first = part;
+            } else if (Number(part?.size) !== Number(first?.size) || part?.modified !== first?.modified) {
+                throw nfChanged();
+            }
+            parts.push(String(part?.text ?? ""));
+            const next = Number(part?.next ?? 0);
+            if (!(next > offset) || next >= Number(part?.size ?? 0)) {
+                break;
+            }
+            offset = next;
+        }
+        return nfWithoutMark(parts.join(""));
+    };
+    const nfClose = (handle, service) => {
+        const state = nfFileState(handle);
+        if (!state.open) {
+            return;
+        }
+        state.open = false;
+        host.call(service, JSON.stringify({ handle: state.handle }));
+    };
+    class FileHandle {
+        constructor(token, state) {
+            if (token !== world) {
+                throw new TypeError("Illegal constructor");
+            }
+            nfFileStates.set(this, state);
+        }
+        get name() {
+            return nfFileState(this).name;
+        }
+        get isOpen() {
+            return nfFileState(this).open;
+        }
+        read() {
+            return nfRead("files.pick.read", { handle: nfOpen(this).handle });
+        }
+        text() {
+            return nfReadText("files.pick.read", { handle: nfOpen(this).handle });
+        }
+        write(data) {
+            const ask = { handle: nfOpen(this).handle, ...nfWritten(data) };
+            return host.request("files.pick.write", JSON.stringify(ask)).then(() => undefined);
+        }
+        close() {
+            nfClose(this, "files.pick.close");
+        }
+    }
+    class FolderHandle {
+        constructor(token, state) {
+            if (token !== world) {
+                throw new TypeError("Illegal constructor");
+            }
+            nfFileStates.set(this, state);
+        }
+        get name() {
+            return nfFileState(this).name;
+        }
+        get isOpen() {
+            return nfFileState(this).open;
+        }
+        list(path) {
+            const handle = nfOpen(this).handle;
+            const where = path === undefined || path === "" ? "" : nfPath(path, "the folder to list");
+            return host.request("files.folder.list", JSON.stringify({ handle, path: where })).then((entries) =>
+                freeze((Array.isArray(entries) ? entries : []).map((entry) => freeze({
+                    name: String(entry?.name ?? ""),
+                    path: String(entry?.path ?? ""),
+                    folder: entry?.folder === true,
+                    size: Number(entry?.size ?? 0),
+                    modified: Number(entry?.modified ?? 0),
+                }))));
+        }
+        read(path) {
+            return nfRead("files.folder.read", { handle: nfOpen(this).handle, path: nfPath(path, "the file") });
+        }
+        text(path) {
+            return nfReadText("files.folder.read", { handle: nfOpen(this).handle, path: nfPath(path, "the file") });
+        }
+        write(path, data) {
+            const ask = { handle: nfOpen(this).handle, path: nfPath(path, "the file"), ...nfWritten(data) };
+            return host.request("files.folder.write", JSON.stringify(ask)).then(() => undefined);
+        }
+        remove(path) {
+            const ask = { handle: nfOpen(this).handle, path: nfPath(path, "what to remove") };
+            return host.request("files.folder.remove", JSON.stringify(ask)).then((removed) => removed === true);
+        }
+        close() {
+            nfClose(this, "files.folder.close");
+        }
+    }
+    for (const kind of [NetSocket, FileHandle, FolderHandle]) {
+        defineProperty(kind.prototype, Symbol.toStringTag, { value: kind.name });
+        freeze(kind.prototype);
+    }
+    const netFilesLibrary = {
+        "net.fetch": function fetch(url, options) {
+            const address = nfAddress(url, "https://example.com/data");
+            const given = nfOptions(options, "GS-API-156");
+            const method = given.method ?? "GET";
+            if (typeof method !== "string" || !nfMethods.includes(method.toUpperCase())) {
+                throw new TypeError("GS-API-156 the method is one of " + nfMethods.join(", "));
+            }
+            const raw = given.headers ?? {};
+            if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+                throw new TypeError("GS-API-156 the headers must be an object of names and texts");
+            }
+            const headers = {};
+            for (const [name, value] of Object.entries(raw)) {
+                if (typeof value !== "string" && typeof value !== "number" && typeof value !== "boolean") {
+                    throw new TypeError("GS-API-156 the header " + name + " must be text");
+                }
+                headers[name] = String(value);
+            }
+            const timeoutMs = given.timeoutMs ?? 15000;
+            if (!(typeof timeoutMs === "number" && timeoutMs >= 1000 && timeoutMs <= 60000)) {
+                throw new RangeError("GS-API-156 timeoutMs must be from 1000 to 60000 milliseconds");
+            }
+            const ask = { url: address, method: method.toUpperCase(), headers, timeoutMs };
+            const body = given.body;
+            if (body !== undefined && body !== null) {
+                if (ask.method === "GET" || ask.method === "HEAD") {
+                    throw new TypeError("GS-API-156 a GET or HEAD request has no body");
+                }
+                if (typeof body === "string" && !Object.keys(headers).some((name) => name.toLowerCase() === "content-type")) {
+                    headers["content-type"] = "text/plain; charset=utf-8";
+                }
+                Object.assign(ask, nfUpload("net.fetch.part", body,
+                    "GS-API-156 the body must be text, a Uint8Array or a list of bytes from 0 to 255",
+                    "GS-API-157 the body of a request is at most 1 MiB", nfMessageMost));
+            }
+            return host.request("net.fetch", JSON.stringify(ask)).then(nfResponse);
+        },
+        "net.socket": function socket(url, options) {
+            const address = nfAddress(url, "wss://example.com/live");
+            const protocols = nfOptions(options, "GS-API-156").protocols ?? [];
+            if (!Array.isArray(protocols) || protocols.length > 8 || !protocols.every((each) =>
+                typeof each === "string" && /^[!#$%&'*+\-.^_`|~0-9A-Za-z]{1,64}$/.test(each))) {
+                throw new TypeError("GS-API-156 protocols is a list of at most 8 names such as \"chat\"");
+            }
+            return host.request("net.socket", JSON.stringify({ url: address, protocols })).then((made) => {
+                const state = { handle: String(made?.handle ?? ""), url: String(made?.url ?? address),
+                    protocol: String(made?.protocol ?? ""), open: true, messages: new Set(), closes: new Set() };
+                nfSockets.set(state.handle, state);
+                const live = freeze(new NetSocket(world, state));
+                own(() => live.close());
+                return live;
+            });
+        },
+        "files.pick": function pick(options) {
+            const given = nfOptions(options, "GS-API-161");
+            const save = given.save ?? false;
+            const filters = given.filters ?? [];
+            const suggestedName = given.suggestedName ?? "";
+            if (typeof save !== "boolean" || typeof suggestedName !== "string") {
+                throw new TypeError("GS-API-161 save must be true or false, and suggestedName text");
+            }
+            if (!Array.isArray(filters) || filters.length > 8 || !filters.every((each) => each !== null &&
+                typeof each === "object" && typeof each.name === "string" && Array.isArray(each.extensions))) {
+                throw new TypeError("GS-API-161 filters is a list of at most 8 kinds of file, such as " +
+                    "{ name: \"Images\", extensions: [\"png\", \"jpg\"] }");
+            }
+            const kinds = filters.map((each) => ({ name: each.name, extensions: [...each.extensions] }));
+            return host.request("files.pick", JSON.stringify({ save, filters: kinds, suggestedName })).then((made) =>
+                made === null || typeof made !== "object" ? null : freeze(new FileHandle(world, {
+                    handle: String(made.handle ?? ""), name: String(made.name ?? ""), folder: false, open: true })));
+        },
+        "files.folder": function folder(name) {
+            if (typeof name !== "string" || !/^[a-z0-9-]{1,32}$/.test(name)) {
+                throw new TypeError("GS-API-161 a folder is named with 1 to 32 lowercase letters, digits and " +
+                    "hyphens, as the manifest declares it");
+            }
+            return host.request("files.folder", JSON.stringify({ name })).then((made) =>
+                freeze(new FolderHandle(world, { handle: String(made?.handle ?? ""), name: String(made?.name ?? name),
+                    folder: true, open: true })));
+        },
+    };
+)js",
     R"js(    const library = {
         ...hardwareLibrary,
         ...netLibrary,
@@ -3576,6 +4052,7 @@ inline constexpr std::array<std::string_view, 19> kPreludeParts{
         ...mediaLibrary,
         ...convertLibrary,
         ...visionLibrary,
+        ...netFilesLibrary,
         every(intervalMs, handler, options) {
             return timed(intervalOf(intervalMs), handler, options, "every(" + intervalMs + ")", true);
         },

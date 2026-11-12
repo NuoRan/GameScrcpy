@@ -200,6 +200,7 @@ gs_add_unit_test(gs_script_tests
         unit/script/MediaApiTests.cpp
         unit/script/ModulePathTests.cpp
         unit/script/NativeHeaderTests.cpp
+        unit/script/NetFilesApiTests.cpp
         unit/script/ReportTests.cpp
         unit/script/ResourcesTests.cpp
         unit/script/ScriptApiTests.cpp
@@ -449,6 +450,7 @@ if(GS_BUILD_APP)
             unit/app/ExtensionPanelsTests.cpp
             unit/app/ExtensionServicesTests.cpp
             unit/app/FailureAdviceTests.cpp
+            unit/app/FileAccessTests.cpp
             unit/app/FilterBudgetTests.cpp
             unit/app/GamepadPassthroughTests.cpp
             unit/app/GridTests.cpp
@@ -479,6 +481,7 @@ if(GS_BUILD_APP)
             unit/app/MediaFramesTests.cpp
             unit/app/NativeExtensionTests.cpp
             unit/app/NativeMediaTests.cpp
+            unit/app/NetAccessTests.cpp
             unit/app/OfflineNetworkTests.cpp
             unit/app/PhoneFilesTests.cpp
             unit/app/PhoneStatusTests.cpp
@@ -640,9 +643,13 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/NativeExtensions.h"
             "${PROJECT_SOURCE_DIR}/src/app/NativeJobs.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/NativeJobs.h"
+            "${PROJECT_SOURCE_DIR}/src/app/NetAccess.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/NetAccess.h"
             "${PROJECT_SOURCE_DIR}/src/app/TouchMethods.h"
             "${PROJECT_SOURCE_DIR}/src/app/FailureAdvice.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/FailureAdvice.h"
+            "${PROJECT_SOURCE_DIR}/src/app/FileAccess.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/FileAccess.h"
             "${PROJECT_SOURCE_DIR}/src/app/FileTransfers.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/FileTransfers.h"
             "${PROJECT_SOURCE_DIR}/src/app/FilterBudget.cpp"
@@ -691,6 +698,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/LogicReferences.h"
             "${PROJECT_SOURCE_DIR}/src/app/LogicServices.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/LogicServices.h"
+            "${PROJECT_SOURCE_DIR}/src/app/LogicUploads.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/LogicUploads.h"
             "${PROJECT_SOURCE_DIR}/src/app/McpBlueprint.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/McpBlueprint.h"
             "${PROJECT_SOURCE_DIR}/src/app/McpDrafts.cpp"
@@ -779,6 +788,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/WindowFit.h"
             "${PROJECT_SOURCE_DIR}/src/app/Converters.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/Converters.h"
+            "${PROJECT_SOURCE_DIR}/src/app/WebSocketClient.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/WebSocketClient.h"
         LIBRARIES
             gs::adb
             gs::blueprint

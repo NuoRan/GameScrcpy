@@ -1014,12 +1014,32 @@ struct SettingDeclaration {
     friend bool operator==(const SettingDeclaration&, const SettingDeclaration&) = default;
 };
 
+inline constexpr std::size_t kMaxPermissionFolders = 16;
+inline constexpr std::string_view kNetworkPermission = "network";
+inline constexpr std::string_view kFilesPickPermission = "files.pick";
+inline constexpr std::string_view kFilesPathsPermission = "files.paths";
+
+struct PermissionFolder {
+    std::string name;
+    std::string purpose;
+
+    template <typename V, typename Self>
+    static void visit(V& v, Self& m)
+    {
+        v.text("name", m.name, {.required = true, .maxLength = kMaxPanelNameLength, .format = TextFormat::PanelName});
+        v.text("purpose", m.purpose, {.required = true, .maxLength = kMaxReasonLength});
+    }
+
+    friend bool operator==(const PermissionFolder&, const PermissionFolder&) = default;
+};
+
 struct Permission {
     std::string name;
     std::string reason;
     std::vector<std::string> hosts;
     std::vector<std::string> paths;
     std::optional<std::int64_t> maxDevices;
+    std::vector<PermissionFolder> folders;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -1030,6 +1050,7 @@ struct Permission {
         v.textList("hosts", m.hosts, {.maxItems = 64, .maxLength = 260});
         v.textList("paths", m.paths, {.maxItems = 64, .maxLength = 260});
         v.integer("maxDevices", m.maxDevices, 1, 64);
+        v.objectList("folders", m.folders, kMaxPermissionFolders);
     }
 
     friend bool operator==(const Permission&, const Permission&) = default;
@@ -1097,6 +1118,7 @@ struct LoadedManifest {
 [[nodiscard]] std::optional<ExtensionPoint> extensionPointNamed(std::string_view name) noexcept;
 [[nodiscard]] std::string_view nameOf(ExtensionPoint point) noexcept;
 [[nodiscard]] bool validExtensionId(std::string_view id);
+[[nodiscard]] bool hostListed(const std::vector<std::string>& hosts, std::string_view host, int port);
 [[nodiscard]] bool settingAccepts(const SettingDeclaration& setting, const SettingValue& value);
 [[nodiscard]] LoadedManifest loadManifest(std::string_view json, const LoadOptions& options = {});
 [[nodiscard]] std::string saveManifest(const Manifest& manifest);

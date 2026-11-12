@@ -20,6 +20,7 @@
 #include "ExtensionLogic.h"
 #include "ExtensionPanels.h"
 #include "ExtensionServices.h"
+#include "FileAccess.h"
 #include "GridWindow.h"
 #include "HardwareAccess.h"
 #include "HardwareClaims.h"
@@ -39,6 +40,7 @@
 #include "NativeEvents.h"
 #include "NativeExtensions.h"
 #include "NativeJobs.h"
+#include "NetAccess.h"
 #include "Recordings.h"
 #include "OfflineNetwork.h"
 #include "ProfileLibrary.h"
@@ -459,6 +461,13 @@ int main(int argc, char* argv[])
     mediaFrames.setSettings(&settings);
     mediaFrames.follow(extensions);
     mediaFrames.offerServices();
+    gs::app::NetAccess netAccess(nullptr);
+    netAccess.useSystemProxy();
+    netAccess.follow(extensions);
+    netAccess.offerServices();
+    gs::app::FileAccess fileAccess(data / "logic-folders.json");
+    fileAccess.follow(extensions);
+    fileAccess.offerServices();
     gs::app::NativeJobs nativeJobs(*extensions.native());
     nativeJobs.offerServices();
     gs::app::SpeechEngines speechEngines(nullptr);

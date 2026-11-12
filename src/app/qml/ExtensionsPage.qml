@@ -830,7 +830,8 @@ Item {
                                 Button {
                                     objectName: "extensionSettings"
                                     visible: ExtensionLook.showsSettings(card.modelData,
-                                                                         (HardwareAccess.grants[card.modelData.id] ?? []).length)
+                                                                         (HardwareAccess.grants[card.modelData.id] ?? []).length
+                                                                         + (FileAccess.folders[card.modelData.id] ?? []).length)
                                              || ExtensionPanels.panels.some(each => each.where === "extension"
                                                                                     && each.extension === card.modelData.id)
                                     small: true
@@ -1050,7 +1051,8 @@ Item {
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignTop
                             textFormat: Text.PlainText
-                            text: permissionRow.modelData.reason
+                            text: [permissionRow.modelData.reason ?? "", permissionRow.modelData.scope ?? ""]
+                                  .filter(part => part !== "").join("\n")
                             color: Theme.colors.textSecondary
                             font.pixelSize: Theme.type.caption.size
                             wrapMode: Text.Wrap

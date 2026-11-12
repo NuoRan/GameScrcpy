@@ -116,6 +116,7 @@ enum class Code : std::uint8_t {
     AiProviderInvalid,
     VisionEngineInvalid,
     LocaleInvalid,
+    PermissionPathsFixed,
 };
 
 struct Diagnostic {

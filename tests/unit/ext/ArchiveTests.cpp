@@ -181,7 +181,8 @@ TEST_CASE("archive paths must stay inside the package and be valid file names on
     }
     for (const char* path : {"",      "/",        "/etc/passwd",  "../x",     "a/../../x", "./x",  "a/./b",
                              "a//b",  "C:/x",     "c:x",          "a\\b",     "con",       "CON.txt",
-                             "dir/Nul.json", "com1", "LPT9.dat", "COM\xC2\xB9.txt", "a.", "a/b ", "tab\there",
+                             "dir/Nul.json", "com1", "LPT9.dat", "COM\xC2\xB9.txt", "con .txt", "dir/Aux  .json",
+                             "CONIN$", "conout$.log", "a.", "a/b ", "tab\there",
                              "a*b",   "a?b",      "a\"b",         "a<b",      "a>b",       "a|b",  "\x7F"}) {
         CAPTURE(path);
         CHECK_FALSE(safeArchivePath(path));

@@ -15,7 +15,7 @@ Positions are ratios of the phone picture: (0, 0) is the top left corner and (1,
 - [`ui`](ui.md): Messages, questions and drawings in the phone's mirror window.
 - [`input`](input.md): What the user holds and points at, readable only while the phone's mirror window is in front.
 - [`hardware`](hardware.md): Serial ports, USB HID devices and Bluetooth LE devices the user allows. Every logic, your own too, can only open the devices the user ticked; the logic of an extension also needs the permission hardware.
-- [`net`](net.md): Connections from programs on this computer over HTTP on 127.0.0.1; the logic of an extension needs the permission network.listen.
+- [`net`](net.md): Web services over https and WebSocket, made by GameScrcpy for the logic, and connections from programs on this computer over HTTP on 127.0.0.1. The logic of an extension needs the permission network, which lists the hosts it may reach, and network.listen to listen.
 - [`speech`](speech.md): Reading text aloud and listening for voice commands, with Windows or an engine that an extension provides; the logic of an extension needs the permission speech.listen to listen.
 - [`window`](window.md): The phone's mirror window.
 - [`vision`](vision.md): Finding pictures in the phone's picture: the next frame, or the picture already shown when none comes within 0.25 s.
@@ -31,6 +31,7 @@ Positions are ratios of the phone picture: (0, 0) is the top left corner and (1,
 - [`events`](events.md): Events of GameScrcpy itself, such as a phone connecting, and events that the native DLL of an extension sends to the extension's own logic and panels and to the logic of the extensions that depend on it.
 - [`ai`](ai.md): Questions from logic to the AI service set up in Settings, AI; they work only while Let logic call AI is on there.
 - [`media`](media.md): The phone's picture as frames, for analysis and AI; the logic of an extension needs the permission media.read.
+- [`files`](files.md): Files the user picks and folders the user chooses for the logic. The logic of an extension needs the permission files.pick to pick files, and files.paths, which names its folders, to open folders.
 
 ## Objects
 
@@ -739,6 +740,48 @@ A recognition engine from vision.engine().
 | `read(region?: Region \| RegionName, params?: VisionParams): Promise<readonly VisionText[] \| null>` | Reads text, as vision.recognize(id, "ocr", region, params) does. |
 | `detect(region?: Region \| RegionName, params?: VisionParams): Promise<readonly VisionObject[] \| null>` | Finds things, as vision.recognize(id, "detect", region, params) does. |
 | `classify(region?: Region \| RegionName, params?: VisionParams): Promise<readonly VisionClass[] \| null>` | Tells what the picture shows, as vision.recognize(id, "classify", region, params) does. |
+
+### NetSocket
+
+A WebSocket connection made by net.socket().
+
+| Member | Description |
+|---|---|
+| `readonly url: string` | The address it is connected to. |
+| `readonly protocol: string` | The subprotocol the server took, or an empty text. |
+| `readonly isOpen: boolean` | Whether messages can still be sent. |
+| `send(data: string \| HardwareBytes): void` | Sends a text message, or a binary one for bytes, of at most 1 MiB. Throws GS-API-159 when the socket is closed and GS-API-157 when 16 MiB are waiting to be sent already. |
+| `close(code?: number, reason?: string): void` | Closes the socket with code 1000, or one from 3000 to 4999, and a reason of at most 123 bytes; onClose does not run for it. |
+| `onMessage(handler: (event: NetMessageEvent) => void \| Promise<void>, options?: ListenOptions): Subscription` | Starts a task for each message; by default the messages queue, so none is lost. |
+| `onClose(handler: (event: NetCloseEvent) => void \| Promise<void>, options?: ListenOptions): Subscription` | Starts a task when the server or the network closes the socket. |
+
+### FileHandle
+
+A file the user picked with files.pick().
+
+| Member | Description |
+|---|---|
+| `readonly name: string` | The name of the file, without its folder. |
+| `readonly isOpen: boolean` | Whether the handle can still be used. |
+| `read(): Promise<Uint8Array>` | Reads the whole file, up to 64 MiB. Throws GS-API-162 when Windows cannot read it or it changes while it is read, GS-API-163 when it is larger and GS-API-164 when the handle is closed. |
+| `text(): Promise<string>` | Reads the whole file as UTF-8 text, leaving out a byte order mark. |
+| `write(data: string \| HardwareBytes): Promise<void>` | Replaces the whole file with the text, as UTF-8, or the bytes, up to 64 MiB; a file the user named in the save dialog is made at the first write. |
+| `close(): void` | Gives up the file; the handle can no longer be used. |
+
+### FolderHandle
+
+A folder chosen for files.folder(). Paths inside it use / between names; .., drives and links that lead out of it are refused with GS-API-161, and what Windows cannot do with GS-API-162.
+
+| Member | Description |
+|---|---|
+| `readonly name: string` | The name the manifest gives the folder. |
+| `readonly isOpen: boolean` | Whether the handle can still be used. |
+| `list(path?: string): Promise<readonly FolderEntry[]>` | Lists up to 4096 files and folders, sorted by name, at the top of the folder or in a folder inside it. |
+| `read(path: string): Promise<Uint8Array>` | Reads a file inside the folder, up to 64 MiB. |
+| `text(path: string): Promise<string>` | Reads a file inside the folder as UTF-8 text, leaving out a byte order mark. |
+| `write(path: string, data: string \| HardwareBytes): Promise<void>` | Replaces or makes a file inside the folder, with the folders on its path, up to 64 MiB. |
+| `remove(path: string): Promise<boolean>` | Removes a file, or a folder with nothing in it; resolves with false when there was nothing to remove. |
+| `close(): void` | Gives up the folder; the handle can no longer be used. |
 
 ## Types
 
@@ -1932,4 +1975,68 @@ One thing recognize() found: a VisionText for "ocr", a VisionObject for "detect"
 
 ```ts
 type VisionResult = VisionText | VisionObject | VisionClass;
+```
+
+### NetFetchOptions
+
+How net.fetch() asks: the method (GET unless given), up to 64 headers besides those GameScrcpy sets itself, such as host and content-length, a body of text, sent as UTF-8 with content-type text/plain unless a header says otherwise, or of bytes, and timeoutMs, from 1000 to 60000 milliseconds (15000 by default), for the whole request.
+
+```ts
+type NetFetchOptions = { readonly method?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS"; readonly headers?: Readonly<Record<string, string>>; readonly body?: string | HardwareBytes; readonly timeoutMs?: number };
+```
+
+### NetResponse
+
+The answer to net.fetch(): its status, 404 and 500 too, the address it came from after redirects, its headers with lowercase names, and its body as text, bytes or parsed JSON.
+
+```ts
+type NetResponse = { readonly status: number; readonly url: string; readonly headers: Readonly<Record<string, string>>; readonly text: string; readonly bytes: Uint8Array; json(): unknown };
+```
+
+### NetSocketOptions
+
+Up to 8 subprotocols to offer the server, such as "graphql-ws"; the protocol of the socket says which one it took.
+
+```ts
+type NetSocketOptions = { readonly protocols?: readonly string[] };
+```
+
+### NetMessageEvent
+
+What onMessage receives: a text message as a string, or a binary one as bytes when binary is true.
+
+```ts
+type NetMessageEvent = TaskContext & { readonly data: string | Uint8Array; readonly binary: boolean };
+```
+
+### NetCloseEvent
+
+Why a socket closed by itself: the code and reason the server gave, 1006 when the connection was lost, and whether both sides closed it cleanly.
+
+```ts
+type NetCloseEvent = TaskContext & { readonly code: number; readonly reason: string; readonly clean: boolean };
+```
+
+### FilePickOptions
+
+save shows the dialog to save a file instead of the one to open a file; filters are up to 8 kinds of file the dialog offers; suggestedName is the file name the dialog starts with, without a folder.
+
+```ts
+type FilePickOptions = { readonly save?: boolean; readonly filters?: readonly FileFilter[]; readonly suggestedName?: string };
+```
+
+### FileFilter
+
+A kind of file in the dialog: its name, up to 60 characters, and 1 to 16 extensions without the dot, such as ["png", "jpg"].
+
+```ts
+type FileFilter = { readonly name: string; readonly extensions: readonly string[] };
+```
+
+### FolderEntry
+
+A file or folder in a FolderHandle: its name, its path from the top of the folder, whether it is a folder, its size in bytes and when it last changed, in milliseconds since 1970.
+
+```ts
+type FolderEntry = { readonly name: string; readonly path: string; readonly folder: boolean; readonly size: number; readonly modified: number };
 ```

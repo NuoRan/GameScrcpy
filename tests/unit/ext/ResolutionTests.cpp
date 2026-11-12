@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
 #include <vector>
 
 using namespace gs::ext;
@@ -174,4 +175,28 @@ TEST_CASE("an update names the permissions it adds or widens and the dependencie
     Manifest unlimited = before;
     unlimited.permissions[1].maxDevices.reset();
     CHECK(compareForUpdate(before, unlimited).addedPermissions.size() == 1);
+}
+
+TEST_CASE("ADR-0112: an update that names a new folder under files.paths asks again, other folder changes do not")
+{
+    Manifest before = extension("alice.app", "1.0.0");
+    before.requirements.insert_or_assign(ExtensionPoint::Script, *VersionRange::parse("^1.0"));
+    before.permissions = {Permission{.name = "files.paths",
+                                     .reason = "r",
+                                     .folders = {{.name = "exports", .purpose = "Where it saves."},
+                                                 {.name = "saves", .purpose = "Where it keeps saves."}}}};
+
+    Manifest after = before;
+    after.version = *Version::parse("1.1.0");
+    after.permissions[0].folders[0].purpose = "Where it saves your recordings.";
+    std::swap(after.permissions[0].folders[0], after.permissions[0].folders[1]);
+    CHECK_FALSE(compareForUpdate(before, after).needsConsent());
+    after.permissions[0].folders.pop_back();
+    CHECK_FALSE(compareForUpdate(before, after).needsConsent());
+
+    after.permissions[0].folders.push_back({.name = "photos", .purpose = "Where it reads photos."});
+    const UpdateChanges changes = compareForUpdate(before, after);
+    CHECK(changes.needsConsent());
+    REQUIRE(changes.addedPermissions.size() == 1);
+    CHECK(changes.addedPermissions.front().name == "files.paths");
 }

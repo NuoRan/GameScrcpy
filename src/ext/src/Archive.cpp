@@ -24,8 +24,8 @@ constexpr std::uint32_t kFileTypeMask = 0170000;
 constexpr std::uint32_t kSymbolicLink = 0120000;
 constexpr std::time_t kPackedTime = 315532800;
 constexpr std::string_view kForbidden = "\\:*?\"<>|";
-constexpr std::array<std::string_view, 30> kReservedNames{
-    "con",  "prn",  "aux",  "nul",  "com0", "com1", "com2", "com3", "com4", "com5",
+constexpr std::array<std::string_view, 32> kReservedNames{
+    "con",  "prn",  "aux",  "nul",  "conin$", "conout$", "com0", "com1", "com2", "com3", "com4", "com5",
     "com6", "com7", "com8", "com9", "com\xC2\xB9", "com\xC2\xB2", "com\xC2\xB3", "lpt0", "lpt1", "lpt2",
     "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9", "lpt\xC2\xB9", "lpt\xC2\xB2", "lpt\xC2\xB3"};
 
@@ -50,7 +50,11 @@ std::filesystem::path pathOf(std::string_view text)
 
 bool reservedSegment(std::string_view segment)
 {
-    return std::ranges::find(kReservedNames, lowered(segment.substr(0, segment.find('.')))) != kReservedNames.end();
+    std::string_view stem = segment.substr(0, segment.find('.'));
+    while (stem.ends_with(' ')) {
+        stem.remove_suffix(1);
+    }
+    return std::ranges::find(kReservedNames, lowered(stem)) != kReservedNames.end();
 }
 
 bool isLink(const mz_zip_archive_file_stat& stat)

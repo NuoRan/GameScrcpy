@@ -160,14 +160,19 @@ QString windowsName(const QString& name)
     if (safe.isEmpty()) {
         return QStringLiteral("_");
     }
-    static const QStringList reserved{
-        QStringLiteral("CON"),  QStringLiteral("PRN"),  QStringLiteral("AUX"),  QStringLiteral("NUL"),
-        QStringLiteral("COM1"), QStringLiteral("COM2"), QStringLiteral("COM3"), QStringLiteral("COM4"),
-        QStringLiteral("COM5"), QStringLiteral("COM6"), QStringLiteral("COM7"), QStringLiteral("COM8"),
-        QStringLiteral("COM9"), QStringLiteral("LPT1"), QStringLiteral("LPT2"), QStringLiteral("LPT3"),
-        QStringLiteral("LPT4"), QStringLiteral("LPT5"), QStringLiteral("LPT6"), QStringLiteral("LPT7"),
-        QStringLiteral("LPT8"), QStringLiteral("LPT9")};
-    if (reserved.contains(safe.section(u'.', 0, 0).toUpper())) {
+    static const QStringList reserved = [] {
+        QStringList names{QStringLiteral("CON"), QStringLiteral("PRN"),    QStringLiteral("AUX"),
+                          QStringLiteral("NUL"), QStringLiteral("CONIN$"), QStringLiteral("CONOUT$")};
+        for (const QChar digit : QStringView(u"0123456789\u00B9\u00B2\u00B3")) {
+            names << QStringLiteral("COM") + digit << QStringLiteral("LPT") + digit;
+        }
+        return names;
+    }();
+    QString stem = safe.section(u'.', 0, 0);
+    while (stem.endsWith(u' ')) {
+        stem.chop(1);
+    }
+    if (reserved.contains(stem.toUpper())) {
         safe.prepend(u'_');
     }
     return safe;

@@ -445,6 +445,30 @@ type VisionClass = { readonly label: string; readonly confidence: number };
 /** One thing recognize() found: a VisionText for "ocr", a VisionObject for "detect" and a VisionClass for "classify". */
 type VisionResult = VisionText | VisionObject | VisionClass;
 
+/** How net.fetch() asks: the method (GET unless given), up to 64 headers besides those GameScrcpy sets itself, such as host and content-length, a body of text, sent as UTF-8 with content-type text/plain unless a header says otherwise, or of bytes, and timeoutMs, from 1000 to 60000 milliseconds (15000 by default), for the whole request. */
+type NetFetchOptions = { readonly method?: "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE" | "OPTIONS"; readonly headers?: Readonly<Record<string, string>>; readonly body?: string | HardwareBytes; readonly timeoutMs?: number };
+
+/** The answer to net.fetch(): its status, 404 and 500 too, the address it came from after redirects, its headers with lowercase names, and its body as text, bytes or parsed JSON. */
+type NetResponse = { readonly status: number; readonly url: string; readonly headers: Readonly<Record<string, string>>; readonly text: string; readonly bytes: Uint8Array; json(): unknown };
+
+/** Up to 8 subprotocols to offer the server, such as "graphql-ws"; the protocol of the socket says which one it took. */
+type NetSocketOptions = { readonly protocols?: readonly string[] };
+
+/** What onMessage receives: a text message as a string, or a binary one as bytes when binary is true. */
+type NetMessageEvent = TaskContext & { readonly data: string | Uint8Array; readonly binary: boolean };
+
+/** Why a socket closed by itself: the code and reason the server gave, 1006 when the connection was lost, and whether both sides closed it cleanly. */
+type NetCloseEvent = TaskContext & { readonly code: number; readonly reason: string; readonly clean: boolean };
+
+/** save shows the dialog to save a file instead of the one to open a file; filters are up to 8 kinds of file the dialog offers; suggestedName is the file name the dialog starts with, without a folder. */
+type FilePickOptions = { readonly save?: boolean; readonly filters?: readonly FileFilter[]; readonly suggestedName?: string };
+
+/** A kind of file in the dialog: its name, up to 60 characters, and 1 to 16 extensions without the dot, such as ["png", "jpg"]. */
+type FileFilter = { readonly name: string; readonly extensions: readonly string[] };
+
+/** A file or folder in a FolderHandle: its name, its path from the top of the folder, whether it is a folder, its size in bytes and when it last changed, in milliseconds since 1970. */
+type FolderEntry = { readonly name: string; readonly path: string; readonly folder: boolean; readonly size: number; readonly modified: number };
+
 /** A component of the profile in use. Every type below has these members too. */
 interface Component {
     /**
@@ -2304,6 +2328,141 @@ interface VisionEngine {
     classify(region?: Region | RegionName, params?: VisionParams): Promise<readonly VisionClass[] | null>;
 }
 
+/** A WebSocket connection made by net.socket(). */
+interface NetSocket {
+    /**
+     * The address it is connected to.
+     * @example log.info(live.url);
+     */
+    readonly url: string;
+
+    /**
+     * The subprotocol the server took, or an empty text.
+     * @example log.info(live.protocol);
+     */
+    readonly protocol: string;
+
+    /**
+     * Whether messages can still be sent.
+     * @example if (!live.isOpen) return;
+     */
+    readonly isOpen: boolean;
+
+    /**
+     * Sends a text message, or a binary one for bytes, of at most 1 MiB. Throws GS-API-159 when the socket is closed and GS-API-157 when 16 MiB are waiting to be sent already.
+     * @example live.send(JSON.stringify({ subscribe: "scores" }));
+     */
+    send(data: string | HardwareBytes): void;
+
+    /**
+     * Closes the socket with code 1000, or one from 3000 to 4999, and a reason of at most 123 bytes; onClose does not run for it.
+     * @example live.close();
+     */
+    close(code?: number, reason?: string): void;
+
+    /**
+     * Starts a task for each message; by default the messages queue, so none is lost.
+     * @example live.onMessage(({ data, binary }) => log.info(binary ? "bytes" : data));
+     */
+    onMessage(handler: (event: NetMessageEvent) => void | Promise<void>, options?: ListenOptions): Subscription;
+
+    /**
+     * Starts a task when the server or the network closes the socket.
+     * @example live.onClose(({ code, reason }) => log.warn("closed", code, reason));
+     */
+    onClose(handler: (event: NetCloseEvent) => void | Promise<void>, options?: ListenOptions): Subscription;
+}
+
+/** A file the user picked with files.pick(). */
+interface FileHandle {
+    /**
+     * The name of the file, without its folder.
+     * @example log.info(file.name);
+     */
+    readonly name: string;
+
+    /**
+     * Whether the handle can still be used.
+     * @example if (!file.isOpen) return;
+     */
+    readonly isOpen: boolean;
+
+    /**
+     * Reads the whole file, up to 64 MiB. Throws GS-API-162 when Windows cannot read it or it changes while it is read, GS-API-163 when it is larger and GS-API-164 when the handle is closed.
+     * @example const bytes = await file.read();
+     */
+    read(): Promise<Uint8Array>;
+
+    /**
+     * Reads the whole file as UTF-8 text, leaving out a byte order mark.
+     * @example const settings = JSON.parse(await file.text());
+     */
+    text(): Promise<string>;
+
+    /**
+     * Replaces the whole file with the text, as UTF-8, or the bytes, up to 64 MiB; a file the user named in the save dialog is made at the first write.
+     * @example await file.write(JSON.stringify(settings, null, 2));
+     */
+    write(data: string | HardwareBytes): Promise<void>;
+
+    /**
+     * Gives up the file; the handle can no longer be used.
+     * @example file.close();
+     */
+    close(): void;
+}
+
+/** A folder chosen for files.folder(). Paths inside it use / between names; .., drives and links that lead out of it are refused with GS-API-161, and what Windows cannot do with GS-API-162. */
+interface FolderHandle {
+    /**
+     * The name the manifest gives the folder.
+     * @example log.info(exports.name);
+     */
+    readonly name: string;
+
+    /**
+     * Whether the handle can still be used.
+     * @example if (!exports.isOpen) return;
+     */
+    readonly isOpen: boolean;
+
+    /**
+     * Lists up to 4096 files and folders, sorted by name, at the top of the folder or in a folder inside it.
+     * @example for (const entry of await exports.list()) log.info(entry.path, entry.size);
+     */
+    list(path?: string): Promise<readonly FolderEntry[]>;
+
+    /**
+     * Reads a file inside the folder, up to 64 MiB.
+     * @example const picture = await exports.read("shots/last.png");
+     */
+    read(path: string): Promise<Uint8Array>;
+
+    /**
+     * Reads a file inside the folder as UTF-8 text, leaving out a byte order mark.
+     * @example const notes = await exports.text("notes.txt");
+     */
+    text(path: string): Promise<string>;
+
+    /**
+     * Replaces or makes a file inside the folder, with the folders on its path, up to 64 MiB.
+     * @example await exports.write("scores/today.csv", "time,score\n");
+     */
+    write(path: string, data: string | HardwareBytes): Promise<void>;
+
+    /**
+     * Removes a file, or a folder with nothing in it; resolves with false when there was nothing to remove.
+     * @example await exports.remove("scores/old.csv");
+     */
+    remove(path: string): Promise<boolean>;
+
+    /**
+     * Gives up the folder; the handle can no longer be used.
+     * @example exports.close();
+     */
+    close(): void;
+}
+
 /**
  * Waits without blocking other tasks. Rejects with an AbortError when the task is cancelled.
  * @param ms How long to wait, in milliseconds (0 to 2147483647).
@@ -3583,7 +3742,7 @@ declare namespace hardware {
     function release(resource: string): void;
 }
 
-/** Connections from programs on this computer over HTTP on 127.0.0.1; the logic of an extension needs the permission network.listen. */
+/** Web services over https and WebSocket, made by GameScrcpy for the logic, and connections from programs on this computer over HTTP on 127.0.0.1. The logic of an extension needs the permission network, which lists the hosts it may reach, and network.listen to listen. */
 declare namespace net {
     /**
      * Opens an HTTP server on 127.0.0.1 that programs on this computer, such as Stream Deck or OBS, can call; nothing from other computers can reach it. Each request goes to the handler, which answers with an object, a text or nothing (204); a handler that throws answers 500. A server opened in a task closes when the task ends, one opened at the top level when the logic stops.
@@ -3597,6 +3756,32 @@ declare namespace net {
      * @example await net.listen(8765, (request) => ({ json: { path: request.path, query: request.query } }));
      */
     function listen(port: number, handler: (request: NetRequest) => NetAnswer | Promise<NetAnswer>, options?: NetListenOptions): Promise<NetServer>;
+
+    /**
+     * Asks a web service over https and resolves with its answer, whatever its status; GameScrcpy makes the request, so the logic never holds a connection of its own. The logic of an extension may only reach the hosts its manifest lists under the permission network, and redirects are followed only to such hosts; your own logic may reach any https host. The body is at most 1 MiB and the answer at most 8 MiB, and each logic may have 8 requests going at once. Cookies are not kept: set the cookie header yourself when a service needs one. Cancelling the task cancels the request.
+     * @param url An https address on a host this logic may reach, up to 4096 characters.
+     * @param options The method, headers and body of the request, and how long to wait for it.
+     * @throws GS-API-155 when the logic belongs to an extension whose manifest does not ask for the permission network or does not list the host, or the server sends the request on to a host it does not list or to an address that is not https. List the host, such as "api.example.com" or "*.example.com", under hosts of the permission network in the extension's manifest.
+     * @throws GS-API-156 when the address is not https, the method is not GET, HEAD, POST, PUT, PATCH, DELETE or OPTIONS, a header is one GameScrcpy sets itself or one HTTP does not allow, the body is not text or bytes, or timeoutMs is not from 1000 to 60000. Use an https:// address and the options as NetFetchOptions describes.
+     * @throws GS-API-157 when the body is over 1 MiB, the answer over 8 MiB, or the logic has 8 requests going already. Send and ask for less, or wait for a request to finish.
+     * @throws GS-API-158 when the host could not be reached, its certificate is not valid, the connection broke, the server sent the request on more than 5 times, or no answer came within timeoutMs; the message says which. Check the address and the network, or allow more time.
+     * @since 1 (stable)
+     * @example const reply = await net.fetch("https://api.example.com/scores", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ score: 10 }) }); log.info(reply.status, reply.json());
+     */
+    function fetch(url: string, options?: NetFetchOptions): Promise<NetResponse>;
+
+    /**
+     * Opens a WebSocket connection over wss and resolves once the server has taken it; the hosts are the same as for net.fetch. Messages are text or bytes of at most 1 MiB each, and each logic may have 4 sockets open. A socket opened in a task closes when the task ends, one opened at the top level when the logic stops.
+     * @param url A wss address on a host this logic may reach, up to 4096 characters.
+     * @param options The subprotocols to offer the server.
+     * @throws GS-API-155 when the logic belongs to an extension whose manifest does not ask for the permission network or does not list the host, or the server sends the request on to a host it does not list or to an address that is not https. List the host, such as "api.example.com" or "*.example.com", under hosts of the permission network in the extension's manifest.
+     * @throws GS-API-156 when the address is not wss, or a protocol is not a name that HTTP allows. Use a wss:// address and protocols such as "chat".
+     * @throws GS-API-157 when the logic has 4 sockets open already. Close a socket you no longer need.
+     * @throws GS-API-158 when the host could not be reached, its certificate is not valid, or the server did not take the WebSocket connection; the message says why. Check the address, the network and the protocols.
+     * @since 1 (stable)
+     * @example const live = await net.socket("wss://live.example.com/feed"); live.onMessage(({ data }) => log.info(data)); live.send("hello");
+     */
+    function socket(url: string, options?: NetSocketOptions): Promise<NetSocket>;
 }
 
 /** Reading text aloud and listening for voice commands, with Windows or an engine that an extension provides; the logic of an extension needs the permission speech.listen to listen. */
@@ -4680,6 +4865,32 @@ declare namespace media {
     function frames(handler: (frame: TaskContext & { readonly image: CapturedImage; readonly time: number }) => void | Promise<void>, options?: MediaFrameOptions): Subscription;
 }
 
+/** Files the user picks and folders the user chooses for the logic. The logic of an extension needs the permission files.pick to pick files, and files.paths, which names its folders, to open folders. */
+declare namespace files {
+    /**
+     * Shows the Windows dialog to open a file, or with save to save one, and resolves with a handle to the file the user picked, or with null when the user cancels. The handle reads and writes only that file, up to 64 MiB, and lasts until the logic stops. The logic of an extension needs the permission files.pick.
+     * @param options Whether to save, which kinds of file to offer and the name to start with.
+     * @throws GS-API-160 when the logic belongs to an extension whose manifest does not ask for the permission files.pick. Add "files.pick" to the permissions in the extension's manifest, with a reason.
+     * @throws GS-API-161 when the filters or the suggested name are not right. Pass filters such as { name: "Images", extensions: ["png", "jpg"] } and a file name without a folder.
+     * @throws GS-API-163 when the logic has 64 files and folders open, or 8 requests for files and folders are waiting. Close the handles you no longer need, or wait for the user to answer.
+     * @since 1 (stable)
+     * @example const file = await files.pick({ filters: [{ name: "Profiles", extensions: ["json"] }] }); if (file) log.info(file.name, (await file.text()).length);
+     */
+    function pick(options?: FilePickOptions): Promise<FileHandle | null>;
+
+    /**
+     * Opens a folder chosen for this logic. The first time, GameScrcpy asks the user to choose the real folder and remembers it; the user can forget it in the extension's settings, or for your own logic in Settings, General. The handle lists, reads, writes and removes what is inside that folder and nothing else, and lasts until the logic stops.
+     * @param name A folder that the extension's manifest names under the permission files.paths, such as "exports"; your own logic may use any name of 1 to 32 lowercase letters, digits and hyphens.
+     * @throws GS-API-160 when the logic belongs to an extension whose manifest does not name the folder under the permission files.paths. Name the folder in folders of the permission files.paths, such as { "name": "exports", "purpose": "Where it saves your recordings." }.
+     * @throws GS-API-161 when the name is not 1 to 32 lowercase letters, digits and hyphens. Use the name as the manifest declares it.
+     * @throws GS-API-163 when the logic has 64 files and folders open, or 8 requests for files and folders are waiting. Close the handles you no longer need, or wait for the user to answer.
+     * @throws GS-API-164 when the user closed the dialog without choosing a folder. Ask again when the user wants it, and say in the purpose why the extension needs the folder.
+     * @since 1 (stable)
+     * @example const exports = await files.folder("exports"); await exports.write("scores/today.csv", "time,score\n");
+     */
+    function folder(name: string): Promise<FolderHandle>;
+}
+
 /** The events of the group of items that ui.menu() puts into the right-click menu. */
 declare namespace ui.menu {
     /**
@@ -4773,4 +4984,5 @@ declare module "gamescrcpy" {
     export import events = globalThis.events;
     export import ai = globalThis.ai;
     export import media = globalThis.media;
+    export import files = globalThis.files;
 }

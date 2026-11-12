@@ -1032,7 +1032,7 @@
     "label": "net",
     "kind": "namespace",
     "detail": "net",
-    "documentation": "Connections from programs on this computer over HTTP on 127.0.0.1; the logic of an extension needs the permission network.listen.",
+    "documentation": "Web services over https and WebSocket, made by GameScrcpy for the logic, and connections from programs on this computer over HTTP on 127.0.0.1. The logic of an extension needs the permission network, which lists the hosts it may reach, and network.listen to listen.",
     "insertText": "net"
   },
   {
@@ -1041,6 +1041,20 @@
     "detail": "net.listen(port: number, handler: (request: NetRequest) => NetAnswer | Promise<NetAnswer>, options?: NetListenOptions): Promise<NetServer>",
     "documentation": "Opens an HTTP server on 127.0.0.1 that programs on this computer, such as Stream Deck or OBS, can call; nothing from other computers can reach it. Each request goes to the handler, which answers with an object, a text or nothing (204); a handler that throws answers 500. A server opened in a task closes when the task ends, one opened at the top level when the logic stops.",
     "insertText": "net.listen(${1:port}, ${2:handler})"
+  },
+  {
+    "label": "net.fetch",
+    "kind": "function",
+    "detail": "net.fetch(url: string, options?: NetFetchOptions): Promise<NetResponse>",
+    "documentation": "Asks a web service over https and resolves with its answer, whatever its status; GameScrcpy makes the request, so the logic never holds a connection of its own. The logic of an extension may only reach the hosts its manifest lists under the permission network, and redirects are followed only to such hosts; your own logic may reach any https host. The body is at most 1 MiB and the answer at most 8 MiB, and each logic may have 8 requests going at once. Cookies are not kept: set the cookie header yourself when a service needs one. Cancelling the task cancels the request.",
+    "insertText": "net.fetch(${1:url})"
+  },
+  {
+    "label": "net.socket",
+    "kind": "function",
+    "detail": "net.socket(url: string, options?: NetSocketOptions): Promise<NetSocket>",
+    "documentation": "Opens a WebSocket connection over wss and resolves once the server has taken it; the hosts are the same as for net.fetch. Messages are text or bytes of at most 1 MiB each, and each logic may have 4 sockets open. A socket opened in a task closes when the task ends, one opened at the top level when the logic stops.",
+    "insertText": "net.socket(${1:url})"
   },
   {
     "label": "speech",
@@ -1790,6 +1804,27 @@
     "detail": "media.frames(handler: (frame: TaskContext & { readonly image: CapturedImage; readonly time: number }) => void | Promise<void>, options?: MediaFrameOptions): Subscription",
     "documentation": "Hands the phone's picture to a handler: the frame shown when it starts, then new ones, at most fps a second (2 by default), made smaller so that the long side is at most size pixels (640 by default), and cut to region when one is given. The image is a CapturedImage as vision.capture() gives; it stays usable while its handler runs and until two newer frames came. Frames taken in a task stop when the task ends, ones taken at the top level when the logic stops.",
     "insertText": "media.frames(${1:handler})"
+  },
+  {
+    "label": "files",
+    "kind": "namespace",
+    "detail": "files",
+    "documentation": "Files the user picks and folders the user chooses for the logic. The logic of an extension needs the permission files.pick to pick files, and files.paths, which names its folders, to open folders.",
+    "insertText": "files"
+  },
+  {
+    "label": "files.pick",
+    "kind": "function",
+    "detail": "files.pick(options?: FilePickOptions): Promise<FileHandle | null>",
+    "documentation": "Shows the Windows dialog to open a file, or with save to save one, and resolves with a handle to the file the user picked, or with null when the user cancels. The handle reads and writes only that file, up to 64 MiB, and lasts until the logic stops. The logic of an extension needs the permission files.pick.",
+    "insertText": "files.pick()"
+  },
+  {
+    "label": "files.folder",
+    "kind": "function",
+    "detail": "files.folder(name: string): Promise<FolderHandle>",
+    "documentation": "Opens a folder chosen for this logic. The first time, GameScrcpy asks the user to choose the real folder and remembers it; the user can forget it in the extension's settings, or for your own logic in Settings, General. The handle lists, reads, writes and removes what is inside that folder and nothing else, and lasts until the logic stops.",
+    "insertText": "files.folder(${1:name})"
   },
   {
     "label": "ui.menu.on",
@@ -3745,6 +3780,153 @@
     "insertText": "classify(${1})"
   },
   {
+    "label": "NetSocket.url",
+    "kind": "property",
+    "detail": "readonly url: string",
+    "documentation": "The address it is connected to.",
+    "insertText": "url"
+  },
+  {
+    "label": "NetSocket.protocol",
+    "kind": "property",
+    "detail": "readonly protocol: string",
+    "documentation": "The subprotocol the server took, or an empty text.",
+    "insertText": "protocol"
+  },
+  {
+    "label": "NetSocket.isOpen",
+    "kind": "property",
+    "detail": "readonly isOpen: boolean",
+    "documentation": "Whether messages can still be sent.",
+    "insertText": "isOpen"
+  },
+  {
+    "label": "NetSocket.send",
+    "kind": "method",
+    "detail": "send(data: string | HardwareBytes): void",
+    "documentation": "Sends a text message, or a binary one for bytes, of at most 1 MiB. Throws GS-API-159 when the socket is closed and GS-API-157 when 16 MiB are waiting to be sent already.",
+    "insertText": "send(${1})"
+  },
+  {
+    "label": "NetSocket.close",
+    "kind": "method",
+    "detail": "close(code?: number, reason?: string): void",
+    "documentation": "Closes the socket with code 1000, or one from 3000 to 4999, and a reason of at most 123 bytes; onClose does not run for it.",
+    "insertText": "close(${1})"
+  },
+  {
+    "label": "NetSocket.onMessage",
+    "kind": "method",
+    "detail": "onMessage(handler: (event: NetMessageEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task for each message; by default the messages queue, so none is lost.",
+    "insertText": "onMessage(${1})"
+  },
+  {
+    "label": "NetSocket.onClose",
+    "kind": "method",
+    "detail": "onClose(handler: (event: NetCloseEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+    "documentation": "Starts a task when the server or the network closes the socket.",
+    "insertText": "onClose(${1})"
+  },
+  {
+    "label": "FileHandle.name",
+    "kind": "property",
+    "detail": "readonly name: string",
+    "documentation": "The name of the file, without its folder.",
+    "insertText": "name"
+  },
+  {
+    "label": "FileHandle.isOpen",
+    "kind": "property",
+    "detail": "readonly isOpen: boolean",
+    "documentation": "Whether the handle can still be used.",
+    "insertText": "isOpen"
+  },
+  {
+    "label": "FileHandle.read",
+    "kind": "method",
+    "detail": "read(): Promise<Uint8Array>",
+    "documentation": "Reads the whole file, up to 64 MiB. Throws GS-API-162 when Windows cannot read it or it changes while it is read, GS-API-163 when it is larger and GS-API-164 when the handle is closed.",
+    "insertText": "read(${1})"
+  },
+  {
+    "label": "FileHandle.text",
+    "kind": "method",
+    "detail": "text(): Promise<string>",
+    "documentation": "Reads the whole file as UTF-8 text, leaving out a byte order mark.",
+    "insertText": "text(${1})"
+  },
+  {
+    "label": "FileHandle.write",
+    "kind": "method",
+    "detail": "write(data: string | HardwareBytes): Promise<void>",
+    "documentation": "Replaces the whole file with the text, as UTF-8, or the bytes, up to 64 MiB; a file the user named in the save dialog is made at the first write.",
+    "insertText": "write(${1})"
+  },
+  {
+    "label": "FileHandle.close",
+    "kind": "method",
+    "detail": "close(): void",
+    "documentation": "Gives up the file; the handle can no longer be used.",
+    "insertText": "close(${1})"
+  },
+  {
+    "label": "FolderHandle.name",
+    "kind": "property",
+    "detail": "readonly name: string",
+    "documentation": "The name the manifest gives the folder.",
+    "insertText": "name"
+  },
+  {
+    "label": "FolderHandle.isOpen",
+    "kind": "property",
+    "detail": "readonly isOpen: boolean",
+    "documentation": "Whether the handle can still be used.",
+    "insertText": "isOpen"
+  },
+  {
+    "label": "FolderHandle.list",
+    "kind": "method",
+    "detail": "list(path?: string): Promise<readonly FolderEntry[]>",
+    "documentation": "Lists up to 4096 files and folders, sorted by name, at the top of the folder or in a folder inside it.",
+    "insertText": "list(${1})"
+  },
+  {
+    "label": "FolderHandle.read",
+    "kind": "method",
+    "detail": "read(path: string): Promise<Uint8Array>",
+    "documentation": "Reads a file inside the folder, up to 64 MiB.",
+    "insertText": "read(${1})"
+  },
+  {
+    "label": "FolderHandle.text",
+    "kind": "method",
+    "detail": "text(path: string): Promise<string>",
+    "documentation": "Reads a file inside the folder as UTF-8 text, leaving out a byte order mark.",
+    "insertText": "text(${1})"
+  },
+  {
+    "label": "FolderHandle.write",
+    "kind": "method",
+    "detail": "write(path: string, data: string | HardwareBytes): Promise<void>",
+    "documentation": "Replaces or makes a file inside the folder, with the folders on its path, up to 64 MiB.",
+    "insertText": "write(${1})"
+  },
+  {
+    "label": "FolderHandle.remove",
+    "kind": "method",
+    "detail": "remove(path: string): Promise<boolean>",
+    "documentation": "Removes a file, or a folder with nothing in it; resolves with false when there was nothing to remove.",
+    "insertText": "remove(${1})"
+  },
+  {
+    "label": "FolderHandle.close",
+    "kind": "method",
+    "detail": "close(): void",
+    "documentation": "Gives up the folder; the handle can no longer be used.",
+    "insertText": "close(${1})"
+  },
+  {
     "label": "AbortSignal",
     "kind": "type",
     "detail": "type AbortSignal",
@@ -4786,5 +4968,61 @@
     "detail": "type VisionResult",
     "documentation": "One thing recognize() found: a VisionText for \"ocr\", a VisionObject for \"detect\" and a VisionClass for \"classify\".",
     "insertText": "VisionResult"
+  },
+  {
+    "label": "NetFetchOptions",
+    "kind": "type",
+    "detail": "type NetFetchOptions",
+    "documentation": "How net.fetch() asks: the method (GET unless given), up to 64 headers besides those GameScrcpy sets itself, such as host and content-length, a body of text, sent as UTF-8 with content-type text/plain unless a header says otherwise, or of bytes, and timeoutMs, from 1000 to 60000 milliseconds (15000 by default), for the whole request.",
+    "insertText": "NetFetchOptions"
+  },
+  {
+    "label": "NetResponse",
+    "kind": "type",
+    "detail": "type NetResponse",
+    "documentation": "The answer to net.fetch(): its status, 404 and 500 too, the address it came from after redirects, its headers with lowercase names, and its body as text, bytes or parsed JSON.",
+    "insertText": "NetResponse"
+  },
+  {
+    "label": "NetSocketOptions",
+    "kind": "type",
+    "detail": "type NetSocketOptions",
+    "documentation": "Up to 8 subprotocols to offer the server, such as \"graphql-ws\"; the protocol of the socket says which one it took.",
+    "insertText": "NetSocketOptions"
+  },
+  {
+    "label": "NetMessageEvent",
+    "kind": "type",
+    "detail": "type NetMessageEvent",
+    "documentation": "What onMessage receives: a text message as a string, or a binary one as bytes when binary is true.",
+    "insertText": "NetMessageEvent"
+  },
+  {
+    "label": "NetCloseEvent",
+    "kind": "type",
+    "detail": "type NetCloseEvent",
+    "documentation": "Why a socket closed by itself: the code and reason the server gave, 1006 when the connection was lost, and whether both sides closed it cleanly.",
+    "insertText": "NetCloseEvent"
+  },
+  {
+    "label": "FilePickOptions",
+    "kind": "type",
+    "detail": "type FilePickOptions",
+    "documentation": "save shows the dialog to save a file instead of the one to open a file; filters are up to 8 kinds of file the dialog offers; suggestedName is the file name the dialog starts with, without a folder.",
+    "insertText": "FilePickOptions"
+  },
+  {
+    "label": "FileFilter",
+    "kind": "type",
+    "detail": "type FileFilter",
+    "documentation": "A kind of file in the dialog: its name, up to 60 characters, and 1 to 16 extensions without the dot, such as [\"png\", \"jpg\"].",
+    "insertText": "FileFilter"
+  },
+  {
+    "label": "FolderEntry",
+    "kind": "type",
+    "detail": "type FolderEntry",
+    "documentation": "A file or folder in a FolderHandle: its name, its path from the top of the folder, whether it is a folder, its size in bytes and when it last changed, in milliseconds since 1970.",
+    "insertText": "FolderEntry"
   }
 ]

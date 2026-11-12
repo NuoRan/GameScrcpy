@@ -171,8 +171,14 @@ std::string phoneProblem()
 
 std::string_view servicePermission(std::string_view service) noexcept
 {
-    constexpr std::array<std::pair<std::string_view, std::string_view>, 3> kPrefixes{
-        {{"hardware.", "hardware"}, {"net.", "network.listen"}, {"speech.listen", "speech.listen"}}};
+    constexpr std::array<std::pair<std::string_view, std::string_view>, 7> kPrefixes{
+        {{"hardware.", "hardware"},
+         {"net.fetch", "network"},
+         {"net.socket", "network"},
+         {"net.", "network.listen"},
+         {"speech.listen", "speech.listen"},
+         {"files.pick", "files.pick"},
+         {"files.folder", "files.paths"}}};
     for (const auto& [prefix, permission] : kPrefixes) {
         if (service.starts_with(prefix)) {
             return permission;

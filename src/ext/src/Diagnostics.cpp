@@ -219,6 +219,8 @@ std::string_view codeName(Code code) noexcept
         return "vision-engine-invalid";
     case Code::LocaleInvalid:
         return "locale-invalid";
+    case Code::PermissionPathsFixed:
+        return "permission-paths-fixed";
     }
     return "unknown";
 }
@@ -310,7 +312,8 @@ std::string_view fixHint(Code code) noexcept
     case Code::PermissionAnyHost:
         return "\"*\" lets the extension talk to any host; list the hosts it needs instead if you can.";
     case Code::PermissionPathsMissing:
-        return "List the folders the extension reads or writes in \"paths\".";
+        return "Name the folders the extension reads or writes in \"folders\", such as [{ \"name\": \"exports\", "
+               "\"purpose\": \"Where it saves your recordings.\" }]; the user picks each real folder the first time.";
     case Code::PermissionFieldUnused:
         return "Remove the field: it does not apply to this permission.";
     case Code::DependencyMissing:
@@ -497,6 +500,9 @@ std::string_view fixHint(Code code) noexcept
                "\"zh_CN\" belong to GameScrcpy. Point \"translations\" at a compiled Qt translation (.qm) in the "
                "package: GameScrcpy and gs pack do not compile .ts files, so run Qt's lrelease on yours first "
                "(lrelease ja.ts -qm ja.qm).";
+    case Code::PermissionPathsFixed:
+        return "Fixed paths give the extension nothing: name its folders in \"folders\" and open them with "
+               "files.folder(name); the user picks each real folder the first time.";
     }
     return "";
 }

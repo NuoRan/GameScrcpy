@@ -18,6 +18,7 @@ SettingsSheet {
     readonly property var parameters: SettingsCatalog.extensionGroups.find(group => group.id === sheet.extensionId)?.settings
                                       ?? []
     readonly property var grants: HardwareAccess.grants[sheet.extensionId] ?? []
+    readonly property var folders: FileAccess.folders[sheet.extensionId] ?? []
     readonly property var extensionPanels: ExtensionPanels.panels.filter(each => each.where === "extension"
                                                                          && each.extension === sheet.extensionId)
     readonly property var addOns: ExtensionHost.addOnsRevision >= 0 && ExtensionHost.nativeAttachments.length >= 0
@@ -231,6 +232,16 @@ SettingsSheet {
         visible: sheet.grants.length > 0
 
         AllowedDevices {
+            owner: sheet.extensionId
+        }
+    }
+
+    SettingsGroup {
+        objectName: "extensionFolders"
+        title: qsTr("Folders it may use")
+        visible: sheet.folders.length > 0
+
+        AllowedFolders {
             owner: sheet.extensionId
         }
     }

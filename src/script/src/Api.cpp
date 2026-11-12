@@ -3942,6 +3942,44 @@ constexpr Failure kNetListenFailures[] = {
     {"GS-API-102", "another program uses the port, or the extension listens on 4 ports already",
      "Pick another port, or close a server you no longer need."},
 };
+constexpr Param kNetFetchParams[] = {
+    {"url", "string", "An https address on a host this logic may reach, up to 4096 characters."},
+    {"options", "NetFetchOptions", "The method, headers and body of the request, and how long to wait for it.", true},
+};
+constexpr Param kNetSocketParams[] = {
+    {"url", "string", "A wss address on a host this logic may reach, up to 4096 characters."},
+    {"options", "NetSocketOptions", "The subprotocols to offer the server.", true},
+};
+constexpr Failure kNetHostFailure = {
+    "GS-API-155",
+    "the logic belongs to an extension whose manifest does not ask for the permission network or does not list the "
+    "host, or the server sends the request on to a host it does not list or to an address that is not https",
+    "List the host, such as \"api.example.com\" or \"*.example.com\", under hosts of the permission network in the "
+    "extension's manifest."};
+constexpr Failure kNetFetchFailures[] = {
+    kNetHostFailure,
+    {"GS-API-156",
+     "the address is not https, the method is not GET, HEAD, POST, PUT, PATCH, DELETE or OPTIONS, a header is one "
+     "GameScrcpy sets itself or one HTTP does not allow, the body is not text or bytes, or timeoutMs is not from 1000 "
+     "to 60000",
+     "Use an https:// address and the options as NetFetchOptions describes."},
+    {"GS-API-157", "the body is over 1 MiB, the answer over 8 MiB, or the logic has 8 requests going already",
+     "Send and ask for less, or wait for a request to finish."},
+    {"GS-API-158",
+     "the host could not be reached, its certificate is not valid, the connection broke, the server sent the request "
+     "on more than 5 times, or no answer came within timeoutMs; the message says which",
+     "Check the address and the network, or allow more time."},
+};
+constexpr Failure kNetSocketFailures[] = {
+    kNetHostFailure,
+    {"GS-API-156", "the address is not wss, or a protocol is not a name that HTTP allows",
+     "Use a wss:// address and protocols such as \"chat\"."},
+    {"GS-API-157", "the logic has 4 sockets open already", "Close a socket you no longer need."},
+    {"GS-API-158",
+     "the host could not be reached, its certificate is not valid, or the server did not take the WebSocket "
+     "connection; the message says why",
+     "Check the address, the network and the protocols."},
+};
 
 constexpr Function kNet[] = {
     {"listen", kNetListenParams, "Promise<NetServer>",
@@ -3951,6 +3989,71 @@ constexpr Function kNet[] = {
      "opened at the top level when the logic stops.",
      "await net.listen(8765, (request) => ({ json: { path: request.path, query: request.query } }));", nullptr, 0,
      kNetListenFailures},
+    {"fetch", kNetFetchParams, "Promise<NetResponse>",
+     "Asks a web service over https and resolves with its answer, whatever its status; GameScrcpy makes the request, "
+     "so the logic never holds a connection of its own. The logic of an extension may only reach the hosts its "
+     "manifest lists under the permission network, and redirects are followed only to such hosts; your own logic may "
+     "reach any https host. The body is at most 1 MiB and the answer at most 8 MiB, and each logic may have 8 requests "
+     "going at once. Cookies are not kept: set the cookie header yourself when a service needs one. Cancelling the "
+     "task cancels the request.",
+     "const reply = await net.fetch(\"https://api.example.com/scores\", { method: \"POST\", headers: { "
+     "\"content-type\": \"application/json\" }, body: JSON.stringify({ score: 10 }) }); log.info(reply.status, "
+     "reply.json());",
+     nullptr, 0, kNetFetchFailures},
+    {"socket", kNetSocketParams, "Promise<NetSocket>",
+     "Opens a WebSocket connection over wss and resolves once the server has taken it; the hosts are the same as for "
+     "net.fetch. Messages are text or bytes of at most 1 MiB each, and each logic may have 4 sockets open. A socket "
+     "opened in a task closes when the task ends, one opened at the top level when the logic stops.",
+     "const live = await net.socket(\"wss://live.example.com/feed\"); live.onMessage(({ data }) => log.info(data)); "
+     "live.send(\"hello\");",
+     nullptr, 0, kNetSocketFailures},
+};
+
+constexpr Param kFilesPickParams[] = {
+    {"options", "FilePickOptions", "Whether to save, which kinds of file to offer and the name to start with.", true},
+};
+constexpr Param kFilesFolderParams[] = {
+    {"name", "string",
+     "A folder that the extension's manifest names under the permission files.paths, such as \"exports\"; your own "
+     "logic may use any name of 1 to 32 lowercase letters, digits and hyphens."},
+};
+constexpr Failure kFilesOpenFailure = {
+    "GS-API-163", "the logic has 64 files and folders open, or 8 requests for files and folders are waiting",
+    "Close the handles you no longer need, or wait for the user to answer."};
+constexpr Failure kFilesPickFailures[] = {
+    {"GS-API-160", "the logic belongs to an extension whose manifest does not ask for the permission files.pick",
+     "Add \"files.pick\" to the permissions in the extension's manifest, with a reason."},
+    {"GS-API-161", "the filters or the suggested name are not right",
+     "Pass filters such as { name: \"Images\", extensions: [\"png\", \"jpg\"] } and a file name without a folder."},
+    kFilesOpenFailure,
+};
+constexpr Failure kFilesFolderFailures[] = {
+    {"GS-API-160",
+     "the logic belongs to an extension whose manifest does not name the folder under the permission files.paths",
+     "Name the folder in folders of the permission files.paths, such as { \"name\": \"exports\", \"purpose\": "
+     "\"Where it saves your recordings.\" }."},
+    {"GS-API-161", "the name is not 1 to 32 lowercase letters, digits and hyphens",
+     "Use the name as the manifest declares it."},
+    kFilesOpenFailure,
+    {"GS-API-164", "the user closed the dialog without choosing a folder",
+     "Ask again when the user wants it, and say in the purpose why the extension needs the folder."},
+};
+
+constexpr Function kFiles[] = {
+    {"pick", kFilesPickParams, "Promise<FileHandle | null>",
+     "Shows the Windows dialog to open a file, or with save to save one, and resolves with a handle to the file the "
+     "user picked, or with null when the user cancels. The handle reads and writes only that file, up to 64 MiB, and "
+     "lasts until the logic stops. The logic of an extension needs the permission files.pick.",
+     "const file = await files.pick({ filters: [{ name: \"Profiles\", extensions: [\"json\"] }] }); if (file) "
+     "log.info(file.name, (await file.text()).length);",
+     nullptr, 0, kFilesPickFailures},
+    {"folder", kFilesFolderParams, "Promise<FolderHandle>",
+     "Opens a folder chosen for this logic. The first time, GameScrcpy asks the user to choose the real folder and "
+     "remembers it; the user can forget it in the extension's settings, or for your own logic in Settings, General. "
+     "The handle lists, reads, writes and removes what is inside that folder and nothing else, and lasts until the "
+     "logic stops.",
+     "const exports = await files.folder(\"exports\"); await exports.write(\"scores/today.csv\", \"time,score\\n\");",
+     nullptr, 0, kFilesFolderFailures},
 };
 
 constexpr Param kSpeechSayParams[] = {
@@ -4148,8 +4251,9 @@ constexpr Namespace kNamespaces[] = {
      "open the devices the user ticked; the logic of an extension also needs the permission hardware.",
      kHardware},
     {"net",
-     "Connections from programs on this computer over HTTP on 127.0.0.1; the logic of an extension needs the "
-     "permission network.listen.",
+     "Web services over https and WebSocket, made by GameScrcpy for the logic, and connections from programs on this "
+     "computer over HTTP on 127.0.0.1. The logic of an extension needs the permission network, which lists the hosts "
+     "it may reach, and network.listen to listen.",
      kNet},
     {"speech",
      "Reading text aloud and listening for voice commands, with Windows or an engine that an extension provides; the "
@@ -4181,6 +4285,10 @@ constexpr Namespace kNamespaces[] = {
     {"media", "The phone's picture as frames, for analysis and AI; the logic of an extension needs the permission "
               "media.read.",
      kMedia},
+    {"files",
+     "Files the user picks and folders the user chooses for the logic. The logic of an extension needs the "
+     "permission files.pick to pick files, and files.paths, which names its folders, to open folders.",
+     kFiles},
 };
 
 constexpr Namespace kAttached[] = {
@@ -4675,6 +4783,38 @@ constexpr Type kTypes[] = {
     {"VisionResult", "VisionText | VisionObject | VisionClass",
      "One thing recognize() found: a VisionText for \"ocr\", a VisionObject for \"detect\" and a VisionClass for "
      "\"classify\"."},
+    {"NetFetchOptions",
+     "{ readonly method?: \"GET\" | \"HEAD\" | \"POST\" | \"PUT\" | \"PATCH\" | \"DELETE\" | \"OPTIONS\"; readonly "
+     "headers?: Readonly<Record<string, string>>; readonly body?: string | HardwareBytes; readonly timeoutMs?: number }",
+     "How net.fetch() asks: the method (GET unless given), up to 64 headers besides those GameScrcpy sets itself, such "
+     "as host and content-length, a body of text, sent as UTF-8 with content-type text/plain unless a header says "
+     "otherwise, or of bytes, and timeoutMs, from 1000 to 60000 milliseconds (15000 by default), for the whole "
+     "request."},
+    {"NetResponse",
+     "{ readonly status: number; readonly url: string; readonly headers: Readonly<Record<string, string>>; readonly "
+     "text: string; readonly bytes: Uint8Array; json(): unknown }",
+     "The answer to net.fetch(): its status, 404 and 500 too, the address it came from after redirects, its headers "
+     "with lowercase names, and its body as text, bytes or parsed JSON."},
+    {"NetSocketOptions", "{ readonly protocols?: readonly string[] }",
+     "Up to 8 subprotocols to offer the server, such as \"graphql-ws\"; the protocol of the socket says which one it "
+     "took."},
+    {"NetMessageEvent", "TaskContext & { readonly data: string | Uint8Array; readonly binary: boolean }",
+     "What onMessage receives: a text message as a string, or a binary one as bytes when binary is true."},
+    {"NetCloseEvent", "TaskContext & { readonly code: number; readonly reason: string; readonly clean: boolean }",
+     "Why a socket closed by itself: the code and reason the server gave, 1006 when the connection was lost, and "
+     "whether both sides closed it cleanly."},
+    {"FilePickOptions",
+     "{ readonly save?: boolean; readonly filters?: readonly FileFilter[]; readonly suggestedName?: string }",
+     "save shows the dialog to save a file instead of the one to open a file; filters are up to 8 kinds of file the "
+     "dialog offers; suggestedName is the file name the dialog starts with, without a folder."},
+    {"FileFilter", "{ readonly name: string; readonly extensions: readonly string[] }",
+     "A kind of file in the dialog: its name, up to 60 characters, and 1 to 16 extensions without the dot, such as "
+     "[\"png\", \"jpg\"]."},
+    {"FolderEntry",
+     "{ readonly name: string; readonly path: string; readonly folder: boolean; readonly size: number; readonly "
+     "modified: number }",
+     "A file or folder in a FolderHandle: its name, its path from the top of the folder, whether it is a folder, its "
+     "size in bytes and when it last changed, in milliseconds since 1970."},
 };
 
 constexpr std::string_view kTouchStartDoc = "Starts a task each time it puts a finger on the screen.";
@@ -5458,6 +5598,64 @@ constexpr Member kNetServerMembers[] = {
     {"close", "close(): void", "Stops taking requests and frees the port.", "server.close();"},
 };
 
+constexpr Member kNetSocketMembers[] = {
+    {"url", "readonly url: string", "The address it is connected to.", "log.info(live.url);"},
+    {"protocol", "readonly protocol: string", "The subprotocol the server took, or an empty text.",
+     "log.info(live.protocol);"},
+    {"isOpen", "readonly isOpen: boolean", "Whether messages can still be sent.", "if (!live.isOpen) return;"},
+    {"send", "send(data: string | HardwareBytes): void",
+     "Sends a text message, or a binary one for bytes, of at most 1 MiB. Throws GS-API-159 when the socket is closed "
+     "and GS-API-157 when 16 MiB are waiting to be sent already.",
+     "live.send(JSON.stringify({ subscribe: \"scores\" }));"},
+    {"close", "close(code?: number, reason?: string): void",
+     "Closes the socket with code 1000, or one from 3000 to 4999, and a reason of at most 123 bytes; onClose does not "
+     "run for it.",
+     "live.close();"},
+    {"onMessage",
+     "onMessage(handler: (event: NetMessageEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+     "Starts a task for each message; by default the messages queue, so none is lost.",
+     "live.onMessage(({ data, binary }) => log.info(binary ? \"bytes\" : data));"},
+    {"onClose", "onClose(handler: (event: NetCloseEvent) => void | Promise<void>, options?: ListenOptions): Subscription",
+     "Starts a task when the server or the network closes the socket.",
+     "live.onClose(({ code, reason }) => log.warn(\"closed\", code, reason));"},
+};
+
+constexpr Member kFileHandleMembers[] = {
+    {"name", "readonly name: string", "The name of the file, without its folder.", "log.info(file.name);"},
+    {"isOpen", "readonly isOpen: boolean", "Whether the handle can still be used.", "if (!file.isOpen) return;"},
+    {"read", "read(): Promise<Uint8Array>",
+     "Reads the whole file, up to 64 MiB. Throws GS-API-162 when Windows cannot read it or it changes while it is "
+     "read, GS-API-163 when it is larger and GS-API-164 when the handle is closed.",
+     "const bytes = await file.read();"},
+    {"text", "text(): Promise<string>", "Reads the whole file as UTF-8 text, leaving out a byte order mark.",
+     "const settings = JSON.parse(await file.text());"},
+    {"write", "write(data: string | HardwareBytes): Promise<void>",
+     "Replaces the whole file with the text, as UTF-8, or the bytes, up to 64 MiB; a file the user named in the save "
+     "dialog is made at the first write.",
+     "await file.write(JSON.stringify(settings, null, 2));"},
+    {"close", "close(): void", "Gives up the file; the handle can no longer be used.", "file.close();"},
+};
+
+constexpr Member kFolderHandleMembers[] = {
+    {"name", "readonly name: string", "The name the manifest gives the folder.", "log.info(exports.name);"},
+    {"isOpen", "readonly isOpen: boolean", "Whether the handle can still be used.", "if (!exports.isOpen) return;"},
+    {"list", "list(path?: string): Promise<readonly FolderEntry[]>",
+     "Lists up to 4096 files and folders, sorted by name, at the top of the folder or in a folder inside it.",
+     "for (const entry of await exports.list()) log.info(entry.path, entry.size);"},
+    {"read", "read(path: string): Promise<Uint8Array>", "Reads a file inside the folder, up to 64 MiB.",
+     "const picture = await exports.read(\"shots/last.png\");"},
+    {"text", "text(path: string): Promise<string>",
+     "Reads a file inside the folder as UTF-8 text, leaving out a byte order mark.",
+     "const notes = await exports.text(\"notes.txt\");"},
+    {"write", "write(path: string, data: string | HardwareBytes): Promise<void>",
+     "Replaces or makes a file inside the folder, with the folders on its path, up to 64 MiB.",
+     "await exports.write(\"scores/today.csv\", \"time,score\\n\");"},
+    {"remove", "remove(path: string): Promise<boolean>",
+     "Removes a file, or a folder with nothing in it; resolves with false when there was nothing to remove.",
+     "await exports.remove(\"scores/old.csv\");"},
+    {"close", "close(): void", "Gives up the folder; the handle can no longer be used.", "exports.close();"},
+};
+
 constexpr Member kSpeechListenerMembers[] = {
     {"isOpen", "readonly isOpen: boolean", "Whether it still listens.", "if (!listener.isOpen) return;"},
     {"close", "close(): void", "Stops listening; the microphone is let go once nothing else listens.",
@@ -5609,6 +5807,12 @@ constexpr Interface kInterfaces[] = {
     {"NetServer", "An HTTP server on 127.0.0.1 made by net.listen().", kNetServerMembers},
     {"SpeechListener", "Voice commands listened for with speech.listen().", kSpeechListenerMembers},
     {"VisionEngine", "A recognition engine from vision.engine().", kVisionEngineMembers},
+    {"NetSocket", "A WebSocket connection made by net.socket().", kNetSocketMembers},
+    {"FileHandle", "A file the user picked with files.pick().", kFileHandleMembers},
+    {"FolderHandle",
+     "A folder chosen for files.folder(). Paths inside it use / between names; .., drives and links that lead out of "
+     "it are refused with GS-API-161, and what Windows cannot do with GS-API-162.",
+     kFolderHandleMembers},
 };
 
 constexpr std::string_view kBuiltInClassDoc =

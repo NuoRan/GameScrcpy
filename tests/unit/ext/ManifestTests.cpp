@@ -79,7 +79,9 @@ TEST_CASE("a complete manifest loads without diagnostics and survives a save and
           {"reason", "Downloads the shader presets."},
           {"hosts", {"api.example.com", "*.cdn.example.com:8443"}}},
          {{"name", "devices.other"}, {"reason", "Shows the look on the other phones too."}, {"maxDevices", 4}},
-         {{"name", "files.paths"}, {"reason", "Reads your presets folder."}, {"paths", {"%USERPROFILE%/Presets"}}}});
+         {{"name", "files.paths"},
+          {"reason", "Reads your presets folder."},
+          {"folders", Json::array({{{"name", "presets"}, {"purpose", "Where your presets are kept."}}})}}});
     json["l10n"] = {{"zh_CN", {{"name", "CRT 扫描线"}, {"settings.strength.title", "强度"}}}};
 
     const LoadedManifest loaded = load(json);
@@ -103,6 +105,8 @@ TEST_CASE("a complete manifest loads without diagnostics and survives a save and
     CHECK(manifest.settings[1].scope == SettingScope::Device);
     CHECK(manifest.settings[2].choices == std::vector<std::string>{"soft", "hard"});
     CHECK(manifest.permissions[1].maxDevices == 4);
+    CHECK(manifest.permissions[2].folders ==
+          std::vector<PermissionFolder>{{.name = "presets", .purpose = "Where your presets are kept."}});
     CHECK(manifest.l10n.at("zh_CN").at("settings.strength.title") == "强度");
 
     const LoadedManifest again = loadManifest(saveManifest(manifest));
@@ -249,7 +253,7 @@ TEST_CASE("permissions: adb.shell never, known names only, a reason each, hosts 
     CHECK(reports(loaded, Code::PermissionHostInvalid, "$.permissions[5].hosts[1]"));
     CHECK(reports(loaded, Code::PermissionHostInvalid, "$.permissions[5].hosts[2]"));
     CHECK(reports(loaded, Code::PermissionHostInvalid, "$.permissions[5].hosts[3]"));
-    CHECK(reports(loaded, Code::PermissionPathsMissing, "$.permissions[6].paths"));
+    CHECK(reports(loaded, Code::PermissionPathsMissing, "$.permissions[6].folders"));
     CHECK(reports(loaded, Code::Duplicate, "$.permissions[7].name"));
     CHECK(reports(loaded, Code::PermissionFieldUnused, "$.permissions[7].hosts"));
     const auto anyHost = std::ranges::find(loaded.diagnostics, Code::PermissionAnyHost, &Diagnostic::code);
@@ -2284,4 +2288,94 @@ TEST_CASE("ADR-0112: a language pack is checked for its tag, the languages GameS
     loaded = load(json);
     CHECK_FALSE(loaded.usable);
     CHECK(undeclared(loaded, "$.contributes.locales", "locale"));
+}
+
+TEST_CASE("ADR-0112: files.paths names its folders, which load, round-trip and fail their checks")
+{
+    Json json = base();
+    json["requires"]["script"] = "^1.0";
+    json["permissions"] = Json::array(
+        {{{"name", "files.paths"},
+          {"reason", "Keeps your exports."},
+          {"folders", Json::array({{{"name", "exports"}, {"purpose", "Where it saves your recordings."}},
+                                   {{"name", "saves-2"}, {"purpose", "Where it keeps its saves."}}})}},
+         {{"name", "files.pick"}, {"reason", "Opens a file you choose."}}});
+    LoadedManifest loaded = load(json);
+    CHECK_MESSAGE(loaded.usable, listed(loaded));
+    CHECK_MESSAGE(loaded.diagnostics.empty(), listed(loaded));
+    REQUIRE(loaded.manifest.permissions.size() == 2);
+    REQUIRE(loaded.manifest.permissions[0].folders.size() == 2);
+    CHECK(loaded.manifest.permissions[0].folders[1].name == "saves-2");
+    CHECK(loaded.manifest.permissions[0].folders[1].purpose == "Where it keeps its saves.");
+    CHECK(saveManifest(loaded.manifest).find("\"folders\"") != std::string::npos);
+    const LoadedManifest again = loadManifest(saveManifest(loaded.manifest));
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+
+    json["permissions"] = Json::array(
+        {{{"name", "files.paths"},
+          {"reason", "Keeps files."},
+          {"folders", Json::array({{{"name", "Exports"}, {"purpose", "A."}},
+                                   {{"name", "same"}, {"purpose", "B."}},
+                                   {{"name", "same"}, {"purpose", "C."}},
+                                   {{"name", "quiet"}},
+                                   {{"name", "long"}, {"purpose", std::string(121, 'x')}}})}},
+         {{"name", "files.pick"},
+          {"reason", "Opens a file."},
+          {"folders", Json::array({{{"name", "x"}, {"purpose", "Y."}}})}},
+         {{"name", "network"}, {"reason", "Talks."}, {"hosts", {"a.com"}}, {"paths", {"C:/x"}}}});
+    loaded = load(json);
+    INFO(listed(loaded));
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::PanelNameInvalid, "$.permissions[0].folders[0].name"));
+    CHECK(reports(loaded, Code::Duplicate, "$.permissions[0].folders[2].name"));
+    CHECK(reports(loaded, Code::MissingField, "$.permissions[0].folders[3].purpose"));
+    CHECK(reports(loaded, Code::TooLong, "$.permissions[0].folders[4].purpose"));
+    CHECK(reports(loaded, Code::PermissionFieldUnused, "$.permissions[1].folders"));
+    CHECK(reports(loaded, Code::PermissionFieldUnused, "$.permissions[2].paths"));
+
+    json["permissions"] =
+        Json::array({{{"name", "files.paths"}, {"reason", "Old style."}, {"paths", {"%USERPROFILE%/Presets"}}}});
+    loaded = load(json);
+    CHECK_MESSAGE(loaded.usable, listed(loaded));
+    CHECK(reports(loaded, Code::PermissionPathsFixed, "$.permissions[0].paths"));
+    const auto fixed = std::ranges::find(loaded.diagnostics, Code::PermissionPathsFixed, &Diagnostic::code);
+    REQUIRE(fixed != loaded.diagnostics.end());
+    CHECK(fixed->severity == Severity::Warning);
+    CHECK(codeName(Code::PermissionPathsFixed) == "permission-paths-fixed");
+    CHECK(std::string(fixHint(Code::PermissionPathsFixed)).find("folders") != std::string::npos);
+
+    json["permissions"] = Json::array({{{"name", "files.paths"}, {"reason", "Nothing."}}});
+    CHECK(reports(load(json), Code::PermissionPathsMissing, "$.permissions[0].folders"));
+
+    Json many = Json::array();
+    for (std::size_t index = 0; index <= kMaxPermissionFolders; ++index) {
+        many.push_back({{"name", "f" + std::to_string(index)}, {"purpose", "A folder."}});
+    }
+    json["permissions"] = Json::array({{{"name", "files.paths"}, {"reason", "Many."}, {"folders", many}}});
+    CHECK(reports(load(json), Code::TooMany, "$.permissions[0].folders"));
+}
+
+TEST_CASE("ADR-0112: the hosts of the permission network are matched by name, by wildcard and by port")
+{
+    const std::vector<std::string> hosts{"api.example.com", "*.cdn.example.com", "Media.Example.org:8443"};
+    CHECK(hostListed(hosts, "api.example.com", 443));
+    CHECK(hostListed(hosts, "API.Example.com", 443));
+    CHECK_FALSE(hostListed(hosts, "api.example.com", 8443));
+    CHECK_FALSE(hostListed(hosts, "example.com", 443));
+    CHECK_FALSE(hostListed(hosts, "evilapi.example.com", 443));
+    CHECK(hostListed(hosts, "a.cdn.example.com", 443));
+    CHECK(hostListed(hosts, "a.b.cdn.example.com", 443));
+    CHECK_FALSE(hostListed(hosts, "cdn.example.com", 443));
+    CHECK_FALSE(hostListed(hosts, "a.cdn.example.com.evil.net", 443));
+    CHECK(hostListed(hosts, "media.example.org", 8443));
+    CHECK_FALSE(hostListed(hosts, "media.example.org", 443));
+    CHECK_FALSE(hostListed(hosts, "", 443));
+    CHECK_FALSE(hostListed({}, "api.example.com", 443));
+    CHECK(hostListed({"*"}, "anything.example.net", 9000));
+    CHECK_FALSE(hostListed(hosts, "api.example.com.", 443));
+    CHECK_FALSE(hostListed(hosts, "a.cdn.example.com.", 443));
+    CHECK_FALSE(hostListed(hosts, "::1", 443));
+    CHECK_FALSE(hostListed({"[::1]"}, "::1", 443));
+    CHECK(hostListed({"*"}, "::1", 443));
 }

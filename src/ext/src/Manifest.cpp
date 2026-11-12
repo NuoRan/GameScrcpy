@@ -77,6 +77,13 @@ bool hexDigit(char c) noexcept
     return digit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 }
 
+std::string asciiLower(std::string_view text)
+{
+    std::string lower(text);
+    std::ranges::transform(lower, lower.begin(), [](char c) { return c >= 'A' && c <= 'Z' ? char(c - 'A' + 'a') : c; });
+    return lower;
+}
+
 std::vector<std::string_view> split(std::string_view text, char separator)
 {
     std::vector<std::string_view> parts;
@@ -537,6 +544,11 @@ std::pair<std::string_view, std::string_view> identity(const LocaleContribution&
 std::pair<std::string_view, std::string_view> identity(const SettingDeclaration& entry)
 {
     return {"key", entry.key};
+}
+
+std::pair<std::string_view, std::string_view> identity(const PermissionFolder& entry)
+{
+    return {"name", entry.name};
 }
 
 std::pair<std::string_view, std::string_view> identity(const Permission& entry)
@@ -1047,6 +1059,35 @@ bool validExtensionId(std::string_view id)
     return validId(id);
 }
 
+bool hostListed(const std::vector<std::string>& hosts, std::string_view host, int port)
+{
+    const std::string wanted = asciiLower(host);
+    return !wanted.empty() && std::ranges::any_of(hosts, [&wanted, port](const std::string& entry) {
+        if (entry == "*") {
+            return true;
+        }
+        std::string_view name = entry;
+        int listedPort = 443;
+        if (const std::size_t colon = name.rfind(':'); colon != std::string_view::npos) {
+            const std::string_view digits = name.substr(colon + 1);
+            if (digits.empty() || digits.size() > 5 || !std::ranges::all_of(digits, digit)) {
+                return false;
+            }
+            listedPort = std::stoi(std::string(digits));
+            name = name.substr(0, colon);
+        }
+        if (listedPort != port) {
+            return false;
+        }
+        const std::string pattern = asciiLower(name);
+        if (pattern.starts_with("*.")) {
+            const std::string_view suffix = std::string_view(pattern).substr(1);
+            return wanted.size() > suffix.size() && wanted.ends_with(suffix);
+        }
+        return pattern == wanted;
+    });
+}
+
 bool settingAccepts(const SettingDeclaration& setting, const SettingValue& value)
 {
     switch (setting.type) {
@@ -1204,6 +1245,8 @@ void checkEntry(const SettingDeclaration& setting, const std::string& path, Cont
     }
 }
 
+void checkEntry(const PermissionFolder&, const std::string&, Context&) {}
+
 void checkEntry(const Permission& permission, const std::string& path, Context& context)
 {
     if (permission.name.empty()) {
@@ -1233,12 +1276,20 @@ void checkEntry(const Permission& permission, const std::string& path, Context& 
     } else if (!permission.hosts.empty()) {
         context.report(Severity::Warning, Code::PermissionFieldUnused, path + ".hosts");
     }
-    if (permission.name == "files.paths") {
-        if (permission.paths.empty()) {
-            context.report(Severity::Error, Code::PermissionPathsMissing, path + ".paths");
+    if (permission.name == kFilesPathsPermission) {
+        if (permission.folders.empty() && permission.paths.empty()) {
+            context.report(Severity::Error, Code::PermissionPathsMissing, path + ".folders");
         }
-    } else if (!permission.paths.empty()) {
-        context.report(Severity::Warning, Code::PermissionFieldUnused, path + ".paths");
+        if (!permission.paths.empty()) {
+            context.report(Severity::Warning, Code::PermissionPathsFixed, path + ".paths");
+        }
+    } else {
+        if (!permission.paths.empty()) {
+            context.report(Severity::Warning, Code::PermissionFieldUnused, path + ".paths");
+        }
+        if (!permission.folders.empty()) {
+            context.report(Severity::Warning, Code::PermissionFieldUnused, path + ".folders");
+        }
     }
     if (permission.name != "devices.other" && permission.maxDevices) {
         context.report(Severity::Warning, Code::PermissionFieldUnused, path + ".maxDevices");

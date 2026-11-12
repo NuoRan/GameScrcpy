@@ -255,6 +255,11 @@ TEST_CASE("file names: copies keep their extension and names unsafe on Windows a
     CHECK(gs::app::numberedName(QStringLiteral("a%2b.txt"), 2, false) == QStringLiteral("a%2b (2).txt"));
     CHECK(gs::app::windowsName(QStringLiteral("a:b?.txt")) == QStringLiteral("a_b_.txt"));
     CHECK(gs::app::windowsName(QStringLiteral("con.txt")) == QStringLiteral("_con.txt"));
+    CHECK(gs::app::windowsName(QStringLiteral("con .txt")) == QStringLiteral("_con .txt"));
+    CHECK(gs::app::windowsName(QStringLiteral("CONIN$")) == QStringLiteral("_CONIN$"));
+    CHECK(gs::app::windowsName(QStringLiteral("lpt0.log")) == QStringLiteral("_lpt0.log"));
+    CHECK(gs::app::windowsName(QStringLiteral("COM\u00B9.txt")) == QStringLiteral("_COM\u00B9.txt"));
+    CHECK(gs::app::windowsName(QStringLiteral("console.txt")) == QStringLiteral("console.txt"));
     CHECK(gs::app::windowsName(QStringLiteral("name. ")) == QStringLiteral("name"));
     CHECK(gs::app::windowsName(QStringLiteral("...")) == QStringLiteral("_"));
     CHECK(gs::app::windowsName(QStringLiteral("照片.jpg")) == QStringLiteral("照片.jpg"));

@@ -366,6 +366,17 @@ Dialog {
                             font.pixelSize: Theme.type.caption.size
                             wrapMode: Text.Wrap
                         }
+
+                        Text {
+                            objectName: "permissionScope"
+                            width: parent.width
+                            visible: text !== ""
+                            textFormat: Text.PlainText
+                            text: permission.modelData.scope ?? ""
+                            color: Theme.colors.textTertiary
+                            font.pixelSize: Theme.type.caption.size
+                            wrapMode: Text.Wrap
+                        }
                     }
                 }
             }

@@ -54,9 +54,12 @@ bool widens(const Permission& before, const Permission& after)
     const bool newPath = std::ranges::any_of(after.paths, [&before](const std::string& path) {
         return std::ranges::find(before.paths, path) == before.paths.end();
     });
+    const bool newFolder = std::ranges::any_of(after.folders, [&before](const PermissionFolder& folder) {
+        return std::ranges::find(before.folders, folder.name, &PermissionFolder::name) == before.folders.end();
+    });
     const bool moreDevices =
         before.maxDevices && (!after.maxDevices || *after.maxDevices > *before.maxDevices);
-    return newHost || newPath || moreDevices;
+    return newHost || newPath || newFolder || moreDevices;
 }
 
 std::set<std::string, std::less<>> closure(const Catalog& catalog, const Choice& chosen,
