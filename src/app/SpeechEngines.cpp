@@ -629,6 +629,7 @@ void SpeechEngines::say(const LogicCaller& caller, quint64 id, const QString& js
     const QJsonValue volume = body.value(u"volume");
     const QJsonValue voice = body.value(u"voice");
     const QJsonValue chosen = body.value(u"engine");
+    const bool interrupt = body.value(u"interrupt").toBool(false);
     if (!optionalNumber(rate, 0.5, 2.0) || !optionalNumber(volume, 0.0, 1.0) ||
         !(voice.isUndefined() || voice.isNull() || voice.isString()) ||
         !(chosen.isUndefined() || chosen.isNull() || chosen.isString())) {
@@ -644,11 +645,17 @@ void SpeechEngines::say(const LogicCaller& caller, quint64 id, const QString& js
         return;
     }
     std::size_t lines = 0;
+    std::size_t dropped = 0;
     for (const auto& [name, queue] : m_queues) {
-        lines += static_cast<std::size_t>(std::ranges::count_if(
+        const auto queued = static_cast<std::size_t>(std::ranges::count_if(
             queue.waiting, [&caller](const Line& line) { return !line.preview && line.logic == caller.logic; }));
+        lines += queued;
+        if (name == engine) {
+            dropped = queued;
+        }
     }
-    if (lines >= kMostWaitingLines) {
+    const std::size_t waiting = interrupt ? lines - dropped : lines;
+    if (waiting >= kMostWaitingLines) {
         refuse(QStringLiteral("GS-API-111 a logic has at most 32 lines waiting to be read"));
         return;
     }
@@ -660,7 +667,7 @@ void SpeechEngines::say(const LogicCaller& caller, quint64 id, const QString& js
                        .voice = voice.isString() ? voice.toString() : (engine == settled ? wanted.voice : QString()),
                        .rate = rate.isDouble() ? rate.toDouble() : wanted.rate,
                        .volume = volume.isDouble() ? volume.toDouble() : wanted.volume}};
-    enqueue(engine, std::move(line), body.value(u"interrupt").toBool(false));
+    enqueue(engine, std::move(line), interrupt);
 }
 
 void SpeechEngines::listVoices(const LogicCaller& caller, quint64 id, const QString& json)

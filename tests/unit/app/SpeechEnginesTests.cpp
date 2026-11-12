@@ -318,6 +318,26 @@ TEST_CASE("ADR-0112: interrupt, speech.stop, a cancelled task and the end of a l
     CHECK(fixture.fake->said.back().voice == u"robot");
 }
 
+TEST_CASE("ADR-0112: a text that interrupts is taken even when the logic has 32 texts waiting already")
+{
+    Fixture fixture;
+    for (quint64 id = 300; id < 333; ++id) {
+        fixture.say(kOwn, id, QStringLiteral(R"({"text":"queued"})"));
+    }
+    CHECK(fixture.refusalOf(332).isEmpty());
+    fixture.say(kOwn, 333, QStringLiteral(R"({"text":"more"})"));
+    CHECK(fixture.refusalOf(333).startsWith(u"GS-API-111 "));
+
+    fixture.say(kOwn, 334, QStringLiteral(R"({"text":"now","interrupt":true})"));
+    CHECK(fixture.refusalOf(334).isEmpty());
+    REQUIRE(pumpUntil([&fixture] { return fixture.fake->said.size() == 2; }));
+    CHECK(fixture.fake->said.front().text == u"queued");
+    CHECK(fixture.fake->said.back().text == u"now");
+    for (quint64 id = 300; id < 333; ++id) {
+        CHECK(fixture.answerTo(id) == u"false");
+    }
+}
+
 TEST_CASE("ADR-0112: speech.listen hands over what is heard surely enough to the logic until it closes")
 {
     Fixture fixture;
