@@ -7,13 +7,19 @@
 
 #include <doctest/doctest.h>
 
+#include <QByteArray>
+#include <QHostAddress>
 #include <QObject>
 #include <QString>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <QVariant>
 
 #include <array>
 #include <cstdint>
+#include <map>
 #include <utility>
+#include <vector>
 
 using gs::app::AiAssistant;
 using gs::app::AppSettings;
@@ -54,6 +60,49 @@ struct Setup {
     AppSettings settings{folder.path()};
     QString prefix = testPrefix();
     ForgetKeys forget{prefix};
+};
+
+class ModelList final
+{
+public:
+    explicit ModelList(QByteArray reply)
+        : m_reply(std::move(reply))
+    {
+        listening = m_server.listen(QHostAddress::LocalHost, 0);
+        QObject::connect(&m_server, &QTcpServer::newConnection, &m_server, [this] {
+            while (QTcpSocket* socket = m_server.nextPendingConnection()) {
+                QObject::connect(socket, &QTcpSocket::readyRead, socket, [this, socket] { read(*socket); });
+            }
+        });
+    }
+
+    ModelList(const ModelList&) = delete;
+    ModelList& operator=(const ModelList&) = delete;
+
+    [[nodiscard]] QString address() const { return u"http://127.0.0.1:%1/v1"_s.arg(m_server.serverPort()); }
+
+    bool listening = false;
+    std::vector<QByteArray> heads;
+
+private:
+    void read(QTcpSocket& socket)
+    {
+        QByteArray& buffer = m_buffers[&socket];
+        buffer += socket.readAll();
+        const qsizetype end = buffer.indexOf("\r\n\r\n");
+        if (end < 0) {
+            return;
+        }
+        heads.push_back(buffer.left(end));
+        m_buffers.erase(&socket);
+        socket.write(m_reply);
+        socket.flush();
+        socket.disconnectFromHost();
+    }
+
+    QTcpServer m_server;
+    QByteArray m_reply;
+    std::map<QTcpSocket*, QByteArray> m_buffers;
 };
 
 }
@@ -217,4 +266,28 @@ TEST_CASE("testing the connection without a model says what is missing, and the 
     QObject::connect(&assistant, &AiAssistant::settingsWanted, [&asked] { ++asked; });
     assistant.openSettings();
     CHECK(asked == 1);
+}
+
+TEST_CASE("ADR-0112: fetching the model list never follows a redirect, so the API key only goes to the address in the "
+          "settings")
+{
+    Setup setup;
+    const QByteArray listed = R"({"data": [{"id": "gpt-elsewhere"}]})";
+    ModelList elsewhere("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: " +
+                        QByteArray::number(listed.size()) + "\r\nConnection: close\r\n\r\n" + listed);
+    REQUIRE(elsewhere.listening);
+    ModelList configured("HTTP/1.1 302 Found\r\nLocation: " + elsewhere.address().toUtf8() +
+                         "/models\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+    REQUIRE(configured.listening);
+    REQUIRE(setup.settings.setValue(u"assistant.openai.address"_s, configured.address()));
+    AiAssistant assistant(setup.settings, setup.prefix);
+    REQUIRE(assistant.saveKey(u"sk-stays-here"_s));
+
+    assistant.fetchModels();
+    REQUIRE(gs::test::waitUntil([&assistant] { return assistant.modelsState() != u"running"; }));
+    REQUIRE(configured.heads.size() == 1);
+    CHECK(configured.heads.front().contains("Bearer sk-stays-here"));
+    CHECK(elsewhere.heads.empty());
+    CHECK(assistant.modelsState() == u"failed");
+    CHECK(assistant.models().isEmpty());
 }

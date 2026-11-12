@@ -514,6 +514,7 @@ void AiAssistant::fetchModels()
         request.setRawHeader(header.name, header.value);
     }
     request.setTransferTimeout(15000);
+    request.setAttribute(QNetworkRequest::RedirectPolicyAttribute, QNetworkRequest::ManualRedirectPolicy);
     QNetworkReply* reply = m_network.get(request);
     m_modelsReply = reply;
     m_modelsKey = modelsKeyOf(current);
