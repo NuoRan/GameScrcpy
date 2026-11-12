@@ -32,6 +32,7 @@ inline constexpr std::chrono::milliseconds kMockLongestWait{600'000};
 inline constexpr std::int64_t kMockLongestJump = 86'400'000;
 inline constexpr std::size_t kMockMostSteps = 1000;
 inline constexpr std::size_t kMockMostTestBytes = std::size_t{1} << 20;
+inline constexpr std::size_t kMockMostDepth = 64;
 
 class TempFolder
 {

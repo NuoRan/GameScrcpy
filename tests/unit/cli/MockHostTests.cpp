@@ -413,3 +413,54 @@ TEST_CASE("ADR-0112: a .gsext package is unpacked and tested like its folder")
     CHECK(run.passed());
     CHECK(mockExitCode(extension, run) == 0);
 }
+
+TEST_CASE("ADR-0112: a test file or a json option nested more than 64 levels deep is refused before it is read, so "
+          "that it cannot overflow the stack of gs")
+{
+    TempFolder scratch("gs-mock-tests");
+    const auto nested = [](std::size_t levels) {
+        return R"({"steps": [{"do": "wait", "ms": 1, "x": )" + std::string(levels, '[') + std::string(levels, ']') +
+               "}]}";
+    };
+    writeFile(scratch.path() / "fits.json", nested(kMockMostDepth - 3));
+    writeFile(scratch.path() / "deep.json", nested(kMockMostDepth - 2));
+    writeFile(scratch.path() / "deeper.json", nested(200'000));
+    const MockSpec fits = readMockSpec(scratch.path() / "fits.json", scratch.path());
+    CHECK(fits.problem.empty());
+    CHECK(fits.spec.is_object());
+    for (const char* file : {"deep.json", "deeper.json"}) {
+        const MockSpec refused = readMockSpec(scratch.path() / file, scratch.path());
+        CHECK(refused.problem == "the test file is nested more than 64 levels deep");
+        CHECK(refused.spec.is_null());
+    }
+
+    const fs::path theme = scratch.path() / "theme";
+    writeFile(theme / "manifest.json", R"({
+        "schemaVersion": 1, "id": "gstest.mock-deep", "version": "1.0.0", "name": "Theme", "license": "MIT",
+        "requires": {"theme": "^1.0"},
+        "contributes": {"themes": [{"name": "Night", "dark": {"bgBase": "#101010"}}]}})");
+    const MockExtension themed = openMockExtension(theme, {});
+    REQUIRE_MESSAGE(themed.usable(), themed.problem);
+    const MockRun run = runMockTests(themed, {readMockSpec(scratch.path() / "deeper.json", scratch.path())}, {});
+    REQUIRE(run.tests.size() == 1);
+    CHECK(run.tests[0].problem == "the test file is nested more than 64 levels deep");
+    CHECK(run.tests[0].steps.empty());
+    CHECK(mockExitCode(themed, run) == 1);
+
+    const MockExtension native = openMockExtension(nativeFolder(scratch, kTestDll), {});
+    REQUIRE_MESSAGE(native.usable(), native.problem);
+    gs::ext::Manifest manifest = *native.manifest;
+    manifest.contributes.cli.push_back(
+        gs::ext::CliContribution{.name = "hear", .description = {}, .job = "hear", .params = {}});
+    const gs::ext::CliContribution& hear = manifest.contributes.cli.back();
+    std::string problem;
+    const std::optional<Json> heard =
+        cliArguments(manifest, hear, {{"phrases", R"(["jump"])"}, {"language", "en"}, {"confidence", "0.5"}}, problem);
+    REQUIRE_MESSAGE(heard.has_value(), problem);
+    CHECK(heard->at("phrases") == Json::array({"jump"}));
+    const std::string deepJson = std::string(20'000, '[') + std::string(20'000, ']');
+    CHECK_FALSE(
+        cliArguments(manifest, hear, {{"phrases", deepJson}, {"language", "en"}, {"confidence", "0.5"}}, problem)
+            .has_value());
+    CHECK(problem == "--phrases is nested more than 64 levels deep");
+}

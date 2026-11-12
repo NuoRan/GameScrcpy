@@ -79,6 +79,8 @@ The report has a line for each test and below it the result of each step (`pass`
 | `timeout` | How long each step waits for its results, in milliseconds (1 to 600000, 10000 by default) |
 | `steps` | 1 to 1000 steps; `do` says what each one does, `name` describes it, `expect` holds what to check and `timeout` overrides the wait of that step |
 
+A test file is UTF-8 JSON of at most 1 MiB, nested at most 64 levels deep; a larger or deeper file is not run, and the report says why.
+
 ### Steps
 
 | `do` | Input | What `expect` can check |

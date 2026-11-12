@@ -79,6 +79,8 @@ gs ext test .\alice.lap-timer-1.2.0.gsext --test .\more-tests\flash.json --json
 | `timeout` | 每一步等结果的最长毫秒数（1～600000，默认 10000） |
 | `steps` | 1～1000 步；每步 `do` 说做什么，`name` 是说明，`expect` 是要检查的结果，`timeout` 覆盖这一步的等待 |
 
+测试文件是 UTF-8 的 JSON，最大 1 MiB、最多嵌套 64 层；超过的文件不运行，报告里写明原因。
+
 ### 步骤
 
 | `do` | 输入 | `expect` 能查 |

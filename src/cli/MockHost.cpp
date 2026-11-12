@@ -132,6 +132,33 @@ Json parsedOr(std::string_view text)
     return parsed.is_discarded() ? Json(std::string(text)) : parsed;
 }
 
+bool nestingWithin(std::string_view text, std::size_t most) noexcept
+{
+    std::size_t depth = 0;
+    bool inString = false;
+    bool escaped = false;
+    for (const char c : text) {
+        if (inString) {
+            if (escaped) {
+                escaped = false;
+            } else if (c == '\\') {
+                escaped = true;
+            } else if (c == '"') {
+                inString = false;
+            }
+        } else if (c == '"') {
+            inString = true;
+        } else if (c == '{' || c == '[') {
+            if (++depth > most) {
+                return false;
+            }
+        } else if ((c == '}' || c == ']') && depth > 0) {
+            --depth;
+        }
+    }
+    return true;
+}
+
 const Json* member(const Json& object, std::string_view key)
 {
     if (!object.is_object()) {
@@ -2507,6 +2534,10 @@ MockSpec readMockSpec(const std::filesystem::path& file, const std::filesystem::
         read.problem = "the test file cannot be read or is larger than 1 MiB";
         return read;
     }
+    if (!nestingWithin(text, kMockMostDepth)) {
+        read.problem = "the test file is nested more than 64 levels deep";
+        return read;
+    }
     read.spec = Json::parse(text, nullptr, false);
     if (read.spec.is_discarded()) {
         read.problem = "the test file is not JSON";
@@ -2804,6 +2835,10 @@ std::optional<MockJson> cliArguments(const ext::Manifest& manifest, const ext::C
                 return std::nullopt;
             }
         } else if (type == "json") {
+            if (!nestingWithin(text, kMockMostDepth)) {
+                problem = "--" + name + " is nested more than 64 levels deep";
+                return std::nullopt;
+            }
             value = parsedOr(text);
         } else {
             value = text;
