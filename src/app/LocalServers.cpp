@@ -551,11 +551,11 @@ void LocalServers::readFrom(QTcpSocket* socket)
         const bool same = normal == QStringLiteral("http://127.0.0.1:") + port ||
                           normal == QStringLiteral("http://localhost:") + port;
         const bool listed = normal && std::ranges::find(server.origins, *normal) != server.origins.end();
-        if (origin != u"null" && !same && !listed) {
+        if (!same && !listed) {
             finish(socket, 403, {}, {});
             return;
         }
-        if (listed || origin == u"null") {
+        if (listed) {
             connection.allowOrigin = origin.toUtf8();
         }
     }

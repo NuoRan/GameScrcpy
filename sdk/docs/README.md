@@ -1739,7 +1739,7 @@ type HardwareClaimOptions = { readonly wait?: boolean; readonly onWanted?: (by: 
 
 ### NetListenOptions
 
-Up to 16 sites, such as "https://example.com", whose pages may call the server from a browser; pages from the server itself and local files always may.
+Up to 16 sites, such as "https://example.com", whose pages may call the server from a browser; pages from the server itself always may, and pages whose origin is null, such as local files, may not.
 
 ```ts
 type NetListenOptions = { readonly origins?: readonly string[] };

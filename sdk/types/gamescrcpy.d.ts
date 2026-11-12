@@ -355,7 +355,7 @@ type HardwareInfo = { readonly id: string; readonly kind: HardwareKind; readonly
 /** wait asks whoever holds the hardware to let it go and waits up to 3 seconds for it. onWanted is called with the name of whoever wants the hardware this logic holds; return true to let it go, and it is released for them. */
 type HardwareClaimOptions = { readonly wait?: boolean; readonly onWanted?: (by: string) => boolean | Promise<boolean> };
 
-/** Up to 16 sites, such as "https://example.com", whose pages may call the server from a browser; pages from the server itself and local files always may. */
+/** Up to 16 sites, such as "https://example.com", whose pages may call the server from a browser; pages from the server itself always may, and pages whose origin is null, such as local files, may not. */
 type NetListenOptions = { readonly origins?: readonly string[] };
 
 /** A request to a server of net.listen(): the path without the query, the query and headers (names in lowercase), and the body as text, bytes or parsed JSON. Bodies are up to 1 MiB. */

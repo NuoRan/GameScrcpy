@@ -224,6 +224,22 @@ TEST_CASE("ADR-0112: a local server refuses other hosts and other web pages, and
     CHECK(same.endsWith("\r\n\r\n"));
 }
 
+TEST_CASE("ADR-0112: a local server refuses pages whose origin is null, which any site can give a sandboxed frame")
+{
+    Fixture fixture;
+    const quint16 port = Fixture::freePort();
+    static_cast<void>(fixture.listen(kOwn, 1, port));
+    const QByteArray pressed =
+        exchange(port, "POST /tap/k1 HTTP/1.1\r\n" + hostOf(port) + "Origin: null\r\nContent-Length: 0\r\n\r\n");
+    CHECK(pressed.startsWith("HTTP/1.1 403 "));
+    CHECK_FALSE(pressed.contains("Access-Control-Allow-Origin"));
+    const QByteArray preflight = exchange(port, "OPTIONS /tap/k1 HTTP/1.1\r\n" + hostOf(port) +
+                                                    "Origin: null\r\n"
+                                                    "Access-Control-Request-Headers: content-type\r\n\r\n");
+    CHECK(preflight.startsWith("HTTP/1.1 403 "));
+    CHECK(fixture.told.empty());
+}
+
 TEST_CASE("ADR-0112: a local server limits what it reads and how long it waits for the logic")
 {
     Fixture fixture;

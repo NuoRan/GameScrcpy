@@ -14914,10 +14914,6 @@
         <translation>wait 会请占用这件硬件的一方放手，并最多等它 3 秒。别人想用这份逻辑占着的硬件时会调用 onWanted，参数是对方的名字；返回 true 就放手，硬件随即交给对方。</translation>
     </message>
     <message>
-        <source>Up to 16 sites, such as &quot;https://example.com&quot;, whose pages may call the server from a browser; pages from the server itself and local files always may.</source>
-        <translation>最多 16 个网站的网页可以在浏览器里调用这个服务，网站写成 &quot;https://example.com&quot; 这样；服务自己的网页和本地文件总是可以。</translation>
-    </message>
-    <message>
         <source>A request to a server of net.listen(): the path without the query, the query and headers (names in lowercase), and the body as text, bytes or parsed JSON. Bodies are up to 1 MiB.</source>
         <translation>发给 net.listen() 服务的请求：不含查询的路径、查询参数与请求头（名称为小写），以及文字、字节或解析后的 JSON 形式的正文。正文最多 1 MiB。</translation>
     </message>
@@ -16612,6 +16608,10 @@
     <message>
         <source>Where to read (a region or a region name; the whole picture by default), the language as a tag such as &quot;zh-Hans&quot; or &quot;en&quot; (by default the first Windows display language that has text recognition, otherwise the first one this computer has; findText looks for text of English letters, digits and signs with English recognition when the computer has it) and how long to wait while there is no picture yet (2000 ms by default, at most 10000).</source>
         <translation>在哪里读（区域或区域名，默认整个画面）、用哪种语言（写语言标签，如 &quot;zh-Hans&quot; 或 &quot;en&quot;；默认用 Windows 显示语言里第一个有文字识别的，没有就用这台电脑装的第一种；findText 要找的字全是英文字母、数字和符号时，电脑装了英文识别就用英文识别），以及还没有画面时等多久（默认 2000 毫秒，最多 10000）。</translation>
+    </message>
+    <message>
+        <source>Up to 16 sites, such as &quot;https://example.com&quot;, whose pages may call the server from a browser; pages from the server itself always may, and pages whose origin is null, such as local files, may not.</source>
+        <translation>最多 16 个网站的网页可以在浏览器里调用这个服务，网站写成 &quot;https://example.com&quot; 这样；服务自己的网页总是可以，来源为 null 的网页（例如本地文件）不可以。</translation>
     </message>
     <message>
         <source>Says yes for the first times calls with this name, and no after that, until resetDoN with the same name.</source>

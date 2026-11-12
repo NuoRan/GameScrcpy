@@ -4673,7 +4673,7 @@ constexpr Type kTypes[] = {
      "name of whoever wants the hardware this logic holds; return true to let it go, and it is released for them."},
     {"NetListenOptions", "{ readonly origins?: readonly string[] }",
      "Up to 16 sites, such as \"https://example.com\", whose pages may call the server from a browser; pages from "
-     "the server itself and local files always may."},
+     "the server itself always may, and pages whose origin is null, such as local files, may not."},
     {"NetRequest",
      "{ readonly method: string; readonly path: string; readonly query: Readonly<Record<string, string>>; "
      "readonly headers: Readonly<Record<string, string>>; readonly text: string; readonly bytes: Uint8Array; "
