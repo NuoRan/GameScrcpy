@@ -32,6 +32,9 @@ constexpr std::uint32_t kDelayImportDirectory = 13;
 constexpr std::uint64_t kMostDirectories = 16;
 constexpr std::uint64_t kMostExports = 65536;
 constexpr std::size_t kMostChecksumsBytes = std::size_t{4} << 20;
+constexpr std::size_t kMostImportNameBytes = std::size_t{1} << 20;
+constexpr std::size_t kMostExportNameBytes = std::size_t{1} << 20;
+constexpr std::size_t kMostPackageFunctions = 200000;
 
 constexpr auto kNetworkModules =
     std::to_array<std::string_view>({"ws2_32.dll", "wsock32.dll", "mswsock.dll", "winhttp.dll", "wininet.dll",
@@ -239,6 +242,10 @@ public:
             if (!text) {
                 return "the name of an exported function lies outside the file";
             }
+            if (m_nameBytes + text->size() > kMostExportNameBytes) {
+                return "it exports names that add up to more than a library can have";
+            }
+            m_nameBytes += text->size();
             out.names.push_back(*text);
         }
         return {};
@@ -350,7 +357,7 @@ private:
         return std::string(rest.substr(0, end));
     }
 
-    std::string readImports(std::uint64_t rva, PeImports& out) const
+    std::string readImports(std::uint64_t rva, PeImports& out)
     {
         for (std::uint64_t index = 0;; ++index) {
             if (index == kMostModules) {
@@ -383,7 +390,7 @@ private:
         }
     }
 
-    std::string readDelayed(std::uint64_t rva, PeImports& out) const
+    std::string readDelayed(std::uint64_t rva, PeImports& out)
     {
         for (std::uint64_t index = 0;; ++index) {
             if (index == kMostModules) {
@@ -425,7 +432,7 @@ private:
     }
 
     std::string readThunks(std::uint64_t rva, const std::string& module, bool delayed, bool virtualAddresses,
-                           PeImports& out) const
+                           PeImports& out)
     {
         const std::size_t width = m_wide ? 8 : 4;
         const std::uint64_t ordinalFlag = std::uint64_t{1} << (m_wide ? 63 : 31);
@@ -455,6 +462,10 @@ private:
                 if (!name || name->empty()) {
                     return "the name of an imported function lies outside the file";
                 }
+                if (m_nameBytes + name->size() > kMostImportNameBytes) {
+                    return "its imported function names add up to more than a library can have";
+                }
+                m_nameBytes += name->size();
                 function.name = *name;
             }
             out.functions.push_back(std::move(function));
@@ -469,6 +480,7 @@ private:
     std::uint64_t m_present = 0;
     std::uint64_t m_end = 0;
     std::uint16_t m_machine = 0;
+    std::size_t m_nameBytes = 0;
     bool m_wide = false;
 };
 
@@ -817,6 +829,7 @@ NativeCheck checkNative(const PackageContents& contents, const Manifest& manifes
         refuse(NativeRefusal::Unreadable, declared + " is missing");
     }
     const std::uint16_t wanted = architectureMachine(architecture);
+    std::size_t importedFunctions = 0;
     for (const ArchiveEntry& entry : contents.files) {
         const std::optional<std::string> bytes = contents.read ? contents.read(entry.path) : std::nullopt;
         if (!bytes) {
@@ -852,6 +865,13 @@ NativeCheck checkNative(const PackageContents& contents, const Manifest& manifes
             merge(check.capabilities, std::move(use));
         }
         check.files.push_back(std::move(file));
+        importedFunctions += check.files.back().imports.functions.size();
+        if (importedFunctions > kMostPackageFunctions) {
+            refuse(NativeRefusal::Unreadable, "its code imports more functions than a package can need");
+            check.files.clear();
+            check.capabilities.clear();
+            break;
+        }
     }
     check.uncovered = uncoveredCapabilities(check.capabilities, manifest.permissions);
     check.restricted = manifest.contributes.native && manifest.contributes.native->sandbox == NativeSandbox::Restricted;

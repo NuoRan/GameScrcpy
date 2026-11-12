@@ -173,6 +173,49 @@ TEST_CASE("a damaged library is not read and says why")
     CHECK_FALSE(stub.problem.empty());
 }
 
+TEST_CASE("ADR-0112: a library whose imported or exported names add up to more than any library needs is not read")
+{
+    std::vector<std::string> imported;
+    imported.reserve(2000);
+    for (int index = 0; index < 2000; ++index) {
+        imported.push_back(std::string(2000, 'a') + std::to_string(index));
+    }
+    const PeImports imports = readPeImports(buildPe({.imports = {{"kernel32.dll", imported}}}));
+    CHECK_FALSE(imports.valid);
+    CHECK(imports.functions.empty());
+    CHECK(imports.problem.find("names") != std::string::npos);
+
+    std::vector<std::string> exported;
+    exported.reserve(1000);
+    for (int index = 0; index < 1000; ++index) {
+        exported.push_back(std::string(2000, 'b') + std::to_string(index));
+    }
+    const PeExports exports = readPeExports(buildPe({.exports = exported}));
+    CHECK_FALSE(exports.valid);
+    CHECK(exports.names.empty());
+    CHECK(exports.problem.find("names") != std::string::npos);
+}
+
+TEST_CASE("ADR-0112: a package that brings more imported functions than a package can need is refused")
+{
+    Scratch scratch;
+    const fs::path folder = scratch / "many";
+    writeFile(folder / "manifest.json", "{}");
+    std::vector<std::string> ordinals;
+    ordinals.reserve(50001);
+    for (int index = 0; index < 50001; ++index) {
+        ordinals.push_back("#" + std::to_string(index));
+    }
+    for (const char* name : {"bin/a.dll", "bin/b.dll", "bin/c.dll", "bin/d.dll"}) {
+        CAPTURE(name);
+        writeFile(folder / name, buildPe({.imports = {{"kernel32.dll", ordinals}}}));
+    }
+    const NativeCheck check = checkNative(directoryContents(folder), Manifest{});
+    CHECK(check.refusal == NativeRefusal::Unreadable);
+    CHECK(check.detail == "its code imports more functions than a package can need");
+    CHECK(check.files.empty());
+}
+
 TEST_CASE("imported functions are sorted into network, files, input, programs and injection")
 {
     const std::vector<CapabilityUse> uses = classifyImports(readPeImports(buildPe(mixedLayout())).functions);
