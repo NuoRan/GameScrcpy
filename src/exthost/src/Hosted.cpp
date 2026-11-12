@@ -39,6 +39,8 @@ constexpr int kWarning = 1;
 constexpr std::size_t kMostContainedLines = 200;
 constexpr std::size_t kMostContainedNotices = 3;
 constexpr std::size_t kMostContainedDeviceChanges = 4;
+constexpr std::size_t kMostContainedTransportChanges = 4;
+constexpr std::size_t kMostContainedSourceChanges = 4;
 constexpr std::size_t kMostContainedInputs = 2 * kMostInputSources * kMostInputEventsPerSecond;
 constexpr std::chrono::seconds kPaceWindow{1};
 constexpr std::chrono::seconds kNoticeWindow{10};
@@ -476,7 +478,7 @@ struct HostedModule::Impl {
             if (count != 3) {
                 continue;
             }
-            drain();
+            drain(stop);
             if (waited == WAIT_OBJECT_0 + 2) {
                 exited();
                 continue;
@@ -485,9 +487,12 @@ struct HostedModule::Impl {
         }
     }
 
-    void drain()
+    void drain(const std::stop_token& stop)
     {
         for (;;) {
+            if (stop.stop_requested()) {
+                return;
+            }
             detail::Message message;
             detail::ReadResult read = detail::ReadResult::Empty;
             {
@@ -526,6 +531,17 @@ struct HostedModule::Impl {
         return false;
     }
 
+    [[nodiscard]] bool declaredTransport(std::string_view name) const
+    {
+        return std::ranges::find(info.transports, name, &TransportInfo::name) != info.transports.end();
+    }
+
+    [[nodiscard]] bool declaredSource(std::string_view name) const
+    {
+        return std::ranges::find(info.videoSources, name, &MediaInfo::name) != info.videoSources.end() ||
+               std::ranges::find(info.audioSources, name, &MediaInfo::name) != info.audioSources.end();
+    }
+
     void handle(const detail::Message& message)
     {
         detail::WireReader in(message.payload);
@@ -549,7 +565,9 @@ struct HostedModule::Impl {
                 } else {
                     restarted = everReady;
                     late = !everReady && started;
-                    info = std::move(described);
+                    if (!everReady) {
+                        info = std::move(described);
+                    }
                     everReady = true;
                     state = State::Ready;
                     ++generation;
@@ -685,7 +703,7 @@ struct HostedModule::Impl {
             std::uint32_t level = 0;
             std::string text;
             if (!in.u32(type) || !in.f64(fraction) || !in.u32(level) ||
-                !in.text(text, type == 2 ? kMostJobOutputBytes : kMostJobLineBytes)) {
+                !in.text(text, type == 2 ? kMostJobOutputBytes : kMostJobLineBytes) || !validUtf8(text)) {
                 return;
             }
             JobEvents events;
@@ -790,9 +808,11 @@ struct HostedModule::Impl {
         }
         case detail::Kind::TransportChanged: {
             std::string transport;
-            if (in.text(transport, kMostNameBytes) && in.done() && options.transportChanged) {
-                options.transportChanged(transport);
+            if (!in.text(transport, kMostNameBytes) || !in.done() || !declaredTransport(transport) ||
+                !options.transportChanged || !paced(transportPace)) {
+                return;
             }
+            options.transportChanged(transport);
             return;
         }
         case detail::Kind::StreamOpened: {
@@ -887,7 +907,8 @@ struct HostedModule::Impl {
         }
         case detail::Kind::SourcesChanged: {
             std::string source;
-            if (in.text(source, kMostNameBytes) && options.sourcesChanged) {
+            if (in.text(source, kMostNameBytes) && declaredSource(source) && options.sourcesChanged &&
+                paced(sourcePace)) {
                 options.sourcesChanged(source);
             }
             return;
@@ -1388,6 +1409,12 @@ struct HostedModule::Impl {
     Pace changePace{kPaceWindow, kMostContainedDeviceChanges,
                     std::format("said more than {} times in a second that its devices changed",
                                 kMostContainedDeviceChanges)};
+    Pace transportPace{kPaceWindow, kMostContainedTransportChanges,
+                       std::format("said more than {} times in a second that its transports changed",
+                                   kMostContainedTransportChanges)};
+    Pace sourcePace{kPaceWindow, kMostContainedSourceChanges,
+                    std::format("said more than {} times in a second that its sources changed",
+                                kMostContainedSourceChanges)};
     Pace inputPace{kPaceWindow, kMostContainedInputs,
                    std::format("sent more than {} input events in a second", kMostContainedInputs)};
     HANDLE wake = nullptr;

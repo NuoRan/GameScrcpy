@@ -381,6 +381,175 @@ TEST_CASE("ADR-0112: jobs of someone else's DLL run through gs-exthost.exe the s
     CHECK(stranded.wait() == std::pair<bool, std::string>{false, "the extension's process stopped before the job ended"});
 }
 
+TEST_CASE("ADR-0112: a text a DLL writes into the ring itself as a job's progress is left out unless it is UTF-8, so "
+          "no strict JSON write of GameScrcpy throws")
+{
+    Scratch scratch;
+    std::string problem;
+    const std::unique_ptr<exthost::HostedModule> module =
+        exthost::HostedModule::start(hostedOptions(scratch), problem);
+    REQUIRE_MESSAGE(module != nullptr, problem);
+    REQUIRE(module->waitReady(20s));
+    JobWatch watched;
+    const std::uint64_t running = module->startJob(jobIndex(*module, "count"), R"({"steps":200,"pause":20})",
+                                                   watched.events());
+    REQUIRE(running != 0);
+    const exthost::CallResult forged =
+        callNode(*module, "forge", {textValue(exthost::ValueType::String, "progress"),
+                                    numberValue(static_cast<double>(running)), numberValue(1)});
+    CHECK(forged.value.number == 1);
+    REQUIRE(eventually([&] {
+        const std::scoped_lock lock(watched.mutex);
+        return watched.fractions.size() >= 2;
+    }));
+    const std::vector<std::string> lines = [&watched] {
+        const std::scoped_lock lock(watched.mutex);
+        return watched.lines;
+    }();
+    CHECK(std::ranges::all_of(lines, [](const std::string& line) { return exthost::validUtf8(line); }));
+    module->cancelJob(running);
+    CHECK(watched.wait() == std::pair<bool, std::string>{false, "cancelled"});
+}
+
+TEST_CASE("ADR-0112: a transport or a source a DLL never declared is left out when the child names it, and the ones "
+          "it declared still reach GameScrcpy")
+{
+    struct Watcher {
+        std::mutex mutex;
+        std::vector<std::string> transports;
+        std::vector<std::string> sources;
+
+        std::vector<std::string> seen()
+        {
+            const std::scoped_lock lock(mutex);
+            return transports;
+        }
+
+        std::vector<std::string> named()
+        {
+            const std::scoped_lock lock(mutex);
+            return sources;
+        }
+    } watcher;
+    Scratch scratch;
+    std::string problem;
+    exthost::HostedOptions options = hostedOptions(scratch);
+    options.transportChanged = [&watcher](const std::string& name) {
+        const std::scoped_lock lock(watcher.mutex);
+        watcher.transports.push_back(name);
+    };
+    options.sourcesChanged = [&watcher](const std::string& name) {
+        const std::scoped_lock lock(watcher.mutex);
+        watcher.sources.push_back(name);
+    };
+    const std::unique_ptr<exthost::HostedModule> module = exthost::HostedModule::start(std::move(options), problem);
+    REQUIRE_MESSAGE(module != nullptr, problem);
+    REQUIRE(module->waitReady(20s));
+    CHECK(callNode(*module, "forge", {textValue(exthost::ValueType::String, "transport"), numberValue(0.0),
+                                      numberValue(1)})
+              .value.number == 1);
+    CHECK(callNode(*module, "forge", {textValue(exthost::ValueType::String, "source"), numberValue(0.0),
+                                      numberValue(1)})
+              .value.number == 1);
+    CHECK(callNode(*module, "setPhones", {textValue(exthost::ValueType::Json, R"([{"id":"echo","name":"Echo"}])")})
+              .value.number == GS_EXT_OK);
+    CHECK(callNode(*module, "changeSources", {}).value.number == GS_EXT_OK);
+    REQUIRE(eventually([&] { return !watcher.seen().empty() && !watcher.named().empty(); }));
+    std::this_thread::sleep_for(200ms);
+    CHECK(watcher.seen() == std::vector<std::string>{"loop"});
+    CHECK(watcher.named() == std::vector<std::string>{"bars"});
+}
+
+TEST_CASE("ADR-0112: a job's end still reaches GameScrcpy when its output filled the channel while GameScrcpy was "
+          "busy, instead of leaving the job running for ever")
+{
+    struct Blocking {
+        std::mutex mutex;
+        std::condition_variable changed;
+        std::condition_variable gate;
+        bool opened = false;
+        bool released = false;
+        std::size_t outputs = 0;
+        std::optional<std::pair<bool, std::string>> done;
+
+        exthost::JobEvents events()
+        {
+            return {.progress =
+                        [this](double, std::string) {
+                            std::unique_lock lock(mutex);
+                            opened = true;
+                            changed.notify_all();
+                            gate.wait(lock, [this] { return released; });
+                        },
+                    .log = [](int, std::string) {},
+                    .done =
+                        [this](bool worked, std::string text) {
+                            {
+                                const std::scoped_lock lock(mutex);
+                                done.emplace(worked, std::move(text));
+                            }
+                            changed.notify_all();
+                        },
+                    .output =
+                        [this](std::string) {
+                            const std::scoped_lock lock(mutex);
+                            ++outputs;
+                        }};
+        }
+
+        void open()
+        {
+            std::unique_lock lock(mutex);
+            changed.wait(lock, [this] { return opened; });
+        }
+
+        void release()
+        {
+            const std::scoped_lock lock(mutex);
+            released = true;
+            gate.notify_all();
+        }
+
+        std::pair<bool, std::string> wait()
+        {
+            std::unique_lock lock(mutex);
+            REQUIRE(changed.wait_for(lock, 20s, [this] { return done.has_value(); }));
+            return *done;
+        }
+    };
+    Scratch scratch;
+    std::string problem;
+    const std::unique_ptr<exthost::HostedModule> module =
+        exthost::HostedModule::start(hostedOptions(scratch), problem);
+    REQUIRE_MESSAGE(module != nullptr, problem);
+    REQUIRE(module->waitReady(20s));
+    Blocking blocking;
+    REQUIRE(module->startJob(jobIndex(*module, "count"), R"({"steps":20,"output":1,"big":1})", blocking.events()) != 0);
+    blocking.open();
+    std::this_thread::sleep_for(400ms);
+    blocking.release();
+    CHECK(blocking.wait() == std::pair<bool, std::string>{true, R"({"counted":20,"busy":0})"});
+}
+
+TEST_CASE("ADR-0112: turning off an extension whose child keeps filling the channel ends within a few seconds")
+{
+    Scratch scratch;
+    std::string problem;
+    std::unique_ptr<exthost::HostedModule> module = exthost::HostedModule::start(hostedOptions(scratch), problem);
+    REQUIRE_MESSAGE(module != nullptr, problem);
+    REQUIRE(module->waitReady(20s));
+    CHECK(callNode(*module, "forge", {textValue(exthost::ValueType::String, "overlay"), numberValue(0.0),
+                                      numberValue(1000000.0)})
+              .status != exthost::CallStatus::Ok);
+    std::this_thread::sleep_for(300ms);
+    std::atomic<bool> gone{false};
+    std::thread([held = std::move(module), &gone]() mutable {
+        held.reset();
+        gone.store(true);
+    }).detach();
+    CHECK(eventually([&] { return gone.load(); }));
+}
+
 namespace {
 
 struct TapWatch {

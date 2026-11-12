@@ -141,8 +141,10 @@ target_compile_definitions(gs_ext_tests PRIVATE
 )
 add_dependencies(gs_ext_tests gs_test_native_inject)
 
-add_library(gs_test_native SHARED fakes/native/TestNative.cpp)
-target_include_directories(gs_test_native PRIVATE "${PROJECT_SOURCE_DIR}/sdk/include")
+add_library(gs_test_native SHARED fakes/native/TestNative.cpp
+    "${PROJECT_SOURCE_DIR}/src/exthost/src/Channel.cpp")
+target_include_directories(gs_test_native PRIVATE "${PROJECT_SOURCE_DIR}/sdk/include"
+    "${PROJECT_SOURCE_DIR}/src/exthost/src")
 gs_apply_compiler_policy(gs_test_native)
 
 add_library(gs_test_native_inject SHARED fakes/native/TestNativeInject.cpp)

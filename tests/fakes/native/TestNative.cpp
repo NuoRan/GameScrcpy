@@ -1,8 +1,11 @@
 #include <gamescrcpy_ext.h>
 
+#include "Channel.h"
+
 #include <windows.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <condition_variable>
 #include <cstdio>
@@ -16,6 +19,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -1159,6 +1163,93 @@ const uint32_t kInputEvent[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING, GS_EXT_T
 const uint32_t kInputBurst[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING, GS_EXT_TYPE_NUMBER};
 const uint32_t kOneNumber[] = {GS_EXT_TYPE_NUMBER};
 const uint32_t kThreeStrings[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING};
+const uint32_t kForgeArgs[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_NUMBER, GS_EXT_TYPE_NUMBER};
+
+std::optional<gs::exthost::detail::Channel> g_forgeChannel;
+std::once_flag g_forgeOnce;
+
+gs::exthost::detail::Channel* forgedChannel()
+{
+    std::call_once(g_forgeOnce, [] {
+        const std::wstring command = GetCommandLineW();
+        constexpr std::wstring_view kFlag = L"--channel ";
+        const std::size_t at = command.find(kFlag);
+        if (at == std::wstring::npos) {
+            return;
+        }
+        const std::size_t begin = at + kFlag.size();
+        const std::size_t end = command.find(L' ', begin);
+        g_forgeChannel = gs::exthost::detail::Channel::open(
+            command.substr(begin, end == std::wstring::npos ? std::wstring::npos : end - begin));
+    });
+    return g_forgeChannel ? &*g_forgeChannel : nullptr;
+}
+
+void put32(std::string& out, std::uint32_t value)
+{
+    out.append(reinterpret_cast<const char*>(&value), sizeof(value));
+}
+
+void putText(std::string& out, std::string_view text)
+{
+    put32(out, static_cast<std::uint32_t>(text.size()));
+    out.append(text);
+}
+
+int32_t forgeNode(void*, const gs_ext_value* args, uint32_t count, gs_ext_result* result)
+{
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number = 0.0;
+    if (count != 3) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    gs::exthost::detail::Channel* channel = forgedChannel();
+    if (channel == nullptr) {
+        return GS_EXT_UNSUPPORTED;
+    }
+    const std::string_view what(args[0].text, args[0].size);
+    const std::uint64_t id = static_cast<std::uint64_t>(args[1].number);
+    const int times = args[2].number > 0.0 ? static_cast<int>(args[2].number) : 1;
+    std::size_t written = 0;
+    for (int nth = 0; nth < times; ++nth) {
+        gs::exthost::detail::Kind kind = gs::exthost::detail::Kind::Stop;
+        std::string payload;
+        if (what == "progress") {
+            kind = gs::exthost::detail::Kind::JobUpdate;
+            const double fraction = 0.5;
+            put32(payload, 0);
+            payload.append(reinterpret_cast<const char*>(&fraction), sizeof(fraction));
+            put32(payload, 0);
+            putText(payload, "\xC3\x28");
+        } else if (what == "transport") {
+            kind = gs::exthost::detail::Kind::TransportChanged;
+            putText(payload, "forged");
+        } else if (what == "source") {
+            kind = gs::exthost::detail::Kind::SourcesChanged;
+            putText(payload, "forged");
+        } else if (what == "overlay") {
+            kind = gs::exthost::detail::Kind::TapOverlay;
+            put32(payload, 256);
+            for (std::uint32_t shape = 0; shape < 256U; ++shape) {
+                put32(payload, 0);
+                put32(payload, 0xFF00FF00U);
+                put32(payload, shape);
+                const std::array<double, 4> box{1.0, 2.0, 3.0, 4.0};
+                payload.append(reinterpret_cast<const char*>(box.data()), sizeof(box));
+                putText(payload, std::string(64, 'y'));
+            }
+        } else {
+            return GS_EXT_BAD_ARGUMENT;
+        }
+        while (!channel->toApp().write(kind, id, payload)) {
+            Sleep(0);
+        }
+        ++written;
+    }
+    SetEvent(channel->toAppEvent());
+    result->value.number = static_cast<double>(written);
+    return GS_EXT_OK;
+}
 
 const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "add", kTwoNumbers, 2, GS_EXT_TYPE_NUMBER, nullptr, &add},
@@ -1214,6 +1305,7 @@ const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "environment", kOneString, 1, GS_EXT_TYPE_STRING, nullptr, &environment},
     {sizeof(gs_ext_node), "logMany", kOneNumber, 1, GS_EXT_TYPE_NUMBER, nullptr, &logMany},
     {sizeof(gs_ext_node), "deviceCalls", nullptr, 0, GS_EXT_TYPE_NUMBER, nullptr, &deviceCalls},
+    {sizeof(gs_ext_node), "forge", kForgeArgs, 3, GS_EXT_TYPE_NUMBER, nullptr, &forgeNode},
 };
 
 const gs_ext_transport kLoop = {sizeof(gs_ext_transport), "loop",    nullptr,   &loopDiscover,
@@ -1399,11 +1491,12 @@ int32_t countStart(void*, uint64_t job, const char* args, size_t size)
     const bool output = numberIn(text, "output", 0.0) != 0.0;
     const bool deepOutput = numberIn(text, "output", 0.0) == 2.0;
     const auto deep = static_cast<size_t>(numberIn(text, "deep", 0.0));
+    const bool big = numberIn(text, "big", 0.0) != 0.0;
     auto stop = std::make_shared<std::atomic<bool>>(false);
     JobBook& book = jobBook();
     const std::scoped_lock lock(book.mutex);
     book.stops[job] = stop;
-    book.threads.emplace_back([job, steps, pause, fail, output, deepOutput, deep, stop] {
+    book.threads.emplace_back([job, steps, pause, fail, output, deepOutput, deep, big, stop] {
         if (deep > 0) {
             const std::string nested = std::string(deep, '[') + std::string(deep, ']');
             g_host->job_output(g_host->context, job, nested.data(), nested.size());
@@ -1427,7 +1520,9 @@ int32_t countStart(void*, uint64_t job, const char* args, size_t size)
                 g_host->job_log(g_host->context, job, GS_EXT_LOG_INFO, kCounting, sizeof(kCounting) - 1);
             }
             if (output) {
-                const std::string value = "{\"step\":" + std::to_string(step) + "}";
+                const std::string value = big ? "{\"step\":" + std::to_string(step) + ",\"pad\":\"" +
+                                                    std::string(60 * 1024, 'x') + "\"}"
+                                              : "{\"step\":" + std::to_string(step) + "}";
                 if (g_host->job_output(g_host->context, job, value.data(), value.size()) == GS_EXT_BUSY) {
                     ++busy;
                 }
@@ -2185,6 +2280,7 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "environment", &kNodes[50]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "logMany", &kNodes[51]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "deviceCalls", &kNodes[52]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "forge", &kNodes[53]},
 };
 
 const gs_ext_plugin kPlugin = {

@@ -950,7 +950,7 @@ private:
         detail::WireWriter out;
         out.u32(worked ? 1U : 0U);
         out.text(text);
-        m_link.send(detail::Kind::JobDone, id, out.bytes());
+        static_cast<void>(m_link.deliver(detail::Kind::JobDone, id, out.bytes()));
     }
 
     Module& m_module;
