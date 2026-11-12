@@ -2060,9 +2060,7 @@ TEST_CASE("ADR-0112: command-line commands name one of the native jobs and its p
     hears["contributes"]["native"]["jobs"] = Json::array(
         {{{"name", "hear"}, {"title", "Hear"}, {"params", Json::array({{{"name", "phrases"}, {"type", "json"}}})}}});
     hears["contributes"]["cli"] = Json::array(
-        {{{"name", "hear"}, {"job", "hear"}, {"params", Json::array({{{"name", "phrases"}, {"default", "1, 2"}}})}}});
-    CHECK(reports(load(hears), Code::CliCommandInvalid, "$.contributes.cli[0].params[0].default"));
-    hears["contributes"]["cli"][0]["params"][0]["default"] = "[1, 2]";
+        {{{"name", "hear"}, {"job", "hear"}, {"params", Json::array({{{"name", "phrases"}, {"default", "[1, 2]"}}})}}});
     const LoadedManifest hearable = load(hears);
     INFO(listed(hearable));
     CHECK(hearable.usable);

@@ -208,7 +208,7 @@ TEST_CASE("ADR-0112: a package that brings more imported functions than a packag
     }
     for (const char* name : {"bin/a.dll", "bin/b.dll", "bin/c.dll", "bin/d.dll"}) {
         CAPTURE(name);
-        writeFile(folder / name, buildPe({.imports = {{"kernel32.dll", ordinals}}}));
+        writeFile(folder / name, buildPe({.imports = {{"helper.dll", ordinals}}}));
     }
     const NativeCheck check = checkNative(directoryContents(folder), Manifest{});
     CHECK(check.refusal == NativeRefusal::Unreadable);
