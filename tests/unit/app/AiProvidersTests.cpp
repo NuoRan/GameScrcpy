@@ -30,6 +30,7 @@
 #include <QVariantMap>
 
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -249,6 +250,21 @@ TEST_CASE("ADR-0112: an extension's AI provider lists its models through its nod
     provider->cancel();
     REQUIRE(gs::test::waitUntil([&native] { return native.jobs.running() == 0; }));
     CHECK_FALSE(waiting.reply.has_value());
+}
+
+TEST_CASE("ADR-0112: an extension's provider that streams more than the most text is stopped and says so")
+{
+    Native native;
+    const std::unique_ptr<AiProvider> provider = native.providers.provider(kProvider, modelled(u"plain"_s));
+    REQUIRE(provider != nullptr);
+    Heard heard;
+    provider->send(question(u"flood"_s), heard.handlers());
+    REQUIRE(gs::test::waitUntil([&heard] { return heard.reply.has_value(); }, std::chrono::seconds(60)));
+    CHECK(heard.reply->problem.contains(u"Tiny AI"_s));
+    CHECK(heard.reply->problem.contains(u"too long"_s));
+    CHECK(heard.reply->text.size() <= gs::app::AiStream::kMostAnswerCharacters);
+    CHECK_FALSE(heard.texts.isEmpty());
+    REQUIRE(gs::test::waitUntil([&native] { return native.jobs.running() == 0; }, std::chrono::seconds(60)));
 }
 
 TEST_CASE("ADR-0112: a request too large for a job's arguments reaches the provider in a file, which is gone once the "

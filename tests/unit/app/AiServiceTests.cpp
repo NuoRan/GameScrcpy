@@ -531,6 +531,28 @@ TEST_CASE("an OpenAI stream gives the text as it comes and puts the tool calls t
     CHECK(reply.usage.output == 20);
 }
 
+TEST_CASE("ADR-0099 2026-11-13: a stream that goes on for longer than the most text stops instead of reading it all")
+{
+    const QByteArray piece(64 * 1024, 'x');
+    QByteArray event = "data: {\"choices\": [{\"index\": 0, \"delta\": {\"content\": \"";
+    event += piece;
+    event += "\"}}]}\n\n";
+    QByteArray bytes;
+    for (int index = 0; index < 80; ++index) {
+        bytes += event;
+    }
+    CHECK(bytes.size() > AiStream::kMostAnswerCharacters);
+
+    QStringList deltas;
+    const AiReply reply = streamed(AiKind::OpenAi, bytes, &deltas);
+    CHECK_FALSE(reply.problem.isEmpty());
+    CHECK(reply.problem.contains(u"too long"_s));
+    CHECK(reply.text.size() <= AiStream::kMostAnswerCharacters);
+    CHECK_FALSE(deltas.isEmpty());
+    CHECK(deltas.size() < 80);
+    CHECK(deltas.size() == reply.text.size() / piece.size());
+}
+
 TEST_CASE("an Anthropic stream gives the text as it comes and puts the tool input together from partial JSON")
 {
     QByteArray bytes;

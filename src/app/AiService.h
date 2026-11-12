@@ -212,6 +212,8 @@ struct AiThinkSplit {
 class AiStream
 {
 public:
+    static constexpr qsizetype kMostAnswerCharacters = qsizetype{4} << 20;
+
     explicit AiStream(AiKind kind)
         : m_kind(kind)
     {
@@ -237,6 +239,7 @@ private:
     void content(const QString& piece, AiDelta& delta);
     void thought(const QString& piece, AiDelta& delta);
     void fail(const QJsonValue& error);
+    void tooLong();
 
     AiKind m_kind;
     QString m_text;
@@ -249,7 +252,9 @@ private:
     AiUsage m_usage;
     QString m_problem;
     QString m_code;
+    qsizetype m_readCharacters = 0;
     bool m_done = false;
+    bool m_tooLong = false;
 };
 
 }

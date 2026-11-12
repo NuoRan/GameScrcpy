@@ -1595,13 +1595,25 @@ int32_t aiChatStart(void*, uint64_t job, const char* args, size_t size)
     const bool junk = asked("junk");
     const bool calls = asked("call");
     const bool waits = asked("wait");
-    bookJob(job, [job, fails, junk, calls, waits](const std::shared_ptr<std::atomic<bool>>& stop) {
+    const bool floods = asked("flood");
+    bookJob(job, [job, fails, junk, calls, waits, floods](const std::shared_ptr<std::atomic<bool>>& stop) {
         if (fails) {
             sayJob(job, false, "the test provider fails on purpose");
             return;
         }
         if (junk) {
             sayJob(job, true, "[1,2]");
+            return;
+        }
+        if (floods) {
+            const std::string value = "{\"text\":\"" + std::string(16 * 1024, 'x') + "\"}";
+            for (int index = 0; index < 300 && !stop->load(); ++index) {
+                while (!stop->load() &&
+                       g_host->job_output(g_host->context, job, value.data(), value.size()) == GS_EXT_BUSY) {
+                    Sleep(1);
+                }
+            }
+            sayJob(job, true, "{\"text\":\"\",\"stop\":\"end\"}");
             return;
         }
         if (calls) {

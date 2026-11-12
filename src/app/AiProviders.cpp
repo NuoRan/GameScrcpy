@@ -93,6 +93,8 @@ public:
         m_handlers = std::move(handlers);
         m_text.clear();
         m_thinking.clear();
+        m_read = 0;
+        m_tooLong = false;
         m_timer.start();
         if (m_jobs == nullptr) {
             finishWith(AiReply{.problem = notAvailable()});
@@ -192,6 +194,20 @@ private:
 
     void streamed(const QString& json)
     {
+        if (m_tooLong) {
+            return;
+        }
+        m_read += json.size();
+        if (m_read > AiStream::kMostAnswerCharacters) {
+            m_tooLong = true;
+            const AiReply answered{.text = m_text,
+                                   .thinking = m_thinking,
+                                   .problem =
+                                       failure(QCoreApplication::translate("AiProviders", "the answer is too long"))};
+            stop();
+            finishWith(answered);
+            return;
+        }
         m_idle.start();
         const AiDelta delta = aiProviderDelta(json.toUtf8());
         m_text += delta.text;
@@ -267,6 +283,8 @@ private:
     std::uint64_t m_job = 0;
     QString m_text;
     QString m_thinking;
+    qsizetype m_read = 0;
+    bool m_tooLong = false;
     QTimer m_idle;
     QElapsedTimer m_timer;
 };

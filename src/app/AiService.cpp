@@ -1386,6 +1386,14 @@ AiReply aiProviderReply(const QByteArray& json, const QString& streamedText, con
 AiDelta AiStream::feed(const AiSseEvent& event)
 {
     const QByteArray data = event.data.trimmed();
+    if (m_tooLong) {
+        return {};
+    }
+    if (m_readCharacters + static_cast<qsizetype>(data.size()) > kMostAnswerCharacters) {
+        tooLong();
+        return {};
+    }
+    m_readCharacters += static_cast<qsizetype>(data.size());
     if (m_kind == AiKind::OpenAi && data == "[DONE]"_ba) {
         m_done = true;
         return {};
@@ -1734,6 +1742,13 @@ void AiStream::fail(const QJsonValue& error)
     m_problem = message.isEmpty()
                     ? QCoreApplication::translate("AiService", "The service stopped with an error.")
                     : QCoreApplication::translate("AiService", "The service stopped with an error: %1").arg(message);
+}
+
+void AiStream::tooLong()
+{
+    m_tooLong = true;
+    m_stop = QStringLiteral("too_long");
+    m_problem = QCoreApplication::translate("AiService", "The answer is too long, so GameScrcpy stopped reading it.");
 }
 
 }
