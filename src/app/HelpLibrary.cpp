@@ -199,12 +199,30 @@ qsizetype questionCount(const QVariantList& categories)
     return count;
 }
 
+QString withoutTargets(const QString& body)
+{
+    QString kept;
+    qsizetype copied = 0;
+    for (;;) {
+        const qsizetype open = body.indexOf(u"]("_s, copied);
+        if (open < 0) {
+            break;
+        }
+        const qsizetype close = body.indexOf(u')', open + 2);
+        if (close < 0) {
+            break;
+        }
+        kept += QStringView(body).sliced(copied, open + 1 - copied);
+        copied = close + 1;
+    }
+    kept += QStringView(body).sliced(copied);
+    return kept;
+}
+
 QString searchableText(const QString& title, const QString& body)
 {
-    static const QRegularExpression targets(uR"(\]\([^)]*\))"_s);
     static const QRegularExpression marks(uR"([*`#>|\[\]!])"_s);
-    QString plain = body;
-    plain.replace(targets, u"]"_s);
+    QString plain = withoutTargets(body);
     plain.replace(marks, u" "_s);
     return (title + u'\n' + plain).toCaseFolded();
 }

@@ -9,6 +9,7 @@
 #include <doctest/doctest.h>
 
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QFileInfo>
 #include <QJsonArray>
@@ -30,6 +31,7 @@
 #include <map>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 using gs::app::AppSettings;
@@ -845,4 +847,55 @@ TEST_CASE("ADR-0112: extensions add help articles under their own group, found b
     help.setExtensionTopics({});
     CHECK_FALSE(help.contains(setupSlug));
     CHECK_FALSE(listed(help.contents(), QStringLiteral("label")).contains(QStringLiteral("扩展")));
+}
+
+TEST_CASE("ADR-0112: an extension's help is read in time that grows with its length, whatever brackets, quotes, keys, "
+          "braces or spaces it repeats")
+{
+    const QTemporaryDir data;
+    const QTemporaryDir root;
+    REQUIRE(data.isValid());
+    REQUIRE(root.isValid());
+    writeSmallLibrary(root.path());
+    AppSettings settings(data.path().toStdWString());
+    REQUIRE(settings.setValue(kLanguage, kEnglish));
+    HelpLibrary help(settings, root.path());
+    constexpr qsizetype kRun = 200'000;
+    const QStringList texts{
+        QString(kRun, u'[') + QStringLiteral("]x(\n"),
+        QString(kRun, u'[') + QStringLiteral("]x [see](help:apples)\n"),
+        QStringLiteral("](").repeated(kRun / 2) + u'\n',
+        QString(kRun, QChar(0x201C)) + u'\n',
+        QStringLiteral("<kbd>").repeated(kRun / 5) + u'\n',
+        QStringLiteral("| Keys | Does |\n|---|---|\n| ") + QStringLiteral("<kbd>").repeated(kRun / 5) +
+            QStringLiteral(" | x |\n"),
+        QStringLiteral("## a") + QString(kRun, u' ') + QStringLiteral("b\n"),
+        QStringLiteral("## a ") + QStringLiteral("{}").repeated(kRun / 2) + u'\n',
+        QStringLiteral("```") + QString(kRun, u' ') + QStringLiteral("!\n"),
+        QStringLiteral("| a |\n|---") + QString(kRun, u' ') + QStringLiteral("x\n")};
+    std::vector<gs::app::ExtensionHelp> topics;
+    for (qsizetype index = 0; index < texts.size(); ++index) {
+        topics.push_back({.extension = QStringLiteral("mallory.slow"),
+                          .extensionName = QStringLiteral("Slow"),
+                          .id = QStringLiteral("t%1").arg(index),
+                          .titles = {{kEnglish, QStringLiteral("Slow %1").arg(index)}},
+                          .texts = {{kEnglish, texts[index]}}});
+    }
+    QElapsedTimer timer;
+    timer.start();
+    help.setExtensionTopics(std::move(topics));
+    CHECK(timer.elapsed() < 20'000);
+    CHECK(help.contains(QStringLiteral("ext/mallory.slow/t9")));
+
+    const QVariantList blocks =
+        help.article(QStringLiteral("ext/mallory.slow/t1")).value(QStringLiteral("blocks")).toList();
+    REQUIRE_FALSE(blocks.isEmpty());
+    const QVariantMap link = blocks.front().toMap();
+    CHECK(link.value(QStringLiteral("kind")).toString() == QStringLiteral("link"));
+    CHECK(link.value(QStringLiteral("label")).toString() == QStringLiteral("see"));
+    CHECK(link.value(QStringLiteral("target")).toString() == QStringLiteral("help:apples"));
+    const QVariantList sections =
+        help.article(QStringLiteral("ext/mallory.slow/t7")).value(QStringLiteral("sections")).toList();
+    REQUIRE(sections.size() == 1);
+    CHECK(sections.front().toMap().value(QStringLiteral("title")).toString() == QStringLiteral("a"));
 }

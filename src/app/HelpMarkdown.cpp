@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <array>
 #include <cmath>
+#include <optional>
 #include <utility>
 
 namespace gs::app {
@@ -26,6 +27,36 @@ struct Built {
     QVariantMap block;
     QString plain;
 };
+
+class Ahead final
+{
+public:
+    Ahead(QStringView text, QStringView wanted) noexcept
+        : m_text(text)
+        , m_wanted(wanted)
+    {
+    }
+
+    [[nodiscard]] qsizetype from(qsizetype start)
+    {
+        if (m_searched < 0 || start < m_searched || (m_found >= 0 && m_found < start)) {
+            m_found = m_text.indexOf(m_wanted, start);
+            m_searched = start;
+        }
+        return m_found;
+    }
+
+private:
+    QStringView m_text;
+    QStringView m_wanted;
+    qsizetype m_searched = -1;
+    qsizetype m_found = -1;
+};
+
+bool asciiSpace(QChar c) noexcept
+{
+    return c == u' ' || c == u'\t' || c == u'\n' || c == u'\r' || c == u'\f' || c == u'\v';
+}
 
 bool wide(QChar c)
 {
@@ -84,13 +115,13 @@ const QRegularExpression& bulletItem()
 
 const QRegularExpression& headingLine()
 {
-    static const QRegularExpression pattern(uR"(^(#{1,6})\s+(.*?)\s*$)"_s);
+    static const QRegularExpression pattern(uR"(^(#{1,6})\s+(.*)$)"_s);
     return pattern;
 }
 
 const QRegularExpression& fenceLine()
 {
-    static const QRegularExpression pattern(uR"re(^\s*```\s*([A-Za-z0-9_+-]*)\s*(?:title="([^"]*)")?\s*$)re"_s);
+    static const QRegularExpression pattern(uR"re(^\s*+```\s*+([A-Za-z0-9_+-]*)\s*+(?:title="([^"]*)")?\s*+$)re"_s);
     return pattern;
 }
 
@@ -188,13 +219,13 @@ bool scriptLanguage(const QString& language)
 QVariantMap attributesOf(QString& raw)
 {
     QVariantMap attributes;
-    raw = raw.trimmed();
-    while (raw.endsWith(u'}')) {
-        const qsizetype open = raw.lastIndexOf(u'{');
+    QStringView rest = QStringView(raw).trimmed();
+    while (rest.endsWith(u'}')) {
+        const qsizetype open = rest.lastIndexOf(u'{');
         if (open < 0) {
             break;
         }
-        const QString inside = raw.sliced(open + 1, raw.size() - open - 2).trimmed();
+        const QString inside = rest.sliced(open + 1, rest.size() - open - 2).trimmed().toString();
         const qsizetype equals = inside.indexOf(u'=');
         if (inside.startsWith(u'#')) {
             attributes.insert(u"anchor"_s, inside.mid(1).trimmed());
@@ -203,8 +234,9 @@ QVariantMap attributesOf(QString& raw)
         } else {
             attributes.insert(u"note"_s, inside);
         }
-        raw = raw.left(open).trimmed();
+        rest = rest.left(open).trimmed();
     }
+    raw = rest.toString();
     return attributes;
 }
 
@@ -238,10 +270,19 @@ QStringList cellsOf(const QString& line)
 
 QStringList keysOf(const QString& cell)
 {
-    static const QRegularExpression key(uR"(<kbd>(.*?)</kbd>)"_s);
     QStringList keys;
-    for (QRegularExpressionMatchIterator it = key.globalMatch(cell); it.hasNext();) {
-        keys.append(it.next().captured(1).trimmed());
+    qsizetype at = 0;
+    for (;;) {
+        const qsizetype open = cell.indexOf(u"<kbd>"_s, at);
+        if (open < 0) {
+            break;
+        }
+        const qsizetype close = cell.indexOf(u"</kbd>"_s, open + 5);
+        if (close < 0) {
+            break;
+        }
+        keys.append(cell.sliced(open + 5, close - open - 5).trimmed());
+        at = close + 6;
     }
     return keys;
 }
@@ -429,7 +470,7 @@ Built calloutBlock(const QStringList& quoted)
 
 Built tableBlock(const QStringList& rows)
 {
-    static const QRegularExpression separator(uR"(^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$)"_s);
+    static const QRegularExpression separator(uR"(^\s*+\|?\s*+:?-{2,}+:?\s*+(\|\s*+:?-{2,}+:?\s*+)*+\|?\s*+$)"_s);
     QStringList header;
     std::vector<QStringList> body;
     for (qsizetype i = 0; i < rows.size(); ++i) {
@@ -508,19 +549,100 @@ Built figureBlock(const QString& caption, const QString& target)
             helpPlain(caption)};
 }
 
+struct EndLink {
+    qsizetype open = 0;
+    qsizetype close = 0;
+    qsizetype target = 0;
+    qsizetype targetEnd = 0;
+};
+
+std::optional<EndLink> endLinkOf(QStringView text)
+{
+    const auto skipBack = [text](qsizetype at) {
+        while (at > 0 && asciiSpace(text[at - 1])) {
+            --at;
+        }
+        return at;
+    };
+    qsizetype end = skipBack(text.size());
+    if (end > 0 && (text[end - 1] == u'。' || text[end - 1] == u'.')) {
+        end = skipBack(end - 1);
+    }
+    if (end == 0 || text[end - 1] != u')') {
+        return std::nullopt;
+    }
+    const qsizetype targetEnd = skipBack(end - 1);
+    qsizetype run = targetEnd;
+    while (run > 0 && text[run - 1] != u')' && !asciiSpace(text[run - 1])) {
+        --run;
+    }
+    const auto targetAfter = [text, targetEnd, run](qsizetype bracket) -> qsizetype {
+        if (bracket + 1 >= targetEnd || text[bracket + 1] != u'(') {
+            return -1;
+        }
+        qsizetype at = bracket + 2;
+        while (at < targetEnd && asciiSpace(text[at])) {
+            ++at;
+        }
+        return text.sliced(at).startsWith(u"help:") && at + 5 >= run && at + 5 < targetEnd ? at : -1;
+    };
+    qsizetype open = text.indexOf(u'[');
+    while (open >= 0) {
+        const qsizetype close = text.indexOf(u']', open + 1);
+        if (close < 0) {
+            return std::nullopt;
+        }
+        if (const qsizetype target = close > open + 1 ? targetAfter(close) : -1; target >= 0) {
+            return EndLink{.open = open, .close = close, .target = target, .targetEnd = targetEnd};
+        }
+        open = text.indexOf(u'[', close + 1);
+    }
+    return std::nullopt;
+}
+
+QString withoutLinkTargets(QStringView text)
+{
+    QString kept;
+    qsizetype copied = 0;
+    qsizetype at = 0;
+    while (at < text.size()) {
+        const qsizetype open = text.indexOf(u'[', at);
+        if (open < 0) {
+            break;
+        }
+        const qsizetype close = text.indexOf(u']', open + 1);
+        if (close < 0) {
+            break;
+        }
+        if (close + 1 >= text.size() || text[close + 1] != u'(') {
+            at = close + 1;
+            continue;
+        }
+        const qsizetype end = text.indexOf(u')', close + 2);
+        if (end < 0) {
+            break;
+        }
+        kept += text.sliced(copied, open - copied);
+        kept += text.sliced(open + 1, close - open - 1);
+        copied = end + 1;
+        at = copied;
+    }
+    kept += text.sliced(copied);
+    return kept;
+}
+
 Built paragraphBlock(const QString& text)
 {
-    static const QRegularExpression endLink(uR"(^(.*?)\[([^\]]+)\]\(\s*(help:[^)\s]+)\s*\)\s*[。.]?\s*$)"_s);
-    if (const QRegularExpressionMatch match = endLink.match(text);
-        match.hasMatch() && !match.captured(1).contains(u"]("_s)) {
-        QString lead = helpPlain(match.captured(1)).trimmed();
+    if (const std::optional<EndLink> link = endLinkOf(text);
+        link && !QStringView(text).first(link->open).contains(u"]("_s)) {
+        QString lead = helpPlain(QStringView(text).first(link->open)).trimmed();
         while (!lead.isEmpty() && (lead.endsWith(u'：') || lead.endsWith(u':'))) {
             lead.chop(1);
         }
         return {{{u"kind"_s, u"link"_s},
                  {u"lead"_s, lead},
-                 {u"label"_s, helpPlain(match.captured(2))},
-                 {u"target"_s, match.captured(3)}},
+                 {u"label"_s, helpPlain(QStringView(text).sliced(link->open + 1, link->close - link->open - 1))},
+                 {u"target"_s, text.sliced(link->target, link->targetEnd - link->target)}},
                 helpPlain(text)};
     }
     return {{{u"kind"_s, u"paragraph"_s}, {u"html"_s, helpInline(text)}}, helpPlain(text)};
@@ -603,6 +725,10 @@ QString helpInline(QStringView text)
     };
     const qsizetype n = text.size();
     qsizetype i = 0;
+    Ahead keyEnd(text, u"</kbd>");
+    Ahead labelEnd(text, u"]");
+    Ahead targetEnd(text, u")");
+    Ahead quoteEnd(text, u"”");
     while (i < n) {
         const QChar c = text[i];
         const QStringView rest = text.sliced(i);
@@ -631,7 +757,7 @@ QString helpInline(QStringView text)
             }
         }
         if (rest.startsWith(u"<kbd>")) {
-            if (const qsizetype end = text.indexOf(u"</kbd>", i + 5); end >= i + 5) {
+            if (const qsizetype end = keyEnd.from(i + 5); end >= i + 5) {
                 flush();
                 out += keyHtml(text.sliced(i + 5, end - i - 5));
                 i = end + 6;
@@ -639,9 +765,9 @@ QString helpInline(QStringView text)
             }
         }
         if (c == u'[') {
-            const qsizetype close = text.indexOf(u']', i + 1);
+            const qsizetype close = labelEnd.from(i + 1);
             if (close > i && close + 1 < n && text[close + 1] == u'(') {
-                if (const qsizetype end = text.indexOf(u')', close + 2); end > close + 1) {
+                if (const qsizetype end = targetEnd.from(close + 2); end > close + 1) {
                     flush();
                     const QString target = text.sliced(close + 2, end - close - 2).trimmed().toString();
                     out += u"<a href=\""_s + target.toHtmlEscaped() + u"\" style=\"color:%LINK%;text-decoration:none\">"_s +
@@ -652,7 +778,7 @@ QString helpInline(QStringView text)
             }
         }
         if (c == u'“') {
-            if (const qsizetype end = text.indexOf(u'”', i + 1); end > i + 1) {
+            if (const qsizetype end = quoteEnd.from(i + 1); end > i + 1) {
                 flush();
                 const QStringView inner = text.sliced(i + 1, end - i - 1);
                 out += inner.contains(u" > ") ? pathHtml(inner) : nameHtml(u"“"_s + helpInline(inner) + u"”"_s);
@@ -669,11 +795,9 @@ QString helpInline(QStringView text)
 
 QString helpPlain(QStringView text)
 {
-    static const QRegularExpression link(uR"(\[([^\]]*)\]\([^)]*\))"_s);
     static const QRegularExpression marks(uR"(\*\*|`|</?kbd>|\\(?=[\\`*_\[\]()#+\-.!|<>]))"_s);
     static const QRegularExpression icons(uR"((?<!\S):[a-z0-9-]+:(?=\s))"_s);
-    QString plain = text.toString();
-    plain.replace(link, u"\\1"_s);
+    QString plain = withoutLinkTargets(text);
     plain.replace(marks, QString());
     plain.replace(icons, QString());
     return plain.simplified();
