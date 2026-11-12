@@ -315,6 +315,15 @@ std::unique_ptr<gs::hardware::Backend> demoHardware()
 
 int main(int argc, char* argv[])
 {
+    QStringList given;
+    for (int index = 1; index < argc; ++index) {
+        given.append(QString::fromLocal8Bit(argv[index]));
+    }
+    const std::optional<QString> link = gs::app::linkArgument(given, gs::app::ownCommandLine());
+    if (link && link->isEmpty()) {
+        return EXIT_FAILURE;
+    }
+
     QQuickWindow::setGraphicsApi(QSGRendererInterface::Direct3D11);
     qputenv("QT_QPA_DISABLE_REDIRECTION_SURFACE", "1");
     if (!qEnvironmentVariableIsSet("QT_D3D_NO_VBLANK_THREAD")) {
@@ -377,9 +386,8 @@ int main(int argc, char* argv[])
     parser.addPositionalArgument(u"link"_s, u"A gamescrcpy:// link: install an extension from the web or show one."_s,
                                  u"[link]"_s);
     parser.process(app);
-    const QString link = gs::app::linkArgument(parser.positionalArguments());
-    if (!link.isEmpty() &&
-        gs::app::LinkHandover::send(gs::app::linkPipeName(gs::app::dataDirectory()), link, std::chrono::seconds(5))) {
+    if (link &&
+        gs::app::LinkHandover::send(gs::app::linkPipeName(gs::app::dataDirectory()), *link, std::chrono::seconds(5))) {
         return EXIT_SUCCESS;
     }
     const gs::platform::RunningMarker running(L"GameScrcpyRunning");
@@ -730,8 +738,8 @@ int main(int argc, char* argv[])
             catalog->retranslate();
         }
     });
-    if (!link.isEmpty()) {
-        QMetaObject::invokeMethod(&extensionLinks, [&extensionLinks, link] { extensionLinks.open(link); },
+    if (link) {
+        QMetaObject::invokeMethod(&extensionLinks, [&extensionLinks, opened = *link] { extensionLinks.open(opened); },
                                   Qt::QueuedConnection);
     }
     if (parser.isSet(profile)) {

@@ -553,8 +553,8 @@ QVariantMap entryOf(const ExtensionHost& host, const QString& id)
 
 }
 
-TEST_CASE("ADR-0112: the Extensions page names the verified publisher with its key, or says an extension is "
-          "unsigned, and removing it forgets the key")
+TEST_CASE("ADR-0112: a key seen for the first time is only signed, the verified publisher is named by its key and "
+          "never by the author a package claims, an unsigned extension says so, and removing it forgets the key")
 {
     const Fixture fixture;
     const gs::ext::MinisignSecretKey key = testKey(0x21);
@@ -573,10 +573,10 @@ TEST_CASE("ADR-0112: the Extensions page names the verified publisher with its k
     CHECK(offered.value(QStringLiteral("ok")).toBool());
     CHECK_FALSE(offered.contains(QStringLiteral("security")));
     const QVariantMap offeredPublisher = offered.value(QStringLiteral("publisher")).toMap();
-    CHECK(offeredPublisher.value(QStringLiteral("state")).toString() == QStringLiteral("verified"));
+    CHECK(offeredPublisher.value(QStringLiteral("state")).toString() == QStringLiteral("signed"));
     CHECK(offeredPublisher.value(QStringLiteral("keyId")).toString() == keyId);
     CHECK(offeredPublisher.value(QStringLiteral("text")).toString() ==
-          QStringLiteral("Verified publisher: Alice \u00B7 ") + keyId);
+          QStringLiteral("Signed with key %1, which this computer has not seen before").arg(keyId));
 
     REQUIRE(host.install(signedTheme).ok());
     REQUIRE(host.install(plainTheme).ok());
@@ -586,8 +586,14 @@ TEST_CASE("ADR-0112: the Extensions page names the verified publisher with its k
     const QVariantMap publisher = signedEntry.value(QStringLiteral("publisher")).toMap();
     CHECK(publisher.value(QStringLiteral("state")).toString() == QStringLiteral("verified"));
     CHECK(publisher.value(QStringLiteral("keyId")).toString() == keyId);
-    CHECK(publisher.value(QStringLiteral("text")).toString() ==
-          QStringLiteral("Verified publisher: Alice \u00B7 ") + keyId);
+    CHECK(publisher.value(QStringLiteral("text")).toString() == QStringLiteral("Verified publisher \u00B7 key ") + keyId);
+    CHECK_FALSE(publisher.value(QStringLiteral("text")).toString().contains(QStringLiteral("Alice")));
+
+    const fs::path update = themePackage(fixture, "update", themeManifest("alice.ember", "1.0.1", authorKey), &key);
+    const QVariantMap updateOffer = host.inspect(textOf(update));
+    CHECK(updateOffer.value(QStringLiteral("ok")).toBool());
+    CHECK(updateOffer.value(QStringLiteral("publisher")).toMap().value(QStringLiteral("state")).toString() ==
+          QStringLiteral("verified"));
     const QVariantMap plainEntry = entryOf(host, QStringLiteral("bob.plain"));
     REQUIRE_FALSE(plainEntry.isEmpty());
     CHECK(plainEntry.value(QStringLiteral("publisher")).toMap().value(QStringLiteral("state")).toString() ==

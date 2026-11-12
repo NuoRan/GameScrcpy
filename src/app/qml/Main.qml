@@ -352,6 +352,12 @@ Window {
 
         function onPackageReady(fileUrl: string, source: string) {
             linkToast.close()
+            if (installDialog.visible || bundleDialog.visible) {
+                ExtensionLinks.release()
+                root.notify(qsTr("Close the open install dialog first, then open the link again"), "warn")
+                root.bringForward()
+                return
+            }
             rail.currentIndex = 3
             root.confirmDownloaded(fileUrl, source)
             root.bringForward()

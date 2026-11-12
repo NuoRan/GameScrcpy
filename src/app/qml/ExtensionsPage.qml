@@ -223,6 +223,8 @@ Item {
         switch (kind) {
         case "verified":
             return Theme.colors.successText
+        case "signed":
+            return Theme.colors.textSecondary
         case "unsigned":
             return Theme.colors.textTertiary
         default:
@@ -230,9 +232,14 @@ Item {
         }
     }
 
+    function publisherIcon(kind: string): string {
+        return kind === "verified" || kind === "signed" || kind === "unsigned" ? "shield" : "triangle-alert"
+    }
+
     function publisherNote(kind: string): string {
         switch (kind) {
         case "verified":
+        case "signed":
             return qsTr("Updates have to be signed with the same key. To accept a new key, remove the extension and "
                         + "install it again.")
         case "unsigned":
@@ -696,8 +703,7 @@ Item {
                                         spacing: Theme.space.xs
 
                                         Icon {
-                                            name: card.publisher.state === "verified" || card.publisher.state === "unsigned"
-                                                  ? "shield" : "triangle-alert"
+                                            name: page.publisherIcon(card.publisher.state ?? "")
                                             size: Theme.size.infoIcon - Theme.space.xxs
                                             color: page.publisherColor(card.publisher.state ?? "")
                                         }
@@ -953,8 +959,7 @@ Item {
 
                 Icon {
                     Layout.alignment: Qt.AlignTop
-                    name: publisherDetails.kind === "verified" || publisherDetails.kind === "unsigned"
-                          ? "shield" : "triangle-alert"
+                    name: page.publisherIcon(publisherDetails.kind)
                     size: Theme.size.iconSmall
                     color: page.publisherColor(publisherDetails.kind)
                 }

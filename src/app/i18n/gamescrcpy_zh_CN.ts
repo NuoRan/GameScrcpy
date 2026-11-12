@@ -10481,6 +10481,10 @@
         <translation>没保存上：文件被别的程序占用</translation>
     </message>
     <message>
+        <source>Close the open install dialog first, then open the link again</source>
+        <translation>请先关闭已打开的安装对话框，再重新打开这个链接</translation>
+    </message>
+    <message>
         <source>Installed %1 %2. It needs more than before: turn it on in Extensions to allow it</source>
         <translation>已安装 %1 %2。新版本需要更多依赖或权限，请在“扩展”页重新打开以同意。</translation>
     </message>
@@ -23071,10 +23075,6 @@
         <translation>未签名</translation>
     </message>
     <message>
-        <source>Verified publisher: %1 · %2</source>
-        <translation>已验证的发布者：%1 · %2</translation>
-    </message>
-    <message>
         <source>Signed with a different key than before</source>
         <translation>签名公钥与之前的不同</translation>
     </message>
@@ -23099,6 +23099,14 @@
         <translation>无法用 Windows 安全中心扫描。</translation>
     </message>
     <message>
+        <source>Signed with key %1, which this computer has not seen before</source>
+        <translation>已用公钥 %1 签名，这台电脑以前没见过这个公钥</translation>
+    </message>
+    <message>
+        <source>Verified publisher · key %1</source>
+        <translation>已验证的发布者 · 公钥 %1</translation>
+    </message>
+    <message>
         <source>Every kind of key</source>
         <translation>所有键位</translation>
     </message>
@@ -23117,6 +23125,10 @@
     <message>
         <source>Another extension is still downloading.</source>
         <translation>还有一个扩展正在下载。</translation>
+    </message>
+    <message>
+        <source>Finish installing the extension from the last link first.</source>
+        <translation>请先完成上一个链接的扩展安装。</translation>
     </message>
     <message>
         <source>Extensions cannot be installed here.</source>

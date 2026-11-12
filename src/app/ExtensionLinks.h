@@ -37,7 +37,9 @@ struct ExtensionLink {
 enum class SchemeRegistration : std::uint8_t { None, This, Other };
 
 [[nodiscard]] std::optional<ExtensionLink> parseExtensionLink(const QString& text);
-[[nodiscard]] QString linkArgument(const QStringList& arguments);
+[[nodiscard]] std::optional<QString> linkArgument(const QStringList& arguments, const QString& commandLine);
+[[nodiscard]] QString ownCommandLine();
+[[nodiscard]] QString shownHost(const QUrl& url);
 [[nodiscard]] QString linkPipeName(const std::filesystem::path& dataDirectory);
 [[nodiscard]] QString schemeCommand(const QString& program);
 [[nodiscard]] SchemeRegistration schemeRegistration(const QString& classesKey, const QString& program);

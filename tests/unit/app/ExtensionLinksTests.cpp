@@ -77,6 +77,20 @@ QString installLink(const QString& query)
     return QStringLiteral("gamescrcpy://install?") + query;
 }
 
+QString launchedWith(const QString& rest)
+{
+    return QStringLiteral("\"C:\\Program Files\\GameScrcpy\\GameScrcpy.exe\" ") + rest;
+}
+
+QString commandLineOf(const QStringList& arguments)
+{
+    QStringList quoted;
+    for (const QString& argument : arguments) {
+        quoted.append(QLatin1Char('"') + argument + QLatin1Char('"'));
+    }
+    return launchedWith(quoted.join(QLatin1Char(' ')));
+}
+
 }
 
 TEST_CASE("ADR-0112: a link installs a package from an https address with its SHA-256 or shows an extension")
@@ -114,9 +128,57 @@ TEST_CASE("ADR-0112: a link installs a package from an https address with its SH
     REQUIRE(slashed.has_value());
     CHECK(slashed->id == QStringLiteral("community.esp32"));
 
-    CHECK(gs::app::linkArgument({QStringLiteral("--safe-mode"), QStringLiteral("GAMESCRCPY://extension/alice.kit")}) ==
-          QStringLiteral("GAMESCRCPY://extension/alice.kit"));
-    CHECK(gs::app::linkArgument({QStringLiteral("profile.json")}).isEmpty());
+    const QString shouted = QStringLiteral("GAMESCRCPY://extension/alice.kit");
+    CHECK(gs::app::linkArgument({shouted}, commandLineOf({shouted})) == shouted);
+}
+
+TEST_CASE("ADR-0112: a link counts only as the one argument however the command line is split, so a link that breaks "
+          "out of its quotes adds no options")
+{
+    const QString link = QStringLiteral("gamescrcpy://extension/alice.kit");
+    CHECK(gs::app::linkArgument({link}, commandLineOf({link})) == link);
+    const QList<QStringList> refused{
+        {QStringLiteral("--safe-mode"), link},
+        {link, QStringLiteral("--profile"), QStringLiteral("\\\\attacker\\share\\profile.json")},
+        {QStringLiteral("gamescrcpy://x"), QStringLiteral("-platformpluginpath"), QStringLiteral("\\\\attacker\\share"),
+         QStringLiteral("-platform"), QStringLiteral("evil")},
+        {link, link},
+    };
+    for (const QStringList& arguments : refused) {
+        CAPTURE(arguments.join(QLatin1Char(' ')).toStdString());
+        CHECK(gs::app::linkArgument(arguments, commandLineOf(arguments)) == QString());
+    }
+
+    const QString oneForTheRuntime = QStringLiteral("gamescrcpy://x\" --profile \\\\attacker\\share\\profile.json");
+    CHECK(gs::app::linkArgument({oneForTheRuntime},
+                                launchedWith(QStringLiteral(
+                                    "\"gamescrcpy://x\"\" --profile \\\\attacker\\share\\profile.json\""))) ==
+          QString());
+    const QStringList threeForTheRuntime{QStringLiteral("gamescrcpy://x\""), QStringLiteral("--profile"),
+                                         QStringLiteral("\\\\attacker\\share\\profile.json")};
+    CHECK(gs::app::linkArgument(threeForTheRuntime,
+                                launchedWith(QStringLiteral(
+                                    "\"gamescrcpy://x\"\"\" --profile \\\\attacker\\share\\profile.json\""))) ==
+          QString());
+
+    for (const QStringList& arguments :
+         {QStringList{QStringLiteral("profile.json")}, QStringList{QStringLiteral("--safe-mode")}, QStringList{}}) {
+        CAPTURE(arguments.join(QLatin1Char(' ')).toStdString());
+        CHECK_FALSE(gs::app::linkArgument(arguments, commandLineOf(arguments)).has_value());
+    }
+}
+
+TEST_CASE("ADR-0112: the address a package comes from is shown in its ASCII form, so a look-alike name passes for "
+          "no other")
+{
+    const QUrl lookalike(QStringLiteral("https://g\u0456thub.com/kit.gsext"));
+    REQUIRE(lookalike.isValid());
+    CHECK(gs::app::shownHost(lookalike).startsWith(QStringLiteral("xn--")));
+    CHECK(gs::app::shownHost(lookalike) != QStringLiteral("github.com"));
+    CHECK(gs::app::shownHost(QUrl(QStringLiteral("https://b\u00fccher.de/kit.gsext"))) ==
+          QStringLiteral("xn--bcher-kva.de"));
+    CHECK(gs::app::shownHost(QUrl(QStringLiteral("https://Example.COM:8443/kit.gsext"))) ==
+          QStringLiteral("example.com"));
 }
 
 TEST_CASE("ADR-0112: every malformed link is refused")

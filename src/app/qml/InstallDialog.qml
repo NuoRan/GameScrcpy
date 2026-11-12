@@ -121,7 +121,8 @@ Dialog {
                     textFormat: Text.PlainText
                     text: dialog.publisher.text ?? ""
                     color: dialog.publisher.state === "verified" ? Theme.colors.successText
-                         : dialog.publisher.state === "unsigned" ? Theme.colors.textSecondary
+                         : dialog.publisher.state === "unsigned" || dialog.publisher.state === "signed"
+                           ? Theme.colors.textSecondary
                          : Theme.colors.warningText
                     font.pixelSize: Theme.type.caption.size
                     wrapMode: Text.Wrap
@@ -216,7 +217,8 @@ Dialog {
                 InlineAlert {
                     objectName: "nativeAuthor"
                     width: parent.width
-                    visible: dialog.signedByAuthor && dialog.publisher.state === "verified"
+                    visible: dialog.signedByAuthor
+                             && (dialog.publisher.state === "verified" || dialog.publisher.state === "signed")
                     tone: "info"
                     title: qsTr("Signed by its author")
                     detail: qsTr("Key %1. Updates have to be signed with the same key.").arg(dialog.security.keyId ?? "")

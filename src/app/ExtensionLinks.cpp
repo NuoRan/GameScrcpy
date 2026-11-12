@@ -22,6 +22,8 @@
 
 #include <windows.h>
 
+#include <shellapi.h>
+
 #include <algorithm>
 #include <array>
 #include <cwchar>
@@ -44,6 +46,27 @@ bool hexText(const QString& text)
         const char16_t code = c.unicode();
         return (code >= u'0' && code <= u'9') || (code >= u'a' && code <= u'f') || (code >= u'A' && code <= u'F');
     });
+}
+
+bool isLink(const QString& argument)
+{
+    return argument.startsWith(QLatin1StringView("gamescrcpy:"), Qt::CaseInsensitive);
+}
+
+QStringList qtArgumentsOf(const QString& commandLine)
+{
+    const std::wstring text = commandLine.toStdWString();
+    int count = 0;
+    wchar_t** const split = CommandLineToArgvW(text.c_str(), &count);
+    if (split == nullptr) {
+        return {};
+    }
+    QStringList arguments;
+    for (int index = 1; index < count; ++index) {
+        arguments.append(QString::fromWCharArray(split[index]));
+    }
+    LocalFree(split);
+    return arguments;
 }
 
 std::optional<ExtensionLink> installLink(const QString& query)
@@ -171,14 +194,27 @@ std::optional<ExtensionLink> parseExtensionLink(const QString& text)
     return ExtensionLink{.kind = ExtensionLink::Kind::Show, .url = {}, .sha256 = {}, .id = id};
 }
 
-QString linkArgument(const QStringList& arguments)
+std::optional<QString> linkArgument(const QStringList& arguments, const QString& commandLine)
 {
-    for (const QString& argument : arguments) {
-        if (argument.startsWith(QLatin1StringView("gamescrcpy:"), Qt::CaseInsensitive)) {
-            return argument;
-        }
+    const QStringList qtArguments = qtArgumentsOf(commandLine);
+    if (std::ranges::none_of(arguments, isLink) && std::ranges::none_of(qtArguments, isLink)) {
+        return std::nullopt;
     }
-    return {};
+    if (arguments.size() != 1 || qtArguments.size() != 1 || !isLink(arguments.front()) ||
+        !isLink(qtArguments.front())) {
+        return QString();
+    }
+    return qtArguments.front();
+}
+
+QString ownCommandLine()
+{
+    return QString::fromWCharArray(GetCommandLineW());
+}
+
+QString shownHost(const QUrl& url)
+{
+    return url.host(QUrl::EncodeUnicode);
 }
 
 QString linkPipeName(const std::filesystem::path& dataDirectory)
@@ -451,7 +487,10 @@ void ExtensionLinks::download(const ExtensionLink& link)
         emit failed(tr("Another extension is still downloading."));
         return;
     }
-    release();
+    if (!m_ready.isEmpty()) {
+        emit failed(tr("Finish installing the extension from the last link first."));
+        return;
+    }
     if (m_staging.empty()) {
         emit failed(tr("Extensions cannot be installed here."));
         return;
@@ -468,7 +507,7 @@ void ExtensionLinks::download(const ExtensionLink& link)
     m_file = std::move(file);
     m_hash.reset();
     m_expected = link.sha256;
-    m_host = link.url.host();
+    m_host = shownHost(link.url);
     m_received = 0;
     m_total = 0;
     if (m_network == nullptr) {
@@ -556,6 +595,7 @@ void ExtensionLinks::finish()
     m_file->close();
     const QString path = m_file->fileName();
     m_file.reset();
+    m_host = shownHost(reply->url());
     m_reply = nullptr;
     disconnect(reply, nullptr, this, nullptr);
     reply->deleteLater();

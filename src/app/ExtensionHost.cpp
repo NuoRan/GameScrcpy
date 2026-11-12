@@ -749,30 +749,22 @@ QVariantMap securityMap(const ext::NativeCheck& check, const std::optional<ext::
             {QStringLiteral("restricted"), check.restricted}};
 }
 
-QString authorsOf(const ext::Manifest& manifest, const QString& language)
-{
-    QStringList authors;
-    for (const std::string& author : manifest.authors) {
-        authors.append(QString::fromStdString(author));
-    }
-    return authors.isEmpty() ? extensionText(manifest, "name", manifest.name, language)
-                             : authors.join(ExtensionHost::tr(", ", "list separator"));
-}
-
-QVariantMap publisherMap(const ext::SignatureCheck& signature, const std::optional<ext::MinisignKey>& remembered,
-                         const QString& author)
+QVariantMap publisherMap(const ext::SignatureCheck& signature, const std::optional<ext::MinisignKey>& remembered)
 {
     const bool valid = signature.state == ext::SignatureState::Valid && signature.key.has_value();
-    const bool same = valid && (!remembered || *remembered == *signature.key);
+    const bool same = valid && remembered && *remembered == *signature.key;
     const QString keyId = valid ? QString::fromStdString(ext::minisignKeyId(*signature.key)) : QString();
     QString state;
     QString text;
     if (signature.state == ext::SignatureState::Unsigned) {
         state = QStringLiteral("unsigned");
         text = ExtensionHost::tr("Unsigned");
+    } else if (valid && !remembered) {
+        state = QStringLiteral("signed");
+        text = ExtensionHost::tr("Signed with key %1, which this computer has not seen before").arg(keyId);
     } else if (same) {
         state = QStringLiteral("verified");
-        text = ExtensionHost::tr("Verified publisher: %1 · %2").arg(author, keyId);
+        text = ExtensionHost::tr("Verified publisher · key %1").arg(keyId);
     } else if (valid) {
         state = QStringLiteral("changed");
         text = ExtensionHost::tr("Signed with a different key than before");
@@ -1329,8 +1321,7 @@ QVariantList ExtensionHost::entries() const
                 row.insert(QStringLiteral("publisher"),
                            publisherMap(extension->signature,
                                         remembered != m_publishers.end() ? std::optional(remembered->second)
-                                                                         : std::nullopt,
-                                        authorsOf(manifest, language)));
+                                                                         : std::nullopt));
             }
             if (std::ranges::find(manifest.permissions, std::string_view("network.listen"), &ext::Permission::name) !=
                 manifest.permissions.end()) {
@@ -1740,8 +1731,7 @@ QVariantMap ExtensionHost::inspect(const QString& fileOrUrl) const
             native ? native->signature : ext::checkSignature(contents, check.manifest->authorKey);
         const std::optional<ext::MinisignKey> remembered =
             m_roots.user.empty() ? std::nullopt : ext::publisherOf(m_roots.user, check.manifest->id);
-        result.insert(QStringLiteral("publisher"),
-                      publisherMap(signature, remembered, authorsOf(*check.manifest, language)));
+        result.insert(QStringLiteral("publisher"), publisherMap(signature, remembered));
         const std::optional<ext::Diagnostic> publisher = ext::publisherProblem(remembered, signature);
         if (publisher && !(native && native->refusal == ext::NativeRefusal::BadSignature)) {
             refused = true;
@@ -1942,7 +1932,7 @@ QVariantMap ExtensionHost::inspectBundle(const QString& fileOrUrl) const
                         const ext::SignatureCheck signature =
                             native ? native->signature : ext::checkSignature(contents, package.manifest->authorKey);
                         const std::optional<ext::MinisignKey> remembered = ext::publisherOf(m_roots.user, entry.id);
-                        publisher = publisherMap(signature, remembered, authorsOf(*package.manifest, language));
+                        publisher = publisherMap(signature, remembered);
                         std::optional<ext::Diagnostic> refusal = ext::publisherProblem(remembered, signature);
                         if (refusal && !(native && native->refusal == ext::NativeRefusal::BadSignature)) {
                             refusal->path = ext::bundlePackagePath(entry) + ": " + refusal->path;
