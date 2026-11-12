@@ -1397,14 +1397,21 @@ int32_t countStart(void*, uint64_t job, const char* args, size_t size)
     const auto pause = static_cast<DWORD>(numberIn(text, "pause", 0.0));
     const bool fail = numberIn(text, "fail", 0.0) != 0.0;
     const bool output = numberIn(text, "output", 0.0) != 0.0;
-    const bool deep = numberIn(text, "output", 0.0) == 2.0;
+    const bool deepOutput = numberIn(text, "output", 0.0) == 2.0;
+    const auto deep = static_cast<size_t>(numberIn(text, "deep", 0.0));
     auto stop = std::make_shared<std::atomic<bool>>(false);
     JobBook& book = jobBook();
     const std::scoped_lock lock(book.mutex);
     book.stops[job] = stop;
-    book.threads.emplace_back([job, steps, pause, fail, output, deep, stop] {
+    book.threads.emplace_back([job, steps, pause, fail, output, deepOutput, deep, stop] {
+        if (deep > 0) {
+            const std::string nested = std::string(deep, '[') + std::string(deep, ']');
+            g_host->job_output(g_host->context, job, nested.data(), nested.size());
+            sayJob(job, true, nested);
+            return;
+        }
         int busy = 0;
-        if (deep) {
+        if (deepOutput) {
             const std::string nested = std::string(30000, '[') + std::string(30000, ']');
             g_host->job_output(g_host->context, job, nested.data(), nested.size());
         }

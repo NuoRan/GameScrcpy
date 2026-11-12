@@ -80,6 +80,9 @@ std::pair<bool, std::string> checkedResult(const std::string& returns, bool work
     if (!worked) {
         return {false, std::move(text)};
     }
+    if (!exthost::jsonDepthWithin(text, exthost::kMostJsonDepth)) {
+        return {false, "the job gave a result nested more than 64 levels deep"};
+    }
     const nlohmann::json value = nlohmann::json::parse(text, nullptr, false);
     if (value.is_discarded()) {
         return {false, "the job gave a result that is not JSON"};
@@ -482,7 +485,7 @@ void NativeJobs::logged(std::uint64_t id, int level, const std::string& text)
 
 void NativeJobs::outputted(std::uint64_t id, const std::string& json)
 {
-    if (!nlohmann::json::accept(json)) {
+    if (!exthost::jsonDepthWithin(json, exthost::kMostJsonDepth) || !nlohmann::json::accept(json)) {
         return;
     }
     std::uint64_t logic = 0;

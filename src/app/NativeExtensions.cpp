@@ -1091,6 +1091,11 @@ void NativeExtensions::refreshProviders(std::string_view extension)
                 log::warning(kCategory, "{}: the device provider {} failed: {}", wanted.id, declared.name, listed.problem);
                 continue;
             }
+            if (!exthost::jsonDepthWithin(listed.value.text, exthost::kMostJsonDepth)) {
+                log::warning(kCategory, "{}: the device provider {} gave a list nested more than 64 levels deep",
+                             wanted.id, declared.name);
+                continue;
+            }
             const nlohmann::json devices = nlohmann::json::parse(listed.value.text, nullptr, false);
             std::size_t taken = 0;
             for (const nlohmann::json& device : devices.is_array() ? devices : nlohmann::json::array()) {
@@ -1199,6 +1204,11 @@ void NativeExtensions::refreshTransports(std::string_view extension)
             const exthost::CallResult found = entry->module->discover(*entry->transportIndex[index]);
             if (!found.ok()) {
                 log::warning(kCategory, "{}: the transport {} failed: {}", wanted.id, declared.name, found.problem);
+                continue;
+            }
+            if (!exthost::jsonDepthWithin(found.value.text, exthost::kMostJsonDepth)) {
+                log::warning(kCategory, "{}: the transport {} gave a list nested more than 64 levels deep", wanted.id,
+                             declared.name);
                 continue;
             }
             const nlohmann::json phones = nlohmann::json::parse(found.value.text, nullptr, false);
@@ -1961,6 +1971,11 @@ void NativeExtensions::refreshSources(std::string_view extension)
                 const exthost::CallResult listed = entry->module->listSources(kind, *matched[index]);
                 if (!listed.ok()) {
                     log::warning(kCategory, "{}: the source {} failed: {}", wanted.id, name, listed.problem);
+                    continue;
+                }
+                if (!exthost::jsonDepthWithin(listed.value.text, exthost::kMostJsonDepth)) {
+                    log::warning(kCategory, "{}: the source {} gave a list nested more than 64 levels deep", wanted.id,
+                                 name);
                     continue;
                 }
                 const nlohmann::json found = nlohmann::json::parse(listed.value.text, nullptr, false);

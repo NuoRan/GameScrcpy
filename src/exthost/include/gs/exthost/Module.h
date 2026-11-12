@@ -22,6 +22,7 @@ inline constexpr std::size_t kMostParams = 16;
 inline constexpr std::size_t kMostContacts = 32;
 inline constexpr std::size_t kMostTextBytes = 256 * 1024 - 4096;
 inline constexpr std::size_t kMostOptionBytes = 16 * 1024;
+inline constexpr std::size_t kMostJsonDepth = 64;
 
 enum class ValueType : std::uint8_t { None, Boolean, Number, String, Point, Region, Color, Duration, Json };
 
@@ -32,6 +33,7 @@ inline constexpr std::array<std::string_view, 8> kValueTypeNames{"boolean", "num
 [[nodiscard]] std::string_view valueTypeName(ValueType type) noexcept;
 [[nodiscard]] bool validColor(std::string_view text) noexcept;
 [[nodiscard]] bool validUtf8(std::string_view text) noexcept;
+[[nodiscard]] bool jsonDepthWithin(std::string_view json, std::size_t most) noexcept;
 
 inline constexpr std::size_t kMostResourceBytes = 260;
 inline constexpr std::size_t kMostClaimerBytes = 512;

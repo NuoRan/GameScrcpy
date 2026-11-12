@@ -825,8 +825,8 @@ TEST_CASE("ADR-0112: an extension's speech engine reads and listens through its 
     CHECK(std::ranges::find(told, QStringLiteral(R"(job {"kind":"output","value":{"step":2}})")) != told.end());
 }
 
-TEST_CASE("ADR-0112: a part of a job's result nested 30000 deep reaches the script and the host as the job handed it "
-          "over, without GameScrcpy running out of stack")
+TEST_CASE("ADR-0112: a part of a job's result nested 30000 deep is left out for the script and the host while the "
+          "job's other parts still arrive, without GameScrcpy running out of stack")
 {
     ApplicationScope application;
     Scratch scratch;
@@ -862,14 +862,16 @@ TEST_CASE("ADR-0112: a part of a job's result nested 30000 deep reaches the scri
         }
         return true;
     };
-    const QString deep = QString::fromStdString(std::string(30000, '[') + std::string(30000, ']'));
     const std::string asked =
         R"({"extension":"gstest.native","job":"count","args":{"steps":1,"pause":0,"fail":0,"output":2}})";
 
     const script::ServiceAnswer counted = jobs.start(app::LogicCaller{.logic = 9}, asked);
     REQUIRE_MESSAGE(counted.code.empty(), counted.problem);
-    const QString line = QStringLiteral(R"(job {"kind":"output","value":)") + deep + u'}';
+    const QString line = QStringLiteral(R"(job {"kind":"output","value":{"step":1}})");
     REQUIRE(settled([&told, &line] { return std::ranges::find(told, line) != told.end(); }));
+    CHECK(std::ranges::none_of(told, [](const QString& heard) {
+        return heard.startsWith(QStringLiteral(R"(job {"kind":"output","value":[)"));
+    }));
 
     std::optional<QString> handed;
     std::optional<bool> finished;
@@ -886,7 +888,7 @@ TEST_CASE("ADR-0112: a part of a job's result nested 30000 deep reaches the scri
     REQUIRE(settled([&finished] { return finished.has_value(); }));
     CHECK(*finished);
     REQUIRE(handed.has_value());
-    CHECK(*handed == deep);
+    CHECK(*handed == QStringLiteral(R"({"step":1})"));
 }
 
 TEST_CASE("ADR-0112: the devices page starts a job with the same checks and limit as a script and hears its progress "
@@ -1788,6 +1790,90 @@ TEST_CASE("ADR-0112: the registry lists the devices of an extension allowed to a
 
     setBoxes("[]");
     CHECK(registry.providedDevices().empty());
+}
+
+TEST_CASE("ADR-0112: a device list, a job result or a job output of a DLL nested more than 64 levels deep is left "
+          "out instead of overflowing the stack of GameScrcpy")
+{
+    ApplicationScope application;
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.native/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    app::NativeWanted wanted = testWanted(folder);
+    wanted.native.nodes = {{.name = "setBoxes",
+                            .params = {{"boxes", "json"}},
+                            .returns = "number",
+                            .description = {},
+                            .permissions = {}}};
+    wanted.native.deviceProviders = {{.name = "boxes", .title = "Boxes", .kinds = {"touchBox"}}};
+    wanted.native.jobs = {{.name = "count",
+                           .title = "Count",
+                           .params = {{"deep", "number"}},
+                           .returns = "json",
+                           .description = {},
+                           .permissions = {},
+                           .most = std::nullopt}};
+    wanted.granted = {"devices.provide"};
+    registry.apply({wanted});
+    REQUIRE(registry.problems().empty());
+    const auto setBoxes = [&](const std::string& json) {
+        REQUIRE(registry.call("gstest.native", "setBoxes", {script::NodeValue{.type = script::NodeType::Json, .text = json}})
+                    .problem.empty());
+        registry.refreshProviders("gstest.native");
+    };
+    const std::string box = R"({"id":"box-1","name":"Box","kind":"touchBox")";
+    setBoxes("[" + box + R"(,"capture":)" + std::string(100'000, '[') + std::string(100'000, ']') + "}]");
+    CHECK(registry.providedDevices().empty());
+    setBoxes("[" + box + "}]");
+    REQUIRE(registry.providedDevices().size() == 1);
+    CHECK(registry.providedDevices()[0].id == "box-1");
+
+    struct Heard {
+        std::vector<std::pair<quint64, QString>> answers;
+        std::vector<std::pair<quint64, QString>> refusals;
+        std::vector<QString> told;
+    } heard;
+    app::NativeJobs jobs(registry);
+    jobs.setReplies({.answer = [&heard](std::uint64_t, quint64 request,
+                                        const QString& json) { heard.answers.emplace_back(request, json); },
+                     .refuse = [&heard](std::uint64_t, quint64 request,
+                                        const QString& message) { heard.refusals.emplace_back(request, message); },
+                     .tell = [&heard](std::uint64_t, const QString& kind, const QString&,
+                                      const QString& json) { heard.told.push_back(kind + u' ' + json); }});
+    const app::LogicCaller caller{.logic = 7};
+    const auto runNested = [&](quint64 request, std::size_t levels) {
+        const script::ServiceAnswer started =
+            jobs.start(caller, R"({"extension":"gstest.native","job":"count","args":{"deep":)" +
+                                   std::to_string(levels) + "}}");
+        REQUIRE_MESSAGE(started.code.empty(), started.problem);
+        const QString id = QString::fromStdString(nlohmann::json::parse(started.json)["id"].get<std::string>());
+        const std::size_t before = heard.answers.size() + heard.refusals.size();
+        jobs.result(caller, request, QStringLiteral(R"({"id":"%1"})").arg(id));
+        const auto deadline = std::chrono::steady_clock::now() + 20s;
+        while (heard.answers.size() + heard.refusals.size() == before && std::chrono::steady_clock::now() < deadline) {
+            QCoreApplication::processEvents();
+            std::this_thread::sleep_for(5ms);
+        }
+        for (int round = 0; round < 20; ++round) {
+            QCoreApplication::processEvents();
+        }
+    };
+
+    runNested(21, 30'000);
+    CHECK(heard.answers.empty());
+    REQUIRE(heard.refusals.size() == 1);
+    CHECK(heard.refusals[0] ==
+          std::pair<quint64, QString>{21, QStringLiteral("GS-API-065 the job gave a result nested more than 64 levels deep")});
+    CHECK(heard.told.empty());
+
+    const QString fits = QString(64, u'[') + QString(64, u']');
+    runNested(22, 64);
+    REQUIRE(heard.answers.size() == 1);
+    CHECK(heard.answers[0] == std::pair<quint64, QString>{22, fits});
+    REQUIRE(heard.told.size() == 1);
+    CHECK(heard.told[0] == QStringLiteral("job {\"kind\":\"output\",\"value\":") + fits + u'}');
 }
 
 TEST_CASE("ADR-0112: a DLL claims hardware, lets it go and is asked for it, in GameScrcpy and in gs-exthost.exe")
