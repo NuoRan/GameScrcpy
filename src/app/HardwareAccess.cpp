@@ -385,6 +385,8 @@ struct HardwareAccess::Shared {
     std::map<QString, std::vector<HardwareGrant>> grants;
     std::set<QString> permitted;
     std::vector<hardware::DeviceInfo> present;
+    std::set<std::pair<std::uint64_t, std::string>> claimWaits;
+    std::set<std::pair<std::uint64_t, std::string>> cancelledClaimWaits;
 
     void post(std::function<void(HardwareAccess&)> work) const
     {
@@ -400,6 +402,35 @@ struct HardwareAccess::Shared {
     {
         const std::scoped_lock lock(mutex);
         return extension.isEmpty() || permitted.contains(extension);
+    }
+
+    void waitingForClaim(std::uint64_t logic, const std::string& resource)
+    {
+        const std::scoped_lock lock(mutex);
+        claimWaits.emplace(logic, resource);
+        cancelledClaimWaits.erase({logic, resource});
+    }
+
+    void cancelWaitingClaim(std::uint64_t logic, const std::string& resource)
+    {
+        const std::scoped_lock lock(mutex);
+        if (claimWaits.contains({logic, resource})) {
+            cancelledClaimWaits.emplace(logic, resource);
+        }
+    }
+
+    [[nodiscard]] bool claimAnswered(std::uint64_t logic, const std::string& resource)
+    {
+        const std::scoped_lock lock(mutex);
+        claimWaits.erase({logic, resource});
+        return cancelledClaimWaits.erase({logic, resource}) > 0;
+    }
+
+    void forgetClaimWaits(std::uint64_t logic)
+    {
+        const std::scoped_lock lock(mutex);
+        std::erase_if(claimWaits, [logic](const auto& entry) { return entry.first == logic; });
+        std::erase_if(cancelledClaimWaits, [logic](const auto& entry) { return entry.first == logic; });
     }
 };
 
@@ -703,6 +734,7 @@ script::ServiceAnswer HardwareAccess::callWith(const std::shared_ptr<Shared>& sh
         if (!exthost::validResource(resource)) {
             return refused(badResource());
         }
+        shared->cancelWaitingClaim(caller.logic, resource);
         if (HardwareClaims* claims = HardwareClaims::instance()) {
             claims->release(resource, logicHolder(caller.logic));
         }
@@ -763,6 +795,7 @@ void HardwareAccess::drop(const LogicCaller& caller, quint64 id)
 void HardwareAccess::endLogic(std::uint64_t logic)
 {
     m_endedLogic.insert(logic);
+    m_shared->forgetClaimWaits(logic);
     releaseInputs(logic);
     const bool front = !m_picks.empty() && m_picks.front().caller.logic == logic;
     std::erase_if(m_picks, [logic](const Pick& pick) { return pick.caller.logic == logic; });
@@ -1677,11 +1710,13 @@ void HardwareAccess::claimHardware(const LogicCaller& caller, quint64 id, const 
         answer(caller.logic, id, claimed ? QStringLiteral("true") : QStringLiteral("false"));
         return;
     }
+    m_shared->waitingForClaim(caller.logic, resource);
     claims->claimLater(resource, std::move(holder),
                        [shared = m_shared, logic = caller.logic, id, resource](exthost::ClaimResult result) {
                            const bool claimed = result == exthost::ClaimResult::Claimed;
                            shared->post([logic, id, resource, claimed](HardwareAccess& self) {
-                               if (claimed && self.m_endedLogic.contains(logic)) {
+                               const bool cancelled = self.m_shared->claimAnswered(logic, resource);
+                               if (claimed && (cancelled || self.m_endedLogic.contains(logic))) {
                                    if (HardwareClaims* held = HardwareClaims::instance()) {
                                        held->release(resource, logicHolder(logic));
                                    }

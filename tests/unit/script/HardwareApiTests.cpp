@@ -400,6 +400,28 @@ export async function hold() {
     CHECK(fixture.services->calls() == released);
 }
 
+TEST_CASE("ADR-0112: a task that stops while its wait for hardware is still open lets the hardware go")
+{
+    Fixture fixture;
+    const ScriptId script = fixture.load(R"js(
+export async function wait() {
+    log.info("claimed", await hardware.claim("serial:COM9", { wait: true }));
+}
+)js");
+    const TaskId task = fixture.host->start(script, "wait");
+    const Asked claim = fixture.asked(0, "hardware.claim");
+    CHECK(claim.json == R"({"resource":"serial:COM9","wait":true,"yields":false})");
+    fixture.host->cancel(task);
+    CHECK(fixture.finish(task).kind == ReportKind::TaskCancelled);
+    const std::vector<std::string> released{R"(hardware.release {"resource":"serial:COM9"})"};
+    for (int round = 0; round < 300 && fixture.services->calls() != released; ++round) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    CHECK(fixture.services->calls() == released);
+    fixture.host->answer(claim.id, "true");
+    CHECK(fixture.recorder.count(logged("claimed true")) == 0);
+}
+
 TEST_CASE("ADR-0112: net.listen hands each request to its handler and sends back what the handler answers")
 {
     Fixture fixture;

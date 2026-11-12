@@ -2677,12 +2677,21 @@ inline constexpr std::array<std::string_view, 21> kPreludeParts{
             if (onWanted !== undefined && typeof onWanted !== "function") {
                 throw new TypeError("GS-API-008 the handler must be a function");
             }
-            return hardwareRequest("hardware.claim", { resource: name, wait: options?.wait === true,
-                yields: onWanted !== undefined }).then((claimed) => {
+            const entry = { listener: null, answered: false };
+            const pending = hardwareRequest("hardware.claim", { resource: name, wait: options?.wait === true,
+                yields: onWanted !== undefined });
+            own(() => {
+                if (hardwareClaims.get(name) === entry) {
+                    releaseClaim(name);
+                } else if (!entry.answered) {
+                    hardwareCall("hardware.release", { resource: name });
+                }
+            });
+            return pending.then((claimed) => {
+                entry.answered = true;
                 if (claimed !== true) {
                     return false;
                 }
-                const entry = { listener: null };
                 if (onWanted !== undefined) {
                     entry.listener = makeListener(async ({ by }) => {
                         if ((await onWanted(by)) === true && hardwareClaims.get(name) === entry) {
@@ -2695,11 +2704,6 @@ inline constexpr std::array<std::string_view, 21> kPreludeParts{
                     previous.listener.active = false;
                 }
                 hardwareClaims.set(name, entry);
-                own(() => {
-                    if (hardwareClaims.get(name) === entry) {
-                        releaseClaim(name);
-                    }
-                });
                 return true;
             });
         },

@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <filesystem>
@@ -607,4 +608,28 @@ TEST_CASE("ADR-0112: a logic claims hardware by name, lets it go when asked if i
     fixture.access->endLogic(kOwn.logic);
     CHECK(claims.holderName("serial:COM3").isEmpty());
     CHECK(claims.holderName("serial:COM9") == "Box");
+}
+
+TEST_CASE("ADR-0112: a task that stops while its wait for hardware is still open does not keep the claim")
+{
+    std::atomic<bool> asked{false};
+    gs::app::HardwareClaims claims;
+    Fixture fixture;
+    const gs::app::ClaimHolder box{"native:box#1", QStringLiteral("Box"),
+                                   [&asked](const std::string&, const QString&) {
+                                       asked.store(true);
+                                       return true;
+                                   }};
+    REQUIRE(claims.claim("serial:COM9", box, false) == gs::exthost::ClaimResult::Claimed);
+    fixture.access->request(kOwn, "hardware.claim", 1, text(R"({"resource":"serial:COM9","wait":true})"));
+    REQUIRE(pumpUntil([&] { return asked.load(); }));
+    CHECK(fixture.access->call(kOwn, "hardware.release", R"({"resource":"serial:COM9"})").code.empty());
+    claims.release("serial:COM9", "native:box#1");
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(500);
+    while (std::chrono::steady_clock::now() < deadline) {
+        QCoreApplication::processEvents();
+        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+    }
+    CHECK_FALSE(claims.holds("serial:COM9", "logic:1"));
+    CHECK(claims.claim("serial:COM9", box, false) == gs::exthost::ClaimResult::Claimed);
 }
