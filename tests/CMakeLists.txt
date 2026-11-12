@@ -822,6 +822,7 @@ if(GS_BUILD_APP)
             gdi32
             ole32
             user32
+            userenv
     )
     target_include_directories(gs_app_tests PRIVATE "${PROJECT_SOURCE_DIR}/src/app" "${CMAKE_CURRENT_SOURCE_DIR}")
     target_compile_definitions(gs_app_tests PRIVATE
@@ -848,6 +849,9 @@ if(GS_BUILD_APP)
     add_dependencies(gs_app_tests gs_cli gs_exthost_program gs_test_native gs_test_native_sizes gs_test_native_old
                      gs_ext_pc_clock)
     add_dependencies(gs_app_tests gs_scripthost_program)
+    if(MSVC)
+        target_compile_options(gs_app_tests PRIVATE /bigobj)
+    endif()
     target_sources(gs_app_tests PRIVATE
         unit/app/AcceptanceEditorTests.cpp
         unit/app/AcceptanceInputTests.cpp

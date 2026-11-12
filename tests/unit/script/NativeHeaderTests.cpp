@@ -240,3 +240,60 @@ TEST_CASE("ADR-0112: the C header offers vision engines: their contribution kind
                       "size_t size, gs_ext_result* out);\n",
                       engine) < engineEnd);
 }
+
+TEST_CASE("ADR-0112: the C header offers devices through GameScrcpy: functions after call_service in the host "
+          "table, device_event at the end of the plugin, and an event struct that starts with its size")
+{
+    const std::string header = generatedHeader();
+    const std::size_t host = header.find("struct gs_ext_host {\n");
+    REQUIRE(host != std::string::npos);
+    const std::size_t hostEnd = header.find("};\n", host);
+    const std::size_t callService = header.find("    int32_t (*call_service)(", host);
+    REQUIRE(callService != std::string::npos);
+    std::size_t previous = callService;
+    for (const std::string_view function :
+         {"    int32_t (*device_list)(void* context, gs_ext_result* devices);\n",
+          "    int32_t (*device_open)(void* context, const char* id, size_t id_size, const char* options, "
+          "size_t options_size, uint64_t* device, gs_ext_result* answer);\n",
+          "    int32_t (*device_write)(void* context, uint64_t device, const void* data, size_t size, const char* "
+          "target, size_t target_size, gs_ext_result* answer);\n",
+          "    int32_t (*device_control)(void* context, uint64_t device, const char* request, size_t request_size, "
+          "gs_ext_result* answer);\n",
+          "    int32_t (*device_close)(void* context, uint64_t device);\n"}) {
+        CAPTURE(function);
+        const std::size_t found = header.find(function, host);
+        REQUIRE(found != std::string::npos);
+        CHECK(previous < found);
+        CHECK(found < hostEnd);
+        previous = found;
+    }
+    CHECK(header.find("supports(\"devices\")", host) < hostEnd);
+    CHECK(header.find("sandbox \"restricted\"", host) < hostEnd);
+
+    const std::size_t plugin = header.find("struct gs_ext_plugin {\n");
+    REQUIRE(plugin != std::string::npos);
+    const std::size_t pluginEnd = header.find("};\n", plugin);
+    const std::size_t onEvent = header.find("    void (*on_event)(", plugin);
+    const std::size_t deviceEvent =
+        header.find("    void (*device_event)(void* context, const gs_ext_device_event* event);\n", plugin);
+    REQUIRE(onEvent != std::string::npos);
+    REQUIRE(deviceEvent != std::string::npos);
+    CHECK(onEvent < deviceEvent);
+    CHECK(deviceEvent < pluginEnd);
+
+    const std::size_t declared = header.find("typedef struct gs_ext_device_event gs_ext_device_event;\n");
+    const std::size_t defined = header.find("struct gs_ext_device_event {\n");
+    REQUIRE(declared != std::string::npos);
+    REQUIRE(defined != std::string::npos);
+    CHECK(declared < defined);
+    const std::size_t firstField = header.find(";\n", defined);
+    const std::size_t size = header.find("    uint32_t size;\n", defined);
+    CHECK(size + std::string_view("    uint32_t size").size() == firstField);
+    for (const std::string_view field : {"    uint64_t device;\n", "    const uint8_t* data;\n", "    size_t data_size;\n",
+                                         "    const char* reason;\n"}) {
+        CAPTURE(field);
+        CHECK(header.find(field, defined) < header.find("};\n", defined));
+    }
+    CHECK(header.find("    GS_EXT_DEVICE_DATA = 0,\n") != std::string::npos);
+    CHECK(header.find("    GS_EXT_DEVICE_CLOSED = 3,\n") != std::string::npos);
+}

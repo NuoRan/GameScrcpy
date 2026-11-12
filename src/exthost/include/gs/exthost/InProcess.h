@@ -38,6 +38,7 @@ struct InProcessOptions {
     std::vector<DeclaredInput> inputs;
     const Clock* clock = nullptr;
     std::chrono::milliseconds visionLimit = kVisionLimit;
+    bool hostStore = false;
 };
 
 class InProcessModule final : public Module
@@ -94,6 +95,7 @@ public:
     void closeTap(std::uint64_t tap) override;
     [[nodiscard]] CallResult recognize(std::size_t engine, VisionKind kind, const VisionImage& image,
                                        std::string_view params) override;
+    void deviceEvent(std::uint64_t device, std::string_view json) override;
 
     struct Impl;
 

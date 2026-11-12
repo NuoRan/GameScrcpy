@@ -18,6 +18,7 @@
 #include <gs/ext/Manifest.h>
 #include <gs/exthost/Hosted.h>
 #include <gs/exthost/InProcess.h>
+#include <gs/hardware/FakeBackend.h>
 #include <gs/input/DeviceEvents.h>
 #include <gs/input/InputSource.h>
 #include <gs/input/MappingEngine.h>
@@ -28,6 +29,9 @@
 #include <gs/session/StreamHost.h>
 
 #include <gamescrcpy_ext.h>
+
+#include <windows.h>
+#include <userenv.h>
 
 #include <doctest/doctest.h>
 #include <nlohmann/json.hpp>
@@ -42,6 +46,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <condition_variable>
 #include <deque>
@@ -119,6 +124,14 @@ exthost::CallResult callNode(exthost::Module& module, std::string_view name, std
     const std::optional<std::size_t> index = nodeIndex(module, name);
     REQUIRE(index.has_value());
     return module.call(*index, values);
+}
+
+fs::path containedProgram(const Scratch& scratch)
+{
+    const fs::path copy = scratch / "program" / kProgram.filename();
+    fs::create_directories(copy.parent_path());
+    fs::copy_file(kProgram, copy, fs::copy_options::overwrite_existing);
+    return copy;
 }
 
 exthost::HostedOptions hostedOptions(const Scratch& scratch)
@@ -3294,4 +3307,655 @@ TEST_CASE("module parameters take the profile's valid values, the declared defau
     CHECK(app::moduleFits({"*"}, "camera"));
     CHECK(app::moduleFits({"tap", "hold"}, "hold"));
     CHECK_FALSE(app::moduleFits({"tap"}, "camera"));
+}
+
+namespace {
+
+std::string utf8Of(const fs::path& path)
+{
+    const std::u8string text = path.u8string();
+    return {reinterpret_cast<const char*>(text.data()), text.size()};
+}
+
+exthost::Value stringValue(std::string text)
+{
+    return textValue(exthost::ValueType::String, std::move(text));
+}
+
+nlohmann::json jsonOf(const std::string& text)
+{
+    nlohmann::json parsed = nlohmann::json::parse(text, nullptr, false);
+    return parsed.is_discarded() ? nlohmann::json() : parsed;
+}
+
+nlohmann::json deviceRun(exthost::Module& module, const std::string& call, const std::string& first = {},
+                         const std::string& second = {})
+{
+    const std::size_t before = jsonOf(callNode(module, "deviceResults").value.text).size();
+    const exthost::CallResult started =
+        callNode(module, "deviceStart", {stringValue(call), stringValue(first), stringValue(second)});
+    REQUIRE_MESSAGE(started.ok(), started.problem);
+    nlohmann::json all;
+    REQUIRE(eventually([&] {
+        all = jsonOf(callNode(module, "deviceResults").value.text);
+        return all.is_array() && all.size() > before;
+    }));
+    return all.back();
+}
+
+nlohmann::json deviceHeard(exthost::Module& module, std::size_t count)
+{
+    nlohmann::json heard = nlohmann::json::array();
+    REQUIRE(eventually([&] {
+        const nlohmann::json more = jsonOf(callNode(module, "deviceEvents").value.text);
+        for (const nlohmann::json& event : more.is_array() ? more : nlohmann::json::array()) {
+            heard.push_back(event);
+        }
+        return heard.size() >= count;
+    }));
+    return heard;
+}
+
+struct DeviceCalls {
+    std::mutex mutex;
+    std::vector<std::pair<std::string, nlohmann::json>> asked;
+    std::vector<std::uint64_t> closed;
+
+    exthost::ServiceResult answer(std::string_view request, std::string_view json)
+    {
+        const nlohmann::json body = nlohmann::json::parse(json, nullptr, false);
+        {
+            const std::scoped_lock lock(mutex);
+            if (request == "hardware.close") {
+                closed.push_back(body.is_object() && body.contains("device") ? body.at("device").get<std::uint64_t>()
+                                                                             : 0);
+                return {exthost::ServiceStatus::Ok, "null"};
+            }
+            asked.emplace_back(std::string(request), body);
+        }
+        if (request == "hardware.list") {
+            return {exthost::ServiceStatus::Ok, R"([{"id":"serial:board","kind":"serial","name":"Board","present":true}])"};
+        }
+        if (request == "hardware.open") {
+            return {exthost::ServiceStatus::Ok, R"({"device":7,"id":"serial:board","kind":"serial","name":"Board"})"};
+        }
+        if (request == "hardware.control") {
+            return {exthost::ServiceStatus::Denied, "GS-API-081 the device has not been allowed"};
+        }
+        return {exthost::ServiceStatus::Ok, "null"};
+    }
+
+    std::vector<std::pair<std::string, nlohmann::json>> seen()
+    {
+        const std::scoped_lock lock(mutex);
+        return asked;
+    }
+
+    std::vector<std::uint64_t> shut()
+    {
+        const std::scoped_lock lock(mutex);
+        return closed;
+    }
+};
+
+class DeviceServices final : public exthost::HostServices
+{
+public:
+    explicit DeviceServices(DeviceCalls& calls)
+        : m_calls(calls)
+    {
+    }
+
+    void log(int, std::string_view) override {}
+    bool notify(std::string_view, std::string_view) override { return false; }
+
+    exthost::ServiceResult device(std::string_view request, std::string_view json) override
+    {
+        return m_calls.answer(request, json);
+    }
+
+    void closeDevice(std::uint64_t device) override
+    {
+        static_cast<void>(m_calls.answer("hardware.close", "{\"device\":" + std::to_string(device) + "}"));
+    }
+
+private:
+    DeviceCalls& m_calls;
+};
+
+}
+
+TEST_CASE("ADR-0112: a DLL's device functions reach GameScrcpy as requests with base64 bytes, need the permission "
+          "hardware, and what its devices send reaches device_event, in GameScrcpy and in gs-exthost.exe")
+{
+    Scratch scratch;
+    std::string problem;
+    DeviceCalls insideCalls;
+    DeviceServices inside(insideCalls);
+    const std::unique_ptr<exthost::InProcessModule> loaded = exthost::InProcessModule::load(
+        {.dll = kTestDll, .store = scratch / "inside.json", .granted = {"hardware"}, .services = &inside}, problem);
+    REQUIRE_MESSAGE(loaded != nullptr, problem);
+    DeviceCalls outsideCalls;
+    exthost::HostedOptions options = hostedOptions(scratch);
+    options.granted = {"hardware"};
+    options.device = [&outsideCalls](const std::string& request, const std::string& json,
+                                     std::function<void(exthost::ServiceResult)> answer) {
+        answer(outsideCalls.answer(request, json));
+    };
+    const std::unique_ptr<exthost::HostedModule> hosted = exthost::HostedModule::start(std::move(options), problem);
+    REQUIRE_MESSAGE(hosted != nullptr, problem);
+    REQUIRE(hosted->waitReady(30s));
+    const std::array<std::pair<exthost::Module*, DeviceCalls*>, 2> modules{
+        {{loaded.get(), &insideCalls}, {hosted.get(), &outsideCalls}}};
+    for (const auto& [module, calls] : modules) {
+        CAPTURE(module == loaded.get());
+        CHECK(callNode(*module, "supports", {stringValue("devices")}).value.flag);
+        const nlohmann::json listed = deviceRun(*module, "list");
+        CHECK(listed.at("status") == static_cast<int>(GS_EXT_OK));
+        CHECK(listed.at("type") == static_cast<int>(GS_EXT_TYPE_JSON));
+        CHECK(jsonOf(listed.at("answer").get<std::string>()).at(0).at("id") == "serial:board");
+        const nlohmann::json opened = deviceRun(*module, "open", "serial:board", R"({"baudRate":9600})");
+        CHECK(opened.at("status") == static_cast<int>(GS_EXT_OK));
+        CHECK(opened.at("device") == 7);
+        CHECK(jsonOf(opened.at("answer").get<std::string>()).at("name") == "Board");
+        CHECK(deviceRun(*module, "write", "0102ff").at("status") == static_cast<int>(GS_EXT_OK));
+        const nlohmann::json refused = deviceRun(*module, "control", R"({"op":"signals","dtr":true})");
+        CHECK(refused.at("status") == static_cast<int>(GS_EXT_DENIED));
+        CHECK(refused.at("type") == static_cast<int>(GS_EXT_TYPE_STRING));
+        CHECK(refused.at("answer").get<std::string>().starts_with("GS-API-081"));
+        CHECK(deviceRun(*module, "control", "not json").at("status") == static_cast<int>(GS_EXT_BAD_ARGUMENT));
+        CHECK(deviceRun(*module, "write", "00", "[1]").at("status") == static_cast<int>(GS_EXT_BAD_ARGUMENT));
+        CHECK(deviceRun(*module, "open", "", "").at("status") == static_cast<int>(GS_EXT_BAD_ARGUMENT));
+        CHECK(deviceRun(*module, "close").at("status") == static_cast<int>(GS_EXT_OK));
+        REQUIRE(eventually([&] { return calls->shut() == std::vector<std::uint64_t>{7}; }));
+        const std::vector<std::pair<std::string, nlohmann::json>> seen = calls->seen();
+        REQUIRE(seen.size() == 4);
+        CHECK(seen[0].first == "hardware.list");
+        CHECK(seen[1].first == "hardware.open");
+        CHECK(seen[1].second == nlohmann::json{{"id", "serial:board"}, {"options", {{"baudRate", 9600}}}});
+        CHECK(seen[2].first == "hardware.write");
+        CHECK(seen[2].second == nlohmann::json{{"device", 7}, {"data", "AQL/"}});
+        CHECK(seen[3].first == "hardware.control");
+        CHECK(seen[3].second == nlohmann::json{{"op", "signals"}, {"dtr", true}, {"device", 7}});
+
+        module->deviceEvent(7, R"({"type":"data","data":"AQL/"})");
+        module->deviceEvent(7, R"({"type":"data","data":"not base64!"})");
+        module->deviceEvent(7, R"({"type":"report","report":4,"data":"BQ=="})");
+        module->deviceEvent(7, R"({"type":"notify","service":"0000180d-0000-1000-8000-00805f9b34fb",)"
+                               R"("characteristic":"00002a37-0000-1000-8000-00805f9b34fb","data":"AA=="})");
+        module->deviceEvent(7, R"({"type":"closed","reason":"removed","message":"GS-API-082 Board is not connected"})");
+        const nlohmann::json heard = deviceHeard(*module, 4);
+        REQUIRE(heard.size() == 4);
+        CHECK(heard[0].at("type") == static_cast<int>(GS_EXT_DEVICE_DATA));
+        CHECK(heard[0].at("device") == 7);
+        CHECK(heard[0].at("data") == "0102ff");
+        CHECK(heard[1].at("type") == static_cast<int>(GS_EXT_DEVICE_REPORT));
+        CHECK(heard[1].at("report") == 4);
+        CHECK(heard[1].at("data") == "05");
+        CHECK(heard[2].at("type") == static_cast<int>(GS_EXT_DEVICE_NOTIFY));
+        CHECK(heard[2].at("service") == "0000180d-0000-1000-8000-00805f9b34fb");
+        CHECK(heard[2].at("characteristic") == "00002a37-0000-1000-8000-00805f9b34fb");
+        CHECK(heard[2].at("data") == "00");
+        CHECK(heard[3].at("type") == static_cast<int>(GS_EXT_DEVICE_CLOSED));
+        CHECK(heard[3].at("reason") == "removed");
+        CHECK(heard[3].at("text") == "GS-API-082 Board is not connected");
+        CHECK(heard[3].at("data") == "");
+    }
+
+    fs::create_directories(scratch / "bare");
+    fs::copy_file(kTestDll, scratch / "bare/native.dll");
+    DeviceCalls bareCalls;
+    DeviceServices bare(bareCalls);
+    const std::unique_ptr<exthost::InProcessModule> denied = exthost::InProcessModule::load(
+        {.dll = scratch / "bare/native.dll", .store = scratch / "bare.json", .granted = {}, .services = &bare}, problem);
+    REQUIRE_MESSAGE(denied != nullptr, problem);
+    const nlohmann::json refusedList = deviceRun(*denied, "list");
+    CHECK(refusedList.at("status") == static_cast<int>(GS_EXT_DENIED));
+    CHECK(refusedList.at("answer").get<std::string>().starts_with("GS-API-080"));
+    CHECK(deviceRun(*denied, "use", "7").at("status") == static_cast<int>(GS_EXT_OK));
+    CHECK(deviceRun(*denied, "close").at("status") == static_cast<int>(GS_EXT_DENIED));
+    CHECK(bareCalls.seen().empty());
+    CHECK(bareCalls.shut().empty());
+}
+
+TEST_CASE("ADR-0112: a restricted DLL runs in gs-exthost.exe inside an AppContainer of its own: it loads, its nodes "
+          "work, its store goes through GameScrcpy, and it cannot open the user's files")
+{
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.restricted/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    writeFile(scratch / "private/notes.txt", "not for the extension");
+    exthost::HostedOptions options = hostedOptions(scratch);
+    options.program = containedProgram(scratch);
+    options.dll = folder / "native.dll";
+    options.store = scratch / "store/gstest.restricted.json";
+    options.container = "gstest.restricted";
+    options.readable = folder;
+    std::string problem;
+    std::unique_ptr<exthost::HostedModule> hosted = exthost::HostedModule::start(std::move(options), problem);
+    REQUIRE_MESSAGE(hosted != nullptr, problem);
+    REQUIRE(hosted->waitReady(30s));
+
+    const exthost::CallResult added = callNode(*hosted, "add", {numberValue(2), numberValue(3)});
+    REQUIRE_MESSAGE(added.ok(), added.problem);
+    CHECK(added.value.number == 5.0);
+    CHECK(callNode(*hosted, "supports", {stringValue("devices")}).value.flag);
+
+    const exthost::CallResult outside = callNode(*hosted, "openFile", {stringValue(utf8Of(scratch / "private/notes.txt"))});
+    REQUIRE_MESSAGE(outside.ok(), outside.problem);
+    CHECK(outside.value.number != 0.0);
+    const exthost::CallResult own = callNode(*hosted, "openFile", {stringValue(utf8Of(folder / "native.dll"))});
+    REQUIRE_MESSAGE(own.ok(), own.problem);
+    CHECK(own.value.number == 0.0);
+
+    const exthost::CallResult kept = callNode(
+        *hosted, "remember", {stringValue("board"), textValue(exthost::ValueType::Json, R"({"port":"COM9"})")});
+    REQUIRE_MESSAGE(kept.ok(), kept.problem);
+    CHECK(kept.value.flag);
+    const exthost::CallResult recalled = callNode(*hosted, "recall", {stringValue("board")});
+    REQUIRE_MESSAGE(recalled.ok(), recalled.problem);
+    CHECK(jsonOf(recalled.value.text) == nlohmann::json{{"port", "COM9"}});
+    CHECK(jsonOf(readFile(scratch / "store/gstest.restricted.json")).at("board").at("port") == "COM9");
+    CHECK(callNode(*hosted, "recall", {stringValue("missing")}).value.text == "null");
+
+    exthost::HostedOptions trusted = hostedOptions(scratch);
+    const std::unique_ptr<exthost::HostedModule> full = exthost::HostedModule::start(std::move(trusted), problem);
+    REQUIRE_MESSAGE(full != nullptr, problem);
+    REQUIRE(full->waitReady(30s));
+    CHECK(callNode(*full, "openFile", {stringValue(utf8Of(scratch / "private/notes.txt"))}).value.number == 0.0);
+
+    hosted.reset();
+    CHECK(exthost::forgetContainer("gstest.restricted"));
+}
+
+TEST_CASE("ADR-0112: a restricted DLL gets an AppContainer named after a SHA-256 of its id and a bare environment, "
+          "and GameScrcpy paces its logs, notices and device changes, while a DLL with full rights is not paced")
+{
+    Scratch scratch;
+    const fs::path folder = scratch / "gstest.paced/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    REQUIRE(SetEnvironmentVariableW(L"GS_TEST_SECRET", L"leak"));
+    struct Heard {
+        std::mutex mutex;
+        std::vector<std::string> lines;
+        std::vector<std::string> others;
+        int notices = 0;
+        int changes = 0;
+    };
+    const auto listen = [](const std::shared_ptr<Heard>& heard, exthost::HostedOptions& options) {
+        options.log = [heard](int, const std::string& text) {
+            const std::scoped_lock lock(heard->mutex);
+            (text.starts_with("line ") ? heard->lines : heard->others).push_back(text);
+        };
+        options.notify = [heard](const std::string&, const std::string&) {
+            const std::scoped_lock lock(heard->mutex);
+            ++heard->notices;
+        };
+        options.devicesChanged = [heard](const std::string&) {
+            const std::scoped_lock lock(heard->mutex);
+            ++heard->changes;
+        };
+    };
+    const auto flood = [](exthost::HostedModule& module) {
+        REQUIRE(callNode(module, "logMany", {numberValue(1000)}).ok());
+        for (int count = 0; count < 20; ++count) {
+            REQUIRE(callNode(module, "notify", {stringValue("Title"), stringValue("Text")}).ok());
+            REQUIRE(callNode(module, "setBoxes", {textValue(exthost::ValueType::Json, "[]")}).ok());
+        }
+        REQUIRE(callNode(module, "add", {numberValue(1), numberValue(2)}).ok());
+    };
+
+    const auto boxed = std::make_shared<Heard>();
+    exthost::HostedOptions options = hostedOptions(scratch);
+    options.program = containedProgram(scratch);
+    options.dll = folder / "native.dll";
+    options.store = scratch / "store/gstest.paced.json";
+    options.container = "gstest.paced";
+    options.readable = folder;
+    listen(boxed, options);
+    std::string problem;
+    std::unique_ptr<exthost::HostedModule> hosted = exthost::HostedModule::start(std::move(options), problem);
+    REQUIRE_MESSAGE(hosted != nullptr, problem);
+    REQUIRE(hosted->waitReady(30s));
+
+    const std::string_view id = "gstest.paced";
+    const gs::platform::Sha256Digest digest =
+        gs::platform::sha256(std::span(reinterpret_cast<const std::uint8_t*>(id.data()), id.size()));
+    std::string hex = gs::platform::toHex(std::span(digest).first(16));
+    std::ranges::transform(hex, hex.begin(),
+                           [](char c) { return static_cast<char>(std::toupper(static_cast<unsigned char>(c))); });
+    const std::wstring name = L"GameScrcpy.Extension." + std::wstring(hex.begin(), hex.end());
+    PSID sid = nullptr;
+    const HRESULT made = CreateAppContainerProfile(name.c_str(), name.c_str(), name.c_str(), nullptr, 0, &sid);
+    if (SUCCEEDED(made)) {
+        FreeSid(sid);
+        static_cast<void>(DeleteAppContainerProfile(name.c_str()));
+    }
+    CHECK(made == HRESULT_FROM_WIN32(ERROR_ALREADY_EXISTS));
+
+    CHECK(callNode(*hosted, "environment", {stringValue("GS_TEST_SECRET")}).value.text.empty());
+    CHECK_FALSE(callNode(*hosted, "environment", {stringValue("SystemRoot")}).value.text.empty());
+    const auto contained = [&hosted](const char* variable) {
+        return callNode(*hosted, "environment", {stringValue(variable)}).value.text;
+    };
+    const std::string local = contained("LOCALAPPDATA");
+    CHECK(local.find("\\Packages\\") != std::string::npos);
+    CHECK(contained("TEMP").starts_with(local + "\\"));
+    CHECK(contained("TMP").starts_with(local + "\\"));
+    CHECK(contained("USERPROFILE").empty());
+    CHECK(contained("APPDATA").empty());
+    CHECK(contained("USERNAME").empty());
+
+    flood(*hosted);
+    {
+        const std::scoped_lock lock(boxed->mutex);
+        CHECK(boxed->lines.size() >= 100);
+        CHECK(boxed->lines.size() <= 400);
+        CHECK(std::ranges::count_if(boxed->others, [](const std::string& line) {
+                  return line.find("dropped") != std::string::npos;
+              }) >= 3);
+        CHECK(boxed->notices >= 1);
+        CHECK(boxed->notices <= 6);
+        CHECK(boxed->changes >= 1);
+        CHECK(boxed->changes <= 8);
+    }
+
+    const auto trusted = std::make_shared<Heard>();
+    exthost::HostedOptions full = hostedOptions(scratch);
+    listen(trusted, full);
+    const std::unique_ptr<exthost::HostedModule> fullRights = exthost::HostedModule::start(std::move(full), problem);
+    REQUIRE_MESSAGE(fullRights != nullptr, problem);
+    REQUIRE(fullRights->waitReady(30s));
+    CHECK(callNode(*fullRights, "environment", {stringValue("GS_TEST_SECRET")}).value.text == "leak");
+    flood(*fullRights);
+    {
+        const std::scoped_lock lock(trusted->mutex);
+        CHECK(trusted->lines.size() == 1000);
+        CHECK(trusted->notices == 20);
+        CHECK(trusted->changes == 20);
+    }
+
+    hosted.reset();
+    CHECK(exthost::forgetContainer("gstest.paced"));
+    SetEnvironmentVariableW(L"GS_TEST_SECRET", nullptr);
+}
+
+namespace {
+
+bool pumpEvents(const std::function<bool()>& done)
+{
+    const auto deadline = std::chrono::steady_clock::now() + 30s;
+    while (!done()) {
+        if (std::chrono::steady_clock::now() > deadline) {
+            return false;
+        }
+        QCoreApplication::processEvents();
+        std::this_thread::sleep_for(5ms);
+    }
+    return true;
+}
+
+hardware::DeviceInfo fakeDevice(const char* id, hardware::Kind kind, const char* name, const char* path)
+{
+    hardware::DeviceInfo device;
+    device.id = id;
+    device.kind = kind;
+    device.name = name;
+    device.path = path;
+    return device;
+}
+
+class DeviceDriver
+{
+public:
+    DeviceDriver(const app::NativeExtensions& registry, std::string extension)
+        : m_registry(registry)
+        , m_extension(std::move(extension))
+    {
+    }
+
+    nlohmann::json run(const std::string& call, const std::string& first = {}, const std::string& second = {})
+    {
+        const std::size_t before = results().size();
+        const script::NodeAnswer started =
+            m_registry.call(m_extension, "deviceStart", {text(call), text(first), text(second)});
+        REQUIRE_MESSAGE(started.problem.empty(), started.problem);
+        nlohmann::json all;
+        REQUIRE(pumpEvents([&] {
+            all = results();
+            return all.size() > before;
+        }));
+        return all.back();
+    }
+
+    nlohmann::json now(const std::string& call)
+    {
+        return jsonOf(m_registry.call(m_extension, "deviceNow", {text(call), text({}), text({})}).value.text);
+    }
+
+    nlohmann::json heard(std::size_t count)
+    {
+        nlohmann::json events = nlohmann::json::array();
+        REQUIRE(pumpEvents([&] {
+            const nlohmann::json more = jsonOf(m_registry.call(m_extension, "deviceEvents", {}).value.text);
+            for (const nlohmann::json& event : more.is_array() ? more : nlohmann::json::array()) {
+                events.push_back(event);
+            }
+            return events.size() >= count;
+        }));
+        return events;
+    }
+
+    double openFile(const fs::path& path)
+    {
+        return m_registry.call(m_extension, "openFile", {text(utf8Of(path))}).value.number;
+    }
+
+private:
+    static script::NodeValue text(const std::string& value)
+    {
+        return script::NodeValue{.type = script::NodeType::String, .text = value};
+    }
+
+    nlohmann::json results()
+    {
+        const nlohmann::json all = jsonOf(m_registry.call(m_extension, "deviceResults", {}).value.text);
+        return all.is_array() ? all : nlohmann::json::array();
+    }
+
+    const app::NativeExtensions& m_registry;
+    std::string m_extension;
+};
+
+}
+
+TEST_CASE("ADR-0112: a DLL opens a device the user allowed through GameScrcpy, writes to it, controls it, hears it and "
+          "closes it, under the extension's grants and claims, in GameScrcpy, in gs-exthost.exe and restricted")
+{
+    ApplicationScope application;
+    app::HardwareClaims claims;
+    Scratch scratch;
+    const hardware::DeviceInfo padInfo = fakeDevice("hid:pad", hardware::Kind::Hid, "Pad", "\\\\?\\hid#pad");
+    auto backend = std::make_unique<hardware::FakeBackend>();
+    hardware::FakeBackend& fake = *backend;
+    fake.add(fakeDevice("serial:board", hardware::Kind::Serial, "Board", "\\\\.\\COM7"));
+    fake.add(padInfo);
+    app::HardwareAccess access(std::move(backend), scratch / "hardware-grants.json");
+    access.setReplies({.answer = [](std::uint64_t, quint64, const QString&) {},
+                       .refuse = [](std::uint64_t, quint64, const QString&) {},
+                       .tell = [](std::uint64_t, const QString&, const QString&, const QString&) {}});
+    struct Declared {
+        const char* id;
+        const char* name;
+        bool official;
+        bool restricted;
+    };
+    const std::array<Declared, 3> declared{{{"gstest.inside", "Inside", true, false},
+                                            {"gstest.outside", "Outside", false, false},
+                                            {"gstest.boxed", "Boxed", true, true}}};
+    QStringList permitted;
+    for (const Declared& each : declared) {
+        permitted.append(QString::fromUtf8(each.id));
+    }
+    access.setPermitted(permitted);
+    std::vector<app::NativeWanted> wanted;
+    for (const Declared& each : declared) {
+        const app::LogicCaller asking{.logic = 1, .extension = QString::fromUtf8(each.id)};
+        access.request(asking, "hardware.request", 1, QString::fromUtf8(R"({"kind":"serial"})"));
+        REQUIRE(access.allow({QStringLiteral("serial:board")}));
+        access.request(asking, "hardware.request", 2, QString::fromUtf8(R"({"kind":"hid"})"));
+        REQUIRE(access.allow({QStringLiteral("hid:pad")}));
+        const fs::path folder = scratch / (std::string(each.id) + "/1.0.0");
+        fs::create_directories(folder);
+        fs::copy_file(kTestDll, folder / "native.dll");
+        app::NativeWanted made = testWanted(folder);
+        made.id = each.id;
+        made.name = QString::fromUtf8(each.name);
+        made.official = each.official;
+        made.granted = {"hardware"};
+        made.native.sandbox = each.restricted ? ext::NativeSandbox::Restricted : ext::NativeSandbox::Full;
+        const std::vector<ext::NativeParam> three{{"call", "string"}, {"first", "string"}, {"second", "string"}};
+        made.native.nodes = {
+            {.name = "deviceStart", .params = three, .returns = "number", .description = {}, .permissions = {}},
+            {.name = "deviceResults", .params = {}, .returns = "json", .description = {}, .permissions = {}},
+            {.name = "deviceEvents", .params = {}, .returns = "json", .description = {}, .permissions = {}},
+            {.name = "deviceNow", .params = three, .returns = "json", .description = {}, .permissions = {}},
+            {.name = "openFile", .params = {{"path", "string"}}, .returns = "number", .description = {}, .permissions = {}}};
+        wanted.push_back(std::move(made));
+    }
+    app::NativeExtensions registry(
+        {.program = containedProgram(scratch), .storeRoot = scratch / ".store", .clock = nullptr});
+    registry.apply(wanted);
+    writeFile(scratch / "secret.txt", "not for extensions");
+
+    for (const Declared& each : declared) {
+        CAPTURE(each.id);
+        REQUIRE(pumpEvents([&] { return registry.call(each.id, "deviceResults", {}).problem.empty(); }));
+        DeviceDriver driver(registry, each.id);
+        const QString name = QString::fromUtf8(each.name);
+        if (each.restricted) {
+            CHECK(driver.openFile(scratch / "secret.txt") != 0.0);
+        } else {
+            CHECK(driver.openFile(scratch / "secret.txt") == 0.0);
+        }
+
+        const nlohmann::json listed = driver.run("list");
+        REQUIRE(listed.at("status") == static_cast<int>(GS_EXT_OK));
+        CHECK(jsonOf(listed.at("answer").get<std::string>()).size() == 2);
+
+        const nlohmann::json opened = driver.run("open", "serial:board", R"({"baudRate":9600})");
+        REQUIRE_MESSAGE(opened.at("status") == static_cast<int>(GS_EXT_OK), opened.dump());
+        const std::uint64_t board = opened.at("device").get<std::uint64_t>();
+        CHECK(board != 0);
+        const nlohmann::json description = jsonOf(opened.at("answer").get<std::string>());
+        CHECK(description.at("id") == "serial:board");
+        CHECK(description.at("device") == board);
+        REQUIRE(fake.link("serial:board") != nullptr);
+        CHECK(fake.link("serial:board")->serial().baudRate == 9600);
+        CHECK(claims.holderName("serial:COM7") == name);
+
+        CHECK(driver.run("write", "0102ff").at("status") == static_cast<int>(GS_EXT_OK));
+        REQUIRE_FALSE(fake.link("serial:board")->written().empty());
+        CHECK(fake.link("serial:board")->written().back() == hardware::Bytes{1, 2, 255});
+        CHECK(driver.run("control", R"({"op":"signals","dtr":false})").at("status") == static_cast<int>(GS_EXT_OK));
+        CHECK(fake.link("serial:board")->dtr() == std::optional<bool>(false));
+        fake.link("serial:board")->sendData({7, 8});
+        const nlohmann::json data = driver.heard(1);
+        CHECK(data[0].at("type") == static_cast<int>(GS_EXT_DEVICE_DATA));
+        CHECK(data[0].at("device") == board);
+        CHECK(data[0].at("data") == "0708");
+
+        CHECK(driver.run("close").at("status") == static_cast<int>(GS_EXT_OK));
+        REQUIRE(pumpEvents([&] { return fake.link("serial:board")->closed(); }));
+        REQUIRE(pumpEvents([&] { return claims.holderName("serial:COM7").isEmpty(); }));
+
+        REQUIRE(claims.claim("serial:COM7", app::ClaimHolder{"app:tester", QStringLiteral("Tester"), {}}, false) ==
+                exthost::ClaimResult::Claimed);
+        const nlohmann::json busy = driver.run("open", "serial:board");
+        CHECK(busy.at("status") == static_cast<int>(GS_EXT_FAILED));
+        CHECK(busy.at("answer").get<std::string>().find("Tester") != std::string::npos);
+        claims.release("serial:COM7", "app:tester");
+
+        const nlohmann::json pad = driver.run("open", "hid:pad");
+        REQUIRE_MESSAGE(pad.at("status") == static_cast<int>(GS_EXT_OK), pad.dump());
+        REQUIRE(fake.link("hid:pad") != nullptr);
+        fake.link("hid:pad")->setFeature(3, {9, 8});
+        const nlohmann::json feature = driver.run("control", R"({"op":"getFeature","report":3})");
+        CHECK(feature.at("status") == static_cast<int>(GS_EXT_OK));
+        CHECK(jsonOf(feature.at("answer").get<std::string>()) == nlohmann::json{{"data", "CQg="}});
+        CHECK(driver.run("write", "aa", R"({"report":2})").at("status") == static_cast<int>(GS_EXT_OK));
+        REQUIRE_FALSE(fake.link("hid:pad")->reports().empty());
+        CHECK(fake.link("hid:pad")->reports().back() == hardware::FakeReport{2, {0xAA}});
+        fake.link("hid:pad")->sendReport(1, {5});
+        fake.remove("hid:pad");
+        const nlohmann::json padEvents = driver.heard(2);
+        CHECK(padEvents[0].at("type") == static_cast<int>(GS_EXT_DEVICE_REPORT));
+        CHECK(padEvents[0].at("report") == 1);
+        CHECK(padEvents[0].at("data") == "05");
+        CHECK(padEvents[1].at("type") == static_cast<int>(GS_EXT_DEVICE_CLOSED));
+        CHECK(padEvents[1].at("reason") == "removed");
+        CHECK(claims.holderName("hid:pad").isEmpty());
+        fake.add(padInfo);
+
+        const nlohmann::json elsewhere = driver.run("open", "serial:elsewhere");
+        CHECK(elsewhere.at("status") == static_cast<int>(GS_EXT_DENIED));
+        CHECK(elsewhere.at("answer").get<std::string>().starts_with("GS-API-081"));
+        CHECK(driver.now("list").at("status") == static_cast<int>(GS_EXT_UNSUPPORTED));
+    }
+
+    const nlohmann::json kept = DeviceDriver(registry, "gstest.boxed").run("open", "serial:board");
+    REQUIRE(kept.at("status") == static_cast<int>(GS_EXT_OK));
+    CHECK(claims.holderName("serial:COM7") == QStringLiteral("Boxed"));
+    registry.apply({});
+    REQUIRE(pumpEvents([&] { return fake.link("serial:board")->closed() && claims.holderName("serial:COM7").isEmpty(); }));
+    CHECK(exthost::forgetContainer("gstest.boxed"));
+}
+
+TEST_CASE("ADR-0112: turning off an extension whose DLL inside GameScrcpy waits for a device ends the wait at once "
+          "instead of holding GameScrcpy until it times out")
+{
+    ApplicationScope application;
+    app::HardwareClaims claims;
+    Scratch scratch;
+    auto backend = std::make_unique<hardware::FakeBackend>();
+    backend->add(fakeDevice("serial:board", hardware::Kind::Serial, "Board", "\\\\.\\COM7"));
+    app::HardwareAccess access(std::move(backend), scratch / "hardware-grants.json");
+    access.setReplies({.answer = [](std::uint64_t, quint64, const QString&) {},
+                       .refuse = [](std::uint64_t, quint64, const QString&) {},
+                       .tell = [](std::uint64_t, const QString&, const QString&, const QString&) {}});
+    access.setPermitted({QStringLiteral("gstest.inside")});
+    access.request(app::LogicCaller{.logic = 1, .extension = QStringLiteral("gstest.inside")}, "hardware.request", 1,
+                   QString::fromUtf8(R"({"kind":"serial"})"));
+    REQUIRE(access.allow({QStringLiteral("serial:board")}));
+    const fs::path folder = scratch / "gstest.inside/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    app::NativeWanted made = testWanted(folder);
+    made.id = "gstest.inside";
+    made.name = QStringLiteral("Inside");
+    made.official = true;
+    made.granted = {"hardware"};
+    const std::vector<ext::NativeParam> three{{"call", "string"}, {"first", "string"}, {"second", "string"}};
+    made.native.nodes = {
+        {.name = "deviceStart", .params = three, .returns = "number", .description = {}, .permissions = {}},
+        {.name = "deviceCalls", .params = {}, .returns = "number", .description = {}, .permissions = {}}};
+    app::NativeExtensions registry({.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr});
+    registry.apply({made});
+    const auto text = [](const std::string& value) {
+        return script::NodeValue{.type = script::NodeType::String, .text = value};
+    };
+    const auto calls = [&registry] { return registry.call("gstest.inside", "deviceCalls", {}); };
+    REQUIRE(pumpEvents([&] { return calls().problem.empty(); }));
+    REQUIRE(registry.call("gstest.inside", "deviceStart", {text("open"), text("serial:board"), text({})})
+                .problem.empty());
+    const auto started = std::chrono::steady_clock::now() + 10s;
+    while (calls().value.number < 1.0 && std::chrono::steady_clock::now() < started) {
+        std::this_thread::sleep_for(1ms);
+    }
+    REQUIRE(calls().value.number >= 1.0);
+    const auto before = std::chrono::steady_clock::now();
+    registry.apply({});
+    CHECK(std::chrono::steady_clock::now() - before < 10s);
 }

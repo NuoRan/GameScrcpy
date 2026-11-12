@@ -3,6 +3,7 @@
 #include "ExtensionIcons.h"
 #include "ExtensionServices.h"
 #include "ExtensionTouchSink.h"
+#include "HardwareAccess.h"
 #include "HardwareClaims.h"
 
 #include <gs/base/Log.h>
@@ -24,6 +25,7 @@
 #include <map>
 #include <optional>
 #include <set>
+#include <stop_token>
 #include <utility>
 
 namespace gs::app {
@@ -376,6 +378,18 @@ struct ModuleSlot {
         }
         return alive != nullptr && alive->claimWanted(resource, by.toStdString());
     }
+
+    void deliver(std::uint64_t device, const std::string& json)
+    {
+        std::shared_ptr<exthost::Module> alive;
+        {
+            const std::scoped_lock lock(mutex);
+            alive = module.lock();
+        }
+        if (alive != nullptr) {
+            alive->deviceEvent(device, json);
+        }
+    }
 };
 
 void releaseClaims(const std::string& holder)
@@ -389,13 +403,26 @@ class EntryServices final : public exthost::HostServices
 {
 public:
     EntryServices(std::string id, QString name, std::weak_ptr<NativeExtensions::Shared> shared, ClaimHolder claimer,
-                  std::uint64_t loadNumber)
+                  std::uint64_t loadNumber, NativeHardware devices)
         : m_id(std::move(id))
         , m_name(std::move(name))
         , m_shared(std::move(shared))
         , m_claimer(std::move(claimer))
         , m_loadNumber(loadNumber)
+        , m_devices(std::move(devices))
     {
+    }
+
+    void stop() noexcept { m_stop.request_stop(); }
+
+    exthost::ServiceResult device(std::string_view request, std::string_view json) override
+    {
+        return HardwareAccess::callFromNativeAndWait(m_devices, request, json, m_stop.get_token());
+    }
+
+    void closeDevice(std::uint64_t device) override
+    {
+        HardwareAccess::callFromNative(m_devices, "hardware.close", nlohmann::json{{"device", device}}.dump(), {});
     }
 
     exthost::ClaimResult claim(std::string_view resource, bool wait) override
@@ -413,7 +440,7 @@ public:
 
     exthost::ServiceResult callService(std::string_view service, std::string_view json) override
     {
-        return ExtensionServices::callFromNativeAndWait(m_id, service, json);
+        return ExtensionServices::callFromNativeAndWait(m_id, service, json, m_stop.get_token());
     }
 
     void log(int level, std::string_view text) override { writeLog(m_id, level, text); }
@@ -469,6 +496,8 @@ private:
     std::weak_ptr<NativeExtensions::Shared> m_shared;
     ClaimHolder m_claimer;
     std::uint64_t m_loadNumber = 0;
+    NativeHardware m_devices;
+    std::stop_source m_stop;
 };
 
 }
@@ -653,7 +682,9 @@ void matchEntry(NativeExtensions::Entry& entry)
         }
     }
     log::info(kCategory, "{}: the DLL is loaded {}", wanted.id,
-              wanted.official ? "inside GameScrcpy" : "in its own process");
+              wanted.native.sandbox == ext::NativeSandbox::Restricted ? "in its own process, in an AppContainer"
+              : wanted.official                                        ? "inside GameScrcpy"
+                                                                       : "in its own process");
 }
 
 }
@@ -713,9 +744,17 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
     const ClaimHolder claimer{holder, wanted.name, [slot](const std::string& resource, const QString& by) {
                                   return slot->wanted(resource, by);
                               }};
-    if (wanted.official) {
+    const bool restricted = wanted.native.sandbox == ext::NativeSandbox::Restricted;
+    const std::uint64_t loadKey = entry->loadNumber;
+    const NativeHardware devices{.key = loadKey,
+                                 .extension = QString::fromStdString(wanted.id),
+                                 .holder = claimer,
+                                 .event = [slot](std::uint64_t device, const std::string& json) {
+                                     slot->deliver(device, json);
+                                 }};
+    if (wanted.official && !restricted) {
         auto services =
-            std::make_shared<EntryServices>(wanted.id, wanted.name, m_shared, claimer, entry->loadNumber);
+            std::make_shared<EntryServices>(wanted.id, wanted.name, m_shared, claimer, entry->loadNumber, devices);
         std::unique_ptr<exthost::InProcessModule> module =
             exthost::InProcessModule::load({.dll = dll,
                                             .store = store,
@@ -725,10 +764,13 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
                                             .inputs = declaredInputs(wanted.native)},
                                            problem);
         if (module != nullptr) {
-            entry->module = std::shared_ptr<exthost::Module>(module.release(), [services, holder](exthost::Module* done) {
-                delete done;
-                releaseClaims(holder);
-            });
+            entry->module = std::shared_ptr<exthost::Module>(
+                module.release(), [services, holder, loadKey](exthost::Module* done) {
+                    services->stop();
+                    delete done;
+                    releaseClaims(holder);
+                    HardwareAccess::endNative(loadKey);
+                });
             slot->set(entry->module);
         }
     } else {
@@ -795,11 +837,33 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
                                    std::function<void(exthost::ServiceResult)> answer) {
             ExtensionServices::callFromNative(id, service, json, std::move(answer));
         };
-        if (!m_options.crashRoot.empty()) {
+        options.device = [devices](const std::string& request, const std::string& json,
+                                   std::function<void(exthost::ServiceResult)> answer) {
+            HardwareAccess::callFromNative(devices, request, json, std::move(answer));
+        };
+        const auto granted = [&wanted](std::string_view permission) {
+            return std::ranges::find(wanted.granted, permission) != wanted.granted.end();
+        };
+        if (!granted(exthost::kHardwarePermission)) {
+            options.device = {};
+        }
+        if (restricted) {
+            options.container = wanted.id;
+            options.readable = wanted.directory;
+            if (!granted("notify")) {
+                options.notify = {};
+            }
+            if (!granted(exthost::kHardwarePermission)) {
+                options.claim = {};
+                options.release = {};
+            }
+        }
+        if (!m_options.crashRoot.empty() && !restricted) {
             options.crashes = m_options.crashRoot / pathOf(id);
             options.logFile = m_options.logFile;
         }
-        options.crashed = [shared, id](std::uint32_t code) {
+        options.crashed = [shared, id, loadKey](std::uint32_t code) {
+            HardwareAccess::resetNative(loadKey);
             if (const std::shared_ptr<Shared> alive = shared.lock()) {
                 alive->post([id, code](NativeExtensions& owner) { emit owner.crashed(QString::fromStdString(id), code); });
             }
@@ -842,10 +906,12 @@ std::shared_ptr<NativeExtensions::Entry> NativeExtensions::load(const NativeWant
             exthost::HostedModule::start(std::move(options), problem);
         const bool waiting = hosted != nullptr && !hosted->ready();
         if (hosted != nullptr) {
-            entry->module = std::shared_ptr<exthost::Module>(hosted.release(), [holder](exthost::Module* done) {
-                delete done;
-                releaseClaims(holder);
-            });
+            entry->module =
+                std::shared_ptr<exthost::Module>(hosted.release(), [holder, loadKey](exthost::Module* done) {
+                    delete done;
+                    releaseClaims(holder);
+                    HardwareAccess::endNative(loadKey);
+                });
             slot->set(entry->module);
         }
         *made = entry->module.get();
@@ -1413,6 +1479,17 @@ bool NativeExtensions::loaded(std::string_view id) const
     return std::ranges::any_of(entries(), [id](const std::shared_ptr<Entry>& entry) {
         return entry->wanted.id == id && entry->module != nullptr && entry->module->working();
     });
+}
+
+bool NativeExtensions::shareFile(std::string_view extension, const std::filesystem::path& file,
+                                 std::string& problem) const
+{
+    for (const std::shared_ptr<Entry>& entry : entries()) {
+        if (entry->wanted.id == extension && entry->wanted.native.sandbox == ext::NativeSandbox::Restricted) {
+            return exthost::shareWithContainer(entry->wanted.id, file, problem);
+        }
+    }
+    return true;
 }
 
 std::unique_ptr<ExtensionTouch> NativeExtensions::openTouch(std::string_view key, std::string_view device,

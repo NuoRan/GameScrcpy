@@ -292,6 +292,39 @@ TEST_CASE("a package with native code reports its libraries, the scan and what i
     CHECK_FALSE(hasNativeCode(directoryContents(plain), Manifest{}));
 }
 
+TEST_CASE("ADR-0112: a restricted DLL still lists what it imports, asks for nothing it imports, and is refused for "
+          "the same reasons")
+{
+    Scratch scratch;
+    const fs::path folder = scratch / "restricted";
+    writeFile(folder / "manifest.json", "{}");
+    writeFile(folder / "bin/plugin.dll",
+              buildPe({.imports = {{"ws2_32.dll", {"connect"}}, {"kernel32.dll", {"CreateFileW", "GetTickCount"}},
+                                   {"shell32.dll", {"ShellExecuteW"}}}}));
+    Manifest manifest;
+    manifest.contributes.native = NativeContribution{.dll = "bin/plugin.dll"};
+    const NativeCheck full = checkNative(directoryContents(folder), manifest, verdict(ScanVerdict::Clean));
+    CHECK_FALSE(full.restricted);
+    CHECK(full.uncovered == std::vector<Capability>{Capability::Network, Capability::Files, Capability::Processes});
+
+    manifest.contributes.native->sandbox = NativeSandbox::Restricted;
+    const NativeCheck restricted = checkNative(directoryContents(folder), manifest, verdict(ScanVerdict::Clean));
+    CHECK(restricted.restricted);
+    CHECK_FALSE(restricted.refused());
+    CHECK(has(restricted.capabilities, Capability::Network));
+    CHECK(has(restricted.capabilities, Capability::Files));
+    CHECK(has(restricted.capabilities, Capability::Processes));
+    CHECK(restricted.uncovered.empty());
+    CHECK(restricted.signature.state == SignatureState::Unsigned);
+    CHECK(checkNative(directoryContents(folder), manifest, verdict(ScanVerdict::Threat)).refusal ==
+          NativeRefusal::Threat);
+
+    writeFile(folder / "bin/hook.dll", buildPe({.imports = {{"user32.dll", {"SetWindowsHookExW"}}}}));
+    const NativeCheck hooked = checkNative(directoryContents(folder), manifest, verdict(ScanVerdict::Clean));
+    CHECK(hooked.restricted);
+    CHECK(hooked.refusal == NativeRefusal::Injection);
+}
+
 TEST_CASE("a native package whose declared library is missing or not a library is refused")
 {
     Scratch scratch;

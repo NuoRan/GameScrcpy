@@ -132,8 +132,10 @@ Dialog {
                         readonly property var security: modelData.security ?? ({})
                         readonly property bool nativeCode: entry.security.native === true
                         readonly property bool refused: entry.nativeCode && entry.security.refused === true
+                        readonly property bool restricted: entry.nativeCode && entry.security.restricted === true
                         readonly property var notes: entry.nativeCode
-                                                     ? [qsTr("Native code"),
+                                                     ? [entry.restricted ? qsTr("Restricted: it can only do what it declares")
+                                                                         : qsTr("Native code"),
                                                         entry.security.author === "valid" ? qsTr("Signed by its author")
                                                                                           : qsTr("Author not verified")]
                                                        .concat(entry.security.warnings ?? [])
@@ -214,7 +216,8 @@ Dialog {
                             visible: entry.nativeCode && !entry.refused
                             textFormat: Text.PlainText
                             text: entry.notes.join(" · ")
-                            color: entry.security.author === "valid" && (entry.security.warnings ?? []).length === 0
+                            color: (entry.security.author === "valid" || entry.restricted)
+                                   && (entry.security.warnings ?? []).length === 0
                                    ? Theme.colors.textSecondary : Theme.colors.warningText
                             font.pixelSize: Theme.type.caption.size
                             wrapMode: Text.Wrap

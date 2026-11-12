@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <system_error>
@@ -66,12 +67,15 @@ QString notAvailable()
 class ExtensionProvider final : public QObject, public AiProvider
 {
 public:
+    using Share = std::function<bool(const std::filesystem::path& file, std::string& problem)>;
+
     ExtensionProvider(AiProviderInfo declared, AiConnection connection, NativeJobs& jobs,
-                      std::filesystem::path requests)
+                      std::filesystem::path requests, Share share)
         : m_declared(std::move(declared))
         , m_connection(std::move(connection))
         , m_jobs(&jobs)
         , m_requests(std::move(requests))
+        , m_share(std::move(share))
     {
         m_idle.setSingleShot(true); // source-rule-allow R9: an answer that brings nothing for two minutes counts as lost, as with the built-in services
         m_idle.setInterval(kAiIdleLimit);
@@ -115,6 +119,13 @@ public:
                 qWarning("ai extension %s: the request could not be written for it (%s)",
                          qUtf8Printable(m_declared.id()), failed.message().c_str());
                 finishWith(AiReply{.problem = failure(QString::fromStdString(failed.message()))});
+                return;
+            }
+            if (std::string refused; m_share && !m_share(spilled, refused)) {
+                static_cast<void>(platform::removeFile(spilled));
+                qWarning("ai extension %s: the request could not be shared with it (%s)",
+                         qUtf8Printable(m_declared.id()), refused.c_str());
+                finishWith(AiReply{.problem = failure(QString::fromStdString(refused))});
                 return;
             }
             arguments = QJsonObject{
@@ -250,6 +261,7 @@ private:
     AiConnection m_connection;
     QPointer<NativeJobs> m_jobs;
     std::filesystem::path m_requests;
+    Share m_share;
     Handlers m_handlers;
     std::shared_ptr<bool> m_live;
     std::uint64_t m_job = 0;
@@ -382,7 +394,12 @@ std::unique_ptr<AiProvider> AiProviders::provider(const QString& id, const AiCon
     if (found == nullptr || m_jobs == nullptr) {
         return nullptr;
     }
-    return std::make_unique<ExtensionProvider>(*found, connection, *m_jobs, m_requests);
+    const QPointer<NativeExtensions> native = m_native;
+    auto share = [native, extension = utf8Of(found->extension)](const std::filesystem::path& file,
+                                                                std::string& problem) {
+        return native == nullptr || native->shareFile(extension, file, problem);
+    };
+    return std::make_unique<ExtensionProvider>(*found, connection, *m_jobs, m_requests, std::move(share));
 }
 
 }

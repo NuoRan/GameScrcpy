@@ -50,6 +50,16 @@ struct ServiceResult {
     std::string text;
 };
 
+inline constexpr std::string_view kHardwarePermission = "hardware";
+inline constexpr std::size_t kMostDeviceIdBytes = 512;
+inline constexpr std::size_t kMostDeviceWriteBytes = 64 * 1024;
+inline constexpr std::size_t kMostQueuedDeviceEvents = 1024;
+
+struct StoreReply {
+    ServiceStatus status = ServiceStatus::Unsupported;
+    std::optional<std::string> value;
+};
+
 struct Value {
     ValueType type = ValueType::None;
     bool flag = false;
@@ -464,6 +474,13 @@ public:
     [[nodiscard]] virtual ServiceResult callService(std::string_view, std::string_view) { return {}; }
     virtual void transportChanged(std::string_view) {}
     virtual void sourcesChanged(std::string_view) {}
+    [[nodiscard]] virtual ServiceResult device(std::string_view, std::string_view) { return {}; }
+    virtual void closeDevice(std::uint64_t) {}
+    [[nodiscard]] virtual StoreReply storeGet(std::string_view) { return {}; }
+    [[nodiscard]] virtual ServiceStatus storeSet(std::string_view, std::optional<std::string_view>)
+    {
+        return ServiceStatus::Unsupported;
+    }
 };
 
 class Module
@@ -525,6 +542,7 @@ public:
     {
         return {};
     }
+    virtual void deviceEvent(std::uint64_t, std::string_view) {}
 };
 
 }

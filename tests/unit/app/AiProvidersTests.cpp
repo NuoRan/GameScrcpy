@@ -15,6 +15,7 @@
 
 #include <gs/base/Clock.h>
 #include <gs/ext/Manifest.h>
+#include <gs/exthost/Hosted.h>
 #include <gs/platform/Crypto.h>
 
 #include <doctest/doctest.h>
@@ -109,15 +110,23 @@ struct Heard {
     }
 };
 
+fs::path programCopy(const gs::ext::test::Scratch& scratch)
+{
+    const fs::path copy = scratch / "program" / kProgram.filename();
+    fs::create_directories(copy.parent_path());
+    fs::copy_file(kProgram, copy, fs::copy_options::overwrite_existing);
+    return copy;
+}
+
 struct Native {
     gs::test::McpApplication application;
     gs::ext::test::Scratch scratch;
     gs::app::NativeExtensions registry{
-        gs::app::NativeOptions{.program = kProgram, .storeRoot = scratch / ".store", .clock = nullptr}};
+        gs::app::NativeOptions{.program = programCopy(scratch), .storeRoot = scratch / ".store", .clock = nullptr}};
     gs::app::NativeJobs jobs{registry};
     gs::app::AiProviders providers{scratch / "requests"};
 
-    Native()
+    explicit Native(bool restricted = false)
     {
         const fs::path folder = scratch / "gstest.native/1.0.0";
         fs::create_directories(folder);
@@ -139,8 +148,12 @@ struct Native {
                                .description = {},
                                .permissions = {},
                                .most = std::nullopt}};
+        if (restricted) {
+            wanted.native.sandbox = gs::ext::NativeSandbox::Restricted;
+        }
         registry.apply({wanted});
         REQUIRE(registry.problems().empty());
+        REQUIRE(gs::test::waitUntil([this] { return registry.call("gstest.native", "lastAiRequest", {}).problem.empty(); }));
         providers.use(registry, jobs);
         providers.setProviders({AiProviderInfo{.extension = u"gstest.native"_s,
                                                .name = u"tiny"_s,
@@ -257,6 +270,24 @@ TEST_CASE("ADR-0112: a request too large for a job's arguments reaches the provi
     CHECK(seen["file"]["model"] == "plain");
     CHECK(seen["file"]["messages"][0]["text"].get<std::string>().size() == 70'000);
     CHECK(requestFiles(native.scratch / "requests") == 0);
+}
+
+TEST_CASE("ADR-0112: a restricted provider reads a request too large for its job's arguments from its file as well")
+{
+    {
+        Native native(true);
+        const std::unique_ptr<AiProvider> provider = native.providers.provider(kProvider, modelled(u"plain"_s));
+        REQUIRE(provider != nullptr);
+        Heard heard;
+        provider->send(question(QString(70'000, u'x')), heard.handlers());
+        REQUIRE(gs::test::waitUntil([&heard] { return heard.reply.has_value(); }));
+        CHECK(heard.reply->problem.isEmpty());
+        nlohmann::json seen = native.lastRequest();
+        CHECK(seen["args"]["request"]["file"].is_string());
+        CHECK(seen["file"]["model"] == "plain");
+        CHECK(requestFiles(native.scratch / "requests") == 0);
+    }
+    CHECK(gs::exthost::forgetContainer("gstest.native"));
 }
 
 TEST_CASE("ADR-0112: the assistant's conversation turns what an extension's provider streams into its answer")

@@ -807,7 +807,7 @@ QT_TRANSLATE_NOOP("ScriptApi", "Whether a key or mouse button is held; always fa
 QT_TRANSLATE_NOOP("ScriptApi", "A key or mouse button, written as in profiles: \"KeyW\", \"Space\", \"Mouse.Left\".");
 QT_TRANSLATE_NOOP("ScriptApi", "Write the key as in profiles, such as \"KeyW\".");
 QT_TRANSLATE_NOOP("ScriptApi", "the name is not a string");
-QT_TRANSLATE_NOOP("ScriptApi", "Shows the user a list of the connected devices of that kind; the user ticks the ones this logic may use. Resolves with every ticked device, those allowed before included, or with an empty list when the user cancels. Bluetooth devices are looked for while the list is open.");
+QT_TRANSLATE_NOOP("ScriptApi", "Shows the user a list of the connected devices of that kind; the user ticks the ones this logic may use. Resolves with every ticked device, those allowed before included, or with an empty list when the user cancels. Bluetooth devices are looked for while the list is open. In an extension the ticked devices are allowed to the whole extension, so its own DLL can open them too, with device_open of the C header.");
 QT_TRANSLATE_NOOP("ScriptApi", "The kind of device and the filters that the listed devices must match.");
 QT_TRANSLATE_NOOP("ScriptApi", "Pass { kind } and filters as HardwareFilter describes.");
 QT_TRANSLATE_NOOP("ScriptApi", "the kind is not serial, hid or ble, a filter is not valid, or 8 requests are already waiting");

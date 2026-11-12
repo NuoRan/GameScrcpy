@@ -714,7 +714,8 @@ QVariantMap securityMap(const ext::NativeCheck& check, const std::optional<ext::
             {QStringLiteral("name"), toQString(ext::capabilityName(use.capability))},
             {QStringLiteral("title"), capabilityTitle(use.capability)},
             {QStringLiteral("functions"), functions},
-            {QStringLiteral("declared"), std::ranges::find(check.uncovered, use.capability) == check.uncovered.end()}});
+            {QStringLiteral("declared"), std::ranges::find(check.uncovered, use.capability) == check.uncovered.end()},
+            {QStringLiteral("blocked"), check.restricted}});
     }
     const bool changed = before.has_value() && ext::authorChanged(*before, check.signature);
     QStringList warnings;
@@ -744,7 +745,8 @@ QVariantMap securityMap(const ext::NativeCheck& check, const std::optional<ext::
             {QStringLiteral("warnings"), warnings},
             {QStringLiteral("refused"), check.refused()},
             {QStringLiteral("reason"), refusalText(check.refusal)},
-            {QStringLiteral("detail"), QString::fromStdString(check.detail)}};
+            {QStringLiteral("detail"), QString::fromStdString(check.detail)},
+            {QStringLiteral("restricted"), check.restricted}};
 }
 
 QString authorsOf(const ext::Manifest& manifest, const QString& language)
@@ -1404,7 +1406,10 @@ QVariantList ExtensionHost::entries() const
                                        {QStringLiteral("aiProviders"), aiProviders},
                                        {QStringLiteral("visionEngines"), visionEngines},
                                        {QStringLiteral("ownProcess"),
-                                        !(extension->builtin && manifest.id.starts_with(ext::kReservedIdPrefix))},
+                                        !(extension->builtin && manifest.id.starts_with(ext::kReservedIdPrefix)) ||
+                                            manifest.contributes.native->sandbox == ext::NativeSandbox::Restricted},
+                                       {QStringLiteral("restricted"),
+                                        manifest.contributes.native->sandbox == ext::NativeSandbox::Restricted},
                                        {QStringLiteral("architectures"), architectures}});
                 const ext::NativeContribution& media = *manifest.contributes.native;
                 QStringList sources;

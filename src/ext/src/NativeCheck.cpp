@@ -854,6 +854,10 @@ NativeCheck checkNative(const PackageContents& contents, const Manifest& manifes
         check.files.push_back(std::move(file));
     }
     check.uncovered = uncoveredCapabilities(check.capabilities, manifest.permissions);
+    check.restricted = manifest.contributes.native && manifest.contributes.native->sandbox == NativeSandbox::Restricted;
+    if (check.restricted) {
+        check.uncovered.clear();
+    }
     check.signature = checkSignature(contents, manifest.authorKey);
     if (check.signature.state == SignatureState::Invalid) {
         refuse(NativeRefusal::BadSignature, check.signature.problem);

@@ -9,6 +9,7 @@
 #include <gs/platform/AtomicFile.h>
 
 #include <QByteArray>
+#include <QCoreApplication>
 #include <QJSEngine>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -16,10 +17,13 @@
 #include <QJsonParseError>
 #include <QJsonValue>
 #include <QMetaObject>
+#include <QThread>
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
+#include <condition_variable>
 #include <mutex>
 #include <system_error>
 #include <utility>
@@ -327,7 +331,53 @@ bool validOwner(const QString& owner)
     return owner == fromView(HardwareAccess::kOwnLogic) || ext::validExtensionId(owner.toStdString());
 }
 
+constexpr std::array<std::string_view, 4> kNativeRequests{"hardware.open", "hardware.write", "hardware.control",
+                                                           "hardware.close"};
+
+exthost::ServiceStatus statusOfRefusal(std::string_view message)
+{
+    if (message.starts_with("GS-API-080") || message.starts_with("GS-API-081")) {
+        return exthost::ServiceStatus::Denied;
+    }
+    if (message.starts_with("GS-API-084") || message.starts_with("GS-API-085")) {
+        return exthost::ServiceStatus::BadArgument;
+    }
+    if (message.starts_with("GS-API-070")) {
+        return exthost::ServiceStatus::Unsupported;
+    }
+    return exthost::ServiceStatus::Failed;
 }
+
+HardwareAccess::NativeAnswer answeredOnce(HardwareAccess::NativeAnswer answer)
+{
+    struct Once {
+        HardwareAccess::NativeAnswer answer;
+        std::atomic<bool> given{false};
+
+        Once() = default;
+        Once(const Once&) = delete;
+        Once& operator=(const Once&) = delete;
+
+        ~Once()
+        {
+            if (answer && !given.load()) {
+                answer({exthost::ServiceStatus::Failed, "GS-API-083 GameScrcpy stopped before the device answered"});
+            }
+        }
+    };
+    auto once = std::make_shared<Once>();
+    once->answer = std::move(answer);
+    return [once](exthost::ServiceResult result) {
+        if (!once->given.exchange(true) && once->answer) {
+            once->answer(std::move(result));
+        }
+    };
+}
+
+}
+
+std::mutex HardwareAccess::s_nativeMutex;
+std::weak_ptr<HardwareAccess::Shared> HardwareAccess::s_native;
 
 struct HardwareAccess::Shared {
     mutable std::mutex mutex;
@@ -412,6 +462,12 @@ HardwareAccess::HardwareAccess(std::unique_ptr<hardware::Backend> backend, std::
         s_instance = this;
     }
     m_shared->owner = this;
+    {
+        const std::scoped_lock lock(s_nativeMutex);
+        if (s_native.expired()) {
+            s_native = m_shared;
+        }
+    }
     m_replies = {
         .answer = [](std::uint64_t logic, quint64 request,
                      const QString& json) { static_cast<void>(LogicServices::instance().answer(logic, request, json)); },
@@ -431,6 +487,13 @@ HardwareAccess::HardwareAccess(std::unique_ptr<hardware::Backend> backend, std::
 
 HardwareAccess::~HardwareAccess()
 {
+    {
+        const std::scoped_lock lock(s_nativeMutex);
+        if (s_native.lock() == m_shared) {
+            s_native.reset();
+        }
+    }
+    m_native.clear();
     {
         const std::scoped_lock lock(m_shared->mutex);
         m_shared->owner = nullptr;
@@ -714,7 +777,7 @@ void HardwareAccess::endLogic(std::uint64_t logic)
         closeHandle(handle, QStringLiteral("ended"), {}, false);
     }
     if (HardwareClaims* claims = HardwareClaims::instance()) {
-        claims->releaseAll(logicHolder(logic));
+        claims->releaseAll(holderOf(logic));
     }
     if (front) {
         showNextPick();
@@ -967,9 +1030,9 @@ void HardwareAccess::opened(const QString& handle, std::shared_ptr<hardware::Ope
     std::string claimed;
     if (HardwareClaims* claims = HardwareClaims::instance()) {
         const std::string resource = resourceOf(opening.device);
-        const std::string holder = logicHolder(opening.logic);
+        const std::string holder = holderOf(opening.logic);
         if (!resource.empty() && !claims->holds(resource, holder)) {
-            if (claims->claim(resource, ClaimHolder{holder, claimerName(opening.owner), {}}, false) !=
+            if (claims->claim(resource, claimerOf(opening.logic, opening.owner), false) !=
                 exthost::ClaimResult::Claimed) {
                 refuse(opening.logic, opening.request,
                        failedWith(displayName(opening.device).toStdString() + " is in use by " +
@@ -1132,7 +1195,7 @@ void HardwareAccess::closeHandle(const QString& handle, const QString& reason, c
     open.link.reset();
     if (!open.claimed.empty()) {
         if (HardwareClaims* claims = HardwareClaims::instance()) {
-            claims->release(open.claimed, logicHolder(open.logic));
+            claims->release(open.claimed, holderOf(open.logic));
         }
     }
 }
@@ -1235,6 +1298,10 @@ void HardwareAccess::saveGrants() const
 
 void HardwareAccess::answer(std::uint64_t logic, quint64 request, const QString& json) const
 {
+    if (logic >= kNativeLogics) {
+        answerNative(logic, request, {exthost::ServiceStatus::Ok, json.toStdString()});
+        return;
+    }
     if (m_replies.answer) {
         m_replies.answer(logic, request, json);
     }
@@ -1242,6 +1309,11 @@ void HardwareAccess::answer(std::uint64_t logic, quint64 request, const QString&
 
 void HardwareAccess::refuse(std::uint64_t logic, quint64 request, const QString& message) const
 {
+    if (logic >= kNativeLogics) {
+        const std::string text = message.toStdString();
+        answerNative(logic, request, {statusOfRefusal(text), text});
+        return;
+    }
     if (m_replies.refuse) {
         m_replies.refuse(logic, request, message);
     }
@@ -1249,6 +1321,10 @@ void HardwareAccess::refuse(std::uint64_t logic, quint64 request, const QString&
 
 void HardwareAccess::tell(std::uint64_t logic, const QString& handle, const QString& json) const
 {
+    if (logic >= kNativeLogics) {
+        tellNative(logic, handle, json);
+        return;
+    }
     if (m_replies.tell) {
         m_replies.tell(logic, fromView(kEventKind), handle, json);
     }
@@ -1334,7 +1410,7 @@ void HardwareAccess::openDevice(const LogicCaller& caller, quint64 id, const QSt
     if (const HardwareClaims* claims = HardwareClaims::instance()) {
         const std::string resource = resourceOf(info);
         const QString holder = resource.empty() ? QString() : claims->holderName(resource);
-        if (!holder.isEmpty() && !claims->holds(resource, logicHolder(caller.logic))) {
+        if (!holder.isEmpty() && !claims->holds(resource, holderOf(caller.logic))) {
             refuse(caller.logic, id, failedWith(grant->name + " is in use by " + holder.toStdString()));
             return;
         }
@@ -1614,6 +1690,188 @@ void HardwareAccess::claimHardware(const LogicCaller& caller, quint64 id, const 
                                self.answer(logic, id, claimed ? QStringLiteral("true") : QStringLiteral("false"));
                            });
                        });
+}
+
+void HardwareAccess::callFromNative(const NativeHardware& caller, std::string service, std::string json,
+                                    NativeAnswer answer)
+{
+    NativeAnswer reply = answeredOnce(std::move(answer));
+    std::shared_ptr<Shared> shared;
+    {
+        const std::scoped_lock lock(s_nativeMutex);
+        shared = s_native.lock();
+    }
+    if (shared == nullptr) {
+        reply({exthost::ServiceStatus::Unsupported, "GS-API-070 GameScrcpy reaches no devices for extensions now"});
+        return;
+    }
+    if (service == "hardware.list") {
+        const script::ServiceAnswer listed =
+            callWith(shared, LogicCaller{.logic = kNativeLogics + caller.key, .extension = caller.extension}, service,
+                     json);
+        reply(listed.code.empty()
+                  ? exthost::ServiceResult{exthost::ServiceStatus::Ok, listed.json}
+                  : exthost::ServiceResult{statusOfRefusal(listed.code), listed.code + " " + listed.problem});
+        return;
+    }
+    shared->post([caller, service = std::move(service), json = std::move(json), reply](HardwareAccess& self) {
+        self.nativeRequest(caller, service, json, reply);
+    });
+}
+
+exthost::ServiceResult HardwareAccess::callFromNativeAndWait(const NativeHardware& caller, std::string_view request,
+                                                             std::string_view json, std::stop_token stop)
+{
+    const QCoreApplication* application = QCoreApplication::instance();
+    if (application == nullptr || QThread::currentThread() == application->thread()) {
+        return {exthost::ServiceStatus::Unsupported,
+                "the device functions work only on a thread of the DLL's own, not on one of GameScrcpy's"};
+    }
+    if (stop.stop_requested()) {
+        return {exthost::ServiceStatus::Failed, "GS-API-084 the extension stopped"};
+    }
+    struct Wait {
+        std::mutex mutex;
+        std::condition_variable_any answered;
+        std::optional<exthost::ServiceResult> result;
+    };
+    const auto wait = std::make_shared<Wait>();
+    callFromNative(caller, std::string(request), std::string(json), [wait](exthost::ServiceResult result) {
+        {
+            const std::scoped_lock lock(wait->mutex);
+            wait->result = std::move(result);
+        }
+        wait->answered.notify_all();
+    });
+    std::unique_lock lock(wait->mutex);
+    if (!wait->answered.wait_for(lock, stop, kNativeWait, [&wait] { return wait->result.has_value(); })) {
+        return stop.stop_requested()
+                   ? exthost::ServiceResult{exthost::ServiceStatus::Failed, "GS-API-084 the extension stopped"}
+                   : exthost::ServiceResult{exthost::ServiceStatus::Failed,
+                                            "GS-API-083 GameScrcpy did not answer for the device in time"};
+    }
+    return std::move(*wait->result);
+}
+
+void HardwareAccess::resetNative(std::uint64_t key)
+{
+    std::shared_ptr<Shared> shared;
+    {
+        const std::scoped_lock lock(s_nativeMutex);
+        shared = s_native.lock();
+    }
+    if (shared != nullptr) {
+        shared->post([key](HardwareAccess& self) { self.resetNativeRoute(kNativeLogics + key); });
+    }
+}
+
+void HardwareAccess::endNative(std::uint64_t key)
+{
+    std::shared_ptr<Shared> shared;
+    {
+        const std::scoped_lock lock(s_nativeMutex);
+        shared = s_native.lock();
+    }
+    if (shared != nullptr) {
+        shared->post([key](HardwareAccess& self) { self.endNativeRoute(kNativeLogics + key); });
+    }
+}
+
+void HardwareAccess::nativeRequest(const NativeHardware& caller, const std::string& service, const std::string& json,
+                                   NativeAnswer answer)
+{
+    const std::uint64_t logic = kNativeLogics + caller.key;
+    if (std::ranges::find(kNativeRequests, std::string_view(service)) == kNativeRequests.end()) {
+        answer({exthost::ServiceStatus::Unsupported,
+                "GS-API-070 no part of GameScrcpy offers the service " + service + " to a DLL"});
+        return;
+    }
+    if (m_endedLogic.contains(logic)) {
+        answer({exthost::ServiceStatus::Failed, "GS-API-084 the extension stopped"});
+        return;
+    }
+    QJsonObject body = objectOf(QByteArray::fromStdString(json));
+    if (const QJsonValue device = body.value(u"device"); device.isDouble()) {
+        body.insert(QStringLiteral("handle"), QStringLiteral("d%1").arg(static_cast<qulonglong>(device.toDouble())));
+    }
+    body.remove(QStringLiteral("device"));
+    NativeRoute& route = m_native[logic];
+    route.caller = caller;
+    const quint64 id = ++route.lastRequest;
+    route.waiting.insert_or_assign(id, NativeWaiting{service, std::move(answer)});
+    request(LogicCaller{.logic = logic, .extension = caller.extension}, service, id,
+            compactJson(QJsonDocument(body)));
+}
+
+void HardwareAccess::resetNativeRoute(std::uint64_t logic)
+{
+    std::erase_if(m_openings, [logic](const auto& entry) { return entry.second.logic == logic; });
+    std::vector<QString> closing;
+    for (const auto& [handle, open] : m_handles) {
+        if (open.logic == logic) {
+            closing.push_back(handle);
+        }
+    }
+    for (const QString& handle : closing) {
+        closeHandle(handle, QStringLiteral("ended"), {}, false);
+    }
+    if (const auto found = m_native.find(logic); found != m_native.end()) {
+        found->second.waiting.clear();
+    }
+}
+
+void HardwareAccess::endNativeRoute(std::uint64_t logic)
+{
+    endLogic(logic);
+    m_native.erase(logic);
+}
+
+void HardwareAccess::answerNative(std::uint64_t logic, quint64 request, exthost::ServiceResult result) const
+{
+    const auto route = m_native.find(logic);
+    if (route == m_native.end()) {
+        return;
+    }
+    auto node = route->second.waiting.extract(request);
+    if (node.empty()) {
+        return;
+    }
+    NativeWaiting& waiting = node.mapped();
+    if (result.status == exthost::ServiceStatus::Ok && waiting.request == "hardware.open") {
+        QJsonObject made = objectOf(QByteArray::fromStdString(result.text));
+        const QString handle = made.value(u"handle").toString();
+        made.remove(QStringLiteral("handle"));
+        made.insert(QStringLiteral("device"), static_cast<qint64>(handle.mid(1).toLongLong()));
+        result.text = compactJson(QJsonDocument(made)).toStdString();
+    }
+    if (waiting.answer) {
+        waiting.answer(std::move(result));
+    }
+}
+
+void HardwareAccess::tellNative(std::uint64_t logic, const QString& handle, const QString& json) const
+{
+    const auto route = m_native.find(logic);
+    if (route == m_native.end() || !route->second.caller.event || !handle.startsWith(u'd')) {
+        return;
+    }
+    route->second.caller.event(handle.mid(1).toULongLong(), json.toStdString());
+}
+
+std::string HardwareAccess::holderOf(std::uint64_t logic) const
+{
+    if (const auto found = m_native.find(logic); found != m_native.end()) {
+        return found->second.caller.holder.id;
+    }
+    return logicHolder(logic);
+}
+
+ClaimHolder HardwareAccess::claimerOf(std::uint64_t logic, const QString& owner) const
+{
+    if (const auto found = m_native.find(logic); found != m_native.end()) {
+        return found->second.caller.holder;
+    }
+    return ClaimHolder{logicHolder(logic), claimerName(owner), {}};
 }
 
 }

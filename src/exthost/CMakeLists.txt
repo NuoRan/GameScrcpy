@@ -6,6 +6,8 @@ add_library(gs_exthost STATIC
     include/gs/exthost/Server.h
     src/Channel.cpp
     src/Channel.h
+    src/Container.cpp
+    src/Container.h
     src/Hosted.cpp
     src/ImageSection.cpp
     src/ImageSection.h
@@ -24,7 +26,7 @@ add_library(gs_exthost STATIC
 add_library(gs::exthost ALIAS gs_exthost)
 
 target_include_directories(gs_exthost PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include" "${PROJECT_SOURCE_DIR}/sdk/include")
-target_link_libraries(gs_exthost PUBLIC gs::base PRIVATE gs::nlohmann_json gs::platform)
+target_link_libraries(gs_exthost PUBLIC gs::base PRIVATE gs::nlohmann_json gs::platform gs::ext userenv advapi32)
 gs_apply_compiler_policy(gs_exthost)
 
 add_executable(gs_exthost_program main.cpp)

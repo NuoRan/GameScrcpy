@@ -267,6 +267,18 @@ enum gs_ext_vision_kind {
     GS_EXT_VISION_CLASSIFY = 2,
 };
 
+/* What a gs_ext_device_event tells. */
+enum gs_ext_device_event_type {
+    /* Bytes came from a serial device, in data. */
+    GS_EXT_DEVICE_DATA = 0,
+    /* An input report came from a HID device: report is its id and data its bytes. */
+    GS_EXT_DEVICE_REPORT = 1,
+    /* A characteristic of a Bluetooth LE device that the DLL subscribed to changed: service and characteristic name it, and data is its new value. */
+    GS_EXT_DEVICE_NOTIFY = 2,
+    /* The device closed without the DLL closing it: reason says why and text says it in words. Its number is not used again. */
+    GS_EXT_DEVICE_CLOSED = 3,
+};
+
 typedef struct gs_ext_value gs_ext_value;
 typedef struct gs_ext_result gs_ext_result;
 typedef struct gs_ext_contact gs_ext_contact;
@@ -304,6 +316,7 @@ typedef struct gs_ext_media_sink gs_ext_media_sink;
 typedef struct gs_ext_recording_exporter gs_ext_recording_exporter;
 typedef struct gs_ext_image gs_ext_image;
 typedef struct gs_ext_vision_engine gs_ext_vision_engine;
+typedef struct gs_ext_device_event gs_ext_device_event;
 
 /* A node parameter or result. It never changes in later versions. */
 struct gs_ext_value {
@@ -783,6 +796,16 @@ struct gs_ext_host {
     int32_t (*audio_samples)(void* context, uint64_t stream, const gs_ext_audio* audio);
     /* Says that an open source has nothing more to give, such as when its device was unplugged, and why in UTF-8; GameScrcpy shows the picture as disconnected until the source is listed and opened again. */
     int32_t (*stream_ended)(void* context, uint64_t stream, const char* text, size_t size);
+    /* Puts the devices the user allowed this extension into devices as a JSON array, each { id, kind, name, present }: kind is "serial", "hid" or "ble" and present tells whether it is connected now. The user allows devices when the extension's logic asks with hardware.request, such as from its panel, and takes them back on the Extensions page. It needs the permission hardware: GS_EXT_DENIED without it. The device functions are how a DLL with contributes.native.sandbox "restricted" reaches hardware at all, since it runs without rights of its own and needs the permission hardware for claim too; a DLL with full rights may use them as well. Call device_list, device_open, device_write and device_control only from a thread of the DLL's own: they wait for GameScrcpy, at most 20 seconds, and on GameScrcpy's threads they return GS_EXT_UNSUPPORTED. The texts they give stay valid until the same thread calls one of them again. Ask supports("devices") first. */
+    int32_t (*device_list)(void* context, gs_ext_result* devices);
+    /* Opens one of those devices by its id, UTF-8 not ended by a zero byte, and puts the number to use for it into device. options is a UTF-8 JSON object, empty for none; a serial device takes { baudRate, dataBits, parity, stopBits, flowControl, dtr, rts } as hardware.open does in logic. GameScrcpy claims the device's hardware for the extension unless it has it already (see claim) and lets go of it when the device closes. GS_EXT_OK puts { device, id, kind, name } into answer as json; otherwise answer gets the reason as a string: GS_EXT_DENIED when the extension may not use the device (no permission hardware, or the user has not allowed it), GS_EXT_BAD_ARGUMENT for options that are not possible, GS_EXT_FAILED when it is not connected, someone else is using it or it does not open. answer may be NULL. Opening a Bluetooth device can take seconds. */
+    int32_t (*device_open)(void* context, const char* id, size_t id_size, const char* options, size_t options_size, uint64_t* device, gs_ext_result* answer);
+    /* Sends size bytes and returns when the device took them: to a serial device as they are, at most 65536; to a HID device as an output report, with target { "report": id }, at most 4096; to a Bluetooth LE device as the new value of a characteristic, with target { "service": uuid, "characteristic": uuid, "response": true }, at most 512, where response false writes without waiting for the device to confirm. target is UTF-8 JSON, empty for a serial device. GS_EXT_BAD_ARGUMENT for a device that is not open or a target that does not fit it, GS_EXT_FAILED when the device failed; answer, which may be NULL, gets the reason as a string. */
+    int32_t (*device_write)(void* context, uint64_t device, const void* data, size_t size, const char* target, size_t target_size, gs_ext_result* answer);
+    /* Does the rest of what hardware.control does in logic, with request a UTF-8 JSON object whose op says what: "signals" { dtr, rts } sets the lines of a serial device; "sendFeature" { report, data } and "getFeature" { report } send and read a feature report of a HID device; "services" lists the services of a Bluetooth LE device with their characteristics; "read" { service, characteristic } reads a characteristic; "subscribe" { service, characteristic, on } turns its notifications on or off, which then come to device_event. Bytes are base64 text both ways. GS_EXT_OK puts what it gives into answer as json: { data } for getFeature and read, the list for services, null for the others; otherwise answer gets the reason as a string. answer may be NULL. */
+    int32_t (*device_control)(void* context, uint64_t device, const char* request, size_t request_size, gs_ext_result* answer);
+    /* Closes a device the DLL opened. It returns at once and may be called from any thread, also from unload. GameScrcpy closes the DLL's devices itself when the extension stops, and when its process stops. */
+    int32_t (*device_close)(void* context, uint64_t device);
 };
 
 /* One thing a DLL offers. */
@@ -817,6 +840,8 @@ struct gs_ext_plugin {
     int32_t (*claim_wanted)(void* context, const char* resource, size_t size, const char* by, size_t by_size);
     /* Called with each event the DLL asked for with events_subscribe: its topic and its value as UTF-8 JSON, neither ended by a zero byte. It comes on a thread of GameScrcpy that never draws the interface, one event at a time and in order; return quickly, since the next events wait and more than 256 waiting are dropped. May be NULL. */
     void (*on_event)(void* context, const char* topic, size_t topic_size, const char* json, size_t json_size);
+    /* Called with what a device the DLL opened with device_open sends: bytes from a serial device, input reports from a HID device, notifications of Bluetooth LE characteristics it subscribed to, and that a device closed by itself. It comes on a thread of GameScrcpy that never draws the interface, one event at a time and in the order the devices sent them; return quickly, since the next events wait and more than 1024 waiting are dropped. May be NULL. */
+    void (*device_event)(void* context, const gs_ext_device_event* event);
 };
 
 /* An input source: a device of the DLL's own, such as a button pad, a pedal or a controller it reads over HID, serial or Bluetooth, whose buttons and axes the DLL feeds into the key mapping with input_event. A DLL offers at most 8, each with at most 64 slots. It needs the permission input.provide. */
@@ -981,6 +1006,32 @@ struct gs_ext_vision_engine {
     void* context;
     /* Recognizes kind, one of gs_ext_vision_kind, in image, the part of the phone's picture the logic asked for. params is the UTF-8 JSON object of size bytes, not ended by a zero byte, that the logic passed ("{}" when it passed none). Put the result into out as a JSON array with set_text and return GS_EXT_OK: x and y are the middle of what was found and width and height its size, all as ratios of the image from 0 to 1, and confidence goes from 0 to 1; GameScrcpy turns them into ratios of the whole picture for the logic. Return GS_EXT_BAD_ARGUMENT for params it does not take, or call set_error and return GS_EXT_FAILED. GameScrcpy calls it on a thread of its own that never draws the interface, one call at a time for each engine, perhaps at the same time as nodes, jobs and other engines. When it takes longer than 5 seconds the logic gets an error, and the engine takes the next picture only after it returns. */
     int32_t (*run)(void* context, uint32_t kind, const gs_ext_image* image, const char* params, size_t size, gs_ext_result* out);
+};
+
+/* What a device the DLL opened through GameScrcpy sends, given to device_event. */
+struct gs_ext_device_event {
+    /* sizeof(gs_ext_device_event) in GameScrcpy. */
+    uint32_t size;
+    /* One of gs_ext_device_event_type. */
+    uint32_t type;
+    /* The device, by the number device_open gave. */
+    uint64_t device;
+    /* GS_EXT_DEVICE_REPORT: the id of the report; 0 otherwise. */
+    uint32_t report;
+    /* GS_EXT_DEVICE_NOTIFY: the UUID of the service in lowercase, ended by a zero byte; an empty text otherwise. */
+    const char* service;
+    /* GS_EXT_DEVICE_NOTIFY: the UUID of the characteristic in lowercase, ended by a zero byte; an empty text otherwise. */
+    const char* characteristic;
+    /* The bytes that came; they belong to GameScrcpy and stay valid only during the call. */
+    const uint8_t* data;
+    /* How many bytes data has. */
+    size_t data_size;
+    /* GS_EXT_DEVICE_CLOSED: "removed" when the device was unplugged or went away, "failed" when it stopped working, "forgotten" when the user took back the extension's access to it; ended by a zero byte. An empty text otherwise. */
+    const char* reason;
+    /* GS_EXT_DEVICE_CLOSED: why, in words, UTF-8 not ended by a zero byte; empty otherwise. */
+    const char* text;
+    /* How many bytes text has. */
+    size_t text_size;
 };
 
 /* The function a native extension DLL exports. GameScrcpy calls it once after loading the DLL: set *plugin to the DLL's own description and return GS_EXT_OK, or GS_EXT_UNSUPPORTED when host->abi_version is not one the DLL supports. The description, and everything it points to, has to stay valid until unload is called; GameScrcpy never writes to it. */

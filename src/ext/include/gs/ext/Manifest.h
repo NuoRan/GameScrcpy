@@ -613,6 +613,9 @@ struct NativeVisionEngine {
     friend bool operator==(const NativeVisionEngine&, const NativeVisionEngine&) = default;
 };
 
+enum class NativeSandbox : std::uint8_t { Full, Restricted };
+inline constexpr std::array<std::string_view, 2> kNativeSandboxNames{"full", "restricted"};
+
 struct NativeContribution {
     std::string dll;
     TextMap dlls;
@@ -632,6 +635,7 @@ struct NativeContribution {
     std::vector<NativeFrameTap> frameTaps;
     std::vector<NativeAiProvider> aiProviders;
     std::vector<NativeVisionEngine> visionEngines;
+    NativeSandbox sandbox = NativeSandbox::Full;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -657,6 +661,7 @@ struct NativeContribution {
         v.objectList("frameTaps", m.frameTaps, kMostFrameTaps);
         v.objectList("aiProviders", m.aiProviders, kMostAiProviders);
         v.objectList("visionEngines", m.visionEngines, kMostVisionEngines);
+        v.choice("sandbox", m.sandbox, kNativeSandboxNames, false);
     }
 
     friend bool operator==(const NativeContribution&, const NativeContribution&) = default;

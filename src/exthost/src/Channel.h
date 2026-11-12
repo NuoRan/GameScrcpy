@@ -80,6 +80,11 @@ enum class Kind : std::uint32_t {
     TapOverlay,
     TapFailed,
     VisionRun,
+    StoreCall,
+    StoreAnswer,
+    DeviceCall,
+    DeviceAnswer,
+    DeviceEvent,
 };
 
 struct Message {

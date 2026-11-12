@@ -1,7 +1,9 @@
 #pragma once
 
+#include "HardwareClaims.h"
 #include "LogicServices.h"
 
+#include <gs/exthost/Module.h>
 #include <gs/hardware/Backend.h>
 #include <gs/input/DeviceEvents.h>
 #include <gs/script/Services.h>
@@ -13,6 +15,7 @@
 #include <QVariantMap>
 #include <QtQml/qqmlregistration.h>
 
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <deque>
@@ -20,8 +23,10 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <set>
+#include <stop_token>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -47,6 +52,13 @@ struct HardwareReplies {
     std::function<void(std::uint64_t logic, const QString& kind, const QString& id, const QString& json)> tell;
 };
 
+struct NativeHardware {
+    std::uint64_t key = 0;
+    QString extension;
+    ClaimHolder holder;
+    std::function<void(std::uint64_t device, const std::string& json)> event;
+};
+
 class HardwareAccess final : public QObject
 {
     Q_OBJECT
@@ -59,6 +71,7 @@ class HardwareAccess final : public QObject
 public:
     using Feed = std::function<void(const QString& serial, const input::DeviceEvent& event)>;
     using Front = std::function<QString()>;
+    using NativeAnswer = std::function<void(exthost::ServiceResult result)>;
 
     static constexpr std::string_view kOwnLogic = "mine";
     static constexpr std::string_view kEventKind = "hardware";
@@ -66,6 +79,8 @@ public:
     static constexpr std::size_t kMostOpen = 16;
     static constexpr std::size_t kMostWaitingPicks = 8;
     static constexpr std::size_t kMostFilters = 16;
+    static constexpr std::uint64_t kNativeLogics = std::uint64_t{1} << 62;
+    static constexpr std::chrono::seconds kNativeWait{20};
 
     HardwareAccess(std::unique_ptr<hardware::Backend> backend, std::filesystem::path grantsFile,
                    QObject* parent = nullptr);
@@ -90,6 +105,14 @@ public:
     void endLogic(std::uint64_t logic);
     void provideInput(const QString& extension, const QString& name, bool button, double x, double y);
     void endProvidedInput(const QString& extension);
+
+    static void callFromNative(const NativeHardware& caller, std::string service, std::string json,
+                               NativeAnswer answer);
+    [[nodiscard]] static exthost::ServiceResult callFromNativeAndWait(const NativeHardware& caller,
+                                                                      std::string_view request, std::string_view json,
+                                                                      std::stop_token stop = {});
+    static void resetNative(std::uint64_t key);
+    static void endNative(std::uint64_t key);
 
     [[nodiscard]] QVariantMap picker() const;
     [[nodiscard]] QVariantMap grantMap() const;
@@ -143,6 +166,17 @@ private:
         bool axis = false;
     };
 
+    struct NativeWaiting {
+        std::string request;
+        NativeAnswer answer;
+    };
+
+    struct NativeRoute {
+        NativeHardware caller;
+        std::map<quint64, NativeWaiting> waiting;
+        quint64 lastRequest = 0;
+    };
+
     [[nodiscard]] static script::ServiceAnswer callWith(const std::shared_ptr<Shared>& shared, const LogicCaller& caller,
                                                         std::string_view service, std::string_view json);
 
@@ -176,7 +210,18 @@ private:
     [[nodiscard]] std::vector<hardware::DeviceInfo> present() const;
     [[nodiscard]] QString requesterOf(const LogicCaller& caller) const;
 
+    void nativeRequest(const NativeHardware& caller, const std::string& service, const std::string& json,
+                       NativeAnswer answer);
+    void resetNativeRoute(std::uint64_t logic);
+    void endNativeRoute(std::uint64_t logic);
+    void answerNative(std::uint64_t logic, quint64 request, exthost::ServiceResult result) const;
+    void tellNative(std::uint64_t logic, const QString& handle, const QString& json) const;
+    [[nodiscard]] std::string holderOf(std::uint64_t logic) const;
+    [[nodiscard]] ClaimHolder claimerOf(std::uint64_t logic, const QString& owner) const;
+
     static inline HardwareAccess* s_instance = nullptr;
+    static std::mutex s_nativeMutex;
+    static std::weak_ptr<Shared> s_native;
 
     std::shared_ptr<Shared> m_shared;
     std::unique_ptr<hardware::Backend> m_backend;
@@ -194,6 +239,7 @@ private:
     std::uint64_t m_lastHandle = 0;
     bool m_scanning = false;
     bool m_offered = false;
+    mutable std::map<std::uint64_t, NativeRoute> m_native;
 };
 
 }

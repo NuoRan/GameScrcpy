@@ -4573,6 +4573,10 @@
         <translation>全部安装即表示同意它们申请的权限与依赖：</translation>
     </message>
     <message>
+        <source>Restricted: it can only do what it declares</source>
+        <translation>受限：只能做它声明的事</translation>
+    </message>
+    <message>
         <source>Native code</source>
         <translation>原生代码</translation>
     </message>
@@ -6602,6 +6606,10 @@
         <translation>识别引擎：%1</translation>
     </message>
     <message>
+        <source>Its DLL runs restricted, in a process of its own without rights of its own: it reaches devices only through GameScrcpy, as far as you allow. When that process stops three times within a minute, the extension is turned off.</source>
+        <translation>它的 DLL 以受限方式在单独的进程里运行，自身没有任何权限：只能经由 GameScrcpy、在你允许的范围内使用设备。这个进程一分钟内停止三次，扩展就会被关闭。</translation>
+    </message>
+    <message>
         <source>Its DLL runs in a process of its own; when that stops three times within a minute, the extension is turned off.</source>
         <translation>它的 DLL 在单独的进程里运行；这个进程一分钟内停止三次，扩展就会被关闭。</translation>
     </message>
@@ -8580,6 +8588,10 @@
         <translation>没有签名的原生代码</translation>
     </message>
     <message>
+        <source>The package is not signed, so there is no way to tell who made it. Its code runs restricted, so it can only do what the extension declares.</source>
+        <translation>这个包没有签名，无法确认是谁做的。它的代码以受限方式运行，只能做扩展声明的事。</translation>
+    </message>
+    <message>
         <source>Its DLL runs with full rights on this computer, and without a signature nobody can tell who made it or whether it was changed. Install it only if you trust where it came from.</source>
         <translation>它的 DLL 在这台电脑上有完全的权限，没有签名就无法确认是谁做的、有没有被改过。请只在信任它的来源时安装。</translation>
     </message>
@@ -8592,8 +8604,24 @@
         <translation>原生代码</translation>
     </message>
     <message>
+        <source>Restricted native code</source>
+        <translation>受限的原生代码</translation>
+    </message>
+    <message>
+        <source>It runs its own Windows code in a separate process without rights of its own. GameScrcpy checked that code before installing:</source>
+        <translation>它会在单独的进程里运行自带的 Windows 代码，这个进程自身没有任何权限。GameScrcpy 在安装前检查了这些代码：</translation>
+    </message>
+    <message>
         <source>It runs its own Windows code in a separate process. GameScrcpy checked that code before installing:</source>
         <translation>它会在单独的进程里运行自己的 Windows 代码。安装前已检查这些代码：</translation>
+    </message>
+    <message>
+        <source>Restricted: it can only do what it declares</source>
+        <translation>受限：只能做它声明的事</translation>
+    </message>
+    <message>
+        <source>Its code cannot open your files, use the network or start other programs. It reaches only the devices you allow it, through GameScrcpy, and only with the permissions listed below.</source>
+        <translation>它的代码不能打开你的文件、不能联网，也不能启动其他程序。它只能经由 GameScrcpy 使用你允许的设备，并且只有下面列出的权限。</translation>
     </message>
     <message>
         <source>Not installed, for your safety</source>
@@ -8614,6 +8642,10 @@
     <message>
         <source>Its code uses none of the system functions that are checked: network, files, keyboard and mouse, other programs.</source>
         <translation>它的代码没有用到受检查的系统功能：联网、文件、键盘和鼠标、其他程序。</translation>
+    </message>
+    <message>
+        <source>Its code calls these system functions, which its sandbox does not let through:</source>
+        <translation>它的代码调用了下面这些系统功能，它的沙箱不会放行：</translation>
     </message>
     <message>
         <source>Permissions</source>
@@ -15311,6 +15343,10 @@
         <translation>第一次要执行的内容。</translation>
     </message>
     <message>
+        <source>Shows the user a list of the connected devices of that kind; the user ticks the ones this logic may use. Resolves with every ticked device, those allowed before included, or with an empty list when the user cancels. Bluetooth devices are looked for while the list is open. In an extension the ticked devices are allowed to the whole extension, so its own DLL can open them too, with device_open of the C header.</source>
+        <translation>向用户列出这一类已连接的设备，由用户勾选这份逻辑可以使用的设备。以所有勾选的设备（包括之前已允许的）兑现；用户取消时以空列表兑现。列表打开期间会查找蓝牙设备。在扩展里，勾选的设备允许整个扩展使用，因此扩展自己的 DLL 也能通过 C 头文件里的 device_open 打开它们。</translation>
+    </message>
+    <message>
         <source>Asks a web service over https and resolves with its answer, whatever its status; GameScrcpy makes the request, so the logic never holds a connection of its own. The logic of an extension may only reach the hosts its manifest lists under the permission network, and redirects are followed only to such hosts; your own logic may reach any https host. The body is at most 1 MiB and the answer at most 8 MiB, and each logic may have 8 requests going at once. Cookies are not kept: set the cookie header yourself when a service needs one. Cancelling the task cancels the request.</source>
         <translation>通过 https 请求网络服务，无论状态码如何都以回应兑现；请求由 GameScrcpy 发出，逻辑自己从不持有连接。扩展的逻辑只能访问清单在 network 权限下列出的主机，重定向也只跟到这些主机；你自己的逻辑可以访问任何 https 主机。请求正文最大 1 MiB，回应最大 8 MiB，每段逻辑同时最多 8 个请求。不保存 Cookie：服务需要时请自己设置 cookie 请求头。取消任务就取消请求。</translation>
     </message>
@@ -16865,10 +16901,6 @@
     <message>
         <source>the logic belongs to an extension whose manifest does not ask for the permission hardware</source>
         <translation>这份逻辑属于一个清单里没有申请权限 hardware 的扩展</translation>
-    </message>
-    <message>
-        <source>Shows the user a list of the connected devices of that kind; the user ticks the ones this logic may use. Resolves with every ticked device, those allowed before included, or with an empty list when the user cancels. Bluetooth devices are looked for while the list is open.</source>
-        <translation>向用户列出这一类已连接的设备，由用户勾选这份逻辑可以使用的设备。以所有勾选的设备（包括之前已允许的）兑现；用户取消时以空列表兑现。列表打开期间会查找蓝牙设备。</translation>
     </message>
     <message>
         <source>The kind of device and the filters that the listed devices must match.</source>

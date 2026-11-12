@@ -2379,3 +2379,46 @@ TEST_CASE("ADR-0112: the hosts of the permission network are matched by name, by
     CHECK_FALSE(hostListed({"[::1]"}, "::1", 443));
     CHECK(hostListed({"*"}, "::1", 443));
 }
+
+TEST_CASE("ADR-0112: a native DLL runs with full rights unless its manifest says restricted, which survives a save "
+          "and a load")
+{
+    Json json = nativeBase();
+    LoadedManifest loaded = load(json);
+    REQUIRE(loaded.manifest.contributes.native.has_value());
+    CHECK(loaded.manifest.contributes.native->sandbox == NativeSandbox::Full);
+    CHECK_FALSE(Json::parse(saveManifest(loaded.manifest))["contributes"]["native"].contains("sandbox"));
+
+    json["contributes"]["native"]["sandbox"] = "restricted";
+    loaded = load(json);
+    INFO(listed(loaded));
+    CHECK(loaded.usable);
+    CHECK(loaded.diagnostics.empty());
+    REQUIRE(loaded.manifest.contributes.native.has_value());
+    CHECK(loaded.manifest.contributes.native->sandbox == NativeSandbox::Restricted);
+    const Json saved = Json::parse(saveManifest(loaded.manifest));
+    CHECK(saved["contributes"]["native"]["sandbox"] == "restricted");
+    const LoadedManifest again = loadManifest(saved.dump());
+    CHECK_MESSAGE(again.diagnostics.empty(), listed(again));
+    CHECK(again.manifest == loaded.manifest);
+
+    json["contributes"]["native"]["sandbox"] = "full";
+    loaded = load(json);
+    CHECK(loaded.usable);
+    REQUIRE(loaded.manifest.contributes.native.has_value());
+    CHECK(loaded.manifest.contributes.native->sandbox == NativeSandbox::Full);
+
+    json["contributes"]["native"]["sandbox"] = "sandboxed";
+    loaded = load(json);
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::OutOfRange, "$.contributes.native.sandbox"));
+    json["contributes"]["native"]["sandbox"] = true;
+    loaded = load(json);
+    CHECK_FALSE(loaded.usable);
+    CHECK(reports(loaded, Code::WrongType, "$.contributes.native.sandbox"));
+
+    Json schema = Json::parse(manifestJsonSchema());
+    CHECK(schema["properties"]["contributes"]["properties"]["native"]["properties"]["sandbox"]["enum"] ==
+          Json::array({"full", "restricted"}));
+    CHECK_FALSE(contains(schema["properties"]["contributes"]["properties"]["native"]["required"], "sandbox"));
+}

@@ -576,6 +576,241 @@ void onEvent(void*, const char* topic, size_t topicSize, const char* json, size_
     g_heard += entry;
 }
 
+int32_t openFile(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    const int length = MultiByteToWideChar(CP_UTF8, 0, args[0].text, static_cast<int>(args[0].size), nullptr, 0);
+    std::wstring path(static_cast<size_t>(length > 0 ? length : 0), L'\0');
+    if (length > 0) {
+        MultiByteToWideChar(CP_UTF8, 0, args[0].text, static_cast<int>(args[0].size), path.data(), length);
+    }
+    const HANDLE file = CreateFileW(path.c_str(), GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                    nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr);
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    if (file == INVALID_HANDLE_VALUE) {
+        result->value.number = static_cast<double>(GetLastError());
+    } else {
+        CloseHandle(file);
+        result->value.number = 0;
+    }
+    return GS_EXT_OK;
+}
+
+int32_t environment(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    const std::string name(args[0].text, args[0].size);
+    char value[1024] = {};
+    const DWORD got = GetEnvironmentVariableA(name.c_str(), value, static_cast<DWORD>(sizeof(value)));
+    return giveText(result, GS_EXT_TYPE_STRING, got > 0 && got < sizeof(value) ? std::string(value, got) : std::string());
+}
+
+int32_t logMany(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    const int count = static_cast<int>(args[0].number);
+    for (int index = 1; index <= count; ++index) {
+        const std::string line = "line " + std::to_string(index);
+        g_host->log(g_host->context, GS_EXT_LOG_INFO, line.data(), line.size());
+    }
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number = count;
+    return GS_EXT_OK;
+}
+
+std::atomic<int> g_deviceCalls{0};
+std::string g_deviceResults;
+std::string g_deviceEvents;
+uint64_t g_lastDevice = 0;
+
+std::string hexOf(const uint8_t* bytes, size_t size)
+{
+    std::string out;
+    for (size_t index = 0; index < size; ++index) {
+        char digits[4] = {};
+        std::snprintf(digits, sizeof(digits), "%02x", static_cast<unsigned>(bytes[index]));
+        out += digits;
+    }
+    return out;
+}
+
+std::string bytesOfHex(const std::string& hex)
+{
+    std::string bytes;
+    for (size_t at = 0; at + 1 < hex.size(); at += 2) {
+        bytes.push_back(static_cast<char>(std::strtoul(hex.substr(at, 2).c_str(), nullptr, 16)));
+    }
+    return bytes;
+}
+
+std::string runDevice(const std::string& call, const std::string& first, const std::string& second)
+{
+    gs_ext_result answer{};
+    int32_t status = GS_EXT_UNSUPPORTED;
+    uint64_t device = 0;
+    {
+        const std::scoped_lock lock(g_mutex);
+        device = g_lastDevice;
+    }
+    if (call == "list") {
+        status = g_host->device_list(g_host->context, &answer);
+    } else if (call == "open") {
+        status = g_host->device_open(g_host->context, first.data(), first.size(), second.data(), second.size(), &device,
+                                     &answer);
+        if (status == GS_EXT_OK) {
+            const std::scoped_lock lock(g_mutex);
+            g_lastDevice = device;
+        }
+    } else if (call == "write") {
+        const std::string bytes = bytesOfHex(first);
+        status = g_host->device_write(g_host->context, device, bytes.data(), bytes.size(), second.data(), second.size(),
+                                      &answer);
+    } else if (call == "control") {
+        status = g_host->device_control(g_host->context, device, first.data(), first.size(), &answer);
+    } else if (call == "close") {
+        status = g_host->device_close(g_host->context, device);
+    } else if (call == "use") {
+        device = std::strtoull(first.c_str(), nullptr, 10);
+        const std::scoped_lock lock(g_mutex);
+        g_lastDevice = device;
+        status = GS_EXT_OK;
+    }
+    std::string out = "{\"call\":";
+    appendText(out, call.data(), call.size());
+    out += ",\"status\":" + std::to_string(status) + ",\"device\":" + std::to_string(device) +
+           ",\"type\":" + std::to_string(answer.value.type) + ",\"answer\":";
+    appendText(out, answer.value.text, answer.value.size);
+    out += '}';
+    return out;
+}
+
+struct DeviceWorker {
+    std::mutex mutex;
+    std::condition_variable wake;
+    std::deque<std::function<void()>> tasks;
+    bool stopping = false;
+    std::thread thread;
+};
+
+DeviceWorker& deviceWorker()
+{
+    static DeviceWorker worker;
+    return worker;
+}
+
+void pushDeviceTask(std::function<void()> task)
+{
+    DeviceWorker& worker = deviceWorker();
+    const std::scoped_lock lock(worker.mutex);
+    if (!worker.thread.joinable()) {
+        worker.stopping = false;
+        worker.thread = std::thread([&worker] {
+            std::unique_lock waiting(worker.mutex);
+            for (;;) {
+                worker.wake.wait(waiting, [&worker] { return worker.stopping || !worker.tasks.empty(); });
+                if (worker.stopping) {
+                    return;
+                }
+                std::function<void()> next = std::move(worker.tasks.front());
+                worker.tasks.pop_front();
+                waiting.unlock();
+                next();
+                waiting.lock();
+            }
+        });
+    }
+    worker.tasks.push_back(std::move(task));
+    worker.wake.notify_one();
+}
+
+void stopDeviceWorker()
+{
+    DeviceWorker& worker = deviceWorker();
+    std::thread thread;
+    {
+        const std::scoped_lock lock(worker.mutex);
+        worker.stopping = true;
+        worker.tasks.clear();
+        thread = std::move(worker.thread);
+    }
+    worker.wake.notify_all();
+    if (thread.joinable()) {
+        thread.join();
+    }
+}
+
+int32_t deviceStart(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    std::string call(args[0].text, args[0].size);
+    std::string first(args[1].text, args[1].size);
+    std::string second(args[2].text, args[2].size);
+    pushDeviceTask([call = std::move(call), first = std::move(first), second = std::move(second)] {
+        ++g_deviceCalls;
+        const std::string done = runDevice(call, first, second);
+        const std::scoped_lock lock(g_mutex);
+        if (!g_deviceResults.empty()) {
+            g_deviceResults += ',';
+        }
+        g_deviceResults += done;
+    });
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number = 0;
+    return GS_EXT_OK;
+}
+
+int32_t deviceCalls(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    result->value.type = GS_EXT_TYPE_NUMBER;
+    result->value.number = g_deviceCalls.load();
+    return GS_EXT_OK;
+}
+
+int32_t deviceResults(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    std::string out;
+    {
+        const std::scoped_lock lock(g_mutex);
+        out = "[" + g_deviceResults + "]";
+    }
+    return giveText(result, GS_EXT_TYPE_JSON, out);
+}
+
+int32_t deviceEvents(void*, const gs_ext_value*, uint32_t, gs_ext_result* result)
+{
+    std::string out;
+    {
+        const std::scoped_lock lock(g_mutex);
+        out = "[" + std::exchange(g_deviceEvents, std::string()) + "]";
+    }
+    return giveText(result, GS_EXT_TYPE_JSON, out);
+}
+
+int32_t deviceNow(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
+{
+    return giveText(result, GS_EXT_TYPE_JSON,
+                    runDevice(std::string(args[0].text, args[0].size), std::string(args[1].text, args[1].size),
+                              std::string(args[2].text, args[2].size)));
+}
+
+void onDeviceEvent(void*, const gs_ext_device_event* event)
+{
+    const char* service = event->service != nullptr ? event->service : "";
+    const char* characteristic = event->characteristic != nullptr ? event->characteristic : "";
+    const char* reason = event->reason != nullptr ? event->reason : "";
+    std::string entry = "{\"type\":" + std::to_string(event->type) + ",\"device\":" + std::to_string(event->device) +
+                        ",\"report\":" + std::to_string(event->report) + ",\"service\":";
+    appendText(entry, service, std::strlen(service));
+    entry += ",\"characteristic\":";
+    appendText(entry, characteristic, std::strlen(characteristic));
+    entry += ",\"data\":\"" + hexOf(event->data, event->data_size) + "\",\"reason\":";
+    appendText(entry, reason, std::strlen(reason));
+    entry += ",\"text\":";
+    appendText(entry, event->text, event->text_size);
+    entry += ",\"thread\":" + std::to_string(GetCurrentThreadId()) + '}';
+    const std::scoped_lock lock(g_mutex);
+    if (!g_deviceEvents.empty()) {
+        g_deviceEvents += ',';
+    }
+    g_deviceEvents += entry;
+}
+
 int32_t openTouch(void*, const gs_ext_touch_open* info, void** session)
 {
     constexpr char kClaim[] = "{\"claim\":\"";
@@ -923,6 +1158,7 @@ const uint32_t kInputEvent[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING, GS_EXT_T
                                 GS_EXT_TYPE_NUMBER};
 const uint32_t kInputBurst[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING, GS_EXT_TYPE_NUMBER};
 const uint32_t kOneNumber[] = {GS_EXT_TYPE_NUMBER};
+const uint32_t kThreeStrings[] = {GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING, GS_EXT_TYPE_STRING};
 
 const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "add", kTwoNumbers, 2, GS_EXT_TYPE_NUMBER, nullptr, &add},
@@ -970,6 +1206,14 @@ const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "tapRefuse", kOneNumber, 1, GS_EXT_TYPE_BOOLEAN, nullptr, &tapRefuse},
     {sizeof(gs_ext_node), "aiModels", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &aiModelsNode},
     {sizeof(gs_ext_node), "lastAiRequest", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &lastAiRequest},
+    {sizeof(gs_ext_node), "openFile", kOneString, 1, GS_EXT_TYPE_NUMBER, nullptr, &openFile},
+    {sizeof(gs_ext_node), "deviceStart", kThreeStrings, 3, GS_EXT_TYPE_NUMBER, nullptr, &deviceStart},
+    {sizeof(gs_ext_node), "deviceResults", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &deviceResults},
+    {sizeof(gs_ext_node), "deviceEvents", nullptr, 0, GS_EXT_TYPE_JSON, nullptr, &deviceEvents},
+    {sizeof(gs_ext_node), "deviceNow", kThreeStrings, 3, GS_EXT_TYPE_JSON, nullptr, &deviceNow},
+    {sizeof(gs_ext_node), "environment", kOneString, 1, GS_EXT_TYPE_STRING, nullptr, &environment},
+    {sizeof(gs_ext_node), "logMany", kOneNumber, 1, GS_EXT_TYPE_NUMBER, nullptr, &logMany},
+    {sizeof(gs_ext_node), "deviceCalls", nullptr, 0, GS_EXT_TYPE_NUMBER, nullptr, &deviceCalls},
 };
 
 const gs_ext_transport kLoop = {sizeof(gs_ext_transport), "loop",    nullptr,   &loopDiscover,
@@ -1698,6 +1942,7 @@ void unloadAll(void*)
     }
     joinServiceCalls();
     stopLoop();
+    stopDeviceWorker();
 }
 
 int32_t probeRun(void*, uint32_t kind, const gs_ext_image* image, const char* params, size_t size, gs_ext_result* out)
@@ -1908,6 +2153,14 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "lastAiRequest", &kNodes[44]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_JOB, "aiChat", &kAiChat},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_VISION_ENGINE, "probe", &kProbe},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "openFile", &kNodes[45]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "deviceStart", &kNodes[46]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "deviceResults", &kNodes[47]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "deviceEvents", &kNodes[48]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "deviceNow", &kNodes[49]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "environment", &kNodes[50]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "logMany", &kNodes[51]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "deviceCalls", &kNodes[52]},
 };
 
 const gs_ext_plugin kPlugin = {
@@ -1920,6 +2173,7 @@ const gs_ext_plugin kPlugin = {
     &settingsChanged,
     &claimWanted,
     &onEvent,
+    &onDeviceEvent,
 };
 
 }

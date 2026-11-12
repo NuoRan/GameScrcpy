@@ -146,6 +146,8 @@ public:
     [[nodiscard]] QVariantList touchMethods() const;
     [[nodiscard]] std::vector<ext::Diagnostic> problems() const;
     [[nodiscard]] bool loaded(std::string_view id) const;
+    [[nodiscard]] bool shareFile(std::string_view extension, const std::filesystem::path& file,
+                                 std::string& problem) const;
     [[nodiscard]] std::vector<ProvidedDevice> providedDevices() const;
     void refreshProviders(std::string_view extension = {});
     [[nodiscard]] exthost::CallResult actOnDevice(std::string_view extension, std::string_view provider,

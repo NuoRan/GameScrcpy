@@ -16,6 +16,7 @@
 #include <cmath>
 #include <condition_variable>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <deque>
 #include <functional>
@@ -25,6 +26,7 @@
 #include <set>
 #include <span>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <tuple>
 #include <utility>
@@ -371,6 +373,70 @@ private:
     std::thread m_thread;
 };
 
+class DeviceEvents
+{
+public:
+    using Deliver = std::function<void(std::uint64_t device, const std::string& json)>;
+
+    explicit DeviceEvents(Deliver deliver)
+        : m_deliver(std::move(deliver))
+        , m_thread([this] { run(); })
+    {
+    }
+
+    ~DeviceEvents()
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            m_stopping = true;
+        }
+        m_wake.notify_all();
+        if (m_thread.joinable()) {
+            m_thread.join();
+        }
+    }
+
+    DeviceEvents(const DeviceEvents&) = delete;
+    DeviceEvents& operator=(const DeviceEvents&) = delete;
+
+    [[nodiscard]] bool push(std::uint64_t device, std::string json)
+    {
+        {
+            const std::scoped_lock lock(m_mutex);
+            if (m_stopping || m_queue.size() >= kMostQueuedDeviceEvents) {
+                return false;
+            }
+            m_queue.emplace_back(device, std::move(json));
+        }
+        m_wake.notify_one();
+        return true;
+    }
+
+private:
+    void run()
+    {
+        std::unique_lock lock(m_mutex);
+        for (;;) {
+            m_wake.wait(lock, [this] { return m_stopping || !m_queue.empty(); });
+            if (m_stopping) {
+                return;
+            }
+            const std::pair<std::uint64_t, std::string> next = std::move(m_queue.front());
+            m_queue.pop_front();
+            lock.unlock();
+            m_deliver(next.first, next.second);
+            lock.lock();
+        }
+    }
+
+    Deliver m_deliver;
+    std::mutex m_mutex;
+    std::condition_variable m_wake;
+    std::deque<std::pair<std::uint64_t, std::string>> m_queue;
+    bool m_stopping = false;
+    std::thread m_thread;
+};
+
 class InputGate
 {
 public:
@@ -595,6 +661,7 @@ struct InProcessModule::Impl {
         , inputGate(options.inputs)
         , clock(options.clock)
         , visionLimit(options.visionLimit)
+        , hostStore(options.hostStore)
     {
     }
 
@@ -604,6 +671,7 @@ struct InProcessModule::Impl {
             return;
         }
         pump.reset();
+        devicePump.reset();
         endJobs();
         endStreams();
         endTaps();
@@ -875,6 +943,9 @@ struct InProcessModule::Impl {
     std::vector<gs_ext_vision_engine> visionEngines;
     std::mutex visionMutex;
     std::vector<std::unique_ptr<VisionRunner>> runners;
+    bool hostStore = false;
+    std::mutex deviceMutex;
+    std::unique_ptr<DeviceEvents> devicePump;
 };
 
 namespace {
@@ -949,6 +1020,22 @@ int32_t hostStoreGet(void* context, const char* key, size_t keySize, gs_ext_resu
     }
     value->value = gs_ext_value{};
     value->host = &t_storeBox;
+    if (InProcessModule::Impl& impl = implOf(context); impl.hostStore) {
+        const std::string_view name(key, keySize);
+        if (name.empty() || name.size() > detail::kMostStoreKeyBytes || !validUtf8(name)) {
+            value->value.type = GS_EXT_TYPE_NONE;
+            return GS_EXT_OK;
+        }
+        StoreReply reply = impl.services != nullptr ? impl.services->storeGet(name) : StoreReply{};
+        if (reply.status != ServiceStatus::Ok) {
+            return static_cast<int32_t>(reply.status);
+        }
+        if (!reply.value) {
+            value->value.type = GS_EXT_TYPE_NONE;
+            return GS_EXT_OK;
+        }
+        return setText(value, GS_EXT_TYPE_JSON, reply.value->data(), reply.value->size());
+    }
     const std::optional<std::string> found = implOf(context).store.get(std::string_view(key, keySize));
     if (!found) {
         value->value.type = GS_EXT_TYPE_NONE;
@@ -964,6 +1051,14 @@ int32_t hostStoreSet(void* context, const char* key, size_t keySize, const char*
     }
     const std::optional<std::string_view> text =
         json == nullptr ? std::nullopt : std::optional<std::string_view>(std::string_view(json, jsonSize));
+    if (InProcessModule::Impl& impl = implOf(context); impl.hostStore) {
+        const std::string_view name(key, keySize);
+        if (name.empty() || name.size() > detail::kMostStoreKeyBytes || !validUtf8(name) ||
+            (text && (text->size() > kMostServiceBytes || !validUtf8(*text) || !nlohmann::json::accept(*text)))) {
+            return GS_EXT_BAD_ARGUMENT;
+        }
+        return impl.services != nullptr ? static_cast<int32_t>(impl.services->storeSet(name, text)) : GS_EXT_UNSUPPORTED;
+    }
     switch (implOf(context).store.set(std::string_view(key, keySize), text)) {
     case detail::StoreResult::Ok:
         return GS_EXT_OK;
@@ -1010,10 +1105,7 @@ int32_t hostSupports(void*, const char* feature)
     }
     const std::string_view name(feature, strnlen(feature, kMostNameBytes));
     if (name == "input-sources" || name == "services" || name == "transports" || name == "media" ||
-        name == "frame-taps") {
-        return 1;
-    }
-    if (name == "vision-engines") {
+        name == "frame-taps" || name == "vision-engines" || name == "devices") {
         return 1;
     }
     return name == "jobs" || name == "events" || name == "settings" || name == "claims" || name == "job-output" ||
@@ -1195,6 +1287,239 @@ int32_t hostCallService(void* context, const char* service, size_t serviceSize, 
     result->value.text = held.data();
     result->value.size = held.size();
     return static_cast<int32_t>(answer.status);
+}
+
+constexpr std::string_view kBase64Digits = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+std::string base64Of(const unsigned char* bytes, std::size_t size)
+{
+    std::string text;
+    text.reserve((size + 2) / 3 * 4);
+    for (std::size_t at = 0; at < size; at += 3) {
+        const std::size_t left = size - at;
+        const std::uint32_t chunk = (std::uint32_t{bytes[at]} << 16U) |
+                                    (left > 1 ? std::uint32_t{bytes[at + 1]} << 8U : 0U) |
+                                    (left > 2 ? std::uint32_t{bytes[at + 2]} : 0U);
+        text.push_back(kBase64Digits[(chunk >> 18U) & 63U]);
+        text.push_back(kBase64Digits[(chunk >> 12U) & 63U]);
+        text.push_back(left > 1 ? kBase64Digits[(chunk >> 6U) & 63U] : '=');
+        text.push_back(left > 2 ? kBase64Digits[chunk & 63U] : '=');
+    }
+    return text;
+}
+
+std::optional<std::vector<std::uint8_t>> bytesOfBase64(std::string_view text)
+{
+    if (text.size() % 4 != 0) {
+        return std::nullopt;
+    }
+    std::vector<std::uint8_t> bytes;
+    bytes.reserve(text.size() / 4 * 3);
+    for (std::size_t at = 0; at < text.size(); at += 4) {
+        std::uint32_t chunk = 0;
+        std::size_t padding = 0;
+        for (std::size_t index = 0; index < 4; ++index) {
+            const char c = text[at + index];
+            std::uint32_t digit = 0;
+            if (c == '=' && index >= 2 && at + 4 == text.size()) {
+                ++padding;
+            } else if (padding > 0) {
+                return std::nullopt;
+            } else if (const std::size_t found = kBase64Digits.find(c); found != std::string_view::npos) {
+                digit = static_cast<std::uint32_t>(found);
+            } else {
+                return std::nullopt;
+            }
+            chunk = (chunk << 6U) | digit;
+        }
+        bytes.push_back(static_cast<std::uint8_t>(chunk >> 16U));
+        if (padding < 2) {
+            bytes.push_back(static_cast<std::uint8_t>((chunk >> 8U) & 0xFFU));
+        }
+        if (padding < 1) {
+            bytes.push_back(static_cast<std::uint8_t>(chunk & 0xFFU));
+        }
+    }
+    return bytes;
+}
+
+thread_local std::string t_deviceText;
+
+void giveDeviceText(gs_ext_result* answer, uint32_t type, std::string text)
+{
+    if (answer == nullptr) {
+        return;
+    }
+    t_deviceText = std::move(text);
+    answer->value = {};
+    answer->value.type = type;
+    answer->value.text = t_deviceText.data();
+    answer->value.size = t_deviceText.size();
+}
+
+int32_t askDevices(InProcessModule::Impl& impl, std::string_view request, const nlohmann::json& body,
+                   gs_ext_result* answer, std::string* given)
+{
+    if (!impl.allows(kHardwarePermission)) {
+        giveDeviceText(answer, GS_EXT_TYPE_STRING,
+                       "GS-API-080 this extension may not use devices: its manifest does not ask for the permission "
+                       "\"hardware\", or you have not allowed it");
+        return GS_EXT_DENIED;
+    }
+    ServiceResult reply =
+        impl.services != nullptr
+            ? impl.services->device(request, body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace))
+            : ServiceResult{};
+    if (reply.status != ServiceStatus::Ok) {
+        giveDeviceText(answer, GS_EXT_TYPE_STRING,
+                       reply.text.empty() ? std::string("GameScrcpy does not reach devices for this extension")
+                                          : std::move(reply.text));
+        return static_cast<int32_t>(reply.status);
+    }
+    if (reply.text.empty()) {
+        reply.text = "null";
+    }
+    if (given != nullptr) {
+        *given = reply.text;
+    }
+    giveDeviceText(answer, GS_EXT_TYPE_JSON, std::move(reply.text));
+    return GS_EXT_OK;
+}
+
+int32_t hostDeviceList(void* context, gs_ext_result* devices)
+{
+    if (devices == nullptr) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    return askDevices(implOf(context), "hardware.list", nlohmann::json::object(), devices, nullptr);
+}
+
+int32_t hostDeviceOpen(void* context, const char* id, size_t idSize, const char* options, size_t optionsSize,
+                       uint64_t* device, gs_ext_result* answer)
+{
+    if (device == nullptr) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    *device = 0;
+    if (id == nullptr || idSize == 0 || idSize > kMostDeviceIdBytes || (options == nullptr && optionsSize > 0) ||
+        optionsSize > kMostServiceBytes || !validUtf8(std::string_view(id, idSize))) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    nlohmann::json body = nlohmann::json::object();
+    body["id"] = std::string(id, idSize);
+    if (optionsSize > 0) {
+        nlohmann::json chosen = nlohmann::json::parse(std::string_view(options, optionsSize), nullptr, false);
+        if (!chosen.is_object()) {
+            return GS_EXT_BAD_ARGUMENT;
+        }
+        body["options"] = std::move(chosen);
+    }
+    std::string given;
+    const int32_t status = askDevices(implOf(context), "hardware.open", body, answer, &given);
+    if (status != GS_EXT_OK) {
+        return status;
+    }
+    const nlohmann::json opened = nlohmann::json::parse(given, nullptr, false);
+    if (!opened.is_object() || !opened.contains("device") || !opened.at("device").is_number_unsigned()) {
+        giveDeviceText(answer, GS_EXT_TYPE_STRING, "GameScrcpy gave no number for the device");
+        return GS_EXT_FAILED;
+    }
+    *device = opened.at("device").get<std::uint64_t>();
+    return GS_EXT_OK;
+}
+
+int32_t hostDeviceWrite(void* context, uint64_t device, const void* data, size_t size, const char* target,
+                        size_t targetSize, gs_ext_result* answer)
+{
+    if (device == 0 || (data == nullptr && size > 0) || size > kMostDeviceWriteBytes ||
+        (target == nullptr && targetSize > 0) || targetSize > kMostServiceBytes) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    nlohmann::json body = nlohmann::json::object();
+    if (targetSize > 0) {
+        body = nlohmann::json::parse(std::string_view(target, targetSize), nullptr, false);
+        if (!body.is_object()) {
+            return GS_EXT_BAD_ARGUMENT;
+        }
+    }
+    body["device"] = device;
+    body["data"] = base64Of(static_cast<const unsigned char*>(data), size);
+    return askDevices(implOf(context), "hardware.write", body, answer, nullptr);
+}
+
+int32_t hostDeviceControl(void* context, uint64_t device, const char* request, size_t requestSize,
+                          gs_ext_result* answer)
+{
+    if (device == 0 || request == nullptr || requestSize == 0 || requestSize > kMostServiceBytes) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    nlohmann::json body = nlohmann::json::parse(std::string_view(request, requestSize), nullptr, false);
+    if (!body.is_object() || !body.contains("op") || !body.at("op").is_string()) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    body["device"] = device;
+    return askDevices(implOf(context), "hardware.control", body, answer, nullptr);
+}
+
+int32_t hostDeviceClose(void* context, uint64_t device)
+{
+    InProcessModule::Impl& impl = implOf(context);
+    if (device == 0) {
+        return GS_EXT_BAD_ARGUMENT;
+    }
+    if (!impl.allows(kHardwarePermission)) {
+        return GS_EXT_DENIED;
+    }
+    if (impl.services == nullptr) {
+        return GS_EXT_UNSUPPORTED;
+    }
+    impl.services->closeDevice(device);
+    return GS_EXT_OK;
+}
+
+void deliverDeviceEvent(InProcessModule::Impl& impl, std::uint64_t device, const std::string& json)
+{
+    const nlohmann::json parsed = nlohmann::json::parse(json, nullptr, false);
+    if (!parsed.is_object() || !parsed.contains("type") || !parsed.at("type").is_string()) {
+        return;
+    }
+    const auto textOf = [&parsed](const char* key) {
+        return parsed.contains(key) && parsed.at(key).is_string() ? parsed.at(key).get<std::string>() : std::string();
+    };
+    const std::string type = textOf("type");
+    gs_ext_device_event event{};
+    event.size = sizeof(gs_ext_device_event);
+    event.device = device;
+    if (type == "data") {
+        event.type = static_cast<uint32_t>(GS_EXT_DEVICE_DATA);
+    } else if (type == "report") {
+        event.type = static_cast<uint32_t>(GS_EXT_DEVICE_REPORT);
+    } else if (type == "notify") {
+        event.type = static_cast<uint32_t>(GS_EXT_DEVICE_NOTIFY);
+    } else if (type == "closed") {
+        event.type = static_cast<uint32_t>(GS_EXT_DEVICE_CLOSED);
+    } else {
+        return;
+    }
+    const std::optional<std::vector<std::uint8_t>> bytes = bytesOfBase64(textOf("data"));
+    if (!bytes) {
+        return;
+    }
+    if (parsed.contains("report") && parsed.at("report").is_number_unsigned()) {
+        event.report = parsed.at("report").get<std::uint32_t>();
+    }
+    const std::string service = textOf("service");
+    const std::string characteristic = textOf("characteristic");
+    const std::string reason = event.type == static_cast<uint32_t>(GS_EXT_DEVICE_CLOSED) ? textOf("reason") : std::string();
+    const std::string message = textOf("message");
+    event.service = service.c_str();
+    event.characteristic = characteristic.c_str();
+    event.data = bytes->data();
+    event.data_size = bytes->size();
+    event.reason = reason.c_str();
+    event.text = message.data();
+    event.text_size = message.size();
+    impl.described.device_event(impl.described.context, &event);
 }
 
 std::string lineOf(const char* text, size_t size, std::size_t most)
@@ -2119,6 +2444,11 @@ std::unique_ptr<InProcessModule> InProcessModule::load(InProcessOptions options,
     impl->host.video_frame = &hostVideoFrame;
     impl->host.audio_samples = &hostAudioSamples;
     impl->host.stream_ended = &hostStreamEnded;
+    impl->host.device_list = &hostDeviceList;
+    impl->host.device_open = &hostDeviceOpen;
+    impl->host.device_write = &hostDeviceWrite;
+    impl->host.device_control = &hostDeviceControl;
+    impl->host.device_close = &hostDeviceClose;
     const gs_ext_plugin* plugin = nullptr;
     const int32_t status = entry(&impl->host, &plugin);
     impl->entered = status == GS_EXT_OK;
@@ -3109,6 +3439,20 @@ CallResult InProcessModule::recognize(std::size_t engine, VisionKind kind, const
             return visionAnswer(status, result, box);
         },
         d.visionLimit);
+}
+
+void InProcessModule::deviceEvent(std::uint64_t device, std::string_view json)
+{
+    Impl& d = *m_impl;
+    if (d.described.device_event == nullptr || device == 0 || json.size() > kMostServiceBytes) {
+        return;
+    }
+    const std::scoped_lock lock(d.deviceMutex);
+    if (d.devicePump == nullptr) {
+        d.devicePump = std::make_unique<DeviceEvents>(
+            [&d](std::uint64_t which, const std::string& payload) { deliverDeviceEvent(d, which, payload); });
+    }
+    static_cast<void>(d.devicePump->push(device, std::string(json)));
 }
 
 }

@@ -147,10 +147,15 @@ Item {
             lines.push(qsTr("AI model services: %1").arg(dll.aiProviders.join(qsTr(", ", "list separator"))))
         if ((dll.visionEngines ?? []).length > 0)
             lines.push(qsTr("Recognition engines: %1").arg(dll.visionEngines.join(qsTr(", ", "list separator"))))
-        lines.push(dll.ownProcess
-                   ? qsTr("Its DLL runs in a process of its own; when that stops three times within a minute, the "
-                          + "extension is turned off.")
-                   : qsTr("Its DLL runs inside GameScrcpy."))
+        if (dll.restricted === true)
+            lines.push(qsTr("Its DLL runs restricted, in a process of its own without rights of its own: it reaches "
+                            + "devices only through GameScrcpy, as far as you allow. When that process stops three "
+                            + "times within a minute, the extension is turned off."))
+        else
+            lines.push(dll.ownProcess
+                       ? qsTr("Its DLL runs in a process of its own; when that stops three times within a minute, the "
+                              + "extension is turned off.")
+                       : qsTr("Its DLL runs inside GameScrcpy."))
         if ((dll.architectures ?? []).length > 0)
             lines.push(qsTr("Built for: %1").arg(dll.architectures.join(qsTr(", ", "list separator"))))
         return lines.join("\n")

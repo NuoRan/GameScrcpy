@@ -3679,7 +3679,7 @@ declare namespace input {
 /** Serial ports, USB HID devices and Bluetooth LE devices the user allows. Every logic, your own too, can only open the devices the user ticked; the logic of an extension also needs the permission hardware. */
 declare namespace hardware {
     /**
-     * Shows the user a list of the connected devices of that kind; the user ticks the ones this logic may use. Resolves with every ticked device, those allowed before included, or with an empty list when the user cancels. Bluetooth devices are looked for while the list is open.
+     * Shows the user a list of the connected devices of that kind; the user ticks the ones this logic may use. Resolves with every ticked device, those allowed before included, or with an empty list when the user cancels. Bluetooth devices are looked for while the list is open. In an extension the ticked devices are allowed to the whole extension, so its own DLL can open them too, with device_open of the C header.
      * @param options The kind of device and the filters that the listed devices must match.
      * @throws GS-API-085 when the kind is not serial, hid or ble, a filter is not valid, or 8 requests are already waiting. Pass { kind } and filters as HardwareFilter describes.
      * @throws GS-API-080 when the logic belongs to an extension whose manifest does not ask for the permission hardware. Add "hardware" to the permissions in the extension's manifest.

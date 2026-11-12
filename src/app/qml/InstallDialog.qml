@@ -26,6 +26,7 @@ Dialog {
     readonly property bool signedByAuthor: dialog.nativeCode && dialog.security.author === "valid"
     readonly property bool unsignedNative: dialog.nativeCode && dialog.security.author === "unsigned"
     readonly property var publisher: info.publisher ?? ({})
+    readonly property bool restricted: dialog.nativeCode && dialog.security.restricted === true
     readonly property var capabilities: dialog.nativeCode ? (dialog.security.capabilities ?? []) : []
     readonly property var warnings: dialog.nativeCode ? (dialog.security.warnings ?? []) : []
     readonly property bool readable: (info.id ?? "") !== ""
@@ -142,10 +143,13 @@ Dialog {
                 objectName: "unsignedNative"
                 width: parent.width
                 visible: dialog.unsignedNative && !dialog.refused
-                tone: "warn"
+                tone: dialog.restricted ? "info" : "warn"
                 title: qsTr("Unsigned native code")
-                detail: qsTr("Its DLL runs with full rights on this computer, and without a signature nobody can tell "
-                             + "who made it or whether it was changed. Install it only if you trust where it came from.")
+                detail: dialog.restricted
+                        ? qsTr("The package is not signed, so there is no way to tell who made it. Its code runs "
+                               + "restricted, so it can only do what the extension declares.")
+                        : qsTr("Its DLL runs with full rights on this computer, and without a signature nobody can tell "
+                               + "who made it or whether it was changed. Install it only if you trust where it came from.")
             }
 
             Text {
@@ -175,16 +179,27 @@ Dialog {
                 spacing: Theme.space.sm
 
                 Heading {
-                    text: qsTr("Native code")
+                    text: dialog.restricted ? qsTr("Restricted native code") : qsTr("Native code")
                 }
 
                 Text {
                     width: parent.width
                     textFormat: Text.PlainText
-                    text: qsTr("It runs its own Windows code in a separate process. GameScrcpy checked that code before installing:")
+                    text: dialog.restricted
+                          ? qsTr("It runs its own Windows code in a separate process without rights of its own. GameScrcpy checked that code before installing:")
+                          : qsTr("It runs its own Windows code in a separate process. GameScrcpy checked that code before installing:")
                     color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.caption.size
                     wrapMode: Text.Wrap
+                }
+
+                InlineAlert {
+                    objectName: "nativeRestricted"
+                    width: parent.width
+                    visible: dialog.restricted && !dialog.refused
+                    tone: "info"
+                    title: qsTr("Restricted: it can only do what it declares")
+                    detail: qsTr("Its code cannot open your files, use the network or start other programs. It reaches only the devices you allow it, through GameScrcpy, and only with the permissions listed below.")
                 }
 
                 InlineAlert {
@@ -238,6 +253,17 @@ Dialog {
                     wrapMode: Text.Wrap
                 }
 
+                Text {
+                    objectName: "nativeBlocked"
+                    width: parent.width
+                    visible: dialog.restricted && dialog.capabilities.length > 0
+                    textFormat: Text.PlainText
+                    text: qsTr("Its code calls these system functions, which its sandbox does not let through:")
+                    color: Theme.colors.textSecondary
+                    font.pixelSize: Theme.type.caption.size
+                    wrapMode: Text.Wrap
+                }
+
                 Repeater {
                     model: dialog.capabilities
 
@@ -252,10 +278,11 @@ Dialog {
 
                         Icon {
                             y: Theme.space.xxs
-                            name: capability.modelData.declared === true ? "check" : "triangle-alert"
+                            name: capability.modelData.blocked === true ? "shield"
+                                  : capability.modelData.declared === true ? "check" : "triangle-alert"
                             size: Theme.size.iconSmall
-                            color: capability.modelData.declared === true ? Theme.colors.textSecondary
-                                                                          : Theme.colors.warningText
+                            color: capability.modelData.blocked === true || capability.modelData.declared === true
+                                   ? Theme.colors.textSecondary : Theme.colors.warningText
                         }
 
                         Column {

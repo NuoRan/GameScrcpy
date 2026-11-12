@@ -16,6 +16,7 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <stop_token>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -86,7 +87,8 @@ public:
     static void callFromNative(const std::string& caller, std::string service, std::string json, Done done);
     [[nodiscard]] static exthost::ServiceResult callFromNativeAndWait(const std::string& caller,
                                                                      std::string_view service,
-                                                                     std::string_view json);
+                                                                     std::string_view json,
+                                                                     std::stop_token stop = {});
 
 private:
     struct Shared;

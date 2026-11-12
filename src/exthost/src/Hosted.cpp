@@ -4,7 +4,11 @@
 #include "MediaRing.h"
 #include "TapSection.h"
 #include "ImageSection.h"
+#include "Container.h"
+#include "Store.h"
 #include "Wire.h"
+
+#include <nlohmann/json.hpp>
 
 #include <algorithm>
 #include <array>
@@ -12,6 +16,7 @@
 #include <condition_variable>
 #include <cstring>
 #include <deque>
+#include <format>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -31,6 +36,84 @@ constexpr std::chrono::milliseconds kClaimWantedWait{1'000};
 constexpr std::size_t kStreamWindow = 128 * 1024;
 constexpr UINT kStoppedExit = 9;
 constexpr int kWarning = 1;
+constexpr std::size_t kMostContainedLines = 200;
+constexpr std::size_t kMostContainedNotices = 3;
+constexpr std::size_t kMostContainedDeviceChanges = 4;
+constexpr std::size_t kMostContainedInputs = 2 * kMostInputSources * kMostInputEventsPerSecond;
+constexpr std::chrono::seconds kPaceWindow{1};
+constexpr std::chrono::seconds kNoticeWindow{10};
+constexpr std::array<std::wstring_view, 14> kContainedVariables{
+    L"ComSpec",          L"LOCALAPPDATA",          L"NUMBER_OF_PROCESSORS", L"OS",
+    L"PATHEXT",          L"PROCESSOR_ARCHITECTURE", L"PROCESSOR_IDENTIFIER", L"PROCESSOR_LEVEL",
+    L"PROCESSOR_REVISION", L"SystemDrive",         L"SystemRoot",           L"TEMP",
+    L"TMP",              L"windir"};
+
+class Pace
+{
+public:
+    enum class Verdict : std::uint8_t { Pass, FirstDropped, Dropped };
+
+    Pace(std::chrono::milliseconds window, std::size_t most, std::string overflow)
+        : m_window(window)
+        , m_most(most)
+        , m_overflow(std::move(overflow))
+    {
+    }
+
+    [[nodiscard]] const std::string& overflow() const noexcept { return m_overflow; }
+
+    [[nodiscard]] Verdict pass(Steady::time_point now) noexcept
+    {
+        if (now - m_start >= m_window) {
+            m_start = now;
+            m_count = 0;
+        }
+        if (m_count < m_most) {
+            ++m_count;
+            return Verdict::Pass;
+        }
+        if (m_count == m_most) {
+            ++m_count;
+            return Verdict::FirstDropped;
+        }
+        return Verdict::Dropped;
+    }
+
+private:
+    std::chrono::milliseconds m_window;
+    std::size_t m_most;
+    std::string m_overflow;
+    Steady::time_point m_start{};
+    std::size_t m_count = 0;
+};
+
+std::wstring containedEnvironment()
+{
+    std::vector<std::wstring> entries;
+    for (const std::wstring_view name : kContainedVariables) {
+        std::array<wchar_t, 1024> value{};
+        const std::wstring key(name);
+        const DWORD size = GetEnvironmentVariableW(key.c_str(), value.data(), static_cast<DWORD>(value.size()));
+        if (size > 0 && size < value.size()) {
+            entries.push_back(key + L"=" + std::wstring(value.data(), size));
+        }
+    }
+    if (const std::wstring system = detail::systemFolder(); !system.empty()) {
+        entries.push_back(L"Path=" + system);
+    }
+    std::ranges::sort(entries, [](const std::wstring& left, const std::wstring& right) {
+        return CompareStringOrdinal(left.data(), static_cast<int>(left.size()), right.data(),
+                                    static_cast<int>(right.size()), TRUE) == CSTR_LESS_THAN;
+    });
+    std::wstring block;
+    for (const std::wstring& entry : entries) {
+        block += entry;
+        block += L'\0';
+    }
+    block += L'\0';
+    return block;
+}
+
 std::string utf8(const std::filesystem::path& path)
 {
     const std::u8string text = path.u8string();
@@ -70,7 +153,95 @@ HANDLE sharedJob()
 struct Instance {
     detail::Channel channel;
     HANDLE process = nullptr;
+    HANDLE job = nullptr;
 };
+
+std::optional<Instance> launchContained(const HostedOptions& options, detail::Channel channel, std::string& problem)
+{
+    const PSID sid = detail::containerSid(options.container, problem);
+    if (sid == nullptr || !detail::openToContainers(options.program, problem) ||
+        !detail::openToContainer(options.readable.empty() ? options.dll.parent_path() : options.readable, options.dll,
+                                 sid, problem)) {
+        return std::nullopt;
+    }
+    const std::array<HANDLE, 3> sources = channel.handles();
+    std::array<HANDLE, 3> copies{};
+    bool made = true;
+    for (std::size_t index = 0; index < sources.size() && made; ++index) {
+        made = DuplicateHandle(GetCurrentProcess(), sources[index], GetCurrentProcess(), &copies[index], 0, TRUE,
+                               DUPLICATE_SAME_ACCESS) != FALSE;
+    }
+    PROCESS_INFORMATION started{};
+    DWORD error = made ? ERROR_SUCCESS : GetLastError();
+    if (made) {
+        std::wstring command =
+            L"\"" + options.program.wstring() + L"\" --channel " + detail::handleText(copies) + L" --sandbox restricted";
+        SIZE_T size = 0;
+        InitializeProcThreadAttributeList(nullptr, 2, 0, &size);
+        std::vector<std::byte> storage(size);
+        auto* attributes = reinterpret_cast<LPPROC_THREAD_ATTRIBUTE_LIST>(storage.data());
+        SECURITY_CAPABILITIES capabilities{};
+        capabilities.AppContainerSid = sid;
+        made = InitializeProcThreadAttributeList(attributes, 2, 0, &size) != FALSE;
+        if (made) {
+            made = UpdateProcThreadAttribute(attributes, 0, PROC_THREAD_ATTRIBUTE_HANDLE_LIST, copies.data(),
+                                             sizeof(HANDLE) * copies.size(), nullptr, nullptr) != FALSE &&
+                   UpdateProcThreadAttribute(attributes, 0, PROC_THREAD_ATTRIBUTE_SECURITY_CAPABILITIES, &capabilities,
+                                             sizeof(capabilities), nullptr, nullptr) != FALSE;
+            if (made) {
+                STARTUPINFOEXW startup{};
+                startup.StartupInfo.cb = sizeof(startup);
+                startup.lpAttributeList = attributes;
+                const std::wstring folder = detail::systemFolder();
+                std::wstring environment = containedEnvironment();
+                made = CreateProcessW(options.program.c_str(), command.data(), nullptr, nullptr, TRUE,
+                                      EXTENDED_STARTUPINFO_PRESENT | CREATE_SUSPENDED | CREATE_NO_WINDOW |
+                                          CREATE_UNICODE_ENVIRONMENT,
+                                      environment.data(), folder.empty() ? nullptr : folder.c_str(),
+                                      &startup.StartupInfo, &started) != FALSE;
+            }
+            error = made ? ERROR_SUCCESS : GetLastError();
+            DeleteProcThreadAttributeList(attributes);
+        } else {
+            error = GetLastError();
+        }
+    }
+    for (const HANDLE copy : copies) {
+        if (copy != nullptr) {
+            CloseHandle(copy);
+        }
+    }
+    if (!made) {
+        problem = "gs-exthost.exe could not be started in the extension's AppContainer (error " + std::to_string(error) +
+                  ")";
+        return std::nullopt;
+    }
+    HANDLE job = detail::containerJob(true);
+    bool placed = job != nullptr && AssignProcessToJobObject(job, started.hProcess) != FALSE;
+    DWORD placing = placed ? ERROR_SUCCESS : GetLastError();
+    if (!placed && placing == ERROR_INVALID_PARAMETER) {
+        if (job != nullptr) {
+            CloseHandle(job);
+        }
+        job = detail::containerJob(false);
+        placed = job != nullptr && AssignProcessToJobObject(job, started.hProcess) != FALSE;
+        placing = placed ? ERROR_SUCCESS : GetLastError();
+    }
+    if (!placed) {
+        problem = "gs-exthost.exe could not be put in the job of the extension's AppContainer (error " +
+                  std::to_string(placing) + ")";
+        TerminateProcess(started.hProcess, kStoppedExit);
+        CloseHandle(started.hThread);
+        CloseHandle(started.hProcess);
+        if (job != nullptr) {
+            CloseHandle(job);
+        }
+        return std::nullopt;
+    }
+    ResumeThread(started.hThread);
+    CloseHandle(started.hThread);
+    return Instance{std::move(channel), started.hProcess, job};
+}
 
 std::optional<Instance> launch(const HostedOptions& options, std::string& problem)
 {
@@ -81,7 +252,7 @@ std::optional<Instance> launch(const HostedOptions& options, std::string& proble
     }
     detail::WireWriter start;
     start.text(utf8(options.dll));
-    start.text(utf8(options.store));
+    start.text(options.container.empty() ? utf8(options.store) : std::string());
     start.u32(static_cast<std::uint32_t>(options.granted.size()));
     for (const std::string& permission : options.granted) {
         start.text(permission);
@@ -91,6 +262,9 @@ std::optional<Instance> launch(const HostedOptions& options, std::string& proble
     if (!channel->toHost().write(detail::Kind::Start, 0, start.bytes())) {
         problem = "the start of gs-exthost.exe could not be written";
         return std::nullopt;
+    }
+    if (!options.container.empty()) {
+        return launchContained(options, std::move(*channel), problem);
     }
     const std::array<HANDLE, 3> sources = channel->handles();
     std::array<HANDLE, 3> copies{};
@@ -163,6 +337,9 @@ struct HostedModule::Impl {
             stepTimer = CreateWaitableTimerExW(nullptr, nullptr, 0, TIMER_ALL_ACCESS);
         }
         claimLink->impl = this;
+        if (!options.container.empty()) {
+            store.emplace(options.store);
+        }
     }
 
     ~Impl()
@@ -193,6 +370,9 @@ struct HostedModule::Impl {
                 TerminateProcess(process, kStoppedExit);
             }
             CloseHandle(process);
+        }
+        if (job != nullptr) {
+            CloseHandle(job);
         }
         if (wake != nullptr) {
             CloseHandle(wake);
@@ -327,6 +507,25 @@ struct HostedModule::Impl {
         }
     }
 
+    [[nodiscard]] bool paced(Pace& pace)
+    {
+        if (options.container.empty()) {
+            return true;
+        }
+        switch (pace.pass(Steady::now())) {
+        case Pace::Verdict::Pass:
+            return true;
+        case Pace::Verdict::FirstDropped:
+            if (options.log) {
+                options.log(kWarning, "the DLL " + pace.overflow() + "; the ones over that are dropped");
+            }
+            return false;
+        case Pace::Verdict::Dropped:
+            return false;
+        }
+        return false;
+    }
+
     void handle(const detail::Message& message)
     {
         detail::WireReader in(message.payload);
@@ -424,14 +623,14 @@ struct HostedModule::Impl {
         case detail::Kind::Log: {
             std::uint32_t level = 0;
             std::string text;
-            if (in.u32(level) && in.text(text, 4096) && options.log) {
+            if (in.u32(level) && in.text(text, 4096) && options.log && paced(linePace)) {
                 options.log(static_cast<int>(std::min<std::uint32_t>(level, 2)), text);
             }
             return;
         }
         case detail::Kind::DevicesChanged: {
             std::string provider;
-            if (in.text(provider, kMostNameBytes) && options.devicesChanged) {
+            if (in.text(provider, kMostNameBytes) && options.devicesChanged && paced(changePace)) {
                 options.devicesChanged(provider);
             }
             return;
@@ -443,7 +642,7 @@ struct HostedModule::Impl {
             double y = 0.0;
             std::uint64_t at = 0;
             if (in.text(source, kMostInputNameBytes) && in.text(slot, kMostInputNameBytes) && in.f64(x) && in.f64(y) &&
-                in.u64(at) && in.done() && options.input) {
+                in.u64(at) && in.done() && options.input && paced(inputPace)) {
                 options.input(source, slot, x, y, at);
             }
             return;
@@ -452,7 +651,8 @@ struct HostedModule::Impl {
             std::string topic;
             std::string json;
             if (in.text(topic, kMostTopicBytes) && in.text(json, kMostEventBytes) && validTopic(topic) &&
-                !reservedTopic(topic) && options.event) {
+                !reservedTopic(topic) && options.event &&
+                (options.container.empty() || (validUtf8(json) && nlohmann::json::accept(json)))) {
                 options.event(topic, json);
             }
             return;
@@ -474,7 +674,7 @@ struct HostedModule::Impl {
         case detail::Kind::Notify: {
             std::string title;
             std::string text;
-            if (in.text(title, 1024) && in.text(text, 4096) && options.notify) {
+            if (in.text(title, 1024) && in.text(text, 4096) && options.notify && paced(noticePace)) {
                 options.notify(title, text);
             }
             return;
@@ -732,8 +932,112 @@ struct HostedModule::Impl {
             }
             return;
         }
+        case detail::Kind::StoreCall: {
+            std::string key;
+            std::uint32_t setting = 0;
+            std::uint32_t has = 0;
+            std::string json;
+            std::uint64_t launch = 0;
+            {
+                const std::scoped_lock lock(mutex);
+                launch = launches;
+            }
+            if (!in.text(key, detail::kMostStoreKeyBytes) || !in.u32(setting) || !in.u32(has) ||
+                !in.text(json, kMostServiceBytes) || !in.done()) {
+                answerStore(message.id, {ServiceStatus::BadArgument, std::nullopt}, launch);
+                return;
+            }
+            if (!store) {
+                answerStore(message.id, {}, launch);
+                return;
+            }
+            if (setting == 0) {
+                std::optional<std::string> found = store->get(key);
+                answerStore(message.id,
+                            found && found->size() > kMostServiceBytes
+                                ? StoreReply{ServiceStatus::Failed, std::nullopt}
+                                : StoreReply{ServiceStatus::Ok, std::move(found)},
+                            launch);
+                return;
+            }
+            const std::optional<std::string_view> value =
+                has != 0 ? std::optional<std::string_view>(std::string_view(json)) : std::nullopt;
+            ServiceStatus status = ServiceStatus::Failed;
+            switch (store->set(key, value)) {
+            case detail::StoreResult::Ok:
+                status = ServiceStatus::Ok;
+                break;
+            case detail::StoreResult::BadArgument:
+            case detail::StoreResult::Full:
+                status = ServiceStatus::BadArgument;
+                break;
+            case detail::StoreResult::Unavailable:
+                status = ServiceStatus::Unsupported;
+                break;
+            case detail::StoreResult::Failed:
+                status = ServiceStatus::Failed;
+                break;
+            }
+            answerStore(message.id, {status, std::nullopt}, launch);
+            return;
+        }
+        case detail::Kind::DeviceCall: {
+            std::string request;
+            std::string json;
+            std::uint64_t launch = 0;
+            {
+                const std::scoped_lock lock(mutex);
+                launch = launches;
+            }
+            if (!in.text(request, kMostNameBytes) || !in.text(json, kMostServiceBytes) || !in.done()) {
+                answerDevice(message.id, {ServiceStatus::BadArgument, "the call to the device was damaged"}, launch);
+                return;
+            }
+            if (!options.device) {
+                answerDevice(message.id, {ServiceStatus::Unsupported, "GameScrcpy does not reach devices here"},
+                             launch);
+                return;
+            }
+            options.device(request, json, [link = claimLink, id = message.id, launch](ServiceResult result) {
+                const std::scoped_lock lock(link->mutex);
+                if (link->impl != nullptr) {
+                    link->impl->answerDevice(id, result, launch);
+                }
+            });
+            return;
+        }
         default:
             return;
+        }
+    }
+
+    void answerStore(std::uint64_t id, const StoreReply& reply, std::uint64_t launch)
+    {
+        const std::scoped_lock lock(mutex);
+        if (launch != launches || !channel) {
+            return;
+        }
+        detail::WireWriter out;
+        out.u32(static_cast<std::uint32_t>(reply.status));
+        out.u32(reply.value ? 1U : 0U);
+        out.text(reply.value ? std::string_view(*reply.value) : std::string_view());
+        if (channel->toHost().write(detail::Kind::StoreAnswer, id, out.bytes())) {
+            SetEvent(channel->toHostEvent());
+        }
+    }
+
+    void answerDevice(std::uint64_t id, const ServiceResult& result, std::uint64_t launch)
+    {
+        const std::scoped_lock lock(mutex);
+        if (id == 0 || launch != launches || !channel) {
+            return;
+        }
+        const bool fits = result.text.size() <= kMostServiceBytes;
+        detail::WireWriter out;
+        out.u32(static_cast<std::uint32_t>(fits ? result.status : ServiceStatus::Failed));
+        out.text(fits ? std::string_view(result.text) : std::string_view("the answer of the device is too large"));
+        if (channel->toHost().write(detail::Kind::DeviceAnswer, id, out.bytes())) {
+            SetEvent(channel->toHostEvent());
         }
     }
 
@@ -887,6 +1191,10 @@ struct HostedModule::Impl {
                 CloseHandle(process);
                 process = nullptr;
             }
+            if (job != nullptr) {
+                CloseHandle(job);
+                job = nullptr;
+            }
             channel.reset();
             dropped.swap(held);
             heard.clear();
@@ -985,6 +1293,9 @@ struct HostedModule::Impl {
                 if (instance) {
                     TerminateProcess(instance->process, kStoppedExit);
                     CloseHandle(instance->process);
+                    if (instance->job != nullptr) {
+                        CloseHandle(instance->job);
+                    }
                 }
                 return;
             }
@@ -995,6 +1306,7 @@ struct HostedModule::Impl {
             } else {
                 channel = std::move(instance->channel);
                 process = instance->process;
+                job = instance->job;
                 launchedAt = Steady::now();
                 ++launches;
             }
@@ -1066,6 +1378,18 @@ struct HostedModule::Impl {
     std::string problem;
     std::optional<detail::Channel> channel;
     HANDLE process = nullptr;
+    HANDLE job = nullptr;
+    std::optional<detail::ModuleStore> store;
+    Pace linePace{kPaceWindow, kMostContainedLines,
+                  std::format("logged more than {} lines in a second", kMostContainedLines)};
+    Pace noticePace{kNoticeWindow, kMostContainedNotices,
+                    std::format("showed more than {} notices within {} seconds", kMostContainedNotices,
+                                kNoticeWindow.count())};
+    Pace changePace{kPaceWindow, kMostContainedDeviceChanges,
+                    std::format("said more than {} times in a second that its devices changed",
+                                kMostContainedDeviceChanges)};
+    Pace inputPace{kPaceWindow, kMostContainedInputs,
+                   std::format("sent more than {} input events in a second", kMostContainedInputs)};
     HANDLE wake = nullptr;
     Steady::time_point launchedAt = Steady::now();
     ModuleInfo info;
@@ -1131,6 +1455,7 @@ std::unique_ptr<HostedModule> HostedModule::start(HostedOptions options, std::st
     }
     impl->channel = std::move(instance->channel);
     impl->process = instance->process;
+    impl->job = instance->job;
     impl->launchedAt = Steady::now();
     Impl* raw = impl.get();
     impl->reader = std::jthread([raw](const std::stop_token& stop) { raw->run(stop); });
@@ -1984,6 +2309,23 @@ CallResult HostedModule::recognize(std::size_t engine, VisionKind kind, const Vi
                                               "the engine took longer than " + std::to_string(limit.count()) + " ms"};
     d.answers.erase(id);
     return result;
+}
+
+void HostedModule::deviceEvent(std::uint64_t device, std::string_view json)
+{
+    if (device == 0 || json.size() > kMostServiceBytes) {
+        return;
+    }
+    Impl& d = *m_impl;
+    detail::WireWriter payload;
+    payload.text(json);
+    const std::scoped_lock lock(d.mutex);
+    if (d.state != Impl::State::Ready || !d.channel) {
+        return;
+    }
+    if (d.channel->toHost().write(detail::Kind::DeviceEvent, device, payload.bytes())) {
+        SetEvent(d.channel->toHostEvent());
+    }
 }
 
 }

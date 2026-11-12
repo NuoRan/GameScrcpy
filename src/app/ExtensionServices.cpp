@@ -720,16 +720,24 @@ void ExtensionServices::callFromNative(const std::string& caller, std::string se
 }
 
 exthost::ServiceResult ExtensionServices::callFromNativeAndWait(const std::string& caller, std::string_view service,
-                                                                std::string_view json)
+                                                                std::string_view json, std::stop_token stop)
 {
     const QCoreApplication* application = QCoreApplication::instance();
     if (application == nullptr || QThread::currentThread() == application->thread()) {
         return {exthost::ServiceStatus::Unsupported,
                 "call_service works only on a thread of the DLL's own, not on one of GameScrcpy's"};
     }
+    const auto stopped = [service] {
+        return exthost::ServiceResult{exthost::ServiceStatus::Failed,
+                                      std::string(kFailed) + " " + std::string(service) +
+                                          " was not answered: the extension stopped"};
+    };
+    if (stop.stop_requested()) {
+        return stopped();
+    }
     struct Wait {
         std::mutex mutex;
-        std::condition_variable answered;
+        std::condition_variable_any answered;
         std::optional<exthost::ServiceResult> result;
     };
     const auto wait = std::make_shared<Wait>();
@@ -741,7 +749,10 @@ exthost::ServiceResult ExtensionServices::callFromNativeAndWait(const std::strin
         wait->answered.notify_all();
     });
     std::unique_lock lock(wait->mutex);
-    if (!wait->answered.wait_for(lock, kTimeout + kNativeMargin, [&wait] { return wait->result.has_value(); })) {
+    if (!wait->answered.wait_for(lock, stop, kTimeout + kNativeMargin, [&wait] { return wait->result.has_value(); })) {
+        if (stop.stop_requested()) {
+            return stopped();
+        }
         return {exthost::ServiceStatus::Failed, std::string(kFailed) + " " + std::string(service) + " did not answer in time"};
     }
     return std::move(*wait->result);

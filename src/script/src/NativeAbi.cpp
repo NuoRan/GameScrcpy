@@ -165,6 +165,17 @@ constexpr Enumerator kVisionKinds[] = {
      "class."},
 };
 
+constexpr Enumerator kDeviceEventTypes[] = {
+    {"GS_EXT_DEVICE_DATA", 0, "Bytes came from a serial device, in data."},
+    {"GS_EXT_DEVICE_REPORT", 1, "An input report came from a HID device: report is its id and data its bytes."},
+    {"GS_EXT_DEVICE_NOTIFY", 2,
+     "A characteristic of a Bluetooth LE device that the DLL subscribed to changed: service and characteristic name "
+     "it, and data is its new value."},
+    {"GS_EXT_DEVICE_CLOSED", 3,
+     "The device closed without the DLL closing it: reason says why and text says it in words. Its number is not "
+     "used again."},
+};
+
 constexpr Enumeration kEnumerations[] = {
     {"gs_ext_type",
      "What a node parameter or result holds. The names in the manifest's contributes.native are the same types.",
@@ -192,6 +203,7 @@ constexpr Enumeration kEnumerations[] = {
     {"gs_ext_vision_kind",
      "What a vision engine is asked to recognize; bit 1u << kind of gs_ext_vision_engine.kinds says that it can.",
      kVisionKinds},
+    {"gs_ext_device_event_type", "What a gs_ext_device_event tells.", kDeviceEventTypes},
 };
 
 constexpr Field kValueFields[] = {
@@ -784,6 +796,47 @@ constexpr Field kHostFields[] = {
     {"int32_t (*stream_ended)(void* context, uint64_t stream, const char* text, size_t size)",
      "Says that an open source has nothing more to give, such as when its device was unplugged, and why in UTF-8; "
      "GameScrcpy shows the picture as disconnected until the source is listed and opened again."},
+    {"int32_t (*device_list)(void* context, gs_ext_result* devices)",
+     "Puts the devices the user allowed this extension into devices as a JSON array, each { id, kind, name, present "
+     "}: kind is \"serial\", \"hid\" or \"ble\" and present tells whether it is connected now. The user allows devices "
+     "when the extension's logic asks with hardware.request, such as from its panel, and takes them back on the "
+     "Extensions page. It needs the permission hardware: GS_EXT_DENIED without it. The device functions are how a "
+     "DLL with contributes.native.sandbox \"restricted\" reaches hardware at all, since it runs without rights of its "
+     "own and needs the permission hardware for claim too; a DLL with full rights may use them as well. Call "
+     "device_list, device_open, device_write and device_control "
+     "only from a thread of the DLL's own: they wait for GameScrcpy, at most 20 seconds, and on GameScrcpy's threads "
+     "they return GS_EXT_UNSUPPORTED. The texts they give stay valid until the same thread calls one of them again. "
+     "Ask supports(\"devices\") first."},
+    {"int32_t (*device_open)(void* context, const char* id, size_t id_size, const char* options, "
+     "size_t options_size, uint64_t* device, gs_ext_result* answer)",
+     "Opens one of those devices by its id, UTF-8 not ended by a zero byte, and puts the number to use for it into "
+     "device. options is a UTF-8 JSON object, empty for none; a serial device takes { baudRate, dataBits, parity, "
+     "stopBits, flowControl, dtr, rts } as hardware.open does in logic. GameScrcpy claims the device's hardware for "
+     "the extension unless it has it already (see claim) and lets go of it when the device closes. GS_EXT_OK puts { "
+     "device, id, kind, name } into answer as json; otherwise answer gets the reason as a string: GS_EXT_DENIED when "
+     "the extension may not use the device (no permission hardware, or the user has not allowed it), "
+     "GS_EXT_BAD_ARGUMENT for options that are not possible, GS_EXT_FAILED when it is not connected, someone else is "
+     "using it or it does not open. answer may be NULL. Opening a Bluetooth device can take seconds."},
+    {"int32_t (*device_write)(void* context, uint64_t device, const void* data, size_t size, const char* target, "
+     "size_t target_size, gs_ext_result* answer)",
+     "Sends size bytes and returns when the device took them: to a serial device as they are, at most 65536; to a "
+     "HID device as an output report, with target { \"report\": id }, at most 4096; to a Bluetooth LE device as the "
+     "new value of a characteristic, with target { \"service\": uuid, \"characteristic\": uuid, \"response\": true }, "
+     "at most 512, where response false writes without waiting for the device to confirm. target is UTF-8 JSON, "
+     "empty for a serial device. GS_EXT_BAD_ARGUMENT for a device that is not open or a target that does not fit "
+     "it, GS_EXT_FAILED when the device failed; answer, which may be NULL, gets the reason as a string."},
+    {"int32_t (*device_control)(void* context, uint64_t device, const char* request, size_t request_size, "
+     "gs_ext_result* answer)",
+     "Does the rest of what hardware.control does in logic, with request a UTF-8 JSON object whose op says what: "
+     "\"signals\" { dtr, rts } sets the lines of a serial device; \"sendFeature\" { report, data } and \"getFeature\" "
+     "{ report } send and read a feature report of a HID device; \"services\" lists the services of a Bluetooth LE "
+     "device with their characteristics; \"read\" { service, characteristic } reads a characteristic; \"subscribe\" "
+     "{ service, characteristic, on } turns its notifications on or off, which then come to device_event. Bytes are "
+     "base64 text both ways. GS_EXT_OK puts what it gives into answer as json: { data } for getFeature and read, the "
+     "list for services, null for the others; otherwise answer gets the reason as a string. answer may be NULL."},
+    {"int32_t (*device_close)(void* context, uint64_t device)",
+     "Closes a device the DLL opened. It returns at once and may be called from any thread, also from unload. "
+     "GameScrcpy closes the DLL's devices itself when the extension stops, and when its process stops."},
 };
 
 constexpr Field kContributionFields[] = {
@@ -815,6 +868,12 @@ constexpr Field kPluginFields[] = {
      "Called with each event the DLL asked for with events_subscribe: its topic and its value as UTF-8 JSON, neither "
      "ended by a zero byte. It comes on a thread of GameScrcpy that never draws the interface, one event at a time "
      "and in order; return quickly, since the next events wait and more than 256 waiting are dropped. May be NULL."},
+    {"void (*device_event)(void* context, const gs_ext_device_event* event)",
+     "Called with what a device the DLL opened with device_open sends: bytes from a serial device, input reports "
+     "from a HID device, notifications of Bluetooth LE characteristics it subscribed to, and that a device closed "
+     "by itself. It comes on a thread of GameScrcpy that never draws the interface, one event at a time and in the "
+     "order the devices sent them; return quickly, since the next events wait and more than 1024 waiting are "
+     "dropped. May be NULL."},
 };
 
 constexpr Field kInputSourceFields[] = {
@@ -852,6 +911,26 @@ constexpr Field kVisionEngineFields[] = {
      "it on a thread of its own that never draws the interface, one call at a time for each engine, perhaps at the "
      "same time as nodes, jobs and other engines. When it takes longer than 5 seconds the logic gets an error, and "
      "the engine takes the next picture only after it returns."},
+};
+
+constexpr Field kDeviceEventFields[] = {
+    {"uint32_t size", "sizeof(gs_ext_device_event) in GameScrcpy."},
+    {"uint32_t type", "One of gs_ext_device_event_type."},
+    {"uint64_t device", "The device, by the number device_open gave."},
+    {"uint32_t report", "GS_EXT_DEVICE_REPORT: the id of the report; 0 otherwise."},
+    {"const char* service",
+     "GS_EXT_DEVICE_NOTIFY: the UUID of the service in lowercase, ended by a zero byte; an empty text otherwise."},
+    {"const char* characteristic",
+     "GS_EXT_DEVICE_NOTIFY: the UUID of the characteristic in lowercase, ended by a zero byte; an empty text "
+     "otherwise."},
+    {"const uint8_t* data", "The bytes that came; they belong to GameScrcpy and stay valid only during the call."},
+    {"size_t data_size", "How many bytes data has."},
+    {"const char* reason",
+     "GS_EXT_DEVICE_CLOSED: \"removed\" when the device was unplugged or went away, \"failed\" when it stopped "
+     "working, \"forgotten\" when the user took back the extension's access to it; ended by a zero byte. An empty "
+     "text otherwise."},
+    {"const char* text", "GS_EXT_DEVICE_CLOSED: why, in words, UTF-8 not ended by a zero byte; empty otherwise."},
+    {"size_t text_size", "How many bytes text has."},
 };
 
 constexpr Structure kStructures[] = {
@@ -961,6 +1040,8 @@ constexpr Structure kStructures[] = {
      "needs no permission, since the logic that asks for it needs device.screen. supports(\"vision-engines\") is 1 "
      "when GameScrcpy has them.",
      kVisionEngineFields},
+    {"gs_ext_device_event", "What a device the DLL opened through GameScrcpy sends, given to device_event.",
+     kDeviceEventFields},
 };
 
 constexpr Entry kEntry = {

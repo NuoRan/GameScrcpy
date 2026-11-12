@@ -5,10 +5,12 @@
 #include <gs/base/Clock.h>
 
 #include <chrono>
+#include <cstddef>
 #include <filesystem>
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace gs::exthost {
@@ -48,7 +50,17 @@ struct HostedOptions {
     std::function<void(const std::string& transport)> transportChanged;
     std::function<void(const std::string& source)> sourcesChanged;
     std::chrono::milliseconds visionLimit = kVisionLimit;
+    std::string container;
+    std::filesystem::path readable;
+    std::function<void(const std::string& request, const std::string& json, std::function<void(ServiceResult)> answer)>
+        device;
 };
+
+inline constexpr std::size_t kContainerMemoryBytes = std::size_t{1} << 30;
+
+[[nodiscard]] bool forgetContainer(std::string_view extension);
+[[nodiscard]] bool shareWithContainer(std::string_view extension, const std::filesystem::path& file,
+                                      std::string& problem);
 
 class HostedModule final : public Module
 {
@@ -103,6 +115,7 @@ public:
     void closeTap(std::uint64_t tap) override;
     [[nodiscard]] CallResult recognize(std::size_t engine, VisionKind kind, const VisionImage& image,
                                        std::string_view params) override;
+    void deviceEvent(std::uint64_t device, std::string_view json) override;
 
     [[nodiscard]] int crashes() const;
     [[nodiscard]] bool waitReady(std::chrono::milliseconds limit) const;

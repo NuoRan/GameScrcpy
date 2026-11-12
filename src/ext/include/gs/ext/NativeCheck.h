@@ -108,6 +108,7 @@ struct NativeCheck {
     ScanVerdict scan = ScanVerdict::Skipped;
     NativeRefusal refusal = NativeRefusal::None;
     std::string detail;
+    bool restricted = false;
 
     [[nodiscard]] bool refused() const noexcept { return refusal != NativeRefusal::None; }
 };

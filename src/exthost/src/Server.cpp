@@ -36,6 +36,10 @@ constexpr auto kClaimWaitedWait = std::chrono::seconds(6);
 constexpr auto kServiceWait = std::chrono::seconds(12);
 constexpr std::string_view kServiceThread =
     "call_service works only on a thread of the DLL's own, not inside a call from GameScrcpy";
+constexpr auto kStoreWait = std::chrono::seconds(4);
+constexpr auto kDeviceWait = std::chrono::seconds(22);
+constexpr std::string_view kDeviceThread =
+    "the device functions work only on a thread of the DLL's own, not inside a call from GameScrcpy";
 thread_local bool t_hostThread = false;
 constexpr std::size_t kDataWindow = 512 * 1024;
 constexpr auto kRoomRetry = std::chrono::milliseconds(10);
@@ -142,6 +146,96 @@ public:
                 return;
             }
             found->second = std::move(result);
+        }
+        m_answered.notify_all();
+    }
+
+    StoreReply storeGet(std::string_view key) override { return askStore(key, false, std::nullopt); }
+
+    ServiceStatus storeSet(std::string_view key, std::optional<std::string_view> json) override
+    {
+        return askStore(key, true, json).status;
+    }
+
+    ServiceResult device(std::string_view request, std::string_view json) override
+    {
+        if (t_hostThread || std::this_thread::get_id() == m_main) {
+            return {ServiceStatus::Unsupported, std::string(kDeviceThread)};
+        }
+        detail::WireWriter out;
+        out.text(request);
+        out.text(json);
+        std::uint64_t id = 0;
+        {
+            const std::scoped_lock lock(m_claimMutex);
+            if (m_closed) {
+                return {ServiceStatus::Failed, "the extension is stopping"};
+            }
+            id = ++m_lastDevice;
+            m_devices.emplace(id, std::nullopt);
+        }
+        send(detail::Kind::DeviceCall, id, out.bytes());
+        std::unique_lock lock(m_claimMutex);
+        m_answered.wait_for(lock, kDeviceWait, [this, id] { return m_closed || m_devices[id].has_value(); });
+        std::optional<ServiceResult> result = std::move(m_devices[id]);
+        m_devices.erase(id);
+        if (!result) {
+            return {ServiceStatus::Failed, m_closed ? std::string("the extension is stopping")
+                                                    : std::string("GameScrcpy did not answer for the device in time")};
+        }
+        return std::move(*result);
+    }
+
+    void closeDevice(std::uint64_t device) override
+    {
+        detail::WireWriter out;
+        out.text("hardware.close");
+        out.text("{\"device\":" + std::to_string(device) + "}");
+        send(detail::Kind::DeviceCall, 0, out.bytes());
+    }
+
+    void deviceAnswered(const detail::Message& message)
+    {
+        detail::WireReader in(message.payload);
+        std::uint32_t status = 0;
+        std::string text;
+        ServiceResult result{ServiceStatus::Failed, "the answer for the device was damaged"};
+        if (in.u32(status) && in.text(text, kMostServiceBytes) && in.done() &&
+            status <= static_cast<std::uint32_t>(ServiceStatus::BadArgument)) {
+            result = {static_cast<ServiceStatus>(status), std::move(text)};
+        }
+        {
+            const std::scoped_lock lock(m_claimMutex);
+            const auto found = m_devices.find(message.id);
+            if (found == m_devices.end()) {
+                return;
+            }
+            found->second = std::move(result);
+        }
+        m_answered.notify_all();
+    }
+
+    void storeAnswered(const detail::Message& message)
+    {
+        detail::WireReader in(message.payload);
+        std::uint32_t status = 0;
+        std::uint32_t has = 0;
+        std::string text;
+        StoreReply reply{ServiceStatus::Failed, std::nullopt};
+        if (in.u32(status) && in.u32(has) && in.text(text, kMostServiceBytes) && in.done() &&
+            status <= static_cast<std::uint32_t>(ServiceStatus::BadArgument)) {
+            reply.status = static_cast<ServiceStatus>(status);
+            if (has != 0) {
+                reply.value = std::move(text);
+            }
+        }
+        {
+            const std::scoped_lock lock(m_claimMutex);
+            const auto found = m_stores.find(message.id);
+            if (found == m_stores.end()) {
+                return;
+            }
+            found->second = std::move(reply);
         }
         m_answered.notify_all();
     }
@@ -345,6 +439,73 @@ private:
         }
     }
 
+    StoreReply askStore(std::string_view key, bool setting, std::optional<std::string_view> json)
+    {
+        detail::WireWriter out;
+        out.text(key);
+        out.u32(setting ? 1U : 0U);
+        out.u32(json ? 1U : 0U);
+        out.text(json.value_or(std::string_view()));
+        std::uint64_t id = 0;
+        {
+            const std::scoped_lock lock(m_claimMutex);
+            if (m_closed) {
+                return {ServiceStatus::Failed, std::nullopt};
+            }
+            id = ++m_lastStore;
+            m_stores.emplace(id, std::nullopt);
+        }
+        send(detail::Kind::StoreCall, id, out.bytes());
+        const auto deadline = std::chrono::steady_clock::now() + kStoreWait;
+        if (std::this_thread::get_id() == m_main) {
+            pumpStore(id, deadline);
+        }
+        std::unique_lock lock(m_claimMutex);
+        m_answered.wait_until(lock, deadline, [this, id] { return m_closed || m_stores[id].has_value(); });
+        std::optional<StoreReply> reply = std::move(m_stores[id]);
+        m_stores.erase(id);
+        return reply ? std::move(*reply) : StoreReply{ServiceStatus::Failed, std::nullopt};
+    }
+
+    void pumpStore(std::uint64_t id, std::chrono::steady_clock::time_point deadline)
+    {
+        for (;;) {
+            {
+                const std::scoped_lock lock(m_claimMutex);
+                if (m_closed || m_stores[id].has_value()) {
+                    return;
+                }
+            }
+            detail::Message message;
+            const detail::ReadResult read = m_channel.toHost().read(message);
+            if (read == detail::ReadResult::Broken) {
+                close();
+                return;
+            }
+            if (read == detail::ReadResult::Read) {
+                if (message.kind == detail::Kind::StoreAnswer) {
+                    storeAnswered(message);
+                } else if (message.kind == detail::Kind::ClaimAnswer) {
+                    answered(message);
+                } else {
+                    m_deferred.push_back(std::move(message));
+                }
+                continue;
+            }
+            const auto left = std::chrono::ceil<std::chrono::milliseconds>(deadline - std::chrono::steady_clock::now());
+            if (left.count() <= 0) {
+                return;
+            }
+            const HANDLE waits[] = {m_channel.toHostEvent(), m_parent};
+            const DWORD waited =
+                WaitForMultipleObjects(m_parent != nullptr ? 2 : 1, waits, FALSE, static_cast<DWORD>(left.count()));
+            if (waited != WAIT_OBJECT_0 && waited != WAIT_TIMEOUT) {
+                close();
+                return;
+            }
+        }
+    }
+
     detail::Channel& m_channel;
     HANDLE m_parent = nullptr;
     std::thread::id m_main;
@@ -360,6 +521,10 @@ private:
     std::deque<detail::Message> m_deferred;
     std::map<std::uint64_t, std::optional<ServiceResult>> m_services;
     std::uint64_t m_lastService = 0;
+    std::map<std::uint64_t, std::optional<StoreReply>> m_stores;
+    std::uint64_t m_lastStore = 0;
+    std::map<std::uint64_t, std::optional<ServiceResult>> m_devices;
+    std::uint64_t m_lastDevice = 0;
 };
 
 class Worker
@@ -1447,6 +1612,7 @@ int serve(int argc, wchar_t** argv)
     DWORD parentId = 0;
     std::filesystem::path crashes;
     std::filesystem::path log;
+    bool restricted = false;
     for (int index = 1; index + 1 < argc; index += 2) {
         const std::wstring_view name(argv[index]);
         if (name == L"--channel") {
@@ -1457,6 +1623,8 @@ int serve(int argc, wchar_t** argv)
             crashes = argv[index + 1];
         } else if (name == L"--log") {
             log = argv[index + 1];
+        } else if (name == L"--sandbox") {
+            restricted = std::wstring_view(argv[index + 1]) == L"restricted";
         }
     }
     if (!crashes.empty()) {
@@ -1489,7 +1657,8 @@ int serve(int argc, wchar_t** argv)
                                                                      .granted = start->granted,
                                                                      .services = &link,
                                                                      .settings = start->settings,
-                                                                     .inputs = start->inputs},
+                                                                     .inputs = start->inputs,
+                                                                     .hostStore = restricted},
                                                                     problem);
     if (!module) {
         detail::WireWriter out;
@@ -1538,6 +1707,16 @@ int serve(int argc, wchar_t** argv)
                 link.answered(message);
             } else if (message.kind == detail::Kind::ServiceAnswer) {
                 link.serviceAnswered(message);
+            } else if (message.kind == detail::Kind::StoreAnswer) {
+                link.storeAnswered(message);
+            } else if (message.kind == detail::Kind::DeviceAnswer) {
+                link.deviceAnswered(message);
+            } else if (message.kind == detail::Kind::DeviceEvent) {
+                detail::WireReader in(message.payload);
+                std::string json;
+                if (in.text(json, kMostServiceBytes) && in.done()) {
+                    module->deviceEvent(message.id, json);
+                }
             } else if (message.kind == detail::Kind::ClaimWanted) {
                 claims.push(std::move(message));
             } else if (message.kind == detail::Kind::TapOpen || message.kind == detail::Kind::TapFrame ||

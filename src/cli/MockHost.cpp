@@ -912,7 +912,13 @@ public:
         }
     }
 
-    ~Session() = default;
+    ~Session()
+    {
+        m_module.reset();
+        if (!m_container.empty()) {
+            static_cast<void>(exthost::forgetContainer(m_container));
+        }
+    }
     Session(const Session&) = delete;
     Session& operator=(const Session&) = delete;
 
@@ -934,6 +940,10 @@ private:
         std::map<std::uint32_t, std::pair<double, double>> held;
     };
 
+    [[nodiscard]] bool restricted() const noexcept
+    {
+        return m_manifest.contributes.native && m_manifest.contributes.native->sandbox == ext::NativeSandbox::Restricted;
+    }
     void matchModule();
     void dispatch(MockStep& step, Milliseconds wait);
     void expectHappenings(MockStep& step, Milliseconds wait);
@@ -989,6 +999,7 @@ private:
     std::map<std::string, Touch> m_touches;
     std::map<std::string, std::size_t> m_cursors;
     std::size_t m_unnamed = 0;
+    std::string m_container;
     std::unique_ptr<exthost::Module> m_module;
 };
 
@@ -1120,7 +1131,7 @@ bool Session::loadModule(std::size_t number)
     fs::create_directories(stores, error);
     const fs::path store = stores / std::format("test-{}.json", number);
     std::string why;
-    if (!m_options.hosted) {
+    if (!m_options.hosted && !restricted()) {
         exthost::InProcessOptions given;
         given.dll = dll;
         given.store = store;
@@ -1151,6 +1162,11 @@ bool Session::loadModule(std::size_t number)
         given.release = [shared](const std::string& resource) { releaseFor(*shared, resource); };
         given.crashed = [shared](std::uint32_t code) { shared->add("crash", Json{{"code", code}}); };
         given.touchLost = [shared](std::uint64_t session) { shared->add("touchLost", Json{{"session", session}}); };
+        if (restricted()) {
+            m_container = "gs-test:" + m_manifest.id;
+            given.container = m_container;
+            given.readable = m_extension.folder;
+        }
         std::unique_ptr<exthost::HostedModule> hosted = exthost::HostedModule::start(std::move(given), why);
         if (hosted != nullptr && !hosted->waitReady(kHostedReady)) {
             why = "gs-exthost.exe did not get the DLL ready within 30 seconds";
@@ -1225,7 +1241,8 @@ std::string Session::placeText() const
         return "no native DLL";
     }
     return ext::nativeDllFor(*m_manifest.contributes.native, ext::hostArchitecture()) +
-           (m_options.hosted ? " in gs-exthost.exe" : " in this process");
+           (restricted() ? " restricted in gs-exthost.exe"
+                         : (m_options.hosted ? " in gs-exthost.exe" : " in this process"));
 }
 
 std::string Session::snapshotText() const

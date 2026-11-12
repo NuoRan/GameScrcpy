@@ -4,7 +4,7 @@ Serial ports, USB HID devices and Bluetooth LE devices the user allows. Every lo
 
 ## hardware.request(options)
 
-Shows the user a list of the connected devices of that kind; the user ticks the ones this logic may use. Resolves with every ticked device, those allowed before included, or with an empty list when the user cancels. Bluetooth devices are looked for while the list is open.
+Shows the user a list of the connected devices of that kind; the user ticks the ones this logic may use. Resolves with every ticked device, those allowed before included, or with an empty list when the user cancels. Bluetooth devices are looked for while the list is open. In an extension the ticked devices are allowed to the whole extension, so its own DLL can open them too, with device_open of the C header.
 
 ```ts
 hardware.request(options: HardwareRequest): Promise<HardwareInfo[]>

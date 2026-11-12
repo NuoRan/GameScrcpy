@@ -3901,7 +3901,8 @@ constexpr Function kHardware[] = {
     {"request", kHardwareRequestParams, "Promise<HardwareInfo[]>",
      "Shows the user a list of the connected devices of that kind; the user ticks the ones this logic may use. "
      "Resolves with every ticked device, those allowed before included, or with an empty list when the user cancels. "
-     "Bluetooth devices are looked for while the list is open.",
+     "Bluetooth devices are looked for while the list is open. In an extension the ticked devices are allowed to "
+     "the whole extension, so its own DLL can open them too, with device_open of the C header.",
      "const [pad] = await hardware.request({ kind: \"hid\", filters: [{ vendorId: 0x0fd9 }] });", nullptr, 0,
      kHardwareRequestFailures},
     {"list", {}, "HardwareInfo[]",

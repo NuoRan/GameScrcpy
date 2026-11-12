@@ -263,6 +263,50 @@ TEST_CASE("a package with native code shows that its author is not verified, wha
     CHECK_FALSE(ordinary.contains(QStringLiteral("security")));
 }
 
+TEST_CASE("ADR-0112: a restricted DLL shows as restricted in the install dialog: what it imports is blocked, not a "
+          "missing permission, and an unsigned one is still unsigned")
+{
+    const Fixture fixture;
+    const PeLayout layout{.imports = {{"ws2_32.dll", {"connect"}},
+                                      {"kernel32.dll", {"CreateFileW"}},
+                                      {"shell32.dll", {"ShellExecuteW"}}}};
+    const std::string restricted =
+        R"({"schemaVersion": 1, "id": "alice.restricted", "version": "1.0.0", "name": "Helper", "license": "MIT",
+            "requires": {"native": "^1.0"},
+            "contributes": {"native": {"dll": "bin/helper.dll", "sandbox": "restricted"}},
+            "permissions": [{"name": "hardware", "reason": "Talks to its board."}]})";
+    const fs::path archive = fixture.pack("restricted", restricted, layout);
+    const fs::path full = fixture.pack("full", nativeManifest("alice.full"), layout);
+    AppSettings settings(fixture.data);
+    ExtensionHost host(settings, {fixture.user, {}});
+    host.setScanner(verdict(ScanVerdict::Clean));
+    host.start(false);
+
+    const QVariantMap info = host.inspect(textOf(archive));
+    INFO(codesOf(info));
+    CHECK(info.value(QStringLiteral("ok")).toBool());
+    REQUIRE(info.contains(QStringLiteral("security")));
+    const QVariantMap security = info.value(QStringLiteral("security")).toMap();
+    CHECK(security.value(QStringLiteral("native")).toBool());
+    CHECK(security.value(QStringLiteral("restricted")).toBool());
+    CHECK(security.value(QStringLiteral("author")).toString() == QStringLiteral("unsigned"));
+    CHECK_FALSE(security.value(QStringLiteral("refused")).toBool());
+    const QVariantList capabilities = security.value(QStringLiteral("capabilities")).toList();
+    CHECK(namesOf(capabilities) ==
+          QStringList{QStringLiteral("network"), QStringLiteral("files"), QStringLiteral("processes")});
+    for (const QVariant& capability : capabilities) {
+        CHECK(capability.toMap().value(QStringLiteral("blocked")).toBool());
+    }
+    CHECK(security.value(QStringLiteral("warnings")).toStringList().isEmpty());
+
+    const QVariantMap trusted = host.inspect(textOf(full)).value(QStringLiteral("security")).toMap();
+    CHECK_FALSE(trusted.value(QStringLiteral("restricted")).toBool());
+    CHECK(trusted.value(QStringLiteral("warnings")).toStringList().size() == 3);
+    for (const QVariant& capability : trusted.value(QStringLiteral("capabilities")).toList()) {
+        CHECK_FALSE(capability.toMap().value(QStringLiteral("blocked")).toBool());
+    }
+}
+
 TEST_CASE("native code that reaches into other programs is refused when inspected and when installed")
 {
     ApplicationScope application;
