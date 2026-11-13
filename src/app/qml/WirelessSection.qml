@@ -13,6 +13,9 @@ Column {
     property real now: Date.now() / 1000
     property bool typedPairing: false
     property bool focusWanted: false
+    readonly property bool awake: section.visible && !AppSettings.wirelessCollapsed
+                                  && section.Window.visibility !== Window.Minimized
+                                  && section.Window.visibility !== Window.Hidden
 
     readonly property var nearby: WirelessController.nearby
     readonly property string pairTarget: typedPairing
@@ -53,14 +56,14 @@ Column {
     Timer {
         interval: 30000
         repeat: true
-        running: section.visible && !AppSettings.wirelessCollapsed
+        running: section.awake
         onTriggered: section.now = Date.now() / 1000
     }
 
     Binding {
         target: WirelessController
         property: "discovering"
-        value: section.visible && !AppSettings.wirelessCollapsed
+        value: section.awake
     }
 
     Connections {

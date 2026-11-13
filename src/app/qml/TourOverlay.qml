@@ -386,7 +386,8 @@ Item {
     Timer {
         interval: Theme.motion.tick / tour.watchTicks
         repeat: true
-        running: tour.running && tour.hostShown && !tour.quiet
+        running: tour.running && tour.hostShown && !tour.quiet && tour.Window.visibility !== Window.Minimized
+                 && tour.Window.visibility !== Window.Hidden
         onTriggered: tour.watch()
     }
 

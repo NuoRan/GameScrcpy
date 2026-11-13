@@ -138,7 +138,8 @@ Row {
                                 color: Theme.colors.accent
 
                                 NumberAnimation on sweep {
-                                    running: part.kind === "progress" && part.amount < 0 && !Theme.reducedMotion
+                                    running: part.kind === "progress" && part.amount < 0 && fill.visible
+                                             && !Theme.reducedMotion
                                     from: 0
                                     to: 1
                                     duration: Theme.motion.pulse
