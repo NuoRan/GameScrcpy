@@ -70,6 +70,18 @@ std::shared_ptr<const input::Profile> profileOf(std::string_view json)
     return std::make_shared<const input::Profile>(loaded.profile);
 }
 
+class LimitSink final : public ControlSink
+{
+public:
+    bool send(const protocol::TouchFrame&) override { return true; }
+    bool send(const protocol::Key&) override { return true; }
+    bool send(const protocol::Scroll&) override { return true; }
+    bool send(const protocol::Text&) override { return true; }
+    void setTouchWaitLimit(std::chrono::microseconds limit) override { touchWait = limit; }
+
+    std::chrono::microseconds touchWait{0};
+};
+
 std::uint8_t noButtons()
 {
     return 0;
@@ -305,6 +317,24 @@ TEST_CASE("typed text goes out in pieces of at most 4096 bytes without splitting
     CHECK(sink.texts[0] == "hello");
     CHECK(sink.texts[1] == run);
     CHECK(sink.texts[2] == "\xE4\xB8\xAD" "b");
+}
+
+TEST_CASE("ADR-0115: a channel tells its sink how long a touch frame may wait, on the pacing tick with a floor")
+{
+    LimitSink sink;
+    ControlChannel channel;
+    channel.attach(sink);
+    CHECK(sink.touchWait.count() == 8'333);
+
+    channel.setRefreshHz(144.0);
+    CHECK(sink.touchWait.count() == 5'000);
+
+    LimitSink other;
+    channel.attach(other);
+    CHECK(other.touchWait.count() == 5'000);
+
+    channel.setRefreshHz(60.0);
+    CHECK(other.touchWait.count() == 8'333);
 }
 
 TEST_CASE("mouse bindings act only while the camera is locked, the lock survives a new engine and ends with the device (ADR-0070)")

@@ -1,5 +1,6 @@
 #include "ControlChannel.h"
 
+#include <gs/input/TouchFrameBuilder.h>
 #include <gs/session/Session.h>
 
 #include <QString>
@@ -14,6 +15,8 @@
 namespace gs::app {
 
 namespace {
+
+constexpr std::chrono::microseconds kTouchWaitFloor{5'000};
 
 std::int64_t steadyMicros() noexcept
 {
@@ -80,6 +83,11 @@ bool SessionControlSink::send(const protocol::TouchFrame& frame)
     return m_session.send(frame);
 }
 
+void SessionControlSink::setTouchWaitLimit(std::chrono::microseconds limit)
+{
+    m_session.setTouchWaitLimit(limit);
+}
+
 bool SessionControlSink::send(const protocol::Key& key)
 {
     return m_session.send(key);
@@ -124,6 +132,7 @@ void ControlChannel::attach(ControlSink& sink)
         }
         m_sink = &sink;
         m_screen.reset();
+        m_sink->setTouchWaitLimit(touchWaitLimit());
     }
     changed();
 }
@@ -172,8 +181,16 @@ void ControlChannel::setRefreshHz(double hz)
         if (m_screen) {
             m_screen->refreshHz = hz;
         }
+        if (m_sink != nullptr) {
+            m_sink->setTouchWaitLimit(touchWaitLimit());
+        }
     }
     m_pacing.fetch_add(1, std::memory_order_acq_rel);
+}
+
+std::chrono::microseconds ControlChannel::touchWaitLimit() const noexcept
+{
+    return std::max(input::pacingTickFor(m_refreshHz), kTouchWaitFloor);
 }
 
 double ControlChannel::refreshHz() const

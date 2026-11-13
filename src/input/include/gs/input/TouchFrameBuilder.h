@@ -61,6 +61,7 @@ private:
     std::deque<Queued> m_ready;
     std::optional<Microseconds> m_lastSent;
     bool m_blocked = false;
+    Microseconds m_blockedSince{0};
 };
 
 }

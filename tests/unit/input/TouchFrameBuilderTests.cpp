@@ -145,7 +145,7 @@ TEST_CASE("a congested link keeps only the latest positions and loses no press o
     f.flushAt(kTick * 51);
     f.builder.up(1, {0.1, 0.1});
     f.flushAt(kTick * 52);
-    CHECK_FALSE(f.builder.nextWakeup().has_value());
+    CHECK(f.builder.nextWakeup() == kTick * 53);
     CHECK(f.sink.sent.size() == 1);
 
     f.sink.writable = true;
@@ -155,6 +155,26 @@ TEST_CASE("a congested link keeps only the latest positions and loses no press o
           std::vector{point(TouchAction::Move, 0, 49151, 32768), point(TouchAction::Down, 1, 6554, 6554)});
     CHECK(points(f.sink.sent[2].frame) == std::vector{point(TouchAction::Up, 1, 6554, 6554)});
     CHECK(f.builder.idle());
+}
+
+TEST_CASE("ADR-0115: a refused frame comes back on the timer one tick later")
+{
+    Fixture f;
+    f.builder.down(0, {0.5, 0.5});
+    f.flushAt(Microseconds{0});
+    REQUIRE(f.sink.sent.size() == 1);
+
+    f.sink.writable = false;
+    f.builder.move(0, {0.6, 0.5});
+    f.flushAt(kTick);
+    REQUIRE(f.sink.sent.size() == 1);
+    REQUIRE(f.builder.nextWakeup() == kTick + kTick);
+
+    f.sink.writable = true;
+    f.flushAt(kTick * 2);
+    REQUIRE(f.sink.sent.size() == 2);
+    CHECK(points(f.sink.sent[1].frame) == std::vector{point(TouchAction::Move, 0, 39321, 32768)});
+    CHECK_FALSE(f.builder.nextWakeup().has_value());
 }
 
 TEST_CASE("a zero tick sends every move immediately and positions are clamped to the screen")

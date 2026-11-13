@@ -34,6 +34,7 @@ namespace {
 
 constexpr std::string_view kLog = "session";
 constexpr std::int64_t kProbeSpacingUs = 100'000;
+constexpr std::int64_t kTouchWaitLimitUs = 5'000;
 
 using SteadyClock = std::chrono::steady_clock;
 
@@ -143,7 +144,12 @@ public:
 
     [[nodiscard]] SessionPhase phase() const noexcept { return m_phase.load(std::memory_order_acquire); }
 
-    bool enqueue(std::span<const std::uint8_t> frame, bool input)
+    void setTouchWaitLimit(std::chrono::microseconds limit) noexcept
+    {
+        m_touchWaitLimitUs.store(std::max<std::int64_t>(0, limit.count()), std::memory_order_relaxed);
+    }
+
+    bool enqueue(std::span<const std::uint8_t> frame, bool input, bool moveOnly)
     {
         {
             const std::lock_guard lock(m_sendMutex);
@@ -151,10 +157,19 @@ public:
                 return false;
             }
             const std::int64_t now = nowMicros();
+            if (moveOnly && m_moveQueuedUs != 0) {
+                const std::int64_t limitUs = m_touchWaitLimitUs.load(std::memory_order_relaxed);
+                if (limitUs > 0 && now - m_moveQueuedUs > limitUs) {
+                    return false;
+                }
+            }
             if (m_outgoing.empty()) {
                 m_outgoingSinceUs = now;
             }
             m_outgoing.insert(m_outgoing.end(), frame.begin(), frame.end());
+            if (moveOnly && m_moveQueuedUs == 0) {
+                m_moveQueuedUs = now;
+            }
             if (input && now - m_lastProbeUs >= kProbeSpacingUs) {
                 protocol::Ping ping;
                 ping.nonce = m_pingNonce.fetch_add(1, std::memory_order_relaxed) + 1;
@@ -406,6 +421,7 @@ private:
         {
             const std::lock_guard lock(m_sendMutex);
             m_outgoing.clear();
+            m_moveQueuedUs = 0;
             m_sendable = true;
             m_writerRunning = true;
         }
@@ -470,6 +486,7 @@ private:
             const std::lock_guard lock(m_sendMutex);
             m_sendable = false;
             m_outgoing.clear();
+            m_moveQueuedUs = 0;
         }
         if (m_link) {
             m_link->control().interrupt();
@@ -527,10 +544,10 @@ private:
     {
         std::array<std::uint8_t, 64> buffer;
         if (const auto written = protocol::encodeFrameInto(message, buffer)) {
-            return enqueue(std::span<const std::uint8_t>(buffer).first(*written), false);
+            return enqueue(std::span<const std::uint8_t>(buffer).first(*written), false, false);
         }
         const auto frame = protocol::encodeFrame(message);
-        return frame && enqueue(*frame, false);
+        return frame && enqueue(*frame, false, false);
     }
 
     void setPhase(SessionPhase phase, std::optional<SessionFailure> reason = std::nullopt)
@@ -697,6 +714,7 @@ private:
                 }
                 batch.swap(m_outgoing);
                 sinceUs = m_outgoingSinceUs;
+                m_moveQueuedUs = 0;
                 m_writing = true;
             }
             const bool written = channel.send(batch);
@@ -808,6 +826,8 @@ private:
     std::condition_variable_any m_sendDrained;
     std::vector<std::uint8_t> m_outgoing;
     std::int64_t m_outgoingSinceUs = 0;
+    std::int64_t m_moveQueuedUs = 0;
+    std::atomic<std::int64_t> m_touchWaitLimitUs{kTouchWaitLimitUs};
     std::int64_t m_lastProbeUs = 0;
     bool m_sendable = false;
     bool m_writing = false;
@@ -854,9 +874,14 @@ SessionPhase Session::phase() const noexcept
     return m_impl->phase();
 }
 
-bool Session::sendFrame(std::span<const std::uint8_t> frame, bool input)
+void Session::setTouchWaitLimit(std::chrono::microseconds limit) noexcept
 {
-    return m_impl->enqueue(frame, input);
+    m_impl->setTouchWaitLimit(limit);
+}
+
+bool Session::sendFrame(std::span<const std::uint8_t> frame, bool input, bool moveOnly)
+{
+    return m_impl->enqueue(frame, input, moveOnly);
 }
 
 void Session::rememberVideo(const protocol::ConfigureVideo& message)

@@ -13,9 +13,11 @@
 #include <array>
 #include <chrono>
 #include <condition_variable>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -305,6 +307,172 @@ private:
     std::size_t m_lossyPacket;
     std::uint32_t m_lost;
 };
+
+class Gate
+{
+public:
+    void open()
+    {
+        {
+            const std::lock_guard lock(m_mutex);
+            m_open = true;
+        }
+        m_changed.notify_all();
+    }
+
+    void holdUntilOpened()
+    {
+        std::unique_lock lock(m_mutex);
+        ++m_entered;
+        m_enteredChanged.notify_all();
+        m_changed.wait(lock, [this] { return m_open; });
+    }
+
+    bool waitForEntered(int count, std::chrono::milliseconds timeout = std::chrono::seconds(5))
+    {
+        std::unique_lock lock(m_mutex);
+        return m_enteredChanged.wait_for(lock, timeout, [this, count] { return m_entered >= count; });
+    }
+
+private:
+    std::mutex m_mutex;
+    std::condition_variable m_changed;
+    std::condition_variable m_enteredChanged;
+    bool m_open = false;
+    int m_entered = 0;
+};
+
+class GatedChannel final : public FrameChannel
+{
+public:
+    GatedChannel(FrameChannel& inner, Gate& gate)
+        : m_inner(inner), m_gate(gate)
+    {
+    }
+
+    Expected<std::span<const std::uint8_t>, ChannelFailure> receive() override { return m_inner.receive(); }
+
+    bool send(std::span<const std::uint8_t> frames) override
+    {
+        m_gate.holdUntilOpened();
+        return m_inner.send(frames);
+    }
+
+    void setSendTimeout(std::chrono::milliseconds timeout) override { m_inner.setSendTimeout(timeout); }
+
+    void drain(std::chrono::steady_clock::time_point deadline) override { m_inner.drain(deadline); }
+
+    void interrupt() noexcept override
+    {
+        m_gate.open();
+        m_inner.interrupt();
+    }
+
+    [[nodiscard]] std::string closedReason() override { return m_inner.closedReason(); }
+
+private:
+    FrameChannel& m_inner;
+    Gate& m_gate;
+};
+
+class GatedLink final : public Link
+{
+public:
+    GatedLink(std::unique_ptr<Link> inner, Gate& gate)
+        : m_inner(std::move(inner)), m_control(m_inner->control(), gate)
+    {
+    }
+
+    [[nodiscard]] TransportKind kind() const noexcept override { return m_inner->kind(); }
+    [[nodiscard]] const protocol::Welcome& welcome() const override { return m_inner->welcome(); }
+    FrameChannel& control() override { return m_control; }
+
+    Expected<std::unique_ptr<MediaChannel>, SessionFailure> openMedia(protocol::MediaChannel channel,
+                                                                      std::stop_token stop) override
+    {
+        return m_inner->openMedia(channel, std::move(stop));
+    }
+
+    Expected<std::unique_ptr<FrameChannel>, SessionFailure> openBulk(std::stop_token stop) override
+    {
+        return m_inner->openBulk(std::move(stop));
+    }
+
+private:
+    std::unique_ptr<Link> m_inner;
+    GatedChannel m_control;
+};
+
+class GatedTransport final : public Transport
+{
+public:
+    GatedTransport(std::unique_ptr<Transport> inner, Gate& gate)
+        : m_inner(std::move(inner)), m_gate(gate)
+    {
+    }
+
+    Expected<std::unique_ptr<Link>, SessionFailure> establish(const Token& token, const std::string& clientVersion,
+                                                              std::stop_token stop) override
+    {
+        auto link = m_inner->establish(token, clientVersion, std::move(stop));
+        if (!link) {
+            return link;
+        }
+        return std::unique_ptr<Link>(std::make_unique<GatedLink>(std::move(*link), m_gate));
+    }
+
+private:
+    std::unique_ptr<Transport> m_inner;
+    Gate& m_gate;
+};
+
+class GatedHost final : public ServerHost
+{
+public:
+    GatedHost(FakeDeviceServer& server, Gate& gate)
+        : m_host(server), m_gate(gate)
+    {
+    }
+
+    Expected<void, SessionFailure> start(const LaunchParams& params, Events& events, std::stop_token stop) override
+    {
+        return m_host.start(params, events, std::move(stop));
+    }
+
+    Expected<platform::TcpStream, SessionFailure> connect() override { return m_host.connect(); }
+
+    std::unique_ptr<Transport> transport(std::chrono::milliseconds handshakeTimeout) override
+    {
+        return std::make_unique<GatedTransport>(ServerHost::transport(handshakeTimeout), m_gate);
+    }
+
+    Expected<void, SessionFailure> restore(bool afterFailure, std::chrono::steady_clock::time_point deadline,
+                                           std::stop_token stop) override
+    {
+        return m_host.restore(afterFailure, deadline, std::move(stop));
+    }
+
+    void stop(std::chrono::milliseconds grace) override { m_host.stop(grace); }
+
+private:
+    FakeServerHost m_host;
+    Gate& m_gate;
+};
+
+protocol::TouchFrame touchFrame(protocol::TouchAction action, std::uint16_t x, std::uint16_t y)
+{
+    const bool lifting = action == protocol::TouchAction::Up || action == protocol::TouchAction::Cancel;
+    protocol::TouchFrame touch;
+    touch.videoSession = 1;
+    protocol::TouchPoint point;
+    point.action = action;
+    point.pointerId = 4;
+    point.x = x;
+    point.y = y;
+    point.pressure = lifting ? std::uint16_t{0} : std::uint16_t{0xFFFF};
+    touch.points.push_back(point);
+    return touch;
+}
 
 }
 
@@ -905,4 +1073,115 @@ TEST_CASE("ADR-0114: a lost video packet holds the frames back until a key frame
 
     session.stop();
     REQUIRE(listener.waitForEnd());
+}
+
+TEST_CASE("ADR-0115: a stalled control queue refuses touch frames that waited too long and keeps keys and text")
+{
+    FakeDeviceServer server;
+    RecordingListener listener;
+    Gate gate;
+    SessionOptions options = fastOptions();
+    options.pingInterval = 60s;
+    Session session(std::make_unique<GatedHost>(server, gate), options, listener);
+    session.setTouchWaitLimit(5ms);
+    session.start();
+    REQUIRE(listener.waitForPhase(SessionPhase::Streaming));
+    REQUIRE(gate.waitForEntered(1));
+
+    CHECK(session.send(touchFrame(protocol::TouchAction::Down, 100, 200)));
+    CHECK(session.send(touchFrame(protocol::TouchAction::Move, 101, 200)));
+    std::this_thread::sleep_for(40ms);
+
+    int refused = 0;
+    for (int i = 0; i < 200; ++i) {
+        const auto x = static_cast<std::uint16_t>(110 + i);
+        if (!session.send(touchFrame(protocol::TouchAction::Move, x, 200))) {
+            ++refused;
+        }
+    }
+    CHECK(refused == 200);
+
+    protocol::Key key;
+    key.keycode = 66;
+    protocol::Text text;
+    text.text = "hello";
+    CHECK(session.send(touchFrame(protocol::TouchAction::Down, 300, 300)));
+    CHECK(session.send(touchFrame(protocol::TouchAction::Up, 300, 300)));
+    CHECK(session.send(key));
+    CHECK(session.send(text));
+
+    gate.open();
+    REQUIRE(server.waitForReceived<protocol::Text>(1));
+
+    CHECK(session.send(touchFrame(protocol::TouchAction::Move, 500, 300)));
+    CHECK(session.send(touchFrame(protocol::TouchAction::Up, 500, 300)));
+    REQUIRE(server.waitForReceived<protocol::TouchFrame>(6));
+
+    std::vector<protocol::ToServerMessage> sent = server.receivedAll();
+    std::erase_if(sent, [](const auto& message) {
+        return std::holds_alternative<protocol::Ping>(message) ||
+               std::holds_alternative<protocol::ReceiverReport>(message);
+    });
+    REQUIRE(sent.size() == 8);
+    const auto* press = std::get_if<protocol::TouchFrame>(&sent[0]);
+    const auto* held = std::get_if<protocol::TouchFrame>(&sent[1]);
+    const auto* tapDown = std::get_if<protocol::TouchFrame>(&sent[2]);
+    const auto* tapUp = std::get_if<protocol::TouchFrame>(&sent[3]);
+    const auto* latest = std::get_if<protocol::TouchFrame>(&sent[6]);
+    const auto* release = std::get_if<protocol::TouchFrame>(&sent[7]);
+    REQUIRE(press != nullptr);
+    REQUIRE(held != nullptr);
+    REQUIRE(tapDown != nullptr);
+    REQUIRE(tapUp != nullptr);
+    REQUIRE(std::holds_alternative<protocol::Key>(sent[4]));
+    REQUIRE(std::holds_alternative<protocol::Text>(sent[5]));
+    REQUIRE(latest != nullptr);
+    REQUIRE(release != nullptr);
+    CHECK(press->points[0].action == protocol::TouchAction::Down);
+    CHECK(press->points[0].x == 100);
+    CHECK(held->points[0].action == protocol::TouchAction::Move);
+    CHECK(held->points[0].x == 101);
+    CHECK(tapDown->points[0].action == protocol::TouchAction::Down);
+    CHECK(tapDown->points[0].x == 300);
+    CHECK(tapUp->points[0].action == protocol::TouchAction::Up);
+    CHECK(tapUp->points[0].x == 300);
+    CHECK(std::get<protocol::Text>(sent[5]).text == "hello");
+    CHECK(latest->points[0].action == protocol::TouchAction::Move);
+    CHECK(latest->points[0].x == 500);
+    CHECK(release->points[0].action == protocol::TouchAction::Up);
+    CHECK(release->points[0].x == 500);
+
+    session.stop();
+    REQUIRE(listener.waitForEnd());
+}
+
+TEST_CASE("ADR-0115: a healthy control writer never refuses a touch frame")
+{
+    Rig rig({}, fastOptions());
+    rig.session->start();
+    REQUIRE(rig.listener.waitForPhase(SessionPhase::Streaming));
+
+    constexpr std::size_t kFrames = 2'000;
+    int refused = 0;
+    for (std::size_t i = 0; i < kFrames; ++i) {
+        const auto x = static_cast<std::uint16_t>(i + 1);
+        if (!rig.session->send(touchFrame(protocol::TouchAction::Move, x, 200))) {
+            ++refused;
+        }
+        if (i % 200 == 199) {
+            std::this_thread::sleep_for(1ms);
+        }
+    }
+    CHECK(refused == 0);
+    REQUIRE(rig.server.waitForReceived<protocol::TouchFrame>(kFrames));
+    const auto frames = rig.server.received<protocol::TouchFrame>();
+    REQUIRE(frames.size() == kFrames);
+    bool ordered = true;
+    for (std::size_t i = 0; i < kFrames; ++i) {
+        ordered = ordered && frames[i].points[0].x == static_cast<std::uint16_t>(i + 1);
+    }
+    CHECK(ordered);
+
+    rig.session->stop();
+    REQUIRE(rig.listener.waitForEnd());
 }

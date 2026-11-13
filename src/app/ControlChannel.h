@@ -5,6 +5,7 @@
 #include <gs/protocol/Messages.h>
 
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -54,6 +55,7 @@ public:
     [[nodiscard]] virtual bool send(const protocol::Key& key) = 0;
     [[nodiscard]] virtual bool send(const protocol::Scroll& scroll) = 0;
     [[nodiscard]] virtual bool send(const protocol::Text& text) = 0;
+    virtual void setTouchWaitLimit(std::chrono::microseconds) {}
     [[nodiscard]] virtual SinkCapabilities capabilities() const { return {}; }
     virtual void detached() {}
     [[nodiscard]] virtual bool padFeature(const protocol::UhidFeature&) { return false; }
@@ -75,6 +77,7 @@ public:
     [[nodiscard]] bool send(const protocol::Key& key) override;
     [[nodiscard]] bool send(const protocol::Scroll& scroll) override;
     [[nodiscard]] bool send(const protocol::Text& text) override;
+    void setTouchWaitLimit(std::chrono::microseconds limit) override;
     [[nodiscard]] bool padFeature(const protocol::UhidFeature& feature) override;
     [[nodiscard]] bool padCreate(const protocol::UhidCreate& create) override;
     [[nodiscard]] bool padInput(const protocol::UhidInput& input) override;
@@ -166,6 +169,7 @@ public:
 
 private:
     void changed() noexcept { m_revision.fetch_add(1, std::memory_order_acq_rel); }
+    [[nodiscard]] std::chrono::microseconds touchWaitLimit() const noexcept;
 
     mutable std::mutex m_mutex;
     ControlSink* m_sink = nullptr;

@@ -133,6 +133,7 @@ void TouchFrameBuilder::flush(Microseconds now, TouchFrameSink& sink)
         Queued& queued = m_ready.front();
         if (!sink.trySend(queued.frame)) {
             m_blocked = true;
+            m_blockedSince = now;
             if (m_ready.size() == 1 && m_open.points.empty()) {
                 m_open = std::move(queued.frame);
                 m_openSince = queued.since;
@@ -149,6 +150,9 @@ void TouchFrameBuilder::flush(Microseconds now, TouchFrameSink& sink)
 std::optional<Microseconds> TouchFrameBuilder::nextWakeup() const noexcept
 {
     if (m_blocked) {
+        if (m_tick.count() > 0) {
+            return m_blockedSince + m_tick;
+        }
         return std::nullopt;
     }
     if (!m_ready.empty() || (!m_open.points.empty() && !openFrameHasOnlyMoves())) {

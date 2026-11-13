@@ -86,6 +86,8 @@ public:
 
     [[nodiscard]] SessionPhase phase() const noexcept;
 
+    void setTouchWaitLimit(std::chrono::microseconds limit) noexcept;
+
     template <typename M>
     bool send(const M& message)
     {
@@ -97,18 +99,28 @@ public:
                       std::is_same_v<M, protocol::SetMaxFps> || std::is_same_v<M, protocol::SetVideoPaused>) {
             rememberVideo(message);
         }
+        bool moveOnly = false;
+        if constexpr (std::is_same_v<M, protocol::TouchFrame>) {
+            moveOnly = true;
+            for (const protocol::TouchPoint& point : message.points) {
+                if (point.action != protocol::TouchAction::Move) {
+                    moveOnly = false;
+                    break;
+                }
+            }
+        }
         std::array<std::uint8_t, 512> buffer;
         if (const auto written = protocol::encodeFrameInto(message, buffer)) {
-            return sendFrame(std::span<const std::uint8_t>(buffer).first(*written), kIsInput<M>);
+            return sendFrame(std::span<const std::uint8_t>(buffer).first(*written), kIsInput<M>, moveOnly);
         }
         const auto frame = protocol::encodeFrame(message);
-        return frame && sendFrame(*frame, kIsInput<M>);
+        return frame && sendFrame(*frame, kIsInput<M>, moveOnly);
     }
 
 private:
     class Impl;
 
-    bool sendFrame(std::span<const std::uint8_t> frame, bool input);
+    bool sendFrame(std::span<const std::uint8_t> frame, bool input, bool moveOnly);
     void rememberVideo(const protocol::ConfigureVideo& message);
     void rememberVideo(const protocol::SetVideoBitrate& message);
     void rememberVideo(const protocol::SetMaxFps& message);
