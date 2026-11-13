@@ -11,6 +11,7 @@
 #include "QtConversions.h"
 #include "ThemeTokens.h"
 
+#include <gs/base/BuildInfo.h>
 #include <gs/base/JsonNesting.h>
 #include <gs/base/Log.h>
 #include <gs/ext/Archive.h>
@@ -561,6 +562,21 @@ QVariantList localeList(const ext::Manifest& manifest)
     return locales;
 }
 
+QString versionLabel(const ext::Version& version)
+{
+    return QStringLiteral("%1.%2").arg(static_cast<qulonglong>(version.major))
+        .arg(static_cast<qulonglong>(version.minor));
+}
+
+QString writtenForLabel(const std::optional<ext::Manifest>& found)
+{
+    if (!found) {
+        return {};
+    }
+    const std::optional<ext::Version> written = ext::writtenFor(*found);
+    return written ? versionLabel(*written) : QString();
+}
+
 QVariantMap describe(const std::optional<ext::Manifest>& found, const QString& language)
 {
     static const ext::Manifest blank{};
@@ -588,6 +604,7 @@ QVariantMap describe(const std::optional<ext::Manifest>& found, const QString& l
     }
     return {{QStringLiteral("id"), QString::fromStdString(manifest.id)},
             {QStringLiteral("version"), found ? QString::fromStdString(manifest.version.text()) : QString()},
+            {QStringLiteral("writtenFor"), writtenForLabel(found)},
             {QStringLiteral("name"), extensionText(manifest, "name", manifest.name, language)},
             {QStringLiteral("description"), extensionText(manifest, "description", manifest.description, language)},
             {QStringLiteral("authors"), authors},
@@ -1321,6 +1338,13 @@ QString ExtensionHost::modeName() const
         return QStringLiteral("safeAfterCrash");
     }
     return {};
+}
+
+QString ExtensionHost::hostVersion() const
+{
+    const QString text = toQString(gs::buildInfo().version);
+    const std::optional<ext::Version> parsed = ext::Version::parse(text.toStdString());
+    return parsed ? versionLabel(*parsed) : text;
 }
 
 QVariantList ExtensionHost::entries() const
@@ -2407,9 +2431,11 @@ QVariantList ExtensionHost::versionBlockedExtensions() const
         if (!reason || !listed.insert(manifest.id).second) {
             continue;
         }
+        const std::optional<ext::Version> written = ext::writtenFor(manifest);
         rows.append(QVariantMap{{QStringLiteral("id"), QString::fromStdString(manifest.id)},
                                 {QStringLiteral("name"), extensionText(manifest, "name", manifest.name, language)},
                                 {QStringLiteral("version"), QString::fromStdString(manifest.version.text())},
+                                {QStringLiteral("writtenFor"), written ? versionLabel(*written) : QString()},
                                 {QStringLiteral("reason"), toQString(ext::codeName(*reason))},
                                 {QStringLiteral("updates"), manifest.updates.has_value()}});
     }

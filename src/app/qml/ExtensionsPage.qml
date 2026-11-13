@@ -196,13 +196,18 @@ Item {
         }
     }
 
-    function failureText(errors: var): string {
+    function failureText(errors: var, writtenFor: string): string {
         switch (errors.length > 0 ? errors[0].code : "") {
         case "host-api-missing":
         case "host-api-version":
-            return qsTr("Needs a newer GameScrcpy")
+            return writtenFor !== ""
+                   ? qsTr("Made for GameScrcpy %1; needs a newer GameScrcpy").arg(writtenFor)
+                   : qsTr("Needs a newer GameScrcpy")
         case "host-api-outdated":
-            return qsTr("Made for an older GameScrcpy")
+            return writtenFor !== ""
+                   ? qsTr("Made for GameScrcpy %1; does not work with %2").arg(writtenFor)
+                         .arg(ExtensionHost.hostVersion)
+                   : qsTr("Made for an older GameScrcpy")
         case "dependency-missing":
             return qsTr("Needs an extension that is not installed")
         case "dependency-version":
@@ -710,6 +715,18 @@ Item {
                                         elide: Text.ElideRight
                                     }
 
+                                    Text {
+                                        objectName: "extensionMadeFor"
+                                        Layout.fillWidth: true
+                                        visible: text !== ""
+                                        textFormat: Text.PlainText
+                                        text: (card.modelData.writtenFor ?? "") !== ""
+                                              ? qsTr("Made for GameScrcpy %1").arg(card.modelData.writtenFor) : ""
+                                        color: Theme.colors.textTertiary
+                                        font.pixelSize: Theme.type.caption.size
+                                        elide: Text.ElideRight
+                                    }
+
                                     RowLayout {
                                         objectName: "publisherLine"
                                         Layout.fillWidth: true
@@ -834,7 +851,7 @@ Item {
                                     Layout.fillWidth: true
                                     textFormat: Text.PlainText
                                     text: card.failing
-                                          ? page.failureText(card.errors)
+                                          ? page.failureText(card.errors, card.modelData.writtenFor ?? "")
                                           : card.noticeText !== ""
                                             ? card.noticeText
                                             : card.fetching
@@ -973,6 +990,18 @@ Item {
                 visible: text !== ""
                 textFormat: Text.PlainText
                 text: detailsDialog.entry.authors ? page.byline(detailsDialog.entry) : ""
+                color: Theme.colors.textTertiary
+                font.pixelSize: Theme.type.caption.size
+                wrapMode: Text.Wrap
+            }
+
+            Text {
+                objectName: "detailsMadeFor"
+                Layout.fillWidth: true
+                visible: text !== ""
+                textFormat: Text.PlainText
+                text: (detailsDialog.entry.writtenFor ?? "") !== ""
+                      ? qsTr("Made for GameScrcpy %1").arg(detailsDialog.entry.writtenFor) : ""
                 color: Theme.colors.textTertiary
                 font.pixelSize: Theme.type.caption.size
                 wrapMode: Text.Wrap

@@ -19,13 +19,19 @@ Dialog {
     signal checkRequested()
     signal extensionsRequested()
 
-    function reasonText(code: string): string {
-        return code === "host-api-outdated" ? qsTr("Made for an older GameScrcpy")
-                                            : qsTr("Needs a newer GameScrcpy")
+    function reasonText(code: string, writtenFor: string): string {
+        if (code === "host-api-outdated")
+            return writtenFor !== ""
+                   ? qsTr("Made for GameScrcpy %1; does not work with %2").arg(writtenFor)
+                         .arg(ExtensionHost.hostVersion)
+                   : qsTr("Made for an older GameScrcpy")
+        return writtenFor !== ""
+               ? qsTr("Made for GameScrcpy %1; needs a newer GameScrcpy").arg(writtenFor)
+               : qsTr("Needs a newer GameScrcpy")
     }
 
     objectName: "extensionCompatibility"
-    title: qsTr("Some extensions do not work with GameScrcpy %1").arg(AppInfo.version)
+    title: qsTr("Some extensions do not work with GameScrcpy %1").arg(ExtensionHost.hostVersion)
     acceptText: dialog.hasUpdates ? qsTr("Check for updates") : qsTr("Open Extensions")
     rejectText: qsTr("Close")
     alternativeText: dialog.hasUpdates ? qsTr("Open Extensions") : ""
@@ -105,7 +111,7 @@ Dialog {
                         Text {
                             width: parent.width
                             textFormat: Text.PlainText
-                            text: dialog.reasonText(entry.modelData.reason ?? "")
+                            text: dialog.reasonText(entry.modelData.reason ?? "", entry.modelData.writtenFor ?? "")
                             color: Theme.colors.warningText
                             font.pixelSize: Theme.type.caption.size
                             wrapMode: Text.Wrap

@@ -27,12 +27,19 @@ Dialog {
     readonly property var permissions: info.permissions ?? []
     readonly property var dependencies: info.dependencies ?? []
     readonly property var problems: info.problems ?? []
+    readonly property string writtenFor: info.writtenFor ?? ""
     readonly property bool needsNewer: dialog.problems.some(problem => problem.code === "host-api-missing"
                                                                        || problem.code === "host-api-version")
     readonly property bool madeForOlder: dialog.problems.some(problem => problem.code === "host-api-outdated")
-    readonly property string compatibilityText: [dialog.needsNewer ? qsTr("Needs a newer GameScrcpy") : "",
-                                                 dialog.madeForOlder ? qsTr("Made for an older GameScrcpy") : ""]
-                                               .filter(part => part !== "").join(" · ")
+    readonly property string compatibilityText: [
+        dialog.needsNewer ? (dialog.writtenFor !== ""
+                             ? qsTr("Made for GameScrcpy %1; needs a newer GameScrcpy").arg(dialog.writtenFor)
+                             : qsTr("Needs a newer GameScrcpy")) : "",
+        dialog.madeForOlder ? (dialog.writtenFor !== ""
+                               ? qsTr("Made for GameScrcpy %1; does not work with %2").arg(dialog.writtenFor)
+                                     .arg(ExtensionHost.hostVersion)
+                               : qsTr("Made for an older GameScrcpy")) : ""
+    ].filter(part => part !== "").join(" · ")
     readonly property var security: info.security ?? ({})
     readonly property bool nativeCode: dialog.security.native === true
     readonly property bool refused: dialog.nativeCode && dialog.security.refused === true
@@ -116,6 +123,17 @@ Dialog {
                            dialog.authors.length > 0 ? qsTr("By %1").arg(dialog.authors.join(qsTr(", ", "list separator"))) : ""]
                           .filter(part => part !== "").join(" · ")
                     color: Theme.colors.textSecondary
+                    font.pixelSize: Theme.type.caption.size
+                    wrapMode: Text.Wrap
+                }
+
+                Text {
+                    objectName: "installMadeFor"
+                    width: parent.width
+                    visible: text !== ""
+                    textFormat: Text.PlainText
+                    text: dialog.writtenFor !== "" ? qsTr("Made for GameScrcpy %1").arg(dialog.writtenFor) : ""
+                    color: Theme.colors.textTertiary
                     font.pixelSize: Theme.type.caption.size
                     wrapMode: Text.Wrap
                 }

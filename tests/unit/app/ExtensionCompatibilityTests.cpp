@@ -3,6 +3,7 @@
 
 #include "unit/ext/TestFiles.h"
 
+#include <gs/base/BuildInfo.h>
 #include <gs/ext/Archive.h>
 
 #include <doctest/doctest.h>
@@ -75,11 +76,12 @@ struct Fixture {
         writeExtension(root / pathOf(id) / pathOf(version), manifest(id, version, wanted, more));
     }
 
-    [[nodiscard]] fs::path pack(std::string_view id, std::string_view version, std::string_view wanted) const
+    [[nodiscard]] fs::path pack(std::string_view id, std::string_view version, std::string_view wanted,
+                                std::string_view more = {}) const
     {
         const std::string stem = std::string(id) + "-" + std::string(version);
         const fs::path folder = scratch / ("package-" + stem);
-        writeExtension(folder, manifest(id, version, wanted));
+        writeExtension(folder, manifest(id, version, wanted, more));
         const fs::path archive = scratch / (stem + ".gsext");
         REQUIRE(gs::ext::packDirectory(folder, archive).empty());
         return archive;
@@ -105,7 +107,7 @@ TEST_CASE("ADR-0113: only the extensions the user turned on and their version ho
 {
     const Fixture fixture;
     fixture.add(fixture.user, "alice.older", "1.0.0", R"("filter": "^0.9")",
-                R"(, "updates": {"index": "https://example.com/glow/index.json"})");
+                R"(, "gamescrcpy": "2.0.0", "updates": {"index": "https://example.com/glow/index.json"})");
     fixture.add(fixture.user, "bob.newer", "2.0.0", R"("filter": "^3.0")");
     fixture.add(fixture.user, "carol.fine", "1.0.0", R"("filter": "^1.0")");
     fixture.add(fixture.user, "dave.off", "1.0.0", R"("filter": "^3.0")");
@@ -126,16 +128,48 @@ TEST_CASE("ADR-0113: only the extensions the user turned on and their version ho
     CHECK(older.value(QStringLiteral("reason")).toString() == "host-api-outdated");
     CHECK(older.value(QStringLiteral("name")).toString() == "Glow");
     CHECK(older.value(QStringLiteral("version")).toString() == "1.0.0");
+    CHECK(older.value(QStringLiteral("writtenFor")).toString() == "2.0");
     CHECK(older.value(QStringLiteral("updates")).toBool());
 
     const QVariantMap newer = rowOf(blocked, QStringLiteral("bob.newer"));
     CHECK(newer.value(QStringLiteral("reason")).toString() == "host-api-version");
     CHECK(newer.value(QStringLiteral("version")).toString() == "2.0.0");
+    CHECK(newer.value(QStringLiteral("writtenFor")).toString().isEmpty());
     CHECK_FALSE(newer.value(QStringLiteral("updates")).toBool());
 
     CHECK(rowOf(blocked, QStringLiteral("carol.fine")).isEmpty());
     CHECK(rowOf(blocked, QStringLiteral("dave.off")).isEmpty());
     CHECK(host.property("versionBlocked").toList().size() == 2);
+}
+
+TEST_CASE("ADR-0113: a card and its details say which GameScrcpy the extension was made for")
+{
+    const Fixture fixture;
+    fixture.add(fixture.user, "alice.named", "1.0.0", R"("filter": "^1.0")", R"(, "gamescrcpy": "2.0")");
+    fixture.add(fixture.user, "bob.guessed", "1.0.0", R"("filter": "^1.0")");
+    fixture.add(fixture.user, "carol.unknown", "1.0.0", R"("filter": "^3.0")");
+
+    AppSettings settings(fixture.data);
+    ExtensionHost host(settings, {fixture.user, {}});
+    host.start(false);
+
+    const QVariantList entries = host.entries();
+    CHECK(rowOf(entries, QStringLiteral("alice.named")).value(QStringLiteral("writtenFor")).toString() == "2.0");
+    CHECK(rowOf(entries, QStringLiteral("bob.guessed")).value(QStringLiteral("writtenFor")).toString() == "2.0");
+    CHECK(rowOf(entries, QStringLiteral("carol.unknown")).value(QStringLiteral("writtenFor")).toString().isEmpty());
+}
+
+TEST_CASE("ADR-0113: the running GameScrcpy reads as major.minor")
+{
+    const Fixture fixture;
+    AppSettings settings(fixture.data);
+    ExtensionHost host(settings, {fixture.user, {}});
+    host.start(false);
+
+    const std::string_view full = gs::buildInfo().version;
+    const QString text = QString::fromLatin1(full.data(), static_cast<qsizetype>(full.size()));
+    CHECK(text.count(QLatin1Char('.')) >= 2);
+    CHECK(host.hostVersion() == text.section(QLatin1Char('.'), 0, 1));
 }
 
 TEST_CASE("ADR-0113: the version that last finished starting starts empty, stays out of the settings page and is kept")
@@ -168,6 +202,7 @@ TEST_CASE("ADR-0113: a package that wants an interface newer than this GameScrcp
     const Fixture fixture;
     const fs::path newest = fixture.pack("alice.glow", "1.0.0", R"("filter": "^3.0")");
     const fs::path fits = fixture.pack("bob.glow", "1.0.0", R"("filter": "^1.0")");
+    const fs::path named = fixture.pack("carol.glow", "1.0.0", R"("filter": "^1.0")", R"(, "gamescrcpy": "2.1")");
 
     AppSettings settings(fixture.data);
     ExtensionHost host(settings, {fixture.user, {}});
@@ -180,5 +215,7 @@ TEST_CASE("ADR-0113: a package that wants an interface newer than this GameScrcp
         reported = reported || problem.toMap().value(QStringLiteral("code")).toString() == "host-api-version";
     }
     CHECK(reported);
+    CHECK(host.inspect(textOf(fits)).value(QStringLiteral("writtenFor")).toString() == "2.0");
+    CHECK(host.inspect(textOf(named)).value(QStringLiteral("writtenFor")).toString() == "2.1");
     CHECK(host.inspect(textOf(fits)).value(QStringLiteral("ok")).toBool());
 }

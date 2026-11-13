@@ -72,7 +72,7 @@ For an extension without an update list, download the new version from its autho
 
 ## When an extension does not fit this GameScrcpy {#compatibility}
 
-An extension is written for the interfaces of the GameScrcpy versions it knows. One that needs a newer GameScrcpy says "Needs a newer GameScrcpy" on its card and does not load, and one made for an older GameScrcpy that no longer works with this one says "Made for an older GameScrcpy". The install dialog names the same reason and does not let you install such a package.
+An extension is made for the GameScrcpy versions it knows, and its card, its **Details** and the install dialog say "Made for GameScrcpy 2.1" when the author named that version. Whether it works is decided by the interfaces it asks for, so an extension made for an older version keeps working as long as those interfaces did not change. One that needs a newer GameScrcpy says "Needs a newer GameScrcpy" on its card and does not load; one made for an older GameScrcpy that no longer works with this one says "Made for an older GameScrcpy". When the version is known, the card names it instead: "Made for GameScrcpy 2.0; does not work with 2.1", or "Made for GameScrcpy 2.1; needs a newer GameScrcpy". The install dialog names the same reason and does not let you install such a package.
 
 After GameScrcpy is updated, the first start that finishes with your extensions lists the extensions you had turned on that this version does not open because of their version, with their names, versions and the reason. Choose **Check for updates** when one of them names an update list, **Open Extensions** to look at its card, or **Close**. For a version you already started once, the list does not come back.
 

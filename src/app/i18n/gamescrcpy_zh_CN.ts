@@ -6144,8 +6144,16 @@
 <context>
     <name>ExtensionCompatibilityDialog</name>
     <message>
+        <source>Made for GameScrcpy %1; does not work with %2</source>
+        <translation>为 GameScrcpy %1 编写，与 %2 不兼容</translation>
+    </message>
+    <message>
         <source>Made for an older GameScrcpy</source>
         <translation>为旧版 GameScrcpy 制作</translation>
+    </message>
+    <message>
+        <source>Made for GameScrcpy %1; needs a newer GameScrcpy</source>
+        <translation>为 GameScrcpy %1 编写，需要更新版的 GameScrcpy</translation>
     </message>
     <message>
         <source>Needs a newer GameScrcpy</source>
@@ -6426,6 +6434,14 @@
         <translation>语言</translation>
     </message>
     <message>
+        <source>Made for GameScrcpy %1; needs a newer GameScrcpy</source>
+        <translation>为 GameScrcpy %1 编写，需要更新版的 GameScrcpy</translation>
+    </message>
+    <message>
+        <source>Made for GameScrcpy %1; does not work with %2</source>
+        <translation>为 GameScrcpy %1 编写，与 %2 不兼容</translation>
+    </message>
+    <message>
         <source>Made for an older GameScrcpy</source>
         <translation>为旧版 GameScrcpy 制作</translation>
     </message>
@@ -6538,6 +6554,10 @@
     <message>
         <source>Dismiss</source>
         <translation>关闭</translation>
+    </message>
+    <message>
+        <source>Made for GameScrcpy %1</source>
+        <translation>为 GameScrcpy %1 编写</translation>
     </message>
     <message>
         <source>The card tells what the extension adds and what it may do.</source>
@@ -8403,8 +8423,16 @@
         <translation>信任并安装</translation>
     </message>
     <message>
+        <source>Made for GameScrcpy %1; needs a newer GameScrcpy</source>
+        <translation>为 GameScrcpy %1 编写，需要更新版的 GameScrcpy</translation>
+    </message>
+    <message>
         <source>Needs a newer GameScrcpy</source>
         <translation>需要更新版的 GameScrcpy</translation>
+    </message>
+    <message>
+        <source>Made for GameScrcpy %1; does not work with %2</source>
+        <translation>为 GameScrcpy %1 编写，与 %2 不兼容</translation>
     </message>
     <message>
         <source>Made for an older GameScrcpy</source>
@@ -8426,6 +8454,10 @@
         <source>, </source>
         <comment>list separator</comment>
         <translation>、</translation>
+    </message>
+    <message>
+        <source>Made for GameScrcpy %1</source>
+        <translation>为 GameScrcpy %1 编写</translation>
     </message>
     <message>
         <source>Replaces version %1</source>
