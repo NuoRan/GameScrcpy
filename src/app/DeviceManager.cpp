@@ -2363,7 +2363,12 @@ QStringList DeviceManager::describe(const Measures& measures)
     lines << tr("Video: %1 fps received, %2 shown, %3 replaced before shown")
                  .arg(number(sample.framesPerSecond, 0), number(shownPerSecond, 0), number(replacedPerSecond, 0));
     lines << tr("Bit rate: %1 Mbit/s").arg(number(sample.megabitsPerSecond, 1));
-    lines << tr("Decoding: %1 ms per frame").arg(maybe(sample.decodeMs));
+    if (sample.heldFrames > 0) {
+        lines << tr("Decoding: %1 ms per frame; the decoder holds %2 frames back")
+                     .arg(maybe(sample.decodeMs), QString::number(sample.heldFrames));
+    } else {
+        lines << tr("Decoding: %1 ms per frame").arg(maybe(sample.decodeMs));
+    }
     lines << tr("Input to render: %1 ms, the game's own reaction not included").arg(maybe(measures.inputToRender));
     lines << tr("Input reaching the phone: %1 ms; waiting for the next frame: %2 ms")
                  .arg(maybe(sample.inputMs), maybe(sample.frameWaitMs));

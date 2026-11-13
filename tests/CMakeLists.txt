@@ -312,6 +312,7 @@ gs_add_unit_test(gs_media_tests
         unit/media/FrameSnapshotTests.cpp
         unit/media/FrameUploaderTests.cpp
         unit/media/LumaSamplerTests.cpp
+        unit/media/PendingArrivalsTests.cpp
         unit/media/RecordingTests.cpp
         unit/media/ThumbnailerTests.cpp
         unit/media/VideoDecoderTests.cpp
@@ -329,7 +330,10 @@ target_compile_definitions(gs_media_tests PRIVATE
     GS_FFMPEG_BUILDINFO="${PROJECT_SOURCE_DIR}/third_party/ffmpeg/BUILDINFO.md"
     GS_RECORDER_CHILD="$<TARGET_FILE:gs_recorder_child>"
 )
-target_include_directories(gs_media_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_include_directories(gs_media_tests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}"
+    "${PROJECT_SOURCE_DIR}/src/media/src"
+)
 
 add_executable(gs_recorder_child unit/media/RecorderChild.cpp)
 target_link_libraries(gs_recorder_child PRIVATE gs::record)

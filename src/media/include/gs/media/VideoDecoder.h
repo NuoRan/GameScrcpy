@@ -94,6 +94,7 @@ public:
     [[nodiscard]] Expected<void, VideoDecodeError> push(const protocol::MediaPacket& packet, FrameSink& sink);
 
     [[nodiscard]] bool hardware() const noexcept;
+    [[nodiscard]] int heldFrames() const noexcept;
 
 private:
     struct State;

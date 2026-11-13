@@ -113,3 +113,19 @@ TEST_CASE("session metrics time an input reaching the phone and its wait for the
     frame(idle, 2'000'000);
     CHECK_FALSE(idle.sample(1s).frameWaitMs);
 }
+
+TEST_CASE("ADR-0114: session metrics give the most frames the decoder held back during each sample")
+{
+    SessionMetrics metrics;
+    CHECK(metrics.sample(1s).heldFrames == 0);
+
+    metrics.decoderHolds(0);
+    metrics.decoderHolds(2);
+    metrics.decoderHolds(1);
+    CHECK(metrics.sample(1s).heldFrames == 2);
+    CHECK(metrics.sample(1s).heldFrames == 0);
+
+    metrics.decoderHolds(1);
+    metrics.decoderHolds(0);
+    CHECK(metrics.sample(500ms).heldFrames == 1);
+}

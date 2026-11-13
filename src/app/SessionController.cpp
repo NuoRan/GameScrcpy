@@ -110,6 +110,7 @@ public:
         if (packet.header.kind == protocol::MediaKind::Frame) {
             m_controller.m_metrics.videoFrame(packet.header.size, packet.header.ptsUs, packet.header.encodeDelayUs,
                                               receivedUs, steadyMicros() - receivedUs);
+            m_controller.m_metrics.decoderHolds(m_decoder->heldFrames());
         }
         if (pushed) {
             m_awaitingKeyFrame = m_awaitingKeyFrame && !packet.header.keyFrame;

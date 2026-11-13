@@ -61,6 +61,13 @@ void SessionMetrics::videoFrame(std::uint32_t bytes, std::int64_t ptsUs, std::ui
     m_capturedPts.add(ptsUs);
 }
 
+void SessionMetrics::decoderHolds(int frames) noexcept
+{
+    int most = m_heldFrames.load(std::memory_order_relaxed);
+    while (frames > most && !m_heldFrames.compare_exchange_weak(most, frames, std::memory_order_relaxed)) {
+    }
+}
+
 void SessionMetrics::heartbeat(const session::Heartbeat& heartbeat) noexcept
 {
     m_roundTripUs.store(heartbeat.roundTrip.count(), std::memory_order_relaxed);
@@ -125,6 +132,7 @@ SessionMetrics::Sample SessionMetrics::sample(std::chrono::microseconds elapsed)
     const std::int64_t latencyUs = m_latencyUs.exchange(0, std::memory_order_relaxed);
     const std::int64_t networkUs = m_networkUs.exchange(0, std::memory_order_relaxed);
     const std::uint64_t latencyFrames = m_latencyFrames.exchange(0, std::memory_order_relaxed);
+    result.heldFrames = m_heldFrames.exchange(0, std::memory_order_relaxed);
     const double seconds = std::chrono::duration<double>(elapsed).count();
     if (seconds > 0) {
         result.framesPerSecond = static_cast<double>(frames) / seconds;

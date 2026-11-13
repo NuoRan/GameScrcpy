@@ -19,6 +19,7 @@ class SessionMetrics
 public:
     void videoFrame(std::uint32_t bytes, std::int64_t ptsUs, std::uint32_t encodeDelayUs, std::int64_t receivedUs,
                     std::int64_t decodeUs) noexcept;
+    void decoderHolds(int frames) noexcept;
     void heartbeat(const session::Heartbeat& heartbeat) noexcept;
 
     struct Sample {
@@ -32,6 +33,7 @@ public:
         std::optional<double> sendDelayMs;
         std::optional<double> inputMs;
         std::optional<double> frameWaitMs;
+        int heldFrames = 0;
     };
 
     [[nodiscard]] Sample sample(std::chrono::microseconds elapsed) noexcept;
@@ -70,6 +72,7 @@ private:
     std::atomic<std::int64_t> m_clockOffsetUs{0};
     std::atomic<std::int64_t> m_roundTripUs{0};
     std::atomic<std::int64_t> m_sendDelayUs{0};
+    std::atomic<int> m_heldFrames{0};
 
     std::mutex m_timingMutex;
     Window<32> m_capturedPts;

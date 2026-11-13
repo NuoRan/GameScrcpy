@@ -12,12 +12,14 @@ extern "C" {
 
 #include <doctest/doctest.h>
 
+#include <chrono>
 #include <deque>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
 #include <map>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 using namespace gs;
@@ -47,6 +49,12 @@ std::vector<protocol::MediaPacket> packetsOf(const std::vector<std::uint8_t>& re
         packets.push_back(*packet);
     }
     return packets;
+}
+
+std::int64_t steadyMicros()
+{
+    return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now().time_since_epoch())
+        .count();
 }
 
 bool sampleable(const VideoFrame& frame)
@@ -86,12 +94,14 @@ struct Recorder final : FrameSink {
         bool sampleable = false;
         std::int64_t ptsUs = 0;
         std::uint64_t luma = 0;
+        std::int64_t receivedUs = 0;
     };
 
     void onFrame(VideoFrame frame) override
     {
         pictures.push_back({frame.session(), frame.width(), frame.height(), frame.hardware(),
-                            frame.hardware() && sampleable(frame), frame.ptsUs(), lumaHash(frame)});
+                            frame.hardware() && sampleable(frame), frame.ptsUs(), lumaHash(frame),
+                            frame.receivedUs()});
         held.push_back(std::move(frame));
         if (held.size() > 2) {
             held.pop_front();
@@ -115,15 +125,20 @@ Outcome decodeRecording(std::string_view name, ID3D11Device* device)
     VideoDecoder decoder(device);
     Recorder recorder;
     std::vector<protocol::MediaPacket> frames;
+    std::vector<std::pair<std::int64_t, std::int64_t>> pushedAt;
     std::map<std::uint16_t, protocol::VideoSessionInfo> sessions;
     for (const auto& packet : packets) {
         CAPTURE(packet.header.session);
+        const std::int64_t beforeUs = steadyMicros();
         const auto pushed = decoder.push(packet, recorder);
+        const std::int64_t afterUs = steadyMicros();
         REQUIRE_MESSAGE(pushed, (pushed ? std::string() : pushed.error().message));
         if (packet.header.kind == protocol::MediaKind::Session) {
             sessions[packet.header.session] = std::get<protocol::VideoSessionInfo>(packet.session);
         } else if (packet.header.kind == protocol::MediaKind::Frame) {
             frames.push_back(packet);
+            pushedAt.emplace_back(beforeUs, afterUs);
+            CHECK(decoder.heldFrames() == 0);
         }
     }
     REQUIRE(recorder.pictures.size() == frames.size());
@@ -135,6 +150,8 @@ Outcome decodeRecording(std::string_view name, ID3D11Device* device)
         const auto& session = sessions.at(frames[i].header.session);
         CHECK(picture.session == frames[i].header.session);
         CHECK(picture.ptsUs == frames[i].header.ptsUs);
+        CHECK(picture.receivedUs >= pushedAt[i].first);
+        CHECK(picture.receivedUs <= pushedAt[i].second);
         CHECK(picture.width == session.frameWidth);
         CHECK(picture.height == session.frameHeight);
         if (picture.hardware) {
@@ -217,4 +234,44 @@ TEST_CASE("video decoder: packets out of order are reported")
     pushed = decoder.push(audio, recorder);
     REQUIRE_FALSE(pushed);
     CHECK(pushed.error().kind == VideoDecodeErrorKind::OutOfOrder);
+}
+
+TEST_CASE("ADR-0114: a frame the decoder refuses is not counted as held, and the next pictures keep their own arrival")
+{
+    const auto recording = readRecording("emulator_h264.media");
+    const auto packets = packetsOf(recording);
+    REQUIRE(packets.size() > 6);
+    REQUIRE(packets[0].header.kind == protocol::MediaKind::Session);
+    REQUIRE(packets[1].header.kind == protocol::MediaKind::Config);
+    VideoDecoder decoder;
+    Recorder recorder;
+    REQUIRE(decoder.push(packets[0], recorder));
+    REQUIRE(decoder.push(packets[1], recorder));
+    CHECK(decoder.heldFrames() == 0);
+    REQUIRE(packets[2].header.kind == protocol::MediaKind::Frame);
+    REQUIRE(decoder.push(packets[2], recorder));
+    CHECK(decoder.heldFrames() == 0);
+    REQUIRE(recorder.pictures.size() == 1);
+
+    auto refused = packets[3];
+    refused.payload = refused.payload.first(0);
+    const auto pushed = decoder.push(refused, recorder);
+    REQUIRE_FALSE(pushed);
+    CHECK(pushed.error().kind == VideoDecodeErrorKind::Failed);
+    CHECK(decoder.heldFrames() == 0);
+    CHECK(recorder.pictures.size() == 1);
+
+    for (std::size_t i = 3; i < 6; ++i) {
+        CAPTURE(i);
+        REQUIRE(packets[i].header.kind == protocol::MediaKind::Frame);
+        const std::int64_t beforeUs = steadyMicros();
+        REQUIRE(decoder.push(packets[i], recorder));
+        const std::int64_t afterUs = steadyMicros();
+        CHECK(decoder.heldFrames() == 0);
+        REQUIRE(recorder.pictures.size() == i - 1);
+        const auto& picture = recorder.pictures.back();
+        CHECK(picture.ptsUs == packets[i].header.ptsUs);
+        CHECK(picture.receivedUs >= beforeUs);
+        CHECK(picture.receivedUs <= afterUs);
+    }
 }

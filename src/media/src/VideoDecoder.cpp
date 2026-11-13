@@ -1,5 +1,7 @@
 #include "gs/media/VideoDecoder.h"
 
+#include "PendingArrivals.h"
+
 #include "gs/base/Log.h"
 
 #include <d3d11_4.h>
@@ -206,6 +208,7 @@ struct VideoDecoder::State {
     {
         avcodec_free_context(&context);
         hardware = false;
+        arrivals.clear();
     }
 
     Expected<void, VideoDecodeError> open(bool onGpu)
@@ -250,6 +253,33 @@ struct VideoDecoder::State {
     Expected<void, VideoDecodeError> decode(const protocol::MediaPacket& input, FrameSink& sink,
                                             std::int64_t receivedUs)
     {
+        arrivals.sent(input.header.ptsUs, receivedUs);
+        auto fed = feed(input, sink, receivedUs);
+        if (fed) {
+            noteHeld();
+        } else {
+            arrivals.forget(input.header.ptsUs);
+        }
+        return fed;
+    }
+
+    void noteHeld() noexcept
+    {
+        if (!logged.held && arrivals.held() > 0) {
+            logged.held = true;
+            log::info(kLog, "video session {}: the {} decoder holds {} frames back (has_b_frames {})", session,
+                      protocol::enumName(described->codec), arrivals.held(), context->has_b_frames);
+        }
+        if (!logged.dropped && arrivals.dropped() > 0) {
+            logged.dropped = true;
+            log::info(kLog, "video session {}: more than {} frames went into the {} decoder without a picture back",
+                      session, PendingArrivals::kCapacity, protocol::enumName(described->codec));
+        }
+    }
+
+    Expected<void, VideoDecodeError> feed(const protocol::MediaPacket& input, FrameSink& sink,
+                                          std::int64_t receivedUs)
+    {
         const std::size_t size = input.payload.size();
         if (size + AV_INPUT_BUFFER_PADDING_SIZE > payloadCapacity) {
             av_buffer_pool_uninit(&payloads);
@@ -290,13 +320,19 @@ struct VideoDecoder::State {
                           : hardwareDevice != nullptr ? "on the processor; the graphics card did not take it"
                                                       : "on the processor");
             }
+            if (!logged.reordering && context->has_b_frames > 0) {
+                logged.reordering = true;
+                log::info(kLog, "video session {}: the {} decoder may hold up to {} frames back (has_b_frames)",
+                          session, protocol::enumName(described->codec), context->has_b_frames);
+            }
+            const std::int64_t arrivedUs = arrivals.returned(frame->pts).value_or(receivedUs);
             AVFrame* picture = av_frame_alloc();
             if (picture == nullptr) {
                 av_frame_unref(frame);
                 return makeUnexpected(ffmpegFailure("allocating a picture", AVERROR(ENOMEM)));
             }
             av_frame_move_ref(picture, frame);
-            sink.onFrame(VideoFrame(picture, session, receivedUs));
+            sink.onFrame(VideoFrame(picture, session, arrivedUs));
         }
     }
 
@@ -311,6 +347,14 @@ struct VideoDecoder::State {
     std::vector<std::uint8_t> configuration;
     bool hardware = false;
     std::optional<bool> reported;
+
+    struct Logged {
+        bool reordering = false;
+        bool held = false;
+        bool dropped = false;
+    };
+    PendingArrivals arrivals;
+    Logged logged;
 };
 
 VideoFrame::VideoFrame(VideoFrame&& other) noexcept
@@ -383,6 +427,11 @@ bool VideoDecoder::hardware() const noexcept
     return m_state->hardware;
 }
 
+int VideoDecoder::heldFrames() const noexcept
+{
+    return m_state->arrivals.held();
+}
+
 Expected<void, VideoDecodeError> VideoDecoder::push(const protocol::MediaPacket& packet, FrameSink& sink)
 {
     GS_ASSERT_ON_THREAD(m_thread);
@@ -397,6 +446,7 @@ Expected<void, VideoDecodeError> VideoDecoder::push(const protocol::MediaPacket&
         state.described = *info;
         state.session = packet.header.session;
         state.configuration.clear();
+        state.logged = {};
         return {};
     }
     case protocol::MediaKind::Config:

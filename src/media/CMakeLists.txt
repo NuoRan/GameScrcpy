@@ -20,6 +20,8 @@ add_library(gs_media STATIC
     src/FrameSnapshot.cpp
     src/FrameUploader.cpp
     src/LumaSampler.cpp
+    src/PendingArrivals.cpp
+    src/PendingArrivals.h
     src/PlaneReader.cpp
     src/PlaneReader.h
     src/Thumbnailer.cpp
