@@ -530,6 +530,7 @@ Expected<std::unique_ptr<Link>, SessionFailure> DirectTransport::establish(const
         return makeUnexpected(failure(FailureKind::ConnectFailed, "cannot open a UDP socket"));
     }
     static_cast<void>(socket->setReceiveBufferSize(kReceiveBufferBytes));
+    static_cast<void>(socket->markAsVideo(m_server));
     const auto started = SteadyClock::now();
     DirectHandshake handshake(token, clientVersion, m_server, started);
     {

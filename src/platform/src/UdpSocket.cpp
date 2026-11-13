@@ -1,13 +1,22 @@
 #include "gs/platform/UdpSocket.h"
 
+#include "gs/base/Log.h"
+#include "gs/platform/Thread.h"
+
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <mstcpip.h>
+#include <qos2.h>
 
 #include <algorithm>
+#include <atomic>
 #include <climits>
 #include <cstring>
 #include <format>
+#include <memory>
+#include <mutex>
+#include <string_view>
+#include <thread>
 #include <utility>
 
 #ifndef SIO_UDP_CONNRESET
@@ -70,6 +79,63 @@ UdpEndpoint fromSockaddr(const sockaddr_storage& storage) noexcept
     return endpoint;
 }
 
+constexpr std::string_view kLog = "network";
+constexpr std::size_t kMaxPendingMarks = 8;
+
+std::atomic<std::size_t> g_pendingMarks{0};
+std::atomic<bool> g_markingReported{false};
+
+void reportMarking(std::string_view what, DWORD error) noexcept
+{
+    if (log::isEnabled(log::Level::Debug) &&
+        !g_markingReported.exchange(true, std::memory_order_relaxed)) {
+        log::debug(kLog, "UDP packets are not marked as video traffic: {} (error {})", what, error);
+    }
+}
+
+struct Qwave {
+    decltype(&QOSCreateHandle) createHandle = nullptr;
+    decltype(&QOSCloseHandle) closeHandle = nullptr;
+    decltype(&QOSAddSocketToFlow) addSocketToFlow = nullptr;
+    decltype(&QOSRemoveSocketFromFlow) removeSocketFromFlow = nullptr;
+    DWORD loadError = ERROR_SUCCESS;
+
+    [[nodiscard]] bool ready() const noexcept
+    {
+        return createHandle != nullptr && closeHandle != nullptr && addSocketToFlow != nullptr &&
+               removeSocketFromFlow != nullptr;
+    }
+};
+
+template <typename Function>
+Function qwaveEntry(HMODULE library, const char* name) noexcept
+{
+    return reinterpret_cast<Function>(reinterpret_cast<void*>(GetProcAddress(library, name)));
+}
+
+const Qwave& qwave() noexcept
+{
+    static const Qwave api = [] {
+        Qwave loaded;
+        const HMODULE library = LoadLibraryExW(L"qwave.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+        if (library == nullptr) {
+            loaded.loadError = GetLastError();
+            return loaded;
+        }
+        loaded.createHandle = qwaveEntry<decltype(&QOSCreateHandle)>(library, "QOSCreateHandle");
+        loaded.closeHandle = qwaveEntry<decltype(&QOSCloseHandle)>(library, "QOSCloseHandle");
+        loaded.addSocketToFlow =
+            qwaveEntry<decltype(&QOSAddSocketToFlow)>(library, "QOSAddSocketToFlow");
+        loaded.removeSocketFromFlow =
+            qwaveEntry<decltype(&QOSRemoveSocketFromFlow)>(library, "QOSRemoveSocketFromFlow");
+        if (!loaded.ready()) {
+            loaded.loadError = ERROR_PROC_NOT_FOUND;
+        }
+        return loaded;
+    }();
+    return api;
+}
+
 }
 
 std::optional<UdpEndpoint> UdpEndpoint::parse(std::string_view host, std::uint16_t port)
@@ -126,9 +192,84 @@ std::string UdpEndpoint::toString() const
     return std::format("{}:{}", text, port);
 }
 
+struct UdpSocket::VideoFlow {
+    explicit VideoFlow(SOCKET owner) noexcept : socket(owner) {}
+
+    void attach(const UdpEndpoint& to) noexcept;
+    void fail(std::string_view what, DWORD error) noexcept;
+    void release() noexcept;
+
+    const SOCKET socket;
+    std::mutex mutex;
+    bool open = true;
+    Marking state = Marking::Pending;
+    HANDLE qos = nullptr;
+    QOS_FLOWID flow = 0;
+};
+
+void UdpSocket::VideoFlow::attach(const UdpEndpoint& to) noexcept
+{
+    const Qwave& api = qwave();
+    if (!api.ready()) {
+        fail("qwave.dll cannot be loaded", api.loadError);
+        return;
+    }
+    QOS_VERSION version{.MajorVersion = 1, .MinorVersion = 0};
+    HANDLE created = nullptr;
+    if (api.createHandle(&version, &created) == FALSE) {
+        fail("QOSCreateHandle failed", GetLastError());
+        return;
+    }
+    sockaddr_storage storage{};
+    toSockaddr(to, storage);
+    std::unique_lock lock(mutex);
+    if (open) {
+        QOS_FLOWID added = 0;
+        if (api.addSocketToFlow(created, socket, reinterpret_cast<sockaddr*>(&storage),
+                                QOSTrafficTypeAudioVideo, QOS_NON_ADAPTIVE_FLOW, &added) != FALSE) {
+            qos = created;
+            flow = added;
+            state = Marking::Video;
+            return;
+        }
+        const DWORD error = GetLastError();
+        state = Marking::Failed;
+        reportMarking("QOSAddSocketToFlow failed", error);
+    }
+    lock.unlock();
+    api.closeHandle(created);
+}
+
+void UdpSocket::VideoFlow::fail(std::string_view what, DWORD error) noexcept
+{
+    const std::lock_guard lock(mutex);
+    state = Marking::Failed;
+    if (open) {
+        reportMarking(what, error);
+    }
+}
+
+void UdpSocket::VideoFlow::release() noexcept
+{
+    HANDLE owned = nullptr;
+    QOS_FLOWID ownedFlow = 0;
+    {
+        const std::lock_guard lock(mutex);
+        open = false;
+        owned = std::exchange(qos, nullptr);
+        ownedFlow = std::exchange(flow, QOS_FLOWID{0});
+    }
+    if (owned != nullptr) {
+        const Qwave& api = qwave();
+        api.removeSocketFromFlow(owned, socket, ownedFlow, 0);
+        api.closeHandle(owned);
+    }
+}
+
 UdpSocket::UdpSocket(UdpSocket&& other) noexcept
     : m_socket(std::exchange(other.m_socket, kInvalid)), m_v6(other.m_v6),
-      m_interrupted(other.m_interrupted.load(std::memory_order_relaxed))
+      m_interrupted(other.m_interrupted.load(std::memory_order_relaxed)),
+      m_videoFlow(std::move(other.m_videoFlow))
 {
 }
 
@@ -139,6 +280,7 @@ UdpSocket& UdpSocket::operator=(UdpSocket&& other) noexcept
         m_socket = std::exchange(other.m_socket, kInvalid);
         m_v6 = other.m_v6;
         m_interrupted.store(other.m_interrupted.load(std::memory_order_relaxed), std::memory_order_relaxed);
+        m_videoFlow = std::move(other.m_videoFlow);
     }
     return *this;
 }
@@ -150,6 +292,10 @@ UdpSocket::~UdpSocket()
 
 void UdpSocket::close() noexcept
 {
+    if (m_videoFlow != nullptr) {
+        m_videoFlow->release();
+        m_videoFlow.reset();
+    }
     if (m_socket != kInvalid) {
         closesocket(native(m_socket));
         m_socket = kInvalid;
@@ -200,6 +346,40 @@ bool UdpSocket::setReceiveBufferSize(std::size_t bytes) noexcept
 {
     const int size = clampedLength(bytes);
     return setsockopt(native(m_socket), SOL_SOCKET, SO_RCVBUF, reinterpret_cast<const char*>(&size), sizeof(size)) == 0;
+}
+
+bool UdpSocket::markAsVideo(const UdpEndpoint& to) noexcept
+{
+    if (m_socket == kInvalid || m_videoFlow != nullptr || to.v6 != m_v6) {
+        return false;
+    }
+    if (g_pendingMarks.fetch_add(1, std::memory_order_relaxed) >= kMaxPendingMarks) {
+        g_pendingMarks.fetch_sub(1, std::memory_order_relaxed);
+        reportMarking("earlier requests to qWAVE have not finished", ERROR_BUSY);
+        return false;
+    }
+    try {
+        auto flow = std::make_shared<VideoFlow>(native(m_socket));
+        std::thread([flow, to] {
+            setCurrentThreadName("gs-udp-qos");
+            flow->attach(to);
+            g_pendingMarks.fetch_sub(1, std::memory_order_relaxed);
+        }).detach();
+        m_videoFlow = std::move(flow);
+        return true;
+    } catch (...) {
+        g_pendingMarks.fetch_sub(1, std::memory_order_relaxed);
+        return false;
+    }
+}
+
+UdpSocket::Marking UdpSocket::marking() const noexcept
+{
+    if (m_videoFlow == nullptr) {
+        return Marking::None;
+    }
+    const std::lock_guard lock(m_videoFlow->mutex);
+    return m_videoFlow->state;
 }
 
 bool UdpSocket::sendTo(const UdpEndpoint& to, std::span<const std::uint8_t> datagram) noexcept

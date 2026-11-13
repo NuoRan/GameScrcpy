@@ -29,6 +29,49 @@ UdpSocket boundLoopback()
     return std::move(*socket);
 }
 
+std::string_view markingName(UdpSocket::Marking marking)
+{
+    switch (marking) {
+    case UdpSocket::Marking::None:
+        return "none";
+    case UdpSocket::Marking::Pending:
+        return "pending";
+    case UdpSocket::Marking::Video:
+        return "video";
+    case UdpSocket::Marking::Failed:
+        return "failed";
+    }
+    return "none";
+}
+
+UdpSocket::Marking settledMarking(const UdpSocket& socket)
+{
+    const auto deadline = std::chrono::steady_clock::now() + 60s;
+    while (socket.marking() == UdpSocket::Marking::Pending &&
+           std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(5ms);
+    }
+    return socket.marking();
+}
+
+void roundTrip(UdpSocket& from, UdpSocket& to)
+{
+    from.setReceiveTimeout(2s);
+    to.setReceiveTimeout(2s);
+    std::array<std::uint8_t, 64> buffer{};
+    const auto request = bytes("marked");
+    REQUIRE(from.sendTo(UdpEndpoint::loopback(to.localPort()), request));
+    const auto received = to.receive(buffer);
+    REQUIRE(received.has_value());
+    CHECK(received->size == request.size());
+    CHECK(received->from == UdpEndpoint::loopback(from.localPort()));
+    const auto reply = bytes("still flowing");
+    REQUIRE(to.sendTo(received->from, reply));
+    const auto answered = from.receive(buffer);
+    REQUIRE(answered.has_value());
+    CHECK(answered->size == reply.size());
+}
+
 }
 
 TEST_CASE("endpoints parse and print both families")
@@ -164,4 +207,55 @@ TEST_CASE("a socket of one family does not send to the other")
     const auto v6 = UdpEndpoint::parse("::1", 5556);
     REQUIRE(v6.has_value());
     CHECK_FALSE(v4.sendTo(*v6, bytes("x")));
+}
+
+TEST_CASE("ADR-0114: a socket marked as video traffic still sends and receives, also after a move")
+{
+    UdpSocket a = boundLoopback();
+    UdpSocket b = boundLoopback();
+    CHECK(a.marking() == UdpSocket::Marking::None);
+    const bool requested = a.markAsVideo(UdpEndpoint::loopback(b.localPort()));
+    const UdpSocket::Marking settled = settledMarking(a);
+    MESSAGE(std::format("marking requested: {}, settled as {}", requested, markingName(settled)));
+    CHECK(settled != UdpSocket::Marking::Pending);
+    CHECK((settled == UdpSocket::Marking::None) == !requested);
+    roundTrip(a, b);
+    roundTrip(b, a);
+
+    UdpSocket moved = std::move(a);
+    CHECK(moved.marking() == settled);
+    roundTrip(moved, b);
+}
+
+TEST_CASE("ADR-0114: a marking that cannot start leaves the socket as it was")
+{
+    UdpSocket a = boundLoopback();
+    UdpSocket b = boundLoopback();
+    const auto v6 = UdpEndpoint::parse("::1", b.localPort());
+    REQUIRE(v6.has_value());
+    CHECK_FALSE(a.markAsVideo(*v6));
+    CHECK(a.marking() == UdpSocket::Marking::None);
+    roundTrip(a, b);
+
+    UdpSocket empty;
+    CHECK_FALSE(empty.markAsVideo(UdpEndpoint::loopback(b.localPort())));
+    CHECK(empty.marking() == UdpSocket::Marking::None);
+
+    if (a.markAsVideo(UdpEndpoint::loopback(b.localPort()))) {
+        CHECK_FALSE(a.markAsVideo(UdpEndpoint::loopback(b.localPort())));
+    }
+    MESSAGE(std::format("the first marking settled as {}", markingName(settledMarking(a))));
+    roundTrip(a, b);
+}
+
+TEST_CASE("ADR-0114: a socket closed while its marking may still be pending closes cleanly")
+{
+    for (int attempt = 0; attempt < 4; ++attempt) {
+        UdpSocket closing = boundLoopback();
+        static_cast<void>(closing.markAsVideo(UdpEndpoint::loopback(9)));
+    }
+    UdpSocket a = boundLoopback();
+    UdpSocket b = boundLoopback();
+    roundTrip(a, b);
+    roundTrip(b, a);
 }

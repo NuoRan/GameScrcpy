@@ -9,6 +9,7 @@ import com.gamescrcpy.server.session.BuildDeviceDescriptor;
 import com.gamescrcpy.server.session.SessionServer;
 import com.gamescrcpy.server.transport.LocalSocketListener;
 import com.gamescrcpy.server.transport.SessionTransport;
+import com.gamescrcpy.server.transport.TrafficClass;
 import com.gamescrcpy.server.transport.TransportGroup;
 import com.gamescrcpy.server.transport.TunnelTransport;
 import com.gamescrcpy.server.transport.UdpTransport;
@@ -84,8 +85,9 @@ public final class Main {
         if (options.udp) {
             final UdpTransport direct;
             try {
-                direct = new UdpTransport(new DatagramSocket(options.udpPort), token, random,
-                        () -> System.nanoTime() / 1000);
+                final DatagramSocket socket = new DatagramSocket(options.udpPort);
+                TrafficClass.markAsVideo(socket);
+                direct = new UdpTransport(socket, token, random, () -> System.nanoTime() / 1000);
             } catch (SocketException e) {
                 fail(ErrorCode.INTERNAL_ERROR, "cannot bind UDP port " + options.udpPort + ": " + e.getMessage());
                 return;

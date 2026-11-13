@@ -5,6 +5,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <span>
 #include <string>
@@ -33,6 +34,8 @@ public:
         UdpEndpoint from;
     };
 
+    enum class Marking : std::uint8_t { None, Pending, Video, Failed };
+
     UdpSocket() noexcept = default;
     UdpSocket(UdpSocket&& other) noexcept;
     UdpSocket& operator=(UdpSocket&& other) noexcept;
@@ -46,6 +49,8 @@ public:
 
     void setReceiveTimeout(std::chrono::milliseconds timeout) noexcept;
     bool setReceiveBufferSize(std::size_t bytes) noexcept;
+    bool markAsVideo(const UdpEndpoint& to) noexcept;
+    [[nodiscard]] Marking marking() const noexcept;
 
     [[nodiscard]] bool sendTo(const UdpEndpoint& to, std::span<const std::uint8_t> datagram) noexcept;
     [[nodiscard]] std::optional<Received> receive(std::span<std::uint8_t> buffer) noexcept;
@@ -56,6 +61,8 @@ public:
 private:
     static constexpr std::uintptr_t kInvalid = ~std::uintptr_t{0};
 
+    struct VideoFlow;
+
     explicit UdpSocket(std::uintptr_t socket, bool v6) noexcept : m_socket(socket), m_v6(v6) {}
     void close() noexcept;
 
@@ -63,6 +70,7 @@ private:
     bool m_v6 = false;
     std::atomic<bool> m_interrupted{false};
     bool m_receiveTimedOut = false;
+    std::shared_ptr<VideoFlow> m_videoFlow;
 };
 
 }
