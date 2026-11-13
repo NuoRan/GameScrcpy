@@ -9,6 +9,7 @@ target_sources(GameScrcpy PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/GameScrcpy.rc")
 qt_add_qml_module(GameScrcpy
     URI GameScrcpy.App
     VERSION 1.0
+    IMPORT_PATH "${QT_QML_OUTPUT_DIRECTORY}"
     QML_FILES
         qml/AboutPage.qml
         qml/AccentSetting.qml
@@ -653,4 +654,7 @@ if(GS_BUILD_TESTS)
             ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${QT6_INSTALL_PREFIX}/${QT6_INSTALL_BINS}"
         )
     endif()
+    find_package(Python3 3.10 REQUIRED COMPONENTS Interpreter)
+    add_test(NAME gs_qml_aot_lookups
+        COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tools/check_qml_aot.py" "${PROJECT_BINARY_DIR}/src")
 endif()

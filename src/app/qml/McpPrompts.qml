@@ -38,9 +38,8 @@ Item {
             approval.open()
             return
         }
-        const asked = McpServer.confirmation
-        if (asked.id !== undefined) {
-            confirm.shown = asked
+        if (McpServer.confirmation.id !== undefined) {
+            confirm.shown = McpServer.confirmation
             confirm.answered = false
             quiet.checked = false
             confirm.open()

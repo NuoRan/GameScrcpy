@@ -6,6 +6,7 @@ qt_add_library(gs_ui_icons STATIC)
 qt_add_qml_module(gs_ui_icons
     URI GameScrcpy.Icons
     VERSION 1.0
+    IMPORT_PATH "${QT_QML_OUTPUT_DIRECTORY}"
     QML_FILES
         Icon.qml
         IconPaths.js

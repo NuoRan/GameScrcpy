@@ -7,6 +7,7 @@ qt_add_library(gs_ui_theme STATIC)
 qt_add_qml_module(gs_ui_theme
     URI GameScrcpy.Theme
     VERSION 1.0
+    IMPORT_PATH "${QT_QML_OUTPUT_DIRECTORY}"
     QML_FILES
         Theme.qml
         ColorTokens.qml

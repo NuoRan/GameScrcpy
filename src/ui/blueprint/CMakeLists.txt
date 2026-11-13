@@ -7,6 +7,7 @@ set_target_properties(gs_ui_blueprint PROPERTIES QT_QMLCACHEGEN_ARGUMENTS "--onl
 qt_add_qml_module(gs_ui_blueprint
     URI GameScrcpy.Blueprint
     VERSION 1.0
+    IMPORT_PATH "${QT_QML_OUTPUT_DIRECTORY}"
     QML_FILES
         BlueprintCanvas.qml
         BlueprintDetails.qml
