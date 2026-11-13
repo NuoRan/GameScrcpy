@@ -995,6 +995,10 @@
         <translation>这个 AI 服务提供者现在用不了。</translation>
     </message>
     <message>
+        <source>the answer is too long</source>
+        <translation>回答太长了</translation>
+    </message>
+    <message>
         <source>The AI provider %1 did not answer in time. Try again.</source>
         <translation>AI 服务提供者 %1 没有及时回答，请再试一次。</translation>
     </message>
@@ -1104,6 +1108,10 @@
     <message>
         <source>The service stopped with an error: %1</source>
         <translation>模型服务出错，回答中止：%1</translation>
+    </message>
+    <message>
+        <source>The answer is too long, so GameScrcpy stopped reading it.</source>
+        <translation>回答太长，GameScrcpy 停止了读取。</translation>
     </message>
 </context>
 <context>
@@ -6134,6 +6142,37 @@
     </message>
 </context>
 <context>
+    <name>ExtensionCompatibilityDialog</name>
+    <message>
+        <source>Made for an older GameScrcpy</source>
+        <translation>为旧版 GameScrcpy 制作</translation>
+    </message>
+    <message>
+        <source>Needs a newer GameScrcpy</source>
+        <translation>需要更新版的 GameScrcpy</translation>
+    </message>
+    <message>
+        <source>Some extensions do not work with GameScrcpy %1</source>
+        <translation>有些扩展在 GameScrcpy %1 上用不了</translation>
+    </message>
+    <message>
+        <source>Check for updates</source>
+        <translation>检查更新</translation>
+    </message>
+    <message>
+        <source>Open Extensions</source>
+        <translation>打开扩展页</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>关闭</translation>
+    </message>
+    <message>
+        <source>Newer versions of these extensions may fit this GameScrcpy, from their authors or through Check for updates.</source>
+        <translation>这些扩展的新版本也许适合这个 GameScrcpy：可以向作者要，也可以点“检查更新”。</translation>
+    </message>
+</context>
+<context>
     <name>ExtensionMedia</name>
     <message>
         <source>The extension&apos;s picture could not be opened</source>
@@ -6385,6 +6424,10 @@
     <message>
         <source>Languages</source>
         <translation>语言</translation>
+    </message>
+    <message>
+        <source>Made for an older GameScrcpy</source>
+        <translation>为旧版 GameScrcpy 制作</translation>
     </message>
     <message>
         <source>This extension has no version for this computer</source>
@@ -8360,6 +8403,14 @@
         <translation>信任并安装</translation>
     </message>
     <message>
+        <source>Needs a newer GameScrcpy</source>
+        <translation>需要更新版的 GameScrcpy</translation>
+    </message>
+    <message>
+        <source>Made for an older GameScrcpy</source>
+        <translation>为旧版 GameScrcpy 制作</translation>
+    </message>
+    <message>
         <source>Update</source>
         <translation>更新</translation>
     </message>
@@ -8403,6 +8454,10 @@
     <message>
         <source>This package can&apos;t be installed.</source>
         <translation>这个扩展包无法安装。</translation>
+    </message>
+    <message>
+        <source>Ask its author for a version made for this GameScrcpy, or check for updates.</source>
+        <translation>请向作者要适合这个 GameScrcpy 的版本，或者检查更新。</translation>
     </message>
     <message>
         <source>What changes from version %1</source>

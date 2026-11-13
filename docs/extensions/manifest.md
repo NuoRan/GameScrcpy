@@ -135,8 +135,8 @@ GameScrcpy 载入扩展时对照上表检查 `requires`：不满足的扩展不�
 
 | 代码 | 意思 | 卡片上的说法 |
 |:--|:--|:--|
-| `host-api-missing` | 程序没有这个扩展点 | 需要更新版本的 GameScrcpy |
-| `host-api-version` | 要的版本比程序提供的新 | 需要更新版本的 GameScrcpy |
+| `host-api-missing` | 程序没有这个扩展点 | 需要更新版的 GameScrcpy |
+| `host-api-version` | 要的版本比程序提供的新 | 需要更新版的 GameScrcpy |
 | `host-api-outdated` | 程序提供的每个版本都比范围允许的新，扩展是为旧版 GameScrcpy 做的 | 为旧版 GameScrcpy 制作 |
 
 只有下界的范围（如 `>=1.0`）永远不会是 `host-api-outdated`。为旧版写的扩展要把 `requires` 改成程序提供的版本，例如 `"native": "^2.0"`；用户则向作者要新版本或检查更新。GameScrcpy 更新后第一次启动时，会列出你开着、却因为这些原因打不开的扩展，并给出“检查更新”与“打开扩展页”。
