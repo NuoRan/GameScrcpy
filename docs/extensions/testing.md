@@ -40,7 +40,7 @@ gs ext test .\alice.lap-timer-1.2.0.gsext --test .\more-tests\flash.json --json
 
 1. 用 `gs validate` 的规则检查清单和文件，有错误就停下（退出码 2）。
 2. 载入每个脚本，给它 2 秒的测试时间和一台假手机。对 `ui.*` 的调用被记下来、不真正画；用到模拟宿主没有的服务（例如联网、文件、本机连接、语音）的脚本标成 `limited`，脚本自己出错的标成 `failed`，扩展就算载入失败。
-3. 载入 DLL：默认在 `gs` 自己的进程里，`--hosted` 时像 GameScrcpy 那样放进 `gs-exthost.exe`；清单写 `"sandbox": "restricted"` 的 DLL 不管加不加 `--hosted`，都在 `gs-exthost.exe` 与它自己的 AppContainer 里跑（容器叫 `gs-test:<扩展 id>`，测完删掉）。模拟宿主的宿主函数记下日志、通知、事件和设备变化，实现长任务、设置、硬件占用与服务的规则。
+3. 载入 DLL：默认在 `gs` 自己的进程里，`--hosted` 时像 GameScrcpy 那样放进 `gs-exthost.exe`；清单写 `"sandbox": "restricted"` 的 DLL 不管加不加 `--hosted`，都在 `gs-exthost.exe` 与它自己的 AppContainer 里跑（用 `gs-test:<扩展 id>` 造，测完删掉）。模拟宿主的宿主函数记下日志、通知、事件和设备变化，实现长任务、设置、硬件占用与服务的规则。
 4. 跑扩展文件夹里 `tests/` 下的每个 `.json`（按文件名排序），或者 `--test` 给出的文件。每个测试从新的状态开始：新载入的 DLL、清单里的默认设置、清单申请的全部权限。
 
 报告里每个测试一行，下面是每一步的结果（`pass` 或 `FAIL`、序号、测试时钟的毫秒、说明），最后是“N passed, M failed”。退出码：0 全部通过，1 有失败的步骤（或者一个测试都没有），2 扩展载入不了。`--json` 输出同样的内容。

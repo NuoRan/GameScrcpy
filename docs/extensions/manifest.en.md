@@ -65,7 +65,7 @@
 | `description` | | At most 1000 characters |
 | `authors` | | Up to 32 names of at most 100 characters each |
 | `license` | yes | The license, best as an SPDX identifier such as `MIT` or `Apache-2.0`; at most 100 characters |
-| `repository` | | An address starting with `https://` |
+| `repository` | | An address starting with `https://`, at most 512 characters |
 | `authorKey` | | The author's minisign public key (56 characters starting with `RW`), used to check the package's signature; see [Packing and publishing](publishing.en.md) |
 | `updates` | | `{ "index": "https://…" }`: the address of the update list; see below |
 | `aiAssisted` | | `true` says the extension was made with the help of AI |
@@ -86,7 +86,7 @@ The manifest writes different names in different ways; the rest of this page cal
 | Panel name | 1 to 32 lowercase letters, digits or hyphens, such as `lap-list` | Panels, the `id` of help articles and tours, the `name` of scripts, converters and the folders of `files.paths` |
 | Profile name | 1 to 64 letters, digits, `_` or `-` | The `name` of profiles, components (at most 48) and tasks |
 | Setting key | A letter followed by letters and digits, at most 64 characters | `settings[].key` |
-| Package path | Relative to the extension folder, separated by `/`, never leaving the folder and without `\ : * ? " < > \|`, at most 260 characters | Every `file`, `entry`, `folder` and `dll` |
+| Package path | Relative to the extension folder, separated by `/`, never leaving the folder and without `\ : * ? " < > \|`, at most 260 characters; each part at most 255 characters, not ending in a dot or a space, and not a Windows name such as `con`, `nul` or `com1` | Every `file`, `entry`, `folder` and `dll` |
 
 Files and folders whose names start with a dot (such as `.build` or `.git`) are neither checked nor packed.
 
@@ -338,7 +338,7 @@ Give either `script` or `node`. Services need no extension point of their own, b
 
 The parameters and results of nodes and jobs use these types: `boolean`, `number`, `string`, `point` (a point of the picture, as ratios), `region` (a part of the picture, as ratios), `color` (`#RRGGBB`), `duration` (milliseconds) and `json`.
 
-The `params` of attachments and behaviors are what the user sets in the key mapping editor, each `{ key, type, title, description, default, min, max, step, unit, log, options, shape }`: `key` is a native name, `type` one of `number`, `integer`, `toggle`, `choice`, `key`, `point`, `region`, `curve` and `color`, and `title` is required (at most 60 characters); `min`, `max`, `step`, `unit` (at most 16 characters) and `log` (a logarithmic scale, which needs `min` above 0) are for numbers only, `options` (up to 32 native names) only for `choice`, and `shape` (`circle` or `rect`) only for `region`. `default` must fit the type: a point is `[x, y]`, a region `[x, y, r]` or `[x, y, w, h]`, a curve 2 to 16 rising `[x, y]`, all within 0 to 1.
+The `params` of attachments and behaviors are what the user sets in the key mapping editor, each `{ key, type, title, description, default, min, max, step, unit, log, options, shape }`: `key` is a native name, `type` one of `number`, `integer`, `toggle`, `choice`, `key`, `point`, `region`, `curve` and `color`, and `title` is required (at most 60 characters); `min`, `max`, `step`, `unit` (at most 16 characters) and `log` (a logarithmic scale, which needs `min` above 0) are for numbers only, `options` (up to 32 native names) only for `choice`, and `shape` (`circle` or `rect`) only for `region`. `default` must fit the type: a point is `[x, y]` and a region `[x, y, r]` or `[x, y, w, h]`, with positions within -2 to 2 and sizes within 0 to 4; a curve is 2 to 16 rising `[x, y]`, both numbers within 0 to 1.
 
 ### `cli` (up to 16)
 
@@ -349,7 +349,7 @@ The `params` of attachments and behaviors are what the user sets in the key mapp
 ]
 ```
 
-`gs ext <extension> <name> --<parameter> <value>` runs the native job `job` in the mock host of `gs` (see [Testing extensions](testing.en.md#command-line-commands)). `name` is 1 to 32 lowercase letters, digits or hyphens; `description` at most 200 characters; `params` names parameters of that job only, with a `default` of the parameter's type; the job's parameters cannot be called `json`, `hosted` or `help`, which are options of `gs` itself. No extension point is needed.
+`gs ext <extension> <name> --<parameter> <value>` runs the native job `job` in the mock host of `gs` (see [Testing extensions](testing.en.md#command-line-commands)). `name` is 1 to 32 lowercase letters, digits or hyphens, not starting or ending with a hyphen and never two in a row; `description` at most 200 characters; `params` names parameters of that job only, with a `default` of the parameter's type; the job's parameters cannot be called `json`, `hosted` or `help`, which are options of `gs` itself. No extension point is needed.
 
 ### `converters` (extension point `script`, up to 16)
 
@@ -418,7 +418,7 @@ Kept in the format; 2.1.0 does not offer these extension points.
 | `maxLength` | Only for `text`, 1 to 4096 |
 | `default` | Required, of the type and in range |
 | `scope` | `global` (the default) or `device`: each phone can have its own value |
-| `live` | `true` when a change takes effect at once, as filter parameters do |
+| `live` | `true` when the setting is meant to be watched as it changes, as filter parameters are; extension settings are saved and take effect as they change either way |
 
 Settings appear in Settings › Extensions and in the settings window of the extension's card. Filter parameters read the setting of the same key; a native DLL reads them with `setting_get` and hears of changes in `settings_changed`; logic gets the `settings.changed` event (with the keys that changed).
 
@@ -499,7 +499,7 @@ Each result of `gs validate` has a code and a hint; these are the ones met most 
 | `permission-unknown`, `permission-reason-missing`, `permission-not-allowed`, `permission-never-granted` | An unknown permission, no reason, a kind of extension that cannot ask for permissions, or `adb.shell` |
 | `permission-hosts-missing`, `permission-host-invalid`, `permission-any-host` | `hosts` of `network` missing, not written right, or only `*` (a warning) |
 | `permission-paths-missing`, `permission-paths-fixed`, `permission-field-unused` | `files.paths` without `folders`; `paths` that do nothing (a warning); a field on a permission it does not belong to (a warning) |
-| `url-invalid` | `repository` or `updates.index` is not an `https://` address with a host |
+| `url-invalid` | `repository` is not an `https://` address; `updates.index` is not an `https://` address with a host and without a user name |
 | `converter-invalid`, `locale-invalid` | A converter's formats are not right; a language code is not right or built in, or the translation is not a `.qm` |
 | `ai-provider-invalid`, `vision-engine-invalid` | An AI provider's node or job does not fit the convention; a recognition engine's `kinds` are not right |
 | `signature-invalid`, `signature-missing`, `publisher-changed`, `signing-key-mismatch` | The signature does not match, an update lost its signature, the key changed, or the private key used for packing does not fit `authorKey` (see [Packing and publishing](publishing.en.md#signing)) |

@@ -17,7 +17,7 @@ A Read aloud button on the mirror window's toolbar: one press, and the extension
 1. `gs validate examples\extensions\read-aloud`, `gs check examples\extensions\read-aloud`.
 2. `gs pack examples\extensions\read-aloud -o read-aloud.gsext`, then "Install from file…" on the Extensions page, turn it on and allow its permission.
 3. Open the mirror window of a phone (without a phone, the demo device of `GameScrcpy.exe --demo-device tests\data\video\emulator_h265.media` will do). The toolbar has a speaker button, and the side panel has Read aloud.
-4. In the side panel, the sliders Left, Top, Width and Height frame the part to read (as ratios of the picture; by default the chat corner at the bottom left), and you can choose the language of the text.
+4. In the side panel, the sliders Left, Top, Width and Height frame the part to read (as ratios of the picture; by default the chat corner at the bottom left), and you can choose the language of the text. The panel's text comes from the script and does not go through the manifest's `l10n`, so it is in English.
 5. Press the toolbar button or "Read now" in the panel: the text shows under "Last read" and is read out. The button shows as pressed while it reads.
 
 The text recognition of Windows uses the OCR languages installed on the system; "As in Windows" follows the user's languages.

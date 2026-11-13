@@ -1304,6 +1304,14 @@ void checkEntry(const UpdateSource& updates, const std::string& path, Context& c
     if (!validHttpsUrl(updates.index)) {
         return;
     }
+    const bool ascii = std::ranges::all_of(updates.index, [](char c) {
+        const auto code = static_cast<unsigned char>(c);
+        return code > 0x20 && code < 0x7F;
+    });
+    if (!ascii) {
+        context.report(Severity::Error, Code::UrlInvalid, path + ".index", "printable ASCII only");
+        return;
+    }
     const std::string_view rest = std::string_view(updates.index).substr(8);
     const std::string_view authority = rest.substr(0, rest.find_first_of("/?#"));
     if (authority.empty() || authority.front() == ':' || authority.find('@') != std::string_view::npos) {

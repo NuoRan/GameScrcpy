@@ -65,7 +65,7 @@
 | `description` | | 最长 1000 个字符 |
 | `authors` | | 最多 32 个名字，每个最长 100 个字符 |
 | `license` | 是 | 许可证，建议写 SPDX 标识，如 `MIT`、`Apache-2.0`；最长 100 个字符 |
-| `repository` | | `https://` 开头的地址 |
+| `repository` | | `https://` 开头的地址，最长 512 个字符 |
 | `authorKey` | | 作者的 minisign 公钥（`RW` 开头的 56 个字符），用来校验包里的签名，见[打包与发布](publishing.md) |
 | `updates` | | `{ "index": "https://…" }`：更新列表的地址，见下文 |
 | `aiAssisted` | | `true` 表示扩展是借助 AI 做的 |
@@ -86,7 +86,7 @@
 | 面板名 | 1～32 个小写字母、数字或连字符，如 `lap-list` | 面板、帮助与引导的 `id`，脚本、转换器与 `files.paths` 文件夹的 `name` |
 | 方案名 | 1～64 个字母、数字、`_` 或 `-` | 方案、组件（最长 48）与任务的 `name` |
 | 设置键 | 字母开头，后面是字母和数字，最长 64 个字符 | `settings[].key` |
-| 包内路径 | 相对扩展文件夹、用 `/` 分隔，不能出文件夹、不能带 `\ : * ? " < > \|`，最长 260 个字符 | 各种 `file`、`entry`、`folder`、`dll` |
+| 包内路径 | 相对扩展文件夹、用 `/` 分隔，不能出文件夹、不能带 `\ : * ? " < > \|`，最长 260 个字符；每段最长 255 个字符，不能以点或空格结尾，也不能用 `con`、`nul`、`com1` 这类 Windows 保留名 | 各种 `file`、`entry`、`folder`、`dll` |
 
 名字以点开头的文件和文件夹（如 `.build`、`.git`）不会被检查，也不会被打包。
 
@@ -338,7 +338,7 @@ GameScrcpy 载入扩展时对照上表检查 `requires`：不满足的扩展不�
 
 节点与任务的参数和返回值用这些类型：`boolean`、`number`、`string`、`point`（画面上的点，比例）、`region`（画面上的区域，比例）、`color`（`#RRGGBB`）、`duration`（毫秒）、`json`。
 
-附加与行为的 `params` 是给用户在键位编辑器里调的参数，每个是 `{ key, type, title, description, default, min, max, step, unit, log, options, shape }`：`key` 是原生名，`type` 是 `number`、`integer`、`toggle`、`choice`、`key`、`point`、`region`、`curve`、`color` 之一，`title` 必填（最长 60 个字符）；`min`、`max`、`step`、`unit`（最长 16 个字符）、`log`（对数刻度，要求 `min` 大于 0）只用于数字，`options`（最多 32 个原生名）只用于 `choice`，`shape`（`circle` 或 `rect`）只用于 `region`；`default` 要符合类型（点写 `[x, y]`，区域写 `[x, y, r]` 或 `[x, y, w, h]`，曲线写 2～16 个上升的 `[x, y]`，都在 0～1）。
+附加与行为的 `params` 是给用户在键位编辑器里调的参数，每个是 `{ key, type, title, description, default, min, max, step, unit, log, options, shape }`：`key` 是原生名，`type` 是 `number`、`integer`、`toggle`、`choice`、`key`、`point`、`region`、`curve`、`color` 之一，`title` 必填（最长 60 个字符）；`min`、`max`、`step`、`unit`（最长 16 个字符）、`log`（对数刻度，要求 `min` 大于 0）只用于数字，`options`（最多 32 个原生名）只用于 `choice`，`shape`（`circle` 或 `rect`）只用于 `region`；`default` 要符合类型（点写 `[x, y]`，区域写 `[x, y, r]` 或 `[x, y, w, h]`，位置在 -2～2、尺寸在 0～4；曲线写 2～16 个上升的 `[x, y]`，两个数都在 0～1）。
 
 ### `cli`（最多 16 个）
 
@@ -349,7 +349,7 @@ GameScrcpy 载入扩展时对照上表检查 `requires`：不满足的扩展不�
 ]
 ```
 
-`gs ext <扩展> <name> --<参数> <值>` 在 `gs` 的模拟宿主里跑原生任务 `job`（见[测试扩展](testing.md#命令行子命令)）。`name` 是 1～32 个小写字母、数字或连字符；`description` 最长 200 个字符；`params` 只能是这个任务的参数，`default` 要符合参数的类型；任务的参数不能叫 `json`、`hosted` 或 `help`（这些是 `gs` 自己的选项）。不需要扩展点。
+`gs ext <扩展> <name> --<参数> <值>` 在 `gs` 的模拟宿主里跑原生任务 `job`（见[测试扩展](testing.md#命令行子命令)）。`name` 是 1～32 个小写字母、数字或连字符，不以连字符开头或结尾，也不连写两个；`description` 最长 200 个字符；`params` 只能是这个任务的参数，`default` 要符合参数的类型；任务的参数不能叫 `json`、`hosted` 或 `help`（这些是 `gs` 自己的选项）。不需要扩展点。
 
 ### `converters`（扩展点 `script`，最多 16 个）
 
@@ -418,7 +418,7 @@ GameScrcpy 载入扩展时对照上表检查 `requires`：不满足的扩展不�
 | `maxLength` | 只用于 `text`，1～4096 |
 | `default` | 必填，要符合类型与范围 |
 | `scope` | `global`（默认）或 `device`：每台手机可以有自己的值 |
-| `live` | `true` 表示改了立刻生效，像滤镜参数那样 |
+| `live` | `true` 表示这个设置适合边改边看效果，像滤镜参数那样；扩展的设置无论写不写，改的时候都立刻保存并生效 |
 
 设置出现在设置 › 扩展与扩展卡片的设置窗口里。滤镜参数读同名的设置；原生 DLL 用 `setting_get` 读、在 `settings_changed` 里得知改动；逻辑会收到 `settings.changed` 事件（只有改了哪些键）。
 
@@ -499,7 +499,7 @@ GameScrcpy 载入扩展时对照上表检查 `requires`：不满足的扩展不�
 | `permission-unknown`、`permission-reason-missing`、`permission-not-allowed`、`permission-never-granted` | 不认识的权限、没写理由、这种扩展不能申请权限、申请了 `adb.shell` |
 | `permission-hosts-missing`、`permission-host-invalid`、`permission-any-host` | `network` 的 `hosts` 缺失、写法不对、只写了 `*`（警告） |
 | `permission-paths-missing`、`permission-paths-fixed`、`permission-field-unused` | `files.paths` 没写 `folders`；写了不起作用的 `paths`（警告）；字段用在了别的权限上（警告） |
-| `url-invalid` | `repository` 或 `updates.index` 不是带主机名的 `https://` 地址 |
+| `url-invalid` | `repository` 不是 `https://` 地址；`updates.index` 不是带主机名、不带用户名的 `https://` 地址 |
 | `converter-invalid`、`locale-invalid` | 转换器的格式名不对；语言代码不对、用了自带的语言，或译文不是 `.qm` |
 | `ai-provider-invalid`、`vision-engine-invalid` | AI 服务提供者的节点或任务不合约定；识别引擎的 `kinds` 不对 |
 | `signature-invalid`、`signature-missing`、`publisher-changed`、`signing-key-mismatch` | 签名对不上、更新少了签名、换了公钥、打包用的私钥和 `authorKey` 不配（见[打包与发布](publishing.md#签名)） |

@@ -2432,7 +2432,8 @@ TEST_CASE("ADR-0112: a native DLL runs with full rights unless its manifest says
     CHECK_FALSE(contains(schema["properties"]["contributes"]["properties"]["native"]["required"], "sandbox"));
 }
 
-TEST_CASE("ADR-0112: a manifest names its update list with an https address that has a host and no user name")
+TEST_CASE("ADR-0112: a manifest names its update list with an https address of printable ASCII that has a host and "
+          "no user name")
 {
     Json json = base();
     json["updates"] = {{"index", "https://alice.example/gamescrcpy/index.json"}};
@@ -2448,7 +2449,8 @@ TEST_CASE("ADR-0112: a manifest names its update list with an https address that
 
     for (const char* bad : {"http://alice.example/index.json", "https://", "https:///index.json",
                             "https://:443/index.json", "https://user@alice.example/index.json",
-                            "https://alice.example/my index.json", "ftp://alice.example/index.json"}) {
+                            "https://alice.example/my index.json", "ftp://alice.example/index.json",
+                            "https://alice.example/caf\xC3\xA9.json", "https://alice.example/\x01.json"}) {
         json["updates"] = {{"index", bad}};
         loaded = load(json);
         CHECK_FALSE_MESSAGE(loaded.usable, bad);

@@ -308,7 +308,7 @@ DLL 自己回答服务时，服务的 `node` 指向一个只有一个 `json` 参
 `device_list`、`device_open`、`device_write`、`device_control`、`device_close` 让 DLL 经 GameScrcpy 用用户允许给这个扩展的串口、HID 与低功耗蓝牙设备，和逻辑的 `hardware.*` 是同一套：设备由扩展的逻辑用 `hardware.request` 请用户勾选（例如在它的面板上），用户在扩展页收回。要权限 `hardware`，先问 `supports("devices")`。[受限模式](#受限模式)的 DLL 只能这样碰硬件，完全权限的 DLL 也可以用。
 
 - `device_list(context, devices)` 把允许的设备写成 JSON 数组 `[{ id, kind, name, present }]`：`kind` 是 `serial`、`hid` 或 `ble`，`present` 说明现在连着没有。
-- `device_open(context, id, 选项, &device, answer)` 打开一台、给出设备号；串口的选项同逻辑的 `hardware.open`（`{ baudRate, dataBits, parity, stopBits, flowControl, dtr, rts }`），别的设备传空。GameScrcpy 顺带替扩展占用这台设备的硬件（见[硬件占用](#硬件占用)），设备关掉时放开。没有权限或用户没允许是 `GS_EXT_DENIED`，选项不可能是 `GS_EXT_BAD_ARGUMENT`，没连着、别人在用或打不开是 `GS_EXT_FAILED`，原因写在 `answer` 里。打开蓝牙设备可能要几秒。
+- `device_open(context, id, 选项, &device, answer)` 打开一台、给出设备号；串口的选项同逻辑的 `hardware.open`（`{ baudRate, dataBits, parity, stopBits, flowControl, dtr, rts }`），别的设备传空。GameScrcpy 顺带替扩展占用这台设备的硬件（见[硬件占用](#硬件占用)），设备关掉时放开。没有权限或用户没允许是 `GS_EXT_DENIED`，选项不可能时是 `GS_EXT_BAD_ARGUMENT`，没连着、别人在用或打不开是 `GS_EXT_FAILED`，原因写在 `answer` 里。打开蓝牙设备可能要几秒。
 - `device_write(context, device, 数据, 大小, target, answer)` 发数据，设备收下才返回：串口原样发，最多 65536 字节；HID 是输出报告，`target` 写 `{ "report": id }`，最多 4096 字节；蓝牙是特征的新值，`target` 写 `{ "service": uuid, "characteristic": uuid, "response": true }`，最多 512 字节（`response` 为 `false` 时不等设备确认）。
 - `device_control(context, device, 请求, answer)` 做 `hardware.control` 能做的其余的事，请求的 `op` 是 `signals`（串口的 DTR / RTS）、`sendFeature` / `getFeature`（HID 的特性报告）、`services`（列出蓝牙设备的服务与特征）、`read`（读特征）或 `subscribe`（打开或关掉特征的通知）；字节两边都用 base64 文字。
 - `device_close(context, device)` 立即返回，任何线程都能调，`unload` 里也行；扩展停下或它的进程停了，GameScrcpy 自己关掉它的设备。
@@ -359,11 +359,11 @@ AI 服务提供者让设置 › AI 的“模型服务”里多一项：小助手
 
 清单的 `contributes.native` 写 `"sandbox": "restricted"`，DLL 就在一个只属于这个扩展的 AppContainer 里的 `gs-exthost.exe` 中运行。接口和完全权限的 DLL 一样，但是：
 
-- **不能**：读写扩展文件夹以外的文件（自己的文件夹也只读）、联网、启动别的程序，也看不到用户的环境变量：进程只有系统的几项变量，`LOCALAPPDATA`、`TEMP`、`TMP` 指向这个容器自己的文件夹（`%LOCALAPPDATA%\Packages\gamescrcpy.extension.<散列>\AC` 与其下的 `Temp`），临时文件放在那里。剪贴板、系统设置、别的程序的窗口这类界面操作也被挡掉。
+- **不能**：读写扩展文件夹以外的文件（自己的文件夹也只读）、联网、启动别的程序，也看不到用户的其他环境变量：进程只有系统的几项变量，`LOCALAPPDATA`、`TEMP`、`TMP` 的值取自 GameScrcpy；能写的是这个扩展自己的容器文件夹 `%LOCALAPPDATA%\Packages\GameScrcpy.Extension.<散列>\AC` 与其下的 `Temp`，往用户的临时文件夹写会被拒绝。剪贴板、系统设置、别的程序的窗口这类界面操作也被挡掉。
 - **能**：碰硬件只经[设备函数](#经-gamescrcpy-用设备)（要 `hardware` 权限并经用户允许，`claim` 同样要 `hardware`）；存储、AI 请求的临时文件由 GameScrcpy 代为交给它。
 - **上限**：进程最多用 1 GiB 内存、只能有一个进程。GameScrcpy 这一边还替它限速：日志每秒 200 行、通知 10 秒 3 条、设备变化每秒 4 次、输入事件每秒 16000 个，超出的丢掉，第一次丢时日志里记一条；事件的值必须是合法的 UTF-8 JSON。
 - 安装检查不再要求它导入的联网、文件函数有对应的权限，安装框写“受限：只能做它声明的事”，并列出沙箱挡掉的系统函数；没签名时只是一条提示。
-- `gs ext test` 里受限的 DLL 也总在 `gs-exthost.exe` 与 AppContainer 里跑（容器叫 `gs-test:<扩展 id>`，测完删掉），不用加 `--hosted`。
+- `gs ext test` 里受限的 DLL 也总在 `gs-exthost.exe` 与 AppContainer 里跑（用 `gs-test:<扩展 id>` 造，测完删掉），不用加 `--hosted`。
 - 已知限制：容器里的进程要能读取、执行 `gs-exthost.exe` 与它旁边的依赖，GameScrcpy 为此给“所有应用程序包”授权；文件的属主是 Administrators、而 GameScrcpy 在普通权限下运行时改不了权限（错误 5）。便携版由管理员权限的程序解压到非系统盘时会遇到，装在 Program Files 下的不受影响。
 
 ## 一个 DLL 对应多种处理器
