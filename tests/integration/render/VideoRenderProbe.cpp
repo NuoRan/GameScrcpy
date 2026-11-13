@@ -30,6 +30,7 @@
 #include <QQuickGraphicsDevice>
 #include <QQuickWindow>
 #include <QRandomGenerator>
+#include <QScreen>
 #include <QSurfaceFormat>
 #include <QTimer>
 
@@ -51,6 +52,7 @@
 namespace {
 
 constexpr double kSharpenedEnergy = 1.1;
+constexpr qreal kFastScreenHz = 100.0;
 
 struct LatencySamples {
     void arrived(std::int64_t ptsUs, std::int64_t receivedUs)
@@ -354,9 +356,6 @@ int main(int argc, char* argv[])
     if (!qEnvironmentVariableIsSet("QT_D3D_NO_VBLANK_THREAD")) {
         qputenv("QT_D3D_NO_VBLANK_THREAD", "1");
     }
-    if (!qEnvironmentVariableIsSet("QT_D3D_MAX_FRAME_LATENCY")) {
-        qputenv("QT_D3D_MAX_FRAME_LATENCY", "1");
-    }
     if (!qEnvironmentVariableIsSet("QT_QPA_UPDATE_IDLE_TIME")) {
         qputenv("QT_QPA_UPDATE_IDLE_TIME", "0");
     }
@@ -364,6 +363,12 @@ int main(int argc, char* argv[])
         qputenv("QT_ENABLE_HIGHDPI_SCALING", "0");
     }
     QGuiApplication app(argc, argv);
+    if (!qEnvironmentVariableIsSet("QT_D3D_MAX_FRAME_LATENCY")) {
+        if (const QScreen* screen = QGuiApplication::primaryScreen();
+            screen != nullptr && screen->refreshRate() < kFastScreenHz) {
+            qputenv("QT_D3D_MAX_FRAME_LATENCY", "1");
+        }
+    }
     QCommandLineParser parser;
     parser.addPositionalArgument("recording", "A recorded video channel, as in tests/data/video.");
     const QCommandLineOption secondsOption("seconds", "How long to play.", "seconds", "5");

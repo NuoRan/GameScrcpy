@@ -79,6 +79,7 @@
 #include <QQuickWindow>
 #include <QSGRendererInterface>
 #include <QScopeGuard>
+#include <QScreen>
 #include <QStandardPaths>
 #include <QStringList>
 #include <QtQml/qqmlextensionplugin.h>
@@ -107,6 +108,8 @@ static_assert(gs::app::Commands::kMaxRecent == gs::app::settings::Palette::kMaxR
 static_assert(static_cast<std::size_t>(gs::app::CommandTable::kMaxIdLength) == gs::app::settings::kMaxCommandIdLength);
 
 namespace {
+
+constexpr qreal kFastScreenHz = 100.0;
 
 class QtLogSink final : public gs::log::Sink
 {
@@ -330,14 +333,17 @@ int main(int argc, char* argv[])
     if (!qEnvironmentVariableIsSet("QT_D3D_NO_VBLANK_THREAD")) {
         qputenv("QT_D3D_NO_VBLANK_THREAD", "1");
     }
-    if (!qEnvironmentVariableIsSet("QT_D3D_MAX_FRAME_LATENCY")) {
-        qputenv("QT_D3D_MAX_FRAME_LATENCY", "1");
-    }
     if (!qEnvironmentVariableIsSet("QT_QPA_UPDATE_IDLE_TIME")) {
         qputenv("QT_QPA_UPDATE_IDLE_TIME", "0");
     }
 
     QGuiApplication app(argc, argv);
+    if (!qEnvironmentVariableIsSet("QT_D3D_MAX_FRAME_LATENCY")) {
+        if (const QScreen* screen = QGuiApplication::primaryScreen();
+            screen != nullptr && screen->refreshRate() < kFastScreenHz) {
+            qputenv("QT_D3D_MAX_FRAME_LATENCY", "1");
+        }
+    }
     gs::app::installJsSequence();
     if (!gs::platform::keepTimerResolution()) {
         qWarning("timer resolution may be throttled while the window is hidden");
