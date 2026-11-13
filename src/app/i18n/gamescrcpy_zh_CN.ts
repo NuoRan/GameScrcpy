@@ -11241,8 +11241,8 @@
         <translation>退出编辑会像点“完成”一样保存改动，投屏窗口不关。</translation>
     </message>
     <message>
-        <source>Remember my choice (you can change it in Settings &gt; Display)</source>
-        <translation>记住我的选择（之后可以在“设置 &gt; 显示”里改）</translation>
+        <source>Remember my choice (you can change it in Settings &gt; Mirroring &amp; quality &gt; Display)</source>
+        <translation>记住我的选择（之后可以在“设置 &gt; 投屏与画质 &gt; 显示”里改）</translation>
     </message>
     <message>
         <source>Restore</source>

@@ -1984,7 +1984,7 @@ Item {
                 id: rememberClose
 
                 objectName: "rememberClose"
-                text: qsTr("Remember my choice (you can change it in Settings > Display)")
+                text: qsTr("Remember my choice (you can change it in Settings > Mirroring & quality > Display)")
             }
         }
 

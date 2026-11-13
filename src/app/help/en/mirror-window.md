@@ -19,7 +19,7 @@ While key mapping is on, the keys of the profile in use play the game instead. S
 
 ## Show the toolbar
 
-By default the toolbar is pinned in a bar above the picture, with the phone, profile and frame rate on its right. You can change this in **Settings > Mirroring & quality > Toolbar**:
+By default the toolbar is pinned in a bar above the picture, with the phone, profile and frame rate on its right. You can change this in **Settings > Mirroring & quality > Display > Toolbar**:
 
 - :pin: **Pinned above the picture**: the default. The pin at the right end of the toolbar unpins it.
 - :mouse-pointer-click: **Rest the pointer at the top**: the toolbar appears when the pointer rests at the top of the window, or when you touch the grip there.
@@ -63,11 +63,11 @@ In shooting and action games, a profile with a **View** key turns the camera wit
 
 The camera lock key is the key above Tab, left of the 1 key. When the profile sets another key, that one counts; you can change it in the profile's **View** key.
 
-While the camera is locked, the edges of the window glow so you can tell; turn off **Glow while the camera is locked** in **Settings > Display** if you do not want it. The pointer cannot leave the window while the camera is locked.
+While the camera is locked, the edges of the window glow so you can tell; turn off **Glow while the camera is locked** in **Settings > Mirroring & quality > Display** if you do not want it. The pointer cannot leave the window while the camera is locked.
 
 ## Type into the phone
 
-A profile can have a **Typing** key. Press it to type into the phone, for example in a chat. <kbd>Enter</kbd> sends the text; <kbd>Esc</kbd> goes back to the game.
+While key mapping is on, an input box that opens on the phone puts the window into typing: what you type goes into the box, and a note over the picture says "Typing on the phone: Enter sends, Esc goes back to the game". This needs [GameScrcpy Companion](help:companion), which tells GameScrcpy that the box is open.
 
 ## Full screen and the mini window
 
@@ -89,4 +89,4 @@ On the **Devices** page, **More > Apps** on a mirrored phone lists its apps and 
 
 ## Closing
 
-Closing the mirror window ends mirroring for that phone. While you edit the key mapping, the close button asks in the middle of the window whether to **Leave editing** (which saves, like **Done**, and keeps the window open) or **Close the mirror window**; tick **Remember my choice** and it stops asking, and you can change it back under **Closing while editing keys** in **Settings > Display**. If you choose to close with changes that are not saved, GameScrcpy asks about saving first.
+Closing the mirror window ends mirroring for that phone. While you edit the key mapping, the close button asks in the middle of the window whether to **Leave editing** (which saves, like **Done**, and keeps the window open) or **Close the mirror window**; tick **Remember my choice** and it stops asking, and you can change it back under **Closing while editing keys** in **Settings > Mirroring & quality > Display**. If you choose to close with changes that are not saved, GameScrcpy asks about saving first.

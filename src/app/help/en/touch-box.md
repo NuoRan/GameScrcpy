@@ -21,7 +21,7 @@ The line under the box's name says how it is doing. "In use by …" means anothe
 
 ## Touch a mirrored phone through a box
 
-Open the phone's **Settings**, go to **Input & key mapping** and choose the box's method under **Touch method from an extension**. When the method asks for a device, choose it under **Device for the touch method**. Both take effect the next time the phone connects, and while the extension is off or fails, touches go the normal way. Settings the extension keeps for each phone, such as which port to use, are in the same window under the extension's name.
+Open the phone's **Settings**, go to **Input & key mapping** and choose the box's method in **Touch method**, after Normal, UHID touch screen and AOA. When the method asks for a device, choose it under **Device for the touch method**. Both take effect the next time the phone connects, and while the extension is off or fails, touches go the normal way. Settings the extension keeps for each phone, such as which port to use, are in the same window under the extension's name.
 
 ## Pair a box with a capture card
 

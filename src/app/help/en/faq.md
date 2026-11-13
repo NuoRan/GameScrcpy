@@ -91,7 +91,7 @@ At the next start, GameScrcpy offers to export diagnostics; you can also do it a
 
 On the **Extensions** page, **Find a problem extension** loads your extensions a few at a time and asks whether the problem still happens, until it finds the one behind it. To start once without any extension, start `GameScrcpy.exe --safe-mode`.
 
-When an extension stops three times within a minute, GameScrcpy turns it off by itself and its card says why; the extension's **Details** show its health over the last 7 days and its crash reports. More in [Extensions · When something goes wrong](help:extensions#trouble).
+When an extension stops three times within a minute, GameScrcpy turns it off by itself and its card says why; the card also counts the stops of the last 7 days, and the extension's **Details** list each one with its crash report. More in [Extensions · When something goes wrong](help:extensions#trouble).
 
 ### Where are my settings and profiles? {#data-folder}
 

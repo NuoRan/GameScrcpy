@@ -91,7 +91,7 @@ GameScrcpy 通过 adb 和手机通信。请安装 Android SDK Platform-Tools，�
 
 在“扩展”页点“查找出问题的扩展”。它会分几轮加载你的扩展，每轮问你问题还在不在，直到找出是哪个扩展。想临时不加载任何扩展启动一次，可以用 `GameScrcpy.exe --safe-mode` 启动。
 
-扩展一分钟内停了三次，GameScrcpy 会自己把它关掉，卡片上写明原因；扩展的“详情”里有最近 7 天的健康状况和崩溃报告。更多见[扩展 · 出了问题](help:extensions#trouble)。
+扩展一分钟内停了三次，GameScrcpy 会自己把它关掉，卡片上写明原因；卡片上还写着最近 7 天停了几次，“详情”里列着每一次和它的崩溃报告。更多见[扩展 · 出了问题](help:extensions#trouble)。
 
 ### 设置和方案存在哪里 {#data-folder}
 
