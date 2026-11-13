@@ -15,6 +15,8 @@
 #include <string_view>
 #include <vector>
 
+#include <windows.h>
+
 using namespace gs;
 using namespace gs::session;
 using namespace gs::session::test;
@@ -74,12 +76,54 @@ SessionFailure runUntilFailed(adb::AdbClient client, std::shared_ptr<const Serve
     return *listener.failure();
 }
 
+class EnvironmentVariable
+{
+public:
+    EnvironmentVariable(const wchar_t* name, const wchar_t* value) : m_name(name)
+    {
+        std::wstring current(32, L'\0');
+        const DWORD size =
+            ::GetEnvironmentVariableW(m_name.c_str(), current.data(), static_cast<DWORD>(current.size()));
+        if (size > 0 && size < current.size()) {
+            m_had = true;
+            m_value.assign(current.data(), size);
+        }
+        ::SetEnvironmentVariableW(m_name.c_str(), value);
+    }
+
+    ~EnvironmentVariable() { ::SetEnvironmentVariableW(m_name.c_str(), m_had ? m_value.c_str() : nullptr); }
+
+    EnvironmentVariable(const EnvironmentVariable&) = delete;
+    EnvironmentVariable& operator=(const EnvironmentVariable&) = delete;
+
+private:
+    std::wstring m_name;
+    std::wstring m_value;
+    bool m_had = false;
+};
+
 }
 
 TEST_CASE("the server package is named after its content")
 {
     CHECK(package()->remotePath() == "/data/local/tmp/gs-server-ba7816bf8f01cfea.jar");
     CHECK(ServerPackage::load("Z:/nonexistent/server.apk") == nullptr);
+}
+
+TEST_CASE("ADR-0114 GS_TOUCH_LEAD_MS puts a touch lead of 0 to 8 ms on the server command line")
+{
+    const auto command = [](const wchar_t* lead) {
+        const EnvironmentVariable variable(L"GS_TOUCH_LEAD_MS", lead);
+        LaunchParams params;
+        params.socketName = "gamescrcpy_0123456789abcdef";
+        return serverCommand(*package(), params);
+    };
+    CHECK(command(L"0").find(" touchLead=0") != std::string::npos);
+    CHECK(command(L"3").find(" touchLead=3") != std::string::npos);
+    CHECK(command(L"8").find(" touchLead=8") != std::string::npos);
+    for (const wchar_t* ignored : {L"", L"-1", L"9", L"3.5", L"x"}) {
+        CHECK(command(ignored).find("touchLead") == std::string::npos);
+    }
 }
 
 TEST_CASE("a device that has not allowed USB debugging fails while deploying")

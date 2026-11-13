@@ -19,8 +19,8 @@ public interface EncodingSession extends AutoCloseable {
     }
 
     interface Factory {
-        EncodingSession open(EncoderLadder.Attempt attempt, DisplaySnapshot display, VideoSettings settings)
-                throws EncoderException;
+        EncodingSession open(EncoderLadder.Attempt attempt, DisplaySnapshot display, VideoSettings settings,
+                             boolean keyFramesOnRequest) throws EncoderException;
     }
 
     Output next(long deadlineNanos) throws EncoderException;
@@ -34,6 +34,8 @@ public interface EncodingSession extends AutoCloseable {
     void requestKeyFrame();
 
     void setPaused(boolean paused);
+
+    String outputFormatSummary();
 
     @Override
     void close();

@@ -11,6 +11,7 @@
 #include "gs/protocol/Constants.h"
 
 #include <algorithm>
+#include <array>
 #include <charconv>
 #include <condition_variable>
 #include <deque>
@@ -22,6 +23,8 @@
 #include <string_view>
 #include <thread>
 #include <utility>
+
+#include <windows.h>
 
 namespace gs::session {
 
@@ -206,13 +209,40 @@ ServerPackage::ServerPackage(std::vector<std::uint8_t> bytes, std::filesystem::p
         std::format("/data/local/tmp/gs-server-{}.jar", platform::toHex(std::span<const std::uint8_t>(digest).first(8)));
 }
 
+namespace {
+
+std::string touchLeadArgument()
+{
+    std::array<wchar_t, 16> text{};
+    const DWORD length =
+        ::GetEnvironmentVariableW(L"GS_TOUCH_LEAD_MS", text.data(), static_cast<DWORD>(text.size()));
+    if (length == 0 || length >= text.size()) {
+        return {};
+    }
+    std::string narrow;
+    narrow.reserve(length);
+    for (DWORD i = 0; i < length; ++i) {
+        if (text[i] > 0x7F) {
+            return {};
+        }
+        narrow.push_back(static_cast<char>(text[i]));
+    }
+    const std::optional<int> lead = parseNumber<int>(narrow);
+    if (!lead || *lead < 0 || *lead > 8) {
+        return {};
+    }
+    return std::format(" touchLead={}", *lead);
+}
+
+}
+
 std::string serverCommand(const ServerPackage& package, const LaunchParams& params, std::string_view extra)
 {
-    return std::format("trap '' HUP PIPE; CLASSPATH={} exec app_process / com.gamescrcpy.server.Main {} {} {} {}{}",
+    return std::format("trap '' HUP PIPE; CLASSPATH={} exec app_process / com.gamescrcpy.server.Main {} {} {} {}{}{}",
                        adb::shellQuote(package.remotePath()), protocol::kProtocolVersion,
                        adb::shellQuote("socket=" + params.socketName),
                        adb::shellQuote(std::format("lingerMs={}", params.linger.count())),
-                       adb::shellQuote("log=" + params.logLevel), extra);
+                       adb::shellQuote("log=" + params.logLevel), extra, touchLeadArgument());
 }
 
 std::string serverInput(const LaunchParams& params)

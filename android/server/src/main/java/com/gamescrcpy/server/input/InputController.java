@@ -27,21 +27,21 @@ public final class InputController {
     private final TextInjector text;
     private final Supplier<TouchGeometry> geometry;
     private final BooleanSupplier screenOn;
-    private final TouchPlanner planner = new TouchPlanner();
+    private final TouchPlanner planner;
     private final MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[POINTERS];
     private final MotionEvent.PointerCoords[] coords = new MotionEvent.PointerCoords[POINTERS];
     private final MotionEvent.PointerProperties[] scrollProperties = {new MotionEvent.PointerProperties()};
     private final MotionEvent.PointerCoords[] scrollCoords = {new MotionEvent.PointerCoords()};
     private final Map<Integer, Long> pressedKeys = new HashMap<>();
-    private long gestureDownTime;
     private long backDownTime = -1;
 
     public InputController(InputInjector injector, TextInjector text, Supplier<TouchGeometry> geometry,
-                           BooleanSupplier screenOn) {
+                           BooleanSupplier screenOn, int touchLeadMillis) {
         this.injector = injector;
         this.text = text;
         this.geometry = geometry;
         this.screenOn = screenOn;
+        this.planner = new TouchPlanner(touchLeadMillis);
         for (int i = 0; i < POINTERS; ++i) {
             properties[i] = new MotionEvent.PointerProperties();
             properties[i].toolType = MotionEvent.TOOL_TYPE_FINGER;
@@ -52,7 +52,7 @@ public final class InputController {
     }
 
     public void touch(TouchFrame frame) {
-        final int count = planner.plan(frame, geometry.get());
+        final int count = planner.plan(frame, geometry.get(), SystemClock.uptimeMillis());
         for (int i = 0; i < count; ++i) {
             injectMotion(planner.event(i));
         }
@@ -113,7 +113,7 @@ public final class InputController {
     }
 
     public void releaseAll() {
-        final int count = planner.cancelAll();
+        final int count = planner.cancelAll(SystemClock.uptimeMillis());
         for (int i = 0; i < count; ++i) {
             injectMotion(planner.event(i));
         }
@@ -129,10 +129,6 @@ public final class InputController {
     }
 
     private void injectMotion(TouchPlanner.Event planned) {
-        final long now = SystemClock.uptimeMillis();
-        if (planned.gestureStart) {
-            gestureDownTime = now;
-        }
         for (int i = 0; i < planned.pointerCount; ++i) {
             properties[i].id = planned.ids[i];
             coords[i].x = planned.xs[i];
@@ -140,8 +136,8 @@ public final class InputController {
             coords[i].pressure = planned.pressures[i];
         }
         final int flags = planned.canceled && Build.VERSION.SDK_INT >= 33 ? FLAG_CANCELED : 0;
-        final MotionEvent event = MotionEvent.obtain(gestureDownTime, now, planned.action, planned.pointerCount,
-                properties, coords, 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, flags);
+        final MotionEvent event = MotionEvent.obtain(planned.downTime, planned.eventTime, planned.action,
+                planned.pointerCount, properties, coords, 0, 0, 1f, 1f, 0, 0, InputDevice.SOURCE_TOUCHSCREEN, flags);
         injector.inject(event, planned.displayId, InputInjector.MODE_ASYNC);
         event.recycle();
     }

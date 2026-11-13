@@ -18,12 +18,37 @@ import java.util.Locale;
 
 public final class MediaCodecSessionFactory implements EncodingSession.Factory {
 
-    private static final int KEY_FRAME_INTERVAL_SECONDS = 10;
+    static final int KEY_FRAME_INTERVAL_SECONDS = 3600;
+    static final int FALLBACK_KEY_FRAME_INTERVAL_SECONDS = 10;
     private static final long REPEAT_FRAME_AFTER_US = 100_000;
     private static final String KEY_MAX_FPS_TO_ENCODER = "max-fps-to-encoder";
     private static final String KEY_QTI_LOW_LATENCY = "vendor.qti-ext-enc-low-latency.enable";
     private static final int NOMINAL_FPS = 60;
     private static final int MAX_FPS = 240;
+    private static final int PRIORITY = 0;
+
+    static final class EncoderFormat {
+        final int frameRate;
+        final int keyFrameIntervalSeconds;
+        final long repeatAfterUs;
+        final int priority;
+        final Integer maxBFrames;
+        final int latency;
+        final Float maxFpsToEncoder;
+        final Integer intraRefreshPeriod;
+
+        EncoderFormat(int frameRate, int keyFrameIntervalSeconds, long repeatAfterUs, int priority, Integer maxBFrames,
+                      int latency, Float maxFpsToEncoder, Integer intraRefreshPeriod) {
+            this.frameRate = frameRate;
+            this.keyFrameIntervalSeconds = keyFrameIntervalSeconds;
+            this.repeatAfterUs = repeatAfterUs;
+            this.priority = priority;
+            this.maxBFrames = maxBFrames;
+            this.latency = latency;
+            this.maxFpsToEncoder = maxFpsToEncoder;
+            this.intraRefreshPeriod = intraRefreshPeriod;
+        }
+    }
 
     private final NewDisplays independent;
 
@@ -32,18 +57,19 @@ public final class MediaCodecSessionFactory implements EncodingSession.Factory {
     }
 
     @Override
-    public EncodingSession open(EncoderLadder.Attempt attempt, DisplaySnapshot display, VideoSettings settings)
-            throws EncoderException {
+    public EncodingSession open(EncoderLadder.Attempt attempt, DisplaySnapshot display, VideoSettings settings,
+                                boolean keyFramesOnRequest) throws EncoderException {
         MediaCodec codec = null;
         Surface surface = null;
         Runnable projection = null;
+        final int intervalSeconds = keyFrameIntervalSeconds(keyFramesOnRequest);
         try {
             codec = MediaCodec.createByCodecName(attempt.encoder());
-            configure(codec, attempt, display, settings);
+            configure(codec, attempt, display, settings, keyFramesOnRequest);
             surface = codec.createInputSurface();
             projection = project(display, attempt, surface);
             codec.start();
-            return new Session(codec, surface, projection);
+            return new Session(codec, surface, projection, intervalSeconds);
         } catch (IOException | RuntimeException | PlatformException e) {
             if (projection != null) {
                 projection.run();
@@ -78,15 +104,20 @@ public final class MediaCodecSessionFactory implements EncodingSession.Factory {
         return hz > 0 ? (int) Math.min(hz, MAX_FPS) : NOMINAL_FPS;
     }
 
+    static int keyFrameIntervalSeconds(boolean keyFramesOnRequest) {
+        return keyFramesOnRequest ? KEY_FRAME_INTERVAL_SECONDS : FALLBACK_KEY_FRAME_INTERVAL_SECONDS;
+    }
+
     static boolean qualcomm(String encoder) {
         final String name = encoder.toLowerCase(Locale.ROOT);
         return name.startsWith("c2.qti.") || name.startsWith("omx.qcom.");
     }
 
     private static void configure(MediaCodec codec, EncoderLadder.Attempt attempt, DisplaySnapshot display,
-                                  VideoSettings settings) {
+                                  VideoSettings settings, boolean keyFramesOnRequest) {
+        final int sdkInt = Build.VERSION.SDK_INT;
         if (qualcomm(attempt.encoder())) {
-            final MediaFormat lowLatency = format(attempt, display, settings);
+            final MediaFormat lowLatency = format(attempt, display, settings, sdkInt, keyFramesOnRequest);
             lowLatency.setInteger(KEY_QTI_LOW_LATENCY, 1);
             lowLatency.setInteger(MediaFormat.KEY_OPERATING_RATE, Short.MAX_VALUE);
             try {
@@ -97,32 +128,42 @@ public final class MediaCodecSessionFactory implements EncodingSession.Factory {
                 codec.reset();
             }
         }
-        codec.configure(format(attempt, display, settings), null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
+        codec.configure(format(attempt, display, settings, sdkInt, keyFramesOnRequest), null, null,
+                MediaCodec.CONFIGURE_FLAG_ENCODE);
     }
 
-    private static MediaFormat format(EncoderLadder.Attempt attempt, DisplaySnapshot display, VideoSettings settings) {
+    static EncoderFormat formatKeys(DisplaySnapshot display, VideoSettings settings, int sdkInt,
+                                    boolean keyFramesOnRequest) {
+        final int fps = frameRate(display, settings);
+        final Integer maxBFrames = sdkInt >= Build.VERSION_CODES.Q ? Integer.valueOf(0) : null;
+        final Float maxFpsToEncoder = settings.maxFps() > 0 ? Float.valueOf(settings.maxFps()) : null;
+        final Integer intraRefreshPeriod = settings.intraRefreshMs() > 0
+                ? Integer.valueOf(Math.max(1, (int) Math.ceil(settings.intraRefreshMs() * fps / 1000.0))) : null;
+        return new EncoderFormat(fps, keyFrameIntervalSeconds(keyFramesOnRequest), REPEAT_FRAME_AFTER_US, PRIORITY,
+                maxBFrames, 1, maxFpsToEncoder, intraRefreshPeriod);
+    }
+
+    private static MediaFormat format(EncoderLadder.Attempt attempt, DisplaySnapshot display, VideoSettings settings,
+                                      int sdkInt, boolean keyFramesOnRequest) {
         final MediaFormat format = MediaFormat.createVideoFormat(EncoderCatalog.mimeType(attempt.codec()),
                 attempt.size().width(), attempt.size().height());
-        final int fps = frameRate(display, settings);
         format.setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface);
         format.setInteger(MediaFormat.KEY_COLOR_RANGE, MediaFormat.COLOR_RANGE_LIMITED);
         format.setInteger(MediaFormat.KEY_BIT_RATE, (int) Math.min(settings.bitrate(), Integer.MAX_VALUE));
-        format.setInteger(MediaFormat.KEY_FRAME_RATE, fps);
-        format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, KEY_FRAME_INTERVAL_SECONDS);
-        format.setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, REPEAT_FRAME_AFTER_US);
-        format.setInteger(MediaFormat.KEY_PRIORITY, 0);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            format.setInteger(MediaFormat.KEY_MAX_B_FRAMES, 0);
+        final EncoderFormat keys = formatKeys(display, settings, sdkInt, keyFramesOnRequest);
+        format.setInteger(MediaFormat.KEY_FRAME_RATE, keys.frameRate);
+        format.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, keys.keyFrameIntervalSeconds);
+        format.setLong(MediaFormat.KEY_REPEAT_PREVIOUS_FRAME_AFTER, keys.repeatAfterUs);
+        format.setInteger(MediaFormat.KEY_PRIORITY, keys.priority);
+        if (keys.maxBFrames != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            format.setInteger(MediaFormat.KEY_MAX_B_FRAMES, keys.maxBFrames);
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            format.setInteger(MediaFormat.KEY_LATENCY, 1);
+        format.setInteger(MediaFormat.KEY_LATENCY, keys.latency);
+        if (keys.maxFpsToEncoder != null) {
+            format.setFloat(KEY_MAX_FPS_TO_ENCODER, keys.maxFpsToEncoder);
         }
-        if (settings.maxFps() > 0) {
-            format.setFloat(KEY_MAX_FPS_TO_ENCODER, settings.maxFps());
-        }
-        if (settings.intraRefreshMs() > 0) {
-            format.setInteger(MediaFormat.KEY_INTRA_REFRESH_PERIOD,
-                    Math.max(1, (int) Math.ceil(settings.intraRefreshMs() * fps / 1000.0)));
+        if (keys.intraRefreshPeriod != null) {
+            format.setInteger(MediaFormat.KEY_INTRA_REFRESH_PERIOD, keys.intraRefreshPeriod);
         }
         return format;
     }
@@ -131,14 +172,16 @@ public final class MediaCodecSessionFactory implements EncodingSession.Factory {
         private final MediaCodec codec;
         private final Surface surface;
         private final Runnable projection;
+        private final int keyFrameIntervalSeconds;
         private final MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
         private final Output output = new Output();
         private boolean endPending;
 
-        Session(MediaCodec codec, Surface surface, Runnable projection) {
+        Session(MediaCodec codec, Surface surface, Runnable projection, int keyFrameIntervalSeconds) {
             this.codec = codec;
             this.surface = surface;
             this.projection = projection;
+            this.keyFrameIntervalSeconds = keyFrameIntervalSeconds;
         }
 
         @Override
@@ -231,6 +274,31 @@ public final class MediaCodecSessionFactory implements EncodingSession.Factory {
             final Bundle parameters = new Bundle();
             parameters.putInt(MediaCodec.PARAMETER_KEY_SUSPEND, paused ? 1 : 0);
             setParameters(parameters);
+        }
+
+        @Override
+        public String outputFormatSummary() {
+            final MediaFormat reported;
+            try {
+                reported = codec.getOutputFormat();
+            } catch (IllegalStateException e) {
+                return "no output format";
+            }
+            final Integer latency = integerOrNull(reported, MediaFormat.KEY_LATENCY);
+            final Integer reorder = integerOrNull(reported, MediaFormat.KEY_OUTPUT_REORDER_DEPTH);
+            final Integer interval = integerOrNull(reported, MediaFormat.KEY_I_FRAME_INTERVAL);
+            final int seconds = interval == null ? keyFrameIntervalSeconds : interval.intValue();
+            return "latency " + (latency != null ? latency.toString() : "not reported")
+                    + (reorder != null ? ", reorder depth " + reorder : "")
+                    + ", key frame interval " + seconds + " s";
+        }
+
+        private static Integer integerOrNull(MediaFormat format, String key) {
+            try {
+                return format.containsKey(key) ? format.getInteger(key) : null;
+            } catch (ClassCastException e) {
+                return null;
+            }
         }
 
         private void setParameters(Bundle parameters) {

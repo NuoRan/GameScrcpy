@@ -9,13 +9,36 @@ import com.gamescrcpy.server.MediaClock;
 import com.gamescrcpy.server.device.DisplaySnapshot;
 import com.gamescrcpy.server.device.EncoderCatalog.Encoder;
 import java.io.IOException;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public final class VideoStreamer implements Runnable {
 
     static final long FIRST_FRAME_TIMEOUT_NANOS = TimeUnit.SECONDS.toNanos(2);
     static final int MAX_STREAM_RETRIES = 2;
+    static final int FRAMES_WITHOUT_KEY_FRAME = 30;
+    static final int MAX_UNRESPONSIVE_ENCODERS = 16;
+
+    private static final Set<String> unresponsiveEncoders = new LinkedHashSet<>();
+
+    static synchronized boolean ignoresKeyFrameRequests(String encoder) {
+        return unresponsiveEncoders.contains(encoder);
+    }
+
+    static synchronized boolean noteUnresponsive(String encoder) {
+        if (unresponsiveEncoders.contains(encoder) || unresponsiveEncoders.size() >= MAX_UNRESPONSIVE_ENCODERS) {
+            return false;
+        }
+        unresponsiveEncoders.add(encoder);
+        return true;
+    }
+
+    static synchronized void forgetUnresponsiveEncoders() {
+        unresponsiveEncoders.clear();
+    }
 
     public interface DisplaySource {
         DisplaySnapshot snapshot(int displayId);
@@ -37,6 +60,8 @@ public final class VideoStreamer implements Runnable {
     private final long firstFrameTimeoutNanos;
 
     private final Object lock = new Object();
+    private final AtomicLong keyFrameRequests = new AtomicLong();
+    private final EncodeDelayWindow encodeDelays = new EncodeDelayWindow();
     private VideoSettings settings;
     private DisplaySnapshot sessionDisplay;
     private EncodingSession current;
@@ -92,6 +117,7 @@ public final class VideoStreamer implements Runnable {
         synchronized (lock) {
             if (current != null) {
                 current.requestKeyFrame();
+                keyFrameRequests.incrementAndGet();
             }
         }
     }
@@ -103,6 +129,7 @@ public final class VideoStreamer implements Runnable {
                 current.setPaused(newPaused);
                 if (!newPaused) {
                     current.requestKeyFrame();
+                    keyFrameRequests.incrementAndGet();
                 }
             }
         }
@@ -158,7 +185,7 @@ public final class VideoStreamer implements Runnable {
             throws IOException {
         final EncodingSession session;
         try {
-            session = factory.open(attempt, display, wanted);
+            session = factory.open(attempt, display, wanted, !ignoresKeyFrameRequests(attempt.encoder()));
         } catch (EncoderException e) {
             fallBack(attempt, display, e.describe());
             return;
@@ -200,6 +227,11 @@ public final class VideoStreamer implements Runnable {
 
     private void drain(EncodingSession session, EncoderLadder.Attempt attempt, DisplaySnapshot display, int number,
                        long firstFrameDeadline) throws IOException {
+        final boolean judgeKeyFrameRequests = !ignoresKeyFrameRequests(attempt.encoder());
+        boolean formatReported = false;
+        long handledRequests = keyFrameRequests.get();
+        int framesSinceRequest = 0;
+        boolean awaitingKeyFrame = false;
         boolean frameSeen = false;
         while (true) {
             final EncodingSession.Output output;
@@ -233,13 +265,47 @@ public final class VideoStreamer implements Runnable {
                         }
                         final int flags = (output.keyFrame ? Media.FLAG_KEY_FRAME : 0)
                                 | (NalUnits.discardable(attempt.codec(), output.data) ? Media.FLAG_DISCARDABLE : 0);
-                        packets.frame(number, flags, output.ptsUs,
-                                MediaClock.encodeDelayUs(output.ptsUs, output.readyUs), output.data);
+                        final long delayUs = MediaClock.encodeDelayUs(output.ptsUs, output.readyUs);
+                        packets.frame(number, flags, output.ptsUs, delayUs, output.data);
+                        final String delays = encodeDelays.add(output.readyUs, delayUs);
+                        if (delays != null) {
+                            Log.i("video session " + number + ": " + delays);
+                        }
+
+                        final long requests = keyFrameRequests.get();
+                        if (requests != handledRequests) {
+                            handledRequests = requests;
+                            framesSinceRequest = 0;
+                            awaitingKeyFrame = true;
+                        }
+                        if (output.keyFrame) {
+                            awaitingKeyFrame = false;
+                            framesSinceRequest = 0;
+                        } else if (awaitingKeyFrame && judgeKeyFrameRequests) {
+                            ++framesSinceRequest;
+                            if (framesSinceRequest >= FRAMES_WITHOUT_KEY_FRAME) {
+                                ignoreKeyFrameRequest(attempt);
+                                return;
+                            }
+                        }
                     }
+                }
+                if (!formatReported) {
+                    formatReported = true;
+                    Log.i("video session " + number + ": the encoder reports " + session.outputFormatSummary());
                 }
             } finally {
                 session.release(output);
             }
+        }
+    }
+
+    private void ignoreKeyFrameRequest(EncoderLadder.Attempt attempt) {
+        if (noteUnresponsive(attempt.encoder())) {
+            Log.i(attempt.encoder() + " does not honour key-frame requests; using a key frame every 10 s");
+        }
+        synchronized (lock) {
+            interruptLocked();
         }
     }
 

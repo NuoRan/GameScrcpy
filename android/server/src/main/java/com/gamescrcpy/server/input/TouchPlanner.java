@@ -23,6 +23,8 @@ public final class TouchPlanner {
         public boolean canceled;
         public boolean gestureStart;
         public int displayId;
+        public long downTime;
+        public long eventTime;
         public int pointerCount;
         public final int[] ids = new int[POINTERS];
         public final float[] xs = new float[POINTERS];
@@ -30,6 +32,7 @@ public final class TouchPlanner {
         public final float[] pressures = new float[POINTERS];
     }
 
+    private final int leadMillis;
     private final float[] x = new float[POINTERS];
     private final float[] y = new float[POINTERS];
     private final float[] pressure = new float[POINTERS];
@@ -38,6 +41,7 @@ public final class TouchPlanner {
     private int active;
     private int assigned;
     private int gestureDisplay;
+    private long gestureDownTime;
 
     private final Event[] pool = new Event[1 + 2 * POINTERS];
     private final int[] lifting = new int[POINTERS];
@@ -47,7 +51,8 @@ public final class TouchPlanner {
     private final float[] pressY = new float[POINTERS];
     private final float[] pressPressure = new float[POINTERS];
 
-    public TouchPlanner() {
+    public TouchPlanner(int leadMillis) {
+        this.leadMillis = leadMillis;
         for (int i = 0; i < pool.length; ++i) {
             pool[i] = new Event();
         }
@@ -61,8 +66,9 @@ public final class TouchPlanner {
         return pool[index];
     }
 
-    public int plan(TouchFrame frame, TouchGeometry current) {
+    public int plan(TouchFrame frame, TouchGeometry current, long nowMillis) {
         final boolean stale = current == null || frame.videoSession != current.session();
+        final long eventTime = nowMillis - leadMillis;
         boolean moved = false;
         int lifts = 0;
         int presses = 0;
@@ -98,14 +104,14 @@ public final class TouchPlanner {
 
         int count = 0;
         if (moved) {
-            fill(pool[count++], ACTION_MOVE, false, false);
+            fill(pool[count++], ACTION_MOVE, false, false, eventTime);
         }
         for (int i = 0; i < lifts; ++i) {
             final int id = lifting[i];
             final boolean last = Integer.bitCount(active) == 1;
             final int action = last ? (liftCanceled[i] ? ACTION_CANCEL : ACTION_UP)
                     : ACTION_POINTER_UP | (indexOf(id) << ACTION_POINTER_INDEX_SHIFT);
-            fill(pool[count++], action, liftCanceled[i] && !last, false);
+            fill(pool[count++], action, liftCanceled[i] && !last, false, eventTime);
             release(id);
         }
         for (int i = 0; i < presses; ++i) {
@@ -123,18 +129,19 @@ public final class TouchPlanner {
             assigned |= 1 << android;
             active |= 1 << id;
             final int action = first ? ACTION_DOWN : ACTION_POINTER_DOWN | (indexOf(id) << ACTION_POINTER_INDEX_SHIFT);
-            fill(pool[count++], action, false, first);
+            fill(pool[count++], action, false, first, eventTime);
         }
         return count;
     }
 
-    public int cancelAll() {
+    public int cancelAll(long nowMillis) {
+        final long eventTime = nowMillis - leadMillis;
         int count = 0;
         while (active != 0) {
             final int id = Integer.numberOfTrailingZeros(active);
             final boolean last = Integer.bitCount(active) == 1;
             fill(pool[count++], last ? ACTION_CANCEL : ACTION_POINTER_UP | (indexOf(id) << ACTION_POINTER_INDEX_SHIFT),
-                    !last, false);
+                    !last, false, eventTime);
             release(id);
         }
         return count;
@@ -158,11 +165,16 @@ public final class TouchPlanner {
         return Integer.bitCount(assigned & ((1 << androidOf[id]) - 1));
     }
 
-    private void fill(Event event, int action, boolean canceled, boolean gestureStart) {
+    private void fill(Event event, int action, boolean canceled, boolean gestureStart, long eventTime) {
         event.action = action;
         event.canceled = canceled;
         event.gestureStart = gestureStart;
         event.displayId = gestureDisplay;
+        event.eventTime = eventTime;
+        if (gestureStart) {
+            gestureDownTime = eventTime;
+        }
+        event.downTime = gestureDownTime;
         int n = 0;
         for (int bits = assigned; bits != 0; bits &= bits - 1) {
             final int android = Integer.numberOfTrailingZeros(bits);

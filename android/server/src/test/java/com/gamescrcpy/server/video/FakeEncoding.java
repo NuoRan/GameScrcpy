@@ -42,10 +42,15 @@ final class FakeEncoding {
         return data;
     }
 
+    static EncodingSession.Output frame(long ptsUs, boolean keyFrame, int nalHeader) {
+        return new Script().frame(ptsUs, keyFrame, nalHeader).outputs.get(0);
+    }
+
     static final class Script {
         final List<EncodingSession.Output> outputs = new ArrayList<>();
         boolean silent;
         boolean failAfterOutputs;
+        String outputFormat = "latency 1, key frame interval 3600 s";
 
         Script config() {
             return add(EncodingSession.Kind.CONFIG, frameData(0x67), 0, false);
@@ -84,6 +89,7 @@ final class FakeEncoding {
         final List<String> events;
         final List<String> calls = Collections.synchronizedList(new ArrayList<>());
         final BlockingQueue<Long> deadlines = new LinkedBlockingQueue<>();
+        final boolean keyFramesOnRequest;
         volatile boolean closed;
 
         long awaitDeadline() throws InterruptedException {
@@ -94,12 +100,14 @@ final class FakeEncoding {
             return deadline;
         }
 
-        Session(EncoderLadder.Attempt attempt, VideoSettings settings, Script script, int id, List<String> events) {
+        Session(EncoderLadder.Attempt attempt, VideoSettings settings, Script script, int id, List<String> events,
+                boolean keyFramesOnRequest) {
             this.attempt = attempt;
             this.settings = settings;
             this.script = script;
             this.id = id;
             this.events = events;
+            this.keyFramesOnRequest = keyFramesOnRequest;
             queue.addAll(script.outputs);
         }
 
@@ -148,6 +156,11 @@ final class FakeEncoding {
         }
 
         @Override
+        public String outputFormatSummary() {
+            return script.outputFormat;
+        }
+
+        @Override
         public void close() {
             closed = true;
             events.add("close " + id);
@@ -172,14 +185,15 @@ final class FakeEncoding {
 
         @Override
         public synchronized EncodingSession open(EncoderLadder.Attempt attempt, DisplaySnapshot display,
-                                                 VideoSettings settings) throws EncoderException {
+                                                 VideoSettings settings, boolean keyFramesOnRequest)
+                throws EncoderException {
             attempts.add(attempt);
             final Object result = results.isEmpty() ? new Script() : results.poll();
             if (result instanceof String message) {
                 throw new EncoderException("cannot start the encoder", new IllegalStateException(message));
             }
             final int id = attempts.size();
-            final Session session = new Session(attempt, settings, (Script) result, id, events);
+            final Session session = new Session(attempt, settings, (Script) result, id, events, keyFramesOnRequest);
             events.add("open " + id);
             opened.add(session);
             return session;

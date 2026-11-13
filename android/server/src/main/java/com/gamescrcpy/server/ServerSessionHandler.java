@@ -99,7 +99,7 @@ final class ServerSessionHandler implements SessionServer.SessionHandler {
     private DisplayWatcher watcher;
     private volatile FrameEndpoint control;
 
-    ServerSessionHandler(VideoController video) {
+    ServerSessionHandler(VideoController video, int touchLeadMillis) {
         this.video = video;
         Clipboard clipboard = null;
         try {
@@ -114,7 +114,8 @@ final class ServerSessionHandler implements SessionServer.SessionHandler {
                     "input injection is not permitted (INJECT_EVENTS): " + reason));
             final TextInjector text = new TextInjector(injector, clipboard,
                     reason -> notice(ErrorCode.CLIPBOARD_DENIED, reason));
-            created = new InputController(injector, text, this::touchGeometry, PowerState::interactive);
+            created = new InputController(injector, text, this::touchGeometry, PowerState::interactive,
+                    touchLeadMillis);
         } catch (PlatformException e) {
             Log.w("input will not be injected", e);
         }

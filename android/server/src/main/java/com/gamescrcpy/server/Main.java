@@ -75,7 +75,7 @@ public final class Main {
         final NewDisplays independent = newDisplays();
         final VideoController video = new VideoController(new MediaCodecSessionFactory(independent),
                 EncoderCatalog::available, EncoderCatalog::supportsSize, Main::displaySnapshot, independent);
-        final ServerSessionHandler handler = new ServerSessionHandler(video);
+        final ServerSessionHandler handler = new ServerSessionHandler(video, options.touchLeadMillis);
         Runtime.getRuntime().addShutdownHook(new Thread(handler::restoreDevice, "gs-restore"));
         final SecureRandom random = new SecureRandom();
         final TunnelTransport tunnel = new TunnelTransport(listener, token, TunnelTransport.HANDSHAKE_TIMEOUT_MILLIS,

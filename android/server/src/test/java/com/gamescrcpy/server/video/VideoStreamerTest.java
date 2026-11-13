@@ -13,6 +13,7 @@ import com.gamescrcpy.server.video.FakeEncoding.Script;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class VideoStreamerTest {
@@ -23,6 +24,11 @@ class VideoStreamerTest {
     private final FakeEncoding.Displays displays = new FakeEncoding.Displays();
     private VideoStreamer streamer;
     private Thread thread;
+
+    @BeforeEach
+    void forgetUnresponsiveEncoders() {
+        VideoStreamer.forgetUnresponsiveEncoders();
+    }
 
     private static VideoSettings settings(VideoCodec codec) {
         return new VideoSettings(0, codec, 0, 0, 8_000_000, 0);
@@ -206,5 +212,65 @@ class VideoStreamerTest {
         streamer.setPaused(false);
         assertEquals(List.of("paused true", "bitrate 4000000", "keyFrame", "paused false", "keyFrame"),
                 List.copyOf(session.calls));
+    }
+
+    @Test
+    void adr0114AnEncoderThatIgnoresKeyFrameRequestsGetsTheTenSecondIntervalBack() throws Exception {
+        factory.then(new Script().frame(1_000, true, 0x65)).then(new Script().frame(2_000, true, 0x65));
+        start(VideoCodec.H264);
+
+        expectSession(1);
+        expect(MediaKind.FRAME);
+        final FakeEncoding.Session ignoring = factory.awaitOpened();
+        assertTrue(ignoring.keyFramesOnRequest);
+
+        streamer.requestKeyFrame();
+        for (int i = 0; i < VideoStreamer.FRAMES_WITHOUT_KEY_FRAME; ++i) {
+            ignoring.queue.add(FakeEncoding.frame(2_000 + i, false, 0x41));
+        }
+        for (int i = 0; i < VideoStreamer.FRAMES_WITHOUT_KEY_FRAME; ++i) {
+            expect(MediaKind.FRAME);
+        }
+        expectSession(2);
+        final FakeEncoding.Session fallback = factory.awaitOpened();
+        assertFalse(fallback.keyFramesOnRequest);
+        assertTrue(ignoring.closed);
+        assertTrue(VideoStreamer.ignoresKeyFrameRequests("avc.hw"));
+    }
+
+    @Test
+    void adr0114AKeyFrameInAnswerToTheRequestClearsTheCheck() throws Exception {
+        factory.then(new Script().frame(1_000, true, 0x65));
+        start(VideoCodec.H264);
+
+        expectSession(1);
+        expect(MediaKind.FRAME);
+        final FakeEncoding.Session answering = factory.awaitOpened();
+
+        streamer.requestKeyFrame();
+        for (int i = 0; i < 20; ++i) {
+            answering.queue.add(FakeEncoding.frame(2_000 + i, false, 0x41));
+        }
+        answering.queue.add(FakeEncoding.frame(3_000, true, 0x65));
+        for (int i = 0; i < 40; ++i) {
+            answering.queue.add(FakeEncoding.frame(4_000 + i, false, 0x41));
+        }
+        for (int i = 0; i < 61; ++i) {
+            expect(MediaKind.FRAME);
+        }
+        assertFalse(answering.closed);
+        assertEquals(1, factory.attempts.size());
+        assertFalse(VideoStreamer.ignoresKeyFrameRequests("avc.hw"));
+    }
+
+    @Test
+    void adr0114AtMostSixteenEncodersAreRemembered() {
+        for (int i = 0; i < VideoStreamer.MAX_UNRESPONSIVE_ENCODERS; ++i) {
+            assertTrue(VideoStreamer.noteUnresponsive("encoder" + i));
+        }
+        assertFalse(VideoStreamer.noteUnresponsive("encoder0"));
+        assertFalse(VideoStreamer.noteUnresponsive("encoder16"));
+        assertTrue(VideoStreamer.ignoresKeyFrameRequests("encoder15"));
+        assertFalse(VideoStreamer.ignoresKeyFrameRequests("encoder16"));
     }
 }

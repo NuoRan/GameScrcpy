@@ -43,6 +43,17 @@ class OptionsTest {
     }
 
     @Test
+    void adr0114TheTouchLeadIsZeroToEightAndDefaultsToFive() {
+        assertEquals(5, Options.parse("1", "socket=s").touchLeadMillis);
+        for (int lead = 0; lead <= 8; ++lead) {
+            assertEquals(lead, Options.parse("1", "socket=s", "touchLead=" + lead).touchLeadMillis);
+        }
+        assertThrows(IllegalArgumentException.class, () -> Options.parse("1", "socket=s", "touchLead=-1"));
+        assertThrows(IllegalArgumentException.class, () -> Options.parse("1", "socket=s", "touchLead=9"));
+        assertThrows(IllegalArgumentException.class, () -> Options.parse("1", "socket=s", "touchLead=abc"));
+    }
+
+    @Test
     void readsTheTokenFromTheFirstLineOfStandardInput() throws Exception {
         final byte[] token = Options.readToken(new ByteArrayInputStream(
                 "GS_TOKEN=000102030405060708090a0b0c0d0eff\nrest".getBytes(StandardCharsets.US_ASCII)));

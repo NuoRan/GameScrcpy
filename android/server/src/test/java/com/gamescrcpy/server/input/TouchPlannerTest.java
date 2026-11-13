@@ -25,8 +25,9 @@ class TouchPlannerTest {
     private static final TouchGeometry SESSION_1 = new TouchGeometry(1, 0, 1080, 2400);
     private static final TouchGeometry SESSION_2 = new TouchGeometry(2, 0, 2400, 1080);
     private static final float PIXEL = 0.05f;
+    private static final long NOW = 1_000_000;
 
-    private final TouchPlanner planner = new TouchPlanner();
+    private final TouchPlanner planner = new TouchPlanner(5);
 
     private static int at(double fraction) {
         return (int) Math.round(fraction * 0xFFFF);
@@ -58,7 +59,11 @@ class TouchPlannerTest {
     }
 
     private List<String> plan(TouchFrame frame, TouchGeometry current) {
-        final int count = planner.plan(frame, current);
+        return plan(frame, current, NOW);
+    }
+
+    private List<String> plan(TouchFrame frame, TouchGeometry current, long nowMillis) {
+        final int count = planner.plan(frame, current, nowMillis);
         return describe(count);
     }
 
@@ -101,7 +106,7 @@ class TouchPlannerTest {
         assertEquals(0f, planner.event(0).ys[0]);
         assertEquals(270f, planner.event(1).xs[1], PIXEL);
         assertEquals(1800f, planner.event(1).ys[1], PIXEL);
-        planner.cancelAll();
+        planner.cancelAll(NOW);
         assertEquals(List.of("DOWN[0]"), plan(frame(2, down(2, at(0.25), at(0.75))), SESSION_2));
         assertEquals(600f, planner.event(0).xs[0], PIXEL);
         assertEquals(810f, planner.event(0).ys[0], PIXEL);
@@ -194,9 +199,59 @@ class TouchPlannerTest {
     void cancelAllReleasesEveryPointer() {
         plan(frame(1, down(2, 1, 1), down(9, 2, 2), down(30, 3, 3)), SESSION_1);
         assertEquals(List.of("POINTER_UP#0![0,1,2]", "POINTER_UP#0![1,2]", "CANCEL[2]"),
-                describe(planner.cancelAll()));
+                describe(planner.cancelAll(NOW)));
         assertFalse(planner.anyDown());
-        assertEquals(0, planner.cancelAll());
+        assertEquals(0, planner.cancelAll(NOW));
+    }
+
+    @Test
+    void adr0114EveryEventOfAGestureLeadsTheClockByTheLead() {
+        final TouchPlanner leading = new TouchPlanner(5);
+        assertEquals(1, leading.plan(frame(1, down(0, at(0.5), at(0.5))), SESSION_1, 1_000));
+        assertEquals(995, leading.event(0).eventTime);
+        assertEquals(995, leading.event(0).downTime);
+        assertTrue(leading.event(0).gestureStart);
+
+        assertEquals(1, leading.plan(frame(1, move(0, at(0.6), at(0.6))), SESSION_1, 1_004));
+        assertEquals(999, leading.event(0).eventTime);
+        assertEquals(995, leading.event(0).downTime);
+
+        assertEquals(1, leading.plan(frame(1, up(0, at(0.6), at(0.6))), SESSION_1, 1_008));
+        assertEquals(1_003, leading.event(0).eventTime);
+        assertEquals(995, leading.event(0).downTime);
+        assertFalse(leading.anyDown());
+    }
+
+    @Test
+    void adr0114EventsOfOneFrameShareTheTimeAndEveryGestureStartsANewDownTime() {
+        final TouchPlanner leading = new TouchPlanner(8);
+        leading.plan(frame(1, down(0, 1, 1), down(1, 2, 2)), SESSION_1, 1_000);
+        assertEquals(992, leading.event(0).eventTime);
+        assertEquals(992, leading.event(0).downTime);
+        assertEquals(992, leading.event(1).eventTime);
+        assertEquals(992, leading.event(1).downTime);
+
+        leading.cancelAll(1_010);
+        assertEquals(1_002, leading.event(0).eventTime);
+        assertEquals(992, leading.event(0).downTime);
+
+        leading.plan(frame(1, down(0, 3, 3)), SESSION_1, 1_020);
+        assertEquals(1_012, leading.event(0).eventTime);
+        assertEquals(1_012, leading.event(0).downTime);
+    }
+
+    @Test
+    void adr0114WithoutALeadTheTimesAreTheClockItself() {
+        final TouchPlanner plain = new TouchPlanner(0);
+        plain.plan(frame(1, down(0, 1, 1)), SESSION_1, 1_000);
+        assertEquals(1_000, plain.event(0).eventTime);
+        assertEquals(1_000, plain.event(0).downTime);
+        plain.plan(frame(1, move(0, 2, 2)), SESSION_1, 1_001);
+        assertEquals(1_001, plain.event(0).eventTime);
+        assertEquals(1_000, plain.event(0).downTime);
+        plain.cancelAll(1_002);
+        assertEquals(1_002, plain.event(0).eventTime);
+        assertEquals(1_000, plain.event(0).downTime);
     }
 
     @Test
@@ -211,7 +266,7 @@ class TouchPlannerTest {
         assertEquals(32, pressed.size());
         assertEquals("DOWN[0]", pressed.get(0));
         assertTrue(pressed.get(31).startsWith("POINTER_DOWN#31["));
-        assertEquals(1, planner.plan(frame(1, moves), SESSION_1));
+        assertEquals(1, planner.plan(frame(1, moves), SESSION_1, NOW));
         final TouchPlanner.Event moved = planner.event(0);
         assertEquals(32, moved.pointerCount);
         final int[] ids = new int[32];

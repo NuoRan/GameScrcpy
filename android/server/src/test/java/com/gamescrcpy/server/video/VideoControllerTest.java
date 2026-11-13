@@ -41,6 +41,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 class VideoControllerTest {
@@ -133,6 +134,11 @@ class VideoControllerTest {
     @AfterEach
     void tearDown() {
         video.connectionLost();
+    }
+
+    @BeforeEach
+    void forgetUnresponsiveEncoders() {
+        VideoStreamer.forgetUnresponsiveEncoders();
     }
 
     @Test
