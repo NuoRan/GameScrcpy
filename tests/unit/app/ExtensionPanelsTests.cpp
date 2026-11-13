@@ -798,35 +798,3 @@ TEST_CASE("ADR-0112: the app logic draws panels for Settings and the extension's
     REQUIRE(call(app, "ui.contextMenu", R"({"name":"more","items":null})").code.empty());
     REQUIRE(settle([&] { return panels.menus().size() == 1; }));
 }
-
-TEST_CASE("ADR-0112: a card opens the panel its own device's logic drew, not the one of another device")
-{
-    Application application;
-    Folder folder;
-    ExtensionPanels panels(nullptr);
-    panels.setDeclarations({declared("settings", PanelPlace::Device, "session", folder.path())});
-    Logic first(kExtension, QStringLiteral("session"), QStringLiteral("box:alice.stats/board/1"), folder.path());
-    Logic second(kExtension, QStringLiteral("session"), QStringLiteral("box:alice.stats/board/2"), folder.path());
-    REQUIRE(call(first, "ui.render", R"({"panel":"settings","tree":{"type":"text","id":"","text":"first"}})").code.empty());
-    REQUIRE(call(second, "ui.render", R"({"panel":"settings","tree":{"type":"text","id":"","text":"second"}})").code.empty());
-    REQUIRE(settle([&] {
-        return panels.devicePanel(kExtension, QStringLiteral("settings"), QStringLiteral("box:alice.stats/board/2"))
-                   .toMap()
-                   .value(QStringLiteral("key"))
-                   .toString()
-                   .startsWith(u"p/");
-    }));
-    const QVariantMap chosen =
-        panels.devicePanel(kExtension, QStringLiteral("settings"), QStringLiteral("box:alice.stats/board/2")).toMap();
-    CHECK(chosen.value(QStringLiteral("device")).toString() == QStringLiteral("box:alice.stats/board/2"));
-    CHECK(chosen.value(QStringLiteral("logic")).toULongLong() == second.runtime.caller().logic);
-    REQUIRE(settle([&] {
-        return panels.tree(chosen.value(QStringLiteral("key")).toString()).toMap().value(QStringLiteral("text")).toString() ==
-               QStringLiteral("second");
-    }));
-    const QVariantMap other =
-        panels.devicePanel(kExtension, QStringLiteral("settings"), QStringLiteral("box:alice.stats/board/1")).toMap();
-    CHECK(other.value(QStringLiteral("logic")).toULongLong() == first.runtime.caller().logic);
-    CHECK(panels.devicePanel(kExtension, QStringLiteral("settings"), QStringLiteral("box:alice.stats/board/3")).isNull());
-    CHECK(panels.devicePanel(kExtension, QStringLiteral("tools"), QStringLiteral("box:alice.stats/board/1")).isNull());
-}

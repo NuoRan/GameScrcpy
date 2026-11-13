@@ -10,20 +10,15 @@ SettingsSheet {
 
     property string extension
     property string panel
-    property string serial
     property string device
     property string deviceName
-    readonly property var entry: {
-        const available = ExtensionPanels.panels
-        if (available.length === 0)
-            return null
-        return ExtensionPanels.devicePanel(sheet.extension, sheet.panel, sheet.serial) ?? null
-    }
+    readonly property var entry: ExtensionPanels.panels.find(each => each.where === "device"
+                                                             && each.extension === sheet.extension
+                                                             && each.name === sheet.panel) ?? null
 
-    function show(extension: string, panel: string, serial: string, device: string, deviceName: string) {
+    function show(extension: string, panel: string, device: string, deviceName: string) {
         sheet.extension = extension
         sheet.panel = panel
-        sheet.serial = serial
         sheet.device = device
         sheet.deviceName = deviceName
         sheet.open()

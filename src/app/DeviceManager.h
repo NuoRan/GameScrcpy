@@ -374,8 +374,7 @@ signals:
     void detailsChanged();
     void setupChanged();
     void countsChanged();
-    void devicePanelWanted(const QString& extension, const QString& panel, const QString& serial, const QString& device,
-                           const QString& name);
+    void devicePanelWanted(const QString& extension, const QString& panel, const QString& device, const QString& name);
     void mirrorsChanged();
     void filterBudgetExceeded(const QString& serial, const QString& filter, double frameMs);
     void appCommandRequested(const QString& command, const QString& serial);

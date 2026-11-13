@@ -1461,23 +1461,6 @@ QVariant ExtensionPanels::tree(const QString& key) const
     return found != m_shown.end() ? found->second.value : QVariant();
 }
 
-QVariant ExtensionPanels::devicePanel(const QString& extension, const QString& name, const QString& device) const
-{
-    if (extension.isEmpty() || name.isEmpty() || device.isEmpty()) {
-        return {};
-    }
-    for (const QVariant& value : m_panels) {
-        const QVariantMap entry = value.toMap();
-        if (entry.value(QStringLiteral("where")).toString() == QStringLiteral("device") &&
-            entry.value(QStringLiteral("extension")).toString() == extension &&
-            entry.value(QStringLiteral("name")).toString() == name &&
-            entry.value(QStringLiteral("device")).toString() == device) {
-            return value;
-        }
-    }
-    return {};
-}
-
 bool ExtensionPanels::send(quint64 logic, const QString& panel, const QString& type, const QString& id,
                            const QVariant& value) const
 {
