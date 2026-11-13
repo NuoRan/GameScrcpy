@@ -2,7 +2,9 @@
 
 本文件记录每个版本的主要变化，格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [2.1.1] - 2026-11-13
+
+2.1.1 只修了一处：没有画面的“控制”窗口里手机光标会和鼠标错开。手机上的服务端和伴侣 App 没有变化。
 
 ### 修复
 
