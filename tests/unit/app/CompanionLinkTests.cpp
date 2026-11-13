@@ -12,6 +12,8 @@
 #include <chrono>
 #include <condition_variable>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -557,6 +559,29 @@ struct Rig {
     [[nodiscard]] std::string unforward() const { return "killforward " + std::to_string(companion.port()); }
 };
 
+}
+
+TEST_CASE("companion link: the bundled package is read whole, and an empty or missing one is not offered")
+{
+    const std::filesystem::path folder = std::filesystem::temp_directory_path() / "gs_companion_apk_read";
+    std::filesystem::create_directories(folder);
+    std::vector<std::uint8_t> expected(300'000);
+    for (std::size_t i = 0; i < expected.size(); ++i) {
+        expected[i] = static_cast<std::uint8_t>((i * 131U) ^ (i >> 7U));
+    }
+    {
+        std::ofstream out(folder / "whole.apk", std::ios::binary | std::ios::trunc);
+        out.write(reinterpret_cast<const char*>(expected.data()), static_cast<std::streamsize>(expected.size()));
+        std::ofstream empty(folder / "empty.apk", std::ios::binary | std::ios::trunc);
+    }
+    const std::shared_ptr<const CompanionApk> whole = CompanionApk::load(folder / "whole.apk", folder / "none.json");
+    REQUIRE(whole != nullptr);
+    CHECK(whole->bytes == expected);
+    CHECK_FALSE(whole->versionCode.has_value());
+    CHECK(CompanionApk::load(folder / "empty.apk", folder / "none.json") == nullptr);
+    CHECK(CompanionApk::load(folder / "missing.apk", folder / "none.json") == nullptr);
+    std::error_code ignored;
+    std::filesystem::remove_all(folder, ignored);
 }
 
 TEST_CASE("companion link: the installed and the bundled version, the overlay check and the ready reply are read exactly")

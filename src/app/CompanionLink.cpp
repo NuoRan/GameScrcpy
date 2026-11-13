@@ -190,12 +190,17 @@ std::unique_ptr<CompanionChannel> plainCompanionChannel(platform::TcpStream stre
 std::shared_ptr<const CompanionApk> CompanionApk::load(const std::filesystem::path& apk,
                                                        const std::filesystem::path& metadata)
 {
-    std::ifstream file(apk, std::ios::binary);
+    std::ifstream file(apk, std::ios::binary | std::ios::ate);
     if (!file) {
         return nullptr;
     }
-    std::vector<std::uint8_t> bytes((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
-    if (bytes.empty()) {
+    const std::streamoff size = file.tellg();
+    if (size <= 0) {
+        return nullptr;
+    }
+    std::vector<std::uint8_t> bytes(static_cast<std::size_t>(size));
+    file.seekg(0);
+    if (!file.read(reinterpret_cast<char*>(bytes.data()), static_cast<std::streamsize>(size))) {
         return nullptr;
     }
     auto loaded = std::make_shared<CompanionApk>();
