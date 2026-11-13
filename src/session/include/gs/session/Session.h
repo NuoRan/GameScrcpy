@@ -34,6 +34,7 @@ struct Heartbeat {
     std::chrono::microseconds roundTrip{};
     std::chrono::microseconds clockOffset{};
     std::chrono::microseconds sendDelay{};
+    std::chrono::microseconds sendDelayMean{};
     std::int64_t sentUs = 0;
     std::int64_t serverTimeUs = 0;
 };

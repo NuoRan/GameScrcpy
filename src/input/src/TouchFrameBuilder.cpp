@@ -42,9 +42,26 @@ bool merge(TouchPoint& existing, const TouchPoint& next) noexcept
 
 }
 
+Microseconds pacingTickFor(double refreshHz) noexcept
+{
+    const double hz = std::clamp(2.0 * refreshHz, 120.0, 480.0);
+    return Microseconds{static_cast<long long>(1'000'000.0 / hz)};
+}
+
 TouchFrameBuilder::TouchFrameBuilder(Microseconds tick) noexcept
     : m_tick(tick)
 {
+}
+
+TouchFrameBuilder::TouchFrameBuilder(Microseconds tick, const Clock& clock) noexcept
+    : m_clock(&clock)
+    , m_tick(tick)
+{
+}
+
+Microseconds TouchFrameBuilder::stamp() const noexcept
+{
+    return m_clock != nullptr ? m_clock->now() : m_wall.now();
 }
 
 void TouchFrameBuilder::down(std::uint8_t pointerId, Vec2 position)
@@ -81,6 +98,9 @@ void TouchFrameBuilder::add(TouchAction action, std::uint8_t pointerId, Vec2 pos
         }
         closeOpenFrame();
     }
+    if (m_open.points.empty()) {
+        m_openSince = stamp();
+    }
     m_open.points.push_back(next);
 }
 
@@ -90,7 +110,7 @@ void TouchFrameBuilder::closeOpenFrame()
         return;
     }
     m_open.videoSession = m_videoSession;
-    m_ready.push_back(m_open);
+    m_ready.push_back({.frame = m_open, .since = m_openSince});
     m_open.points.clear();
 }
 
@@ -110,14 +130,17 @@ void TouchFrameBuilder::flush(Microseconds now, TouchFrameSink& sink)
         }
     }
     while (!m_ready.empty()) {
-        if (!sink.trySend(m_ready.front())) {
+        Queued& queued = m_ready.front();
+        if (!sink.trySend(queued.frame)) {
             m_blocked = true;
             if (m_ready.size() == 1 && m_open.points.empty()) {
-                m_open = std::move(m_ready.front());
+                m_open = std::move(queued.frame);
+                m_openSince = queued.since;
                 m_ready.pop_front();
             }
             return;
         }
+        sink.frameWaited(now > queued.since ? now - queued.since : Microseconds{0});
         m_ready.pop_front();
         m_lastSent = now;
     }

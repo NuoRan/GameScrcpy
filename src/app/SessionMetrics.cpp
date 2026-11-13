@@ -72,14 +72,40 @@ void SessionMetrics::heartbeat(const session::Heartbeat& heartbeat) noexcept
 {
     m_roundTripUs.store(heartbeat.roundTrip.count(), std::memory_order_relaxed);
     m_sendDelayUs.store(heartbeat.sendDelay.count(), std::memory_order_relaxed);
+    m_sendDelayMeanUs.store(heartbeat.sendDelayMean.count(), std::memory_order_relaxed);
     m_clockOffsetUs.store(heartbeat.clockOffset.count(), std::memory_order_relaxed);
     m_clockKnown.store(true, std::memory_order_release);
     if (heartbeat.sentUs <= 0 || heartbeat.serverTimeUs <= 0) {
         return;
     }
+    const std::int64_t roundTripUs = std::max<std::int64_t>(heartbeat.roundTrip.count(), 0);
+    const std::int64_t estimateUs = heartbeat.serverTimeUs - heartbeat.clockOffset.count() - heartbeat.sentUs;
+    const std::int64_t oneWayUs = std::clamp<std::int64_t>(estimateUs, 0, roundTripUs);
     const std::lock_guard lock(m_timingMutex);
-    m_input.add(heartbeat.serverTimeUs - heartbeat.clockOffset.count() - heartbeat.sentUs);
+    addBeat(heartbeat.sentUs, roundTripUs, oneWayUs);
     waitForFrameAfter(heartbeat.serverTimeUs);
+}
+
+void SessionMetrics::touchWait(std::int64_t sumUs, std::uint32_t frames, std::int64_t maxUs) noexcept
+{
+    m_mergeSumUs.store(sumUs, std::memory_order_relaxed);
+    m_mergeFrames.store(frames, std::memory_order_relaxed);
+    m_mergeMaxUs.store(maxUs, std::memory_order_relaxed);
+}
+
+void SessionMetrics::addBeat(std::int64_t sentUs, std::int64_t roundTripUs, std::int64_t oneWayUs) noexcept
+{
+    while (m_beatCount > 0 && sentUs - m_beats[m_beatHead].sentUs > kBeatWindowUs) {
+        m_beatHead = (m_beatHead + 1) % kBeatCapacity;
+        --m_beatCount;
+    }
+    if (m_beatCount == kBeatCapacity) {
+        m_beatHead = (m_beatHead + 1) % kBeatCapacity;
+        --m_beatCount;
+    }
+    m_beats[(m_beatHead + m_beatCount) % kBeatCapacity] =
+        Beat{.sentUs = sentUs, .roundTripUs = roundTripUs, .oneWayUs = oneWayUs};
+    ++m_beatCount;
 }
 
 void SessionMetrics::videoStall(const session::VideoStall& stall) noexcept
@@ -158,15 +184,35 @@ SessionMetrics::Sample SessionMetrics::sample(std::chrono::microseconds elapsed)
         result.networkMs = milliseconds(networkUs) / static_cast<double>(latencyFrames);
     }
     if (m_clockKnown.load(std::memory_order_acquire)) {
-        result.roundTripMs = milliseconds(m_roundTripUs.load(std::memory_order_relaxed));
         result.sendDelayMs = milliseconds(m_sendDelayUs.load(std::memory_order_relaxed));
+        result.sendDelayMeanMs = milliseconds(m_sendDelayMeanUs.load(std::memory_order_relaxed));
     }
     result.stalls = m_stalls.exchange(0, std::memory_order_relaxed);
     result.longestStallMs = milliseconds(m_longestStallUs.exchange(0, std::memory_order_relaxed));
     result.lostPackets = m_stallLostPackets.exchange(0, std::memory_order_relaxed);
+    const std::uint32_t mergeFrames = m_mergeFrames.exchange(0, std::memory_order_relaxed);
+    const std::int64_t mergeSumUs = m_mergeSumUs.exchange(0, std::memory_order_relaxed);
+    const std::int64_t mergeMaxUs = m_mergeMaxUs.exchange(0, std::memory_order_relaxed);
+    if (mergeFrames > 0) {
+        result.mergeWaitMeanMs = milliseconds(mergeSumUs) / static_cast<double>(mergeFrames);
+        result.mergeWaitMaxMs = milliseconds(mergeMaxUs);
+    }
     const std::lock_guard lock(m_timingMutex);
-    if (const std::optional<double> input = m_input.mean()) {
-        result.inputMs = std::max(0.0, *input);
+    if (m_beatCount > 0) {
+        const Beat& latest = m_beats[(m_beatHead + m_beatCount - 1) % kBeatCapacity];
+        std::int64_t bestRoundTripUs = latest.roundTripUs;
+        std::int64_t bestOneWayUs = latest.oneWayUs;
+        for (std::size_t i = 0; i < m_beatCount; ++i) {
+            const Beat& beat = m_beats[(m_beatHead + i) % kBeatCapacity];
+            bestRoundTripUs = std::min(bestRoundTripUs, beat.roundTripUs);
+            bestOneWayUs = std::min(bestOneWayUs, beat.oneWayUs);
+        }
+        result.roundTripMs = milliseconds(latest.roundTripUs);
+        result.roundTripBestMs = milliseconds(bestRoundTripUs);
+        result.inputMs = milliseconds(latest.oneWayUs);
+        result.inputBestMs = milliseconds(bestOneWayUs);
+    } else if (m_clockKnown.load(std::memory_order_acquire)) {
+        result.roundTripMs = milliseconds(m_roundTripUs.load(std::memory_order_relaxed));
     }
     result.frameWaitMs = m_frameWait.count > 0 ? m_frameWait.mean() : halfFrameInterval();
     return result;

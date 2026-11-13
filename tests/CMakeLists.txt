@@ -283,6 +283,7 @@ gs_add_unit_test(gs_session_tests
         unit/session/KeyFrameGateTests.cpp
         unit/session/ReceiverStatsTests.cpp
         unit/session/ReliableStreamTests.cpp
+        unit/session/SendDelayStatsTests.cpp
         unit/session/SessionTests.cpp
         unit/session/StreamTransportTests.cpp
     LIBRARIES

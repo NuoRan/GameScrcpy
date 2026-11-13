@@ -103,6 +103,8 @@ public:
 
     bool trySend(const protocol::TouchFrame& frame) override { return channel->send(frame); }
 
+    void frameWaited(Microseconds waited) override { channel->noteTouchWait(waited.count()); }
+
     void pointerState(input::PointerState state) override
     {
         if (!target()) {

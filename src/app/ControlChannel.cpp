@@ -56,6 +56,25 @@ private:
 
 }
 
+void ControlChannel::noteTouchWait(std::int64_t waitedUs) noexcept
+{
+    m_touchWaitSumUs.fetch_add(waitedUs, std::memory_order_relaxed);
+    m_touchWaitFrames.fetch_add(1, std::memory_order_relaxed);
+    std::int64_t longest = m_touchWaitMaxUs.load(std::memory_order_relaxed);
+    while (waitedUs > longest &&
+           !m_touchWaitMaxUs.compare_exchange_weak(longest, waitedUs, std::memory_order_relaxed)) {
+    }
+}
+
+ControlChannel::TouchWait ControlChannel::takeTouchWait() noexcept
+{
+    TouchWait wait;
+    wait.frames = m_touchWaitFrames.exchange(0, std::memory_order_relaxed);
+    wait.sumUs = m_touchWaitSumUs.exchange(0, std::memory_order_relaxed);
+    wait.maxUs = m_touchWaitMaxUs.exchange(0, std::memory_order_relaxed);
+    return wait;
+}
+
 bool SessionControlSink::send(const protocol::TouchFrame& frame)
 {
     return m_session.send(frame);

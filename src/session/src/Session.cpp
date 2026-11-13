@@ -3,6 +3,7 @@
 #include "Handshake.h"
 #include "KeyFrameGate.h"
 #include "ReceiverStats.h"
+#include "SendDelayStats.h"
 
 #include "gs/base/Log.h"
 #include "gs/base/ThreadChecker.h"
@@ -731,19 +732,15 @@ private:
         m_receiverStats.setRoundTrip(roundTrip);
         const std::int64_t offset = static_cast<std::int64_t>(pong.serverTimeUs) - (sent + roundTrip / 2);
         Heartbeat heartbeat = m_clock.add(roundTrip, offset, now);
-        heartbeat.sendDelay = std::chrono::microseconds(m_sendDelayMaxUs.exchange(0, std::memory_order_relaxed));
+        const detail::SendDelay sendDelay = m_sendDelay.take();
+        heartbeat.sendDelay = std::chrono::microseconds(sendDelay.maxUs);
+        heartbeat.sendDelayMean = std::chrono::microseconds(sendDelay.meanUs);
         heartbeat.sentUs = sent;
         heartbeat.serverTimeUs = static_cast<std::int64_t>(pong.serverTimeUs);
         m_listener.onHeartbeat(heartbeat);
     }
 
-    void recordSendDelay(std::int64_t delayUs) noexcept
-    {
-        std::int64_t longest = m_sendDelayMaxUs.load(std::memory_order_relaxed);
-        while (delayUs > longest &&
-               !m_sendDelayMaxUs.compare_exchange_weak(longest, delayUs, std::memory_order_relaxed)) {
-        }
-    }
+    void recordSendDelay(std::int64_t delayUs) { m_sendDelay.add(delayUs); }
 
     void readerFailed(const ChannelFailure& failed, std::string_view channel)
     {
@@ -815,7 +812,7 @@ private:
     bool m_sendable = false;
     bool m_writing = false;
     bool m_writerRunning = false;
-    std::atomic<std::int64_t> m_sendDelayMaxUs{0};
+    detail::SendDelayStats m_sendDelay;
 
     ClockFilter m_clock;
     std::atomic<std::int64_t> m_lastPongUs{0};

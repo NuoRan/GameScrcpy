@@ -2245,6 +2245,7 @@ struct DeviceManager::Measures {
     std::optional<double> inputToScreen;
     std::optional<render::ScreenStats> screen;
     render::PresentationMode presentation = render::PresentationMode::Unknown;
+    std::optional<double> mergeTickMs;
     std::optional<LatencyResult> touchDots;
     media::AudioStats audio;
 };
@@ -2313,8 +2314,14 @@ DeviceManager::Measures DeviceManager::measure(Row& row)
     Measures measures;
     measures.touchDots = row.latencyResult;
     if (row.controller != nullptr) {
-        measures.sample = row.controller->metrics().sample(elapsed);
+        SessionMetrics& metrics = row.controller->metrics();
+        const std::shared_ptr<ControlChannel>& link = row.controller->channel();
+        const ControlChannel::TouchWait wait = link->takeTouchWait();
+        metrics.touchWait(wait.sumUs, wait.frames, wait.maxUs);
+        measures.sample = metrics.sample(elapsed);
         measures.audio = row.controller->audioStats();
+        const Microseconds tick = input::pacingTickFor(link->refreshHz());
+        measures.mergeTickMs = static_cast<double>(tick.count()) / 1000.0;
     } else if (row.demo != nullptr) {
         measures.sample.framesPerSecond = row.demo->framesPerSecond();
     }
@@ -2397,8 +2404,11 @@ QStringList DeviceManager::describe(const Measures& measures)
     if (measures.inputToScreen) {
         lines << tr("Input to screen: %1 ms").arg(number(*measures.inputToScreen, 1));
     }
-    lines << tr("Input reaching the phone: %1 ms; waiting for the next frame: %2 ms")
-                 .arg(maybe(sample.inputMs), maybe(sample.frameWaitMs));
+    lines << tr("Touch merging on the PC: %1 ms on average, %2 ms at most (moves wait up to %3 ms for the next send)")
+                 .arg(maybe(sample.mergeWaitMeanMs), maybe(sample.mergeWaitMaxMs), maybe(measures.mergeTickMs));
+    lines << tr("Touch from the PC's send queue into the phone's input queue: %1 ms now, %2 ms best in 16 s "
+                "(estimate); waiting for the next frame: %3 ms")
+                 .arg(maybe(sample.inputMs), maybe(sample.inputBestMs), maybe(sample.frameWaitMs));
     if (measures.touchDots) {
         lines << tr("Measured with touch dots: %1 ms, the median of %2 presses (%3 to %4 ms)")
                      .arg(number(measures.touchDots->medianMs, 0))
@@ -2415,7 +2425,10 @@ QStringList DeviceManager::describe(const Measures& measures)
                           number(measures.screen->arrivalToScreenP95Ms, 1),
                           number(measures.screen->renderToScreenMs, 1), modeText(measures.presentation));
     }
-    lines << tr("Round trip: %1 ms; input waited at most %2 ms").arg(maybe(sample.roundTripMs), maybe(sample.sendDelayMs));
+    lines << tr("Round trip: %1 ms now, %2 ms best in 16 s; the send queue held a touch %3 ms on average, %4 ms at "
+                "most")
+                 .arg(maybe(sample.roundTripMs), maybe(sample.roundTripBestMs), maybe(sample.sendDelayMeanMs),
+                      maybe(sample.sendDelayMs));
     if (sample.stalls > 0 || sample.longestStallMs > 0 || sample.lostPackets > 0) {
         lines << tr("Pauses for a key frame: %1, the longest %2 ms; %3 packets lost beyond repair")
                      .arg(QString::number(sample.stalls), number(sample.longestStallMs, 0),

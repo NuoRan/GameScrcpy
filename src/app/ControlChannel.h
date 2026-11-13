@@ -146,6 +146,15 @@ public:
     [[nodiscard]] bool scroll(input::Vec2 position, std::int16_t horizontal, std::int16_t vertical);
     [[nodiscard]] bool type(std::string_view utf8);
 
+    struct TouchWait {
+        std::int64_t sumUs = 0;
+        std::int64_t maxUs = 0;
+        std::uint32_t frames = 0;
+    };
+
+    void noteTouchWait(std::int64_t waitedUs) noexcept;
+    [[nodiscard]] TouchWait takeTouchWait() noexcept;
+
     [[nodiscard]] bool setPadLink(PadLink link);
     [[nodiscard]] PadLink padLink() const;
     [[nodiscard]] bool padFeature(const protocol::UhidFeature& feature);
@@ -166,6 +175,9 @@ private:
     double m_refreshHz = 60.0;
     std::atomic<std::uint64_t> m_revision{1};
     std::atomic<std::uint64_t> m_pacing{1};
+    std::atomic<std::int64_t> m_touchWaitSumUs{0};
+    std::atomic<std::int64_t> m_touchWaitMaxUs{0};
+    std::atomic<std::uint32_t> m_touchWaitFrames{0};
     PadLink m_padLink;
 };
 

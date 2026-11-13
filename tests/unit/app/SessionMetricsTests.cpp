@@ -21,9 +21,15 @@ Heartbeat heartbeat(std::chrono::microseconds roundTrip, std::chrono::microsecon
     beat.roundTrip = roundTrip;
     beat.clockOffset = clockOffset;
     beat.sendDelay = sendDelay;
+    beat.sendDelayMean = sendDelay;
     beat.sentUs = sentUs;
     beat.serverTimeUs = serverTimeUs;
     return beat;
+}
+
+Heartbeat beatAt(std::int64_t sentUs, std::chrono::microseconds roundTrip, std::chrono::microseconds oneWay)
+{
+    return heartbeat(roundTrip, 0us, 0us, sentUs, sentUs + oneWay.count());
 }
 
 }
@@ -64,6 +70,8 @@ TEST_CASE("session metrics give rates and means per sample, and latency once the
     CHECK(*second.roundTripMs == doctest::Approx(1.2));
     REQUIRE(second.sendDelayMs);
     CHECK(*second.sendDelayMs == doctest::Approx(0.3));
+    REQUIRE(second.sendDelayMeanMs);
+    CHECK(*second.sendDelayMeanMs == doctest::Approx(0.3));
 
     const SessionMetrics::Sample third = metrics.sample(500ms);
     CHECK(third.framesPerSecond == 0);
@@ -151,4 +159,88 @@ TEST_CASE("ADR-0114: session metrics count the pauses for a key frame, the longe
     CHECK(after.stalls == 0);
     CHECK(after.longestStallMs == 0);
     CHECK(after.lostPackets == 0);
+}
+
+TEST_CASE("ADR-0114: the round trip and the one-way estimate show the latest sample and the best of 16 s")
+{
+    SessionMetrics metrics;
+    CHECK_FALSE(metrics.sample(1s).roundTripBestMs);
+
+    metrics.heartbeat(beatAt(1, 8ms, 6ms));
+    metrics.heartbeat(beatAt(1'000'000, 4ms, 3ms));
+    metrics.heartbeat(beatAt(2'000'000, 6ms, 5ms));
+    const SessionMetrics::Sample playing = metrics.sample(1s);
+    REQUIRE(playing.roundTripMs);
+    REQUIRE(playing.roundTripBestMs);
+    REQUIRE(playing.inputMs);
+    REQUIRE(playing.inputBestMs);
+    CHECK(*playing.roundTripMs == doctest::Approx(6));
+    CHECK(*playing.roundTripBestMs == doctest::Approx(4));
+    CHECK(*playing.inputMs == doctest::Approx(5));
+    CHECK(*playing.inputBestMs == doctest::Approx(3));
+    CHECK(*playing.inputMs <= *playing.roundTripMs);
+
+    metrics.heartbeat(beatAt(19'000'000, 10ms, 7ms));
+    const SessionMetrics::Sample later = metrics.sample(1s);
+    REQUIRE(later.roundTripMs);
+    REQUIRE(later.roundTripBestMs);
+    REQUIRE(later.inputMs);
+    REQUIRE(later.inputBestMs);
+    CHECK(*later.roundTripMs == doctest::Approx(10));
+    CHECK(*later.roundTripBestMs == doctest::Approx(10));
+    CHECK(*later.inputMs == doctest::Approx(7));
+    CHECK(*later.inputBestMs == doctest::Approx(7));
+}
+
+TEST_CASE("ADR-0114: a one-way estimate is clamped to its own round trip and never negative")
+{
+    SessionMetrics metrics;
+    metrics.heartbeat(beatAt(1'000'000, 4ms, 6ms));
+    const SessionMetrics::Sample clamped = metrics.sample(1s);
+    REQUIRE(clamped.inputMs);
+    REQUIRE(clamped.roundTripMs);
+    CHECK(*clamped.inputMs == doctest::Approx(4));
+    CHECK(*clamped.inputBestMs == doctest::Approx(4));
+    CHECK(*clamped.roundTripBestMs == doctest::Approx(4));
+
+    SessionMetrics ahead;
+    ahead.heartbeat(beatAt(1'000'000, 4ms, -2ms));
+    const SessionMetrics::Sample zero = ahead.sample(1s);
+    REQUIRE(zero.inputMs);
+    CHECK(*zero.inputMs == doctest::Approx(0));
+}
+
+TEST_CASE("ADR-0114: the heartbeat history keeps at most 64 samples inside the 16 s window")
+{
+    SessionMetrics metrics;
+    metrics.heartbeat(beatAt(1, 20ms, 15ms));
+    for (int i = 1; i < 100; ++i) {
+        metrics.heartbeat(beatAt(1 + i * 10'000, 5ms, 4ms));
+    }
+    const SessionMetrics::Sample sample = metrics.sample(1s);
+    REQUIRE(sample.roundTripBestMs);
+    REQUIRE(sample.inputBestMs);
+    CHECK(*sample.roundTripBestMs == doctest::Approx(5));
+    CHECK(*sample.inputBestMs == doctest::Approx(4));
+    CHECK(*sample.roundTripMs == doctest::Approx(5));
+    CHECK(*sample.inputMs == doctest::Approx(4));
+}
+
+TEST_CASE("ADR-0114: the touch wait of one interval shows its mean and its largest, and nothing when idle")
+{
+    SessionMetrics metrics;
+    const SessionMetrics::Sample idle = metrics.sample(1s);
+    CHECK_FALSE(idle.mergeWaitMeanMs);
+    CHECK_FALSE(idle.mergeWaitMaxMs);
+
+    metrics.touchWait(9'000, 3, 4'000);
+    const SessionMetrics::Sample touched = metrics.sample(1s);
+    REQUIRE(touched.mergeWaitMeanMs);
+    REQUIRE(touched.mergeWaitMaxMs);
+    CHECK(*touched.mergeWaitMeanMs == doctest::Approx(3));
+    CHECK(*touched.mergeWaitMaxMs == doctest::Approx(4));
+
+    const SessionMetrics::Sample after = metrics.sample(1s);
+    CHECK_FALSE(after.mergeWaitMeanMs);
+    CHECK_FALSE(after.mergeWaitMaxMs);
 }

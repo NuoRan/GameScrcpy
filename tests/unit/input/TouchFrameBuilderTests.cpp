@@ -5,6 +5,7 @@
 #include <vector>
 
 using namespace gs::input;
+using gs::ManualClock;
 using gs::Microseconds;
 using gs::protocol::TouchAction;
 using gs::protocol::TouchFrame;
@@ -25,6 +26,7 @@ public:
     bool writable = true;
     Microseconds now{0};
     std::vector<Sent> sent;
+    std::vector<Microseconds> waits;
 
     bool trySend(const TouchFrame& frame) override
     {
@@ -33,6 +35,8 @@ public:
         }
         return writable;
     }
+
+    void frameWaited(Microseconds waited) override { waits.push_back(waited); }
 };
 
 struct Fixture {
@@ -174,4 +178,65 @@ TEST_CASE("frames carry the current video session")
     f.flushAt(Microseconds{0});
     REQUIRE(f.sink.sent.size() == 1);
     CHECK(f.sink.sent[0].frame.videoSession == 7);
+}
+
+TEST_CASE("ADR-0114: a press goes out without waiting and a merged move reports the age of its oldest point")
+{
+    ManualClock clock;
+    TouchFrameBuilder builder{kTick, clock};
+    RecordingSink sink;
+
+    clock.set(Microseconds{1'000});
+    builder.down(0, {0.5, 0.5});
+    builder.flush(Microseconds{1'000}, sink);
+    REQUIRE(sink.sent.size() == 1);
+    REQUIRE(sink.waits.size() == 1);
+    CHECK(sink.waits[0] == Microseconds{0});
+
+    clock.set(Microseconds{2'000});
+    builder.move(0, {0.6, 0.5});
+    clock.set(Microseconds{3'000});
+    builder.move(0, {0.7, 0.5});
+    builder.flush(Microseconds{3'000}, sink);
+    CHECK(sink.sent.size() == 1);
+
+    const Microseconds sentAt = Microseconds{1'000} + kTick;
+    builder.flush(sentAt, sink);
+    REQUIRE(sink.sent.size() == 2);
+    REQUIRE(sink.waits.size() == 2);
+    CHECK(sink.waits[1] == sentAt - Microseconds{2'000});
+}
+
+TEST_CASE("ADR-0114: with the wakeups kept, a frame's wait never exceeds the tick")
+{
+    ManualClock clock;
+    TouchFrameBuilder builder{kTick, clock};
+    RecordingSink sink;
+
+    clock.set(Microseconds{0});
+    builder.down(0, {0.5, 0.5});
+    builder.flush(Microseconds{0}, sink);
+
+    Microseconds now{0};
+    for (int i = 0; i < 60; ++i) {
+        const Microseconds step = Microseconds{200 + (i * 3'301) % 6'000};
+        const Microseconds next = now + step;
+        if (const std::optional<Microseconds> due = builder.nextWakeup(); due && *due < next) {
+            clock.set(*due);
+            builder.flush(*due, sink);
+        }
+        clock.set(next);
+        builder.move(0, {0.5, 0.5});
+        builder.flush(next, sink);
+        now = next;
+    }
+    builder.up(0, {0.5, 0.5});
+    builder.flush(now, sink);
+
+    REQUIRE(sink.waits.size() == sink.sent.size());
+    CHECK(sink.waits.size() > 2);
+    for (const Microseconds wait : sink.waits) {
+        CHECK(wait >= Microseconds{0});
+        CHECK(wait <= kTick);
+    }
 }

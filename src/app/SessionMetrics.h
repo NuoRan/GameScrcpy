@@ -32,16 +32,23 @@ public:
         std::optional<double> captureToReceiptMs;
         std::optional<double> networkMs;
         std::optional<double> roundTripMs;
+        std::optional<double> roundTripBestMs;
         std::optional<double> sendDelayMs;
+        std::optional<double> sendDelayMeanMs;
         std::uint64_t stalls = 0;
         double longestStallMs = 0;
         std::uint64_t lostPackets = 0;
         std::optional<double> inputMs;
+        std::optional<double> inputBestMs;
+        std::optional<double> mergeWaitMeanMs;
+        std::optional<double> mergeWaitMaxMs;
         std::optional<double> frameWaitMs;
         int heldFrames = 0;
     };
 
     [[nodiscard]] Sample sample(std::chrono::microseconds elapsed) noexcept;
+
+    void touchWait(std::int64_t sumUs, std::uint32_t frames, std::int64_t maxUs) noexcept;
 
     static constexpr std::int64_t kLiveFrameGapUs = 50'000;
 
@@ -63,6 +70,16 @@ private:
         [[nodiscard]] std::optional<double> mean() const noexcept;
     };
 
+    struct Beat {
+        std::int64_t sentUs = 0;
+        std::int64_t roundTripUs = 0;
+        std::int64_t oneWayUs = 0;
+    };
+
+    static constexpr std::size_t kBeatCapacity = 64;
+    static constexpr std::int64_t kBeatWindowUs = 16'000'000;
+
+    void addBeat(std::int64_t sentUs, std::int64_t roundTripUs, std::int64_t oneWayUs) noexcept;
     void waitForFrameAfter(std::int64_t injectedUs) noexcept;
     [[nodiscard]] std::optional<double> halfFrameInterval() const noexcept;
 
@@ -77,6 +94,10 @@ private:
     std::atomic<std::int64_t> m_clockOffsetUs{0};
     std::atomic<std::int64_t> m_roundTripUs{0};
     std::atomic<std::int64_t> m_sendDelayUs{0};
+    std::atomic<std::int64_t> m_sendDelayMeanUs{0};
+    std::atomic<std::int64_t> m_mergeSumUs{0};
+    std::atomic<std::int64_t> m_mergeMaxUs{0};
+    std::atomic<std::uint32_t> m_mergeFrames{0};
     std::atomic<int> m_heldFrames{0};
     std::atomic<std::uint64_t> m_stalls{0};
     std::atomic<std::int64_t> m_longestStallUs{0};
@@ -86,7 +107,9 @@ private:
     Window<32> m_capturedPts;
     std::array<std::int64_t, 16> m_waiting{};
     std::size_t m_waitingCount = 0;
-    Window<8> m_input;
+    std::array<Beat, kBeatCapacity> m_beats{};
+    std::size_t m_beatHead = 0;
+    std::size_t m_beatCount = 0;
     Window<8> m_frameWait;
 };
 

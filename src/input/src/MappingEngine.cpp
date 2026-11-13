@@ -18,12 +18,6 @@ Microseconds milliseconds(std::uint32_t value) noexcept
     return Microseconds{static_cast<long long>(value) * 1000};
 }
 
-Microseconds defaultPacingTick(double refreshHz) noexcept
-{
-    const double hz = std::clamp(2.0 * refreshHz, 120.0, 480.0);
-    return Microseconds{static_cast<long long>(1'000'000.0 / hz)};
-}
-
 Vec2 offsetBy(Vec2 base, Vec2 delta) noexcept
 {
     return {base.x + delta.x, base.y + delta.y};
@@ -159,7 +153,7 @@ MappingEngine::MappingEngine(const Profile& profile, const EngineConfig& config,
     , m_listener(listener)
     , m_sink(touches)
     , m_pointers(config.maxPointers)
-    , m_builder(config.pacingTick.value_or(defaultPacingTick(config.refreshHz)))
+    , m_builder(config.pacingTick.value_or(pacingTickFor(config.refreshHz)))
     , m_out(m_pointers, m_builder)
     , m_frame(Microseconds{static_cast<long long>(1'000'000.0 / std::max(config.refreshHz, 1.0))})
 {
@@ -693,8 +687,8 @@ void MappingEngine::tellTrouble(std::size_t control)
 
 Microseconds MappingEngine::frameTick() const noexcept
 {
-    const Microseconds tick = m_config.pacingTick.value_or(defaultPacingTick(m_config.refreshHz));
-    return tick.count() > 0 ? tick : defaultPacingTick(m_config.refreshHz);
+    const Microseconds tick = m_config.pacingTick.value_or(pacingTickFor(m_config.refreshHz));
+    return tick.count() > 0 ? tick : pacingTickFor(m_config.refreshHz);
 }
 
 bool MappingEngine::retuneControl(const Control& control, Microseconds now)
@@ -1506,7 +1500,7 @@ void MappingEngine::setRefreshHz(double hz) noexcept
     }
     m_config.refreshHz = hz;
     if (!m_config.pacingTick) {
-        m_builder.setTick(defaultPacingTick(hz));
+        m_builder.setTick(pacingTickFor(hz));
     }
 }
 

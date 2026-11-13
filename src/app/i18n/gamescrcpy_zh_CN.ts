@@ -21765,10 +21765,6 @@
         <translation>收包到渲染：%1 ms</translation>
     </message>
     <message>
-        <source>Round trip: %1 ms; input waited at most %2 ms</source>
-        <translation>往返：%1 ms；输入最多等待 %2 ms</translation>
-    </message>
-    <message>
         <source>Audio: %1 ms buffered, target %2 ms; %3 ms of silence so far</source>
         <translation>音频：缓冲 %1 ms，目标 %2 ms；累计补静音 %3 ms</translation>
     </message>
@@ -21969,6 +21965,50 @@
     <message>
         <source>The phone did not let GameScrcpy open or close the notification shade</source>
         <translation>手机没有让 GameScrcpy 下拉或收起通知栏</translation>
+    </message>
+    <message>
+        <source>composed by Windows</source>
+        <translation>由 Windows 合成</translation>
+    </message>
+    <message>
+        <source>hardware overlay</source>
+        <translation>硬件叠加层</translation>
+    </message>
+    <message>
+        <source>presentation unknown</source>
+        <translation>呈现方式未知</translation>
+    </message>
+    <message>
+        <source>Decoding: %1 ms per frame; the decoder holds %2 frames back</source>
+        <translation>解码：每帧 %1 ms；解码器压着 %2 帧</translation>
+    </message>
+    <message>
+        <source>Input to screen: %1 ms</source>
+        <translation>按下到上屏：%1 ms</translation>
+    </message>
+    <message>
+        <source>Touch merging on the PC: %1 ms on average, %2 ms at most (moves wait up to %3 ms for the next send)</source>
+        <translation>电脑端触摸合并：平均 %1 ms，最多 %2 ms（移动最多等 %3 ms 才发出）</translation>
+    </message>
+    <message>
+        <source>Touch from the PC&apos;s send queue into the phone&apos;s input queue: %1 ms now, %2 ms best in 16 s (estimate); waiting for the next frame: %3 ms</source>
+        <translation>触摸从电脑发送队列到手机输入队列：现在 %1 ms，16 秒内最好 %2 ms（估计值）；等下一帧 %3 ms</translation>
+    </message>
+    <message>
+        <source>Arrival to screen: %1 ms (95% within %2 ms), %3 ms of it after rendering; %4</source>
+        <translation>收包到上屏：%1 ms（95% 在 %2 ms 以内），其中渲染之后 %3 ms；%4</translation>
+    </message>
+    <message>
+        <source>Round trip: %1 ms now, %2 ms best in 16 s; the send queue held a touch %3 ms on average, %4 ms at most</source>
+        <translation>往返：现在 %1 ms，16 秒内最好 %2 ms；发送队列平均压住触摸 %3 ms，最多 %4 ms</translation>
+    </message>
+    <message>
+        <source>Pauses for a key frame: %1, the longest %2 ms; %3 packets lost beyond repair</source>
+        <translation>等关键帧的停顿：%1 次，最长 %2 ms；%3 个包丢失且无法修复</translation>
+    </message>
+    <message>
+        <source>Pauses for a key frame: none</source>
+        <translation>等关键帧的停顿：无</translation>
     </message>
     <message>
         <source>Show in folder</source>
@@ -22469,10 +22509,6 @@
     <message>
         <source>Input to render: %1 ms, the game&apos;s own reaction not included</source>
         <translation>按下到渲染：%1 ms（不含游戏自己的反应）</translation>
-    </message>
-    <message>
-        <source>Input reaching the phone: %1 ms; waiting for the next frame: %2 ms</source>
-        <translation>输入到达手机：%1 ms；等下一帧：%2 ms</translation>
     </message>
     <message>
         <source>Measured with touch dots: %1 ms, the median of %2 presses (%3 to %4 ms)</source>

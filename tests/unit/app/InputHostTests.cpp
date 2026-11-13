@@ -154,6 +154,28 @@ TEST_CASE("the input host sends nothing until active, then touch frames for the 
     CHECK(rig.host.activeTouches() == 0);
 }
 
+TEST_CASE("ADR-0114: every touch frame a lane sends reaches the channel's merge wait statistics once")
+{
+    Rig rig;
+    rig.host.setActive(true, 0us);
+    rig.host.key(kSpace, 1000us);
+    const ControlChannel::TouchWait down = rig.channel->takeTouchWait();
+    CHECK(down.frames == 1);
+    CHECK(down.maxUs >= 0);
+    CHECK(down.sumUs >= down.maxUs);
+
+    rig.host.key(kSpaceUp, 4000us);
+    const ControlChannel::TouchWait up = rig.channel->takeTouchWait();
+    CHECK(up.frames == 1);
+    CHECK(up.maxUs >= 0);
+    CHECK(up.sumUs >= up.maxUs);
+
+    const ControlChannel::TouchWait idle = rig.channel->takeTouchWait();
+    CHECK(idle.frames == 0);
+    CHECK(idle.sumUs == 0);
+    CHECK(idle.maxUs == 0);
+}
+
 TEST_CASE("a new video session releases held touches and rebuilds, a detached channel sends nothing (ADR-0069)")
 {
     Rig rig;

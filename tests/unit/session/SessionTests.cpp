@@ -428,6 +428,7 @@ TEST_CASE("heartbeats measure the round trip, the clock offset and the send dela
     CHECK(last.roundTrip < 500ms);
     CHECK(std::chrono::abs(last.clockOffset - 5s) < 100ms);
     CHECK(last.sendDelay < 500ms);
+    CHECK(last.sendDelayMean <= last.sendDelay);
     CHECK(rig.server.received<protocol::Ping>().size() >= 3);
 }
 
