@@ -4,7 +4,7 @@ A touch box is a small board that a phone takes for a plugged-in touch screen an
 
 The ESP32 touch box that was built into GameScrcpy 2.0 is now the community extension `community.esp32`, from the GameScrcpy-ESP32 project of the GameScrcpy community. It still turns an ESP32 development board into the phone's touch screen, keyboard, mouse and gamepad, and it brings the firmware, flashing and the Wi-Fi setup along.
 
-1. **Get the extension**: download `community.esp32-<version>.gsext` from the GameScrcpy-ESP32 project.
+1. **Get the extension**: download `community.esp32-<version>.gsext` from the [GameScrcpy-ESP32](https://github.com/NuoRan/GameScrcpy-ESP32) project.
 2. **Install it**: on the **Extensions** page select **Install from file…**, choose the file and accept the permissions it asks for.
 3. **Read its help**: the extension's own articles, about wiring, flashing, when to hold BOOT and what its messages mean, appear in this help under its name.
 

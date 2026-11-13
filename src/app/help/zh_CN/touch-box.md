@@ -4,7 +4,7 @@
 
 GameScrcpy 2.0 内置的 ESP32 触控盒现在是社区扩展 `community.esp32`，来自“GameScrcpy 社区”的 GameScrcpy-ESP32 项目。它照样把一块 ESP32 开发板变成手机的触摸屏、键盘、鼠标和手柄，固件、刷写和 Wi‑Fi 设置也都带着。
 
-1. **拿到扩展**：从 GameScrcpy-ESP32 项目下载 `community.esp32-<版本>.gsext`。
+1. **拿到扩展**：从 [GameScrcpy-ESP32](https://github.com/NuoRan/GameScrcpy-ESP32) 项目下载 `community.esp32-<版本>.gsext`。
 2. **安装**：在 **扩展** 页点 **从文件安装…**，选这个文件，同意它要的权限。
 3. **看它的帮助**：怎么接线、怎么刷写、什么时候按 BOOT、各种提示的意思，都在这本帮助里以它的名字列出的文章中。
 
