@@ -304,8 +304,8 @@ Dialog {
                             onTriggered: dialog.exportAs(row.modelData, exportItem.modelData)
                         }
 
-                        onObjectAdded: (index, object) => rowMenu.insertItem(2 + index, object)
-                        onObjectRemoved: (index, object) => rowMenu.removeItem(object)
+                        onObjectAdded: (index, object) => rowMenu.insertItem(2 + index, object as Item)
+                        onObjectRemoved: (index, object) => rowMenu.removeItem(object as Item)
                     }
 
                     ConvertMenuItems {

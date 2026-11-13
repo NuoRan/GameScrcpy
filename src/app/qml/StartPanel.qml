@@ -308,8 +308,8 @@ FocusScope {
                             onTriggered: panel.communityRequested(modelData.id)
                         }
 
-                        onObjectAdded: (index, object) => communityMenu.insertItem(index, object)
-                        onObjectRemoved: (index, object) => communityMenu.removeItem(object)
+                        onObjectAdded: (index, object) => communityMenu.insertItem(index, object as Item)
+                        onObjectRemoved: (index, object) => communityMenu.removeItem(object as Item)
                     }
 
                     MenuSeparator {}

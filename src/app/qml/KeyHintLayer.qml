@@ -256,7 +256,7 @@ Item {
                 model: spot.places
 
                 delegate: Rectangle {
-                    required property var modelData
+                    required property point modelData
                     required property int index
 
                     objectName: "placeDot"

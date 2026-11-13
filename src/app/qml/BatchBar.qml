@@ -131,8 +131,8 @@ Item {
                                 onTriggered: bar.batch.startTask(taskItem.modelData.id, taskItem.modelData.name)
                             }
 
-                            onObjectAdded: (index, object) => taskMenu.insertItem(index, object)
-                            onObjectRemoved: (index, object) => taskMenu.removeItem(object)
+                            onObjectAdded: (index, object) => taskMenu.insertItem(index, object as Item)
+                            onObjectRemoved: (index, object) => taskMenu.removeItem(object as Item)
                         }
 
                         MenuItem {

@@ -11,11 +11,11 @@ SettingRow {
 
     property var labels: ({})
     readonly property var choices: entry ? entry.choices : []
-    readonly property ColorTokens darkColors: ColorTokens {
+    final readonly property ColorTokens darkColors: ColorTokens {
         dark: true
         accent: Theme.colors.accent
     }
-    readonly property ColorTokens lightColors: ColorTokens {
+    final readonly property ColorTokens lightColors: ColorTokens {
         dark: false
         accent: Theme.colors.accent
     }
@@ -25,7 +25,7 @@ SettingRow {
     component MiniWindow: Item {
         id: mini
 
-        required property ColorTokens colors
+        final required property ColorTokens colors
 
         Rectangle {
             width: Math.round(parent.width * 0.22)

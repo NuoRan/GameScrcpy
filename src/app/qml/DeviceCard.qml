@@ -570,8 +570,8 @@ Card {
                                 }
                             }
 
-                            onObjectAdded: (index, object) => more.insertItem(index, object)
-                            onObjectRemoved: (index, object) => more.removeItem(object)
+                            onObjectAdded: (index, object) => more.insertItem(index, object as Item)
+                            onObjectRemoved: (index, object) => more.removeItem(object as Item)
                         }
 
                         CommandMenuItem {

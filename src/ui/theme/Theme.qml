@@ -51,22 +51,22 @@ QtObject {
         return hue === undefined ? colors.textSecondary : Qt.color(hue)
     }
 
-    readonly property ColorTokens colors: ColorTokens {
+    final readonly property ColorTokens colors: ColorTokens {
         dark: theme.dark
         accent: theme.accentChoices[theme.accentName] ?? theme.accentChoices.ember
         accentTextOnLight: theme.accentTextChoices[theme.accentName] ?? theme.accentTextChoices.ember
         overrides: (theme.dark ? theme.palette.dark : theme.palette.light) ?? ({})
     }
-    readonly property Typography type: Typography {}
-    readonly property Size size: Size {}
+    final readonly property Typography type: Typography {}
+    final readonly property Size size: Size {}
     readonly property real disabledOpacity: 0.4
     readonly property real fadedOpacity: 0.55
-    readonly property Spacing space: Spacing {}
-    readonly property Radius radius: Radius {}
-    readonly property Shadow shadow: Shadow {
+    final readonly property Spacing space: Spacing {}
+    final readonly property Radius radius: Radius {}
+    final readonly property Shadow shadow: Shadow {
         dark: theme.dark
     }
-    readonly property Motion motion: Motion {
+    final readonly property Motion motion: Motion {
         reduced: theme.reducedMotion
     }
 }

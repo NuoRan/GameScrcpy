@@ -267,8 +267,8 @@ Item {
                 onTriggered: materials.bench.useExistingRequest(materials.menuIndex, modelData)
             }
 
-            onObjectAdded: (index, object) => existingMenu.insertItem(index, object)
-            onObjectRemoved: (index, object) => existingMenu.removeItem(object)
+            onObjectAdded: (index, object) => existingMenu.insertItem(index, object as Item)
+            onObjectRemoved: (index, object) => existingMenu.removeItem(object as Item)
         }
     }
 }

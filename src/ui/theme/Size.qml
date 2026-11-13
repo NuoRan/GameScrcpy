@@ -1,224 +1,224 @@
 import QtQuick
 
 QtObject {
-    readonly property int control: 32
-    readonly property int controlSmall: 26
-    readonly property int segment: 26
-    readonly property int switchWidth: 40
-    readonly property int switchHeight: 22
-    readonly property int switchKnob: 14
-    readonly property int checkbox: 18
-    readonly property int pill: 20
-    readonly property int pillDot: 6
-    readonly property int keycap: 20
-    readonly property int keycapLarge: 26
-    readonly property int iconSmall: 16
-    readonly property int icon: 18
-    readonly property int iconLarge: 20
-    readonly property int stroke: 1
-    readonly property int focusRing: 2
-    readonly property int fieldGlow: 3
-    readonly property int fieldWidth: 200
-    readonly property int search: 34
-    readonly property int sliderWidth: 200
-    readonly property int sliderTrack: 4
-    readonly property int sliderHandle: 16
-    readonly property int sliderHandlePressed: 18
-    readonly property int sliderValue: 52
-    readonly property int sliderBand: 20
-    readonly property int sliderTicked: 40
-    readonly property int sliderTick: 5
-    readonly property int sliderBubble: 24
-    readonly property int tooltip: 28
-    readonly property int tooltipWide: 300
-    readonly property int menuItem: 32
-    readonly property int menuMinWidth: 200
-    readonly property int navRail: 76
-    readonly property int navItemWidth: 60
-    readonly property int navItemHeight: 56
-    readonly property int navIndicatorWidth: 3
-    readonly property int navIndicatorHeight: 20
-    readonly property int toast: 44
-    readonly property int toastBar: 3
-    readonly property int toastMaxWidth: 480
-    readonly property int toolbar: 44
-    readonly property int toolbarButton: 36
-    readonly property int toolbarChevron: 20
-    readonly property int toolbarSeparator: 20
-    readonly property int toolbarReveal: 48
-    readonly property int gripWidth: 36
-    readonly property int gripHeight: 4
-    readonly property int gripTargetWidth: 64
-    readonly property int gripTargetHeight: 20
-    readonly property int tile: 28
-    readonly property int tileLarge: 40
-    readonly property int infoButton: 18
-    readonly property int infoIcon: 14
-    readonly property int infoBubble: 300
-    readonly property int settingsRow: 52
-    readonly property int themePreview: 92
-    readonly property int chip: 28
-    readonly property int profileThumb: 128
-    readonly property int profileCard: 280
-    readonly property int extensionCard: 300
-    readonly property int badge: 18
-    readonly property int captureField: 320
-    readonly property int capsule: 34
-    readonly property int lockMark: 8
-    readonly property int lockHalo: 14
-    readonly property int edgeLine: 2
-    readonly property int edgeHalo: 40
-    readonly property int syncFrame: 3
-    readonly property int syncFrameFollower: 2
-    readonly property int batchJobs: 176
-    readonly property int keyHint: 30
-    readonly property int keyHintSmall: 26
-    readonly property int keyHintTag: 16
-    readonly property int keyHintTagIcon: 10
-    readonly property int keyHintRing: 2
-    readonly property int keyHintRound: 34
-    readonly property int keyHintHalo: 4
-    readonly property int keyHintEcho: 4
-    readonly property int keyHintTick: 6
-    readonly property int keyHintMouse: 16
-    readonly property int keyHintMouseSmall: 13
-    readonly property int crosshair: 22
-    readonly property int previewLong: 128
-    readonly property int previewShort: 72
-    readonly property int previewPortrait: 40
-    readonly property int previewDot: 6
-    readonly property int stepDot: 20
-    readonly property int stepWidth: 104
-    readonly property int stepLine: 2
-    readonly property int dialogWidth: 420
-    readonly property int sheetWidth: 560
-    readonly property int panelPaddingV: 28
-    readonly property int panelPaddingH: 36
-    readonly property int iconHero: 40
-    readonly property int phoneWidth: 44
-    readonly property int phoneHeight: 76
-    readonly property int sliderCompact: 112
-    readonly property int codeCellWidth: 36
-    readonly property int codeCellHeight: 40
-    readonly property int sideNav: 232
-    readonly property int listItem: 34
-    readonly property int numberField: 92
-    readonly property int numberFieldWide: 112
-    readonly property int swatch: 24
-    readonly property int readableWidth: 960
-    readonly property int scopeName: 200
-    readonly property int palette: 640
-    readonly property int paletteTop: 112
-    readonly property int paletteInput: 54
-    readonly property int paletteRow: 40
-    readonly property int paletteSection: 28
-    readonly property int paletteListMax: 360
-    readonly property int paletteFooter: 38
-    readonly property int paletteTarget: 160
-    readonly property int guideWidth: 840
-    readonly property int guideHeight: 580
-    readonly property int guideArt: 300
-    readonly property int guidePhoneWidth: 172
-    readonly property int guidePhoneHeight: 352
-    readonly property int guidePhoneBezel: 6
-    readonly property int guideBadge: 24
-    readonly property int guideTile: 32
-    readonly property int guideRow: 34
-    readonly property int guideBar: 8
-    readonly property int guideToggleWidth: 28
-    readonly property int guideToggleHeight: 16
-    readonly property int guideToggleKnob: 12
-    readonly property int guideRipple: 40
-    readonly property int guideDot: 6
-    readonly property int guideDotActive: 20
-    readonly property int guidePulse: 76
-    readonly property int guideWindowWidth: 256
-    readonly property int guideWindowHeight: 156
-    readonly property int guideHandsetWidth: 136
-    readonly property int guideHandsetHeight: 66
-    readonly property int guideCable: 44
-    readonly property int workbenchBar: 48
-    readonly property int workbenchSidebar: 304
-    readonly property int workbenchBottom: 200
-    readonly property int workbenchLeft: 208
-    readonly property int workbenchCode: 640
-    readonly property int tab: 34
-    readonly property int tabIndicator: 2
-    readonly property int componentTile: 64
-    readonly property int componentRow: 44
-    readonly property int componentBadge: 12
-    readonly property int helpArticle: 800
-    readonly property int helpProse: 720
-    readonly property int helpStepsArt: 272
-    readonly property int helpStepNumber: 26
-    readonly property int helpMarker: 22
-    readonly property int helpCardArt: 138
-    readonly property int helpHeroArtWidth: 316
-    readonly property int helpHeroArtHeight: 214
-    readonly property int helpSearch: 42
-    readonly property int helpTocRow: 28
-    readonly property int bpNodeWidth: 176
-    readonly property int bpHeader: 30
-    readonly property int bpPinRow: 24
-    readonly property int bpImageRow: 38
-    readonly property int bpPin: 10
-    readonly property int bpExecWidth: 9
-    readonly property int bpExecHeight: 12
-    readonly property real bpWire: 2.2
-    readonly property real bpWireSelected: 3.4
-    readonly property int bpWireBend: 40
-    readonly property int bpReroute: 10
-    readonly property int bpGrid: 20
-    readonly property int bpSnap: 8
-    readonly property int bpChip: 20
-    readonly property int bpChipMax: 140
-    readonly property int bpThumbWidth: 54
-    readonly property int bpThumbHeight: 30
-    readonly property int bpPure: 28
-    readonly property int bpCodeWidth: 240
-    readonly property int bpNoteWidth: 260
-    readonly property int bpFlowDot: 7
-    readonly property int bpMinimapWidth: 180
-    readonly property int bpMinimapHeight: 120
-    readonly property int bpPicker: 320
-    readonly property int bpPickerList: 320
-    readonly property int bpCommentTitle: 30
-    readonly property int bpCommentMinWidth: 160
-    readonly property int bpCommentMinHeight: 80
-    readonly property int bpResize: 14
-    readonly property int bpStateWidth: 168
-    readonly property int bpEntryLead: 26
-    readonly property int bpArrow: 8
-    readonly property real bpTransition: 2
-    readonly property real bpTransitionActive: 2.4
-    readonly property int bpRing: 10
-    readonly property int bpLoop: 44
-    readonly property int bpCurve: 36
-    readonly property int bpCrumb: 28
-    readonly property int bpSection: 26
-    readonly property int bpItem: 27
-    readonly property int bpMember: 21
-    readonly property int bpMemberMark: 8
-    readonly property int bpTimeline: 196
-    readonly property int bpTimelineHeader: 38
-    readonly property int bpTrackLabel: 44
-    readonly property int bpFrames: 56
-    readonly property int bpSteps: 40
-    readonly property int bpStep: 24
-    readonly property int bpPlayhead: 12
-    readonly property int bpKvRow: 26
-    readonly property int bpKvKey: 60
-    readonly property int bpListRow: 38
-    readonly property int extensionPanel: 320
-    readonly property int extensionPanelMin: 240
-    readonly property int extensionPanelMax: 480
-    readonly property int extensionChart: 160
-    readonly property int extensionStatusBar: 48
-    readonly property int aiBubble: 44
-    readonly property int aiCardWidth: 400
-    readonly property int aiCardHeight: 560
-    readonly property int aiWindowSidebar: 240
-    readonly property int aiModelPicker: 296
-    readonly property int aiModelChip: 168
-    readonly property int aiModelList: 224
+    final readonly property int control: 32
+    final readonly property int controlSmall: 26
+    final readonly property int segment: 26
+    final readonly property int switchWidth: 40
+    final readonly property int switchHeight: 22
+    final readonly property int switchKnob: 14
+    final readonly property int checkbox: 18
+    final readonly property int pill: 20
+    final readonly property int pillDot: 6
+    final readonly property int keycap: 20
+    final readonly property int keycapLarge: 26
+    final readonly property int iconSmall: 16
+    final readonly property int icon: 18
+    final readonly property int iconLarge: 20
+    final readonly property int stroke: 1
+    final readonly property int focusRing: 2
+    final readonly property int fieldGlow: 3
+    final readonly property int fieldWidth: 200
+    final readonly property int search: 34
+    final readonly property int sliderWidth: 200
+    final readonly property int sliderTrack: 4
+    final readonly property int sliderHandle: 16
+    final readonly property int sliderHandlePressed: 18
+    final readonly property int sliderValue: 52
+    final readonly property int sliderBand: 20
+    final readonly property int sliderTicked: 40
+    final readonly property int sliderTick: 5
+    final readonly property int sliderBubble: 24
+    final readonly property int tooltip: 28
+    final readonly property int tooltipWide: 300
+    final readonly property int menuItem: 32
+    final readonly property int menuMinWidth: 200
+    final readonly property int navRail: 76
+    final readonly property int navItemWidth: 60
+    final readonly property int navItemHeight: 56
+    final readonly property int navIndicatorWidth: 3
+    final readonly property int navIndicatorHeight: 20
+    final readonly property int toast: 44
+    final readonly property int toastBar: 3
+    final readonly property int toastMaxWidth: 480
+    final readonly property int toolbar: 44
+    final readonly property int toolbarButton: 36
+    final readonly property int toolbarChevron: 20
+    final readonly property int toolbarSeparator: 20
+    final readonly property int toolbarReveal: 48
+    final readonly property int gripWidth: 36
+    final readonly property int gripHeight: 4
+    final readonly property int gripTargetWidth: 64
+    final readonly property int gripTargetHeight: 20
+    final readonly property int tile: 28
+    final readonly property int tileLarge: 40
+    final readonly property int infoButton: 18
+    final readonly property int infoIcon: 14
+    final readonly property int infoBubble: 300
+    final readonly property int settingsRow: 52
+    final readonly property int themePreview: 92
+    final readonly property int chip: 28
+    final readonly property int profileThumb: 128
+    final readonly property int profileCard: 280
+    final readonly property int extensionCard: 300
+    final readonly property int badge: 18
+    final readonly property int captureField: 320
+    final readonly property int capsule: 34
+    final readonly property int lockMark: 8
+    final readonly property int lockHalo: 14
+    final readonly property int edgeLine: 2
+    final readonly property int edgeHalo: 40
+    final readonly property int syncFrame: 3
+    final readonly property int syncFrameFollower: 2
+    final readonly property int batchJobs: 176
+    final readonly property int keyHint: 30
+    final readonly property int keyHintSmall: 26
+    final readonly property int keyHintTag: 16
+    final readonly property int keyHintTagIcon: 10
+    final readonly property int keyHintRing: 2
+    final readonly property int keyHintRound: 34
+    final readonly property int keyHintHalo: 4
+    final readonly property int keyHintEcho: 4
+    final readonly property int keyHintTick: 6
+    final readonly property int keyHintMouse: 16
+    final readonly property int keyHintMouseSmall: 13
+    final readonly property int crosshair: 22
+    final readonly property int previewLong: 128
+    final readonly property int previewShort: 72
+    final readonly property int previewPortrait: 40
+    final readonly property int previewDot: 6
+    final readonly property int stepDot: 20
+    final readonly property int stepWidth: 104
+    final readonly property int stepLine: 2
+    final readonly property int dialogWidth: 420
+    final readonly property int sheetWidth: 560
+    final readonly property int panelPaddingV: 28
+    final readonly property int panelPaddingH: 36
+    final readonly property int iconHero: 40
+    final readonly property int phoneWidth: 44
+    final readonly property int phoneHeight: 76
+    final readonly property int sliderCompact: 112
+    final readonly property int codeCellWidth: 36
+    final readonly property int codeCellHeight: 40
+    final readonly property int sideNav: 232
+    final readonly property int listItem: 34
+    final readonly property int numberField: 92
+    final readonly property int numberFieldWide: 112
+    final readonly property int swatch: 24
+    final readonly property int readableWidth: 960
+    final readonly property int scopeName: 200
+    final readonly property int palette: 640
+    final readonly property int paletteTop: 112
+    final readonly property int paletteInput: 54
+    final readonly property int paletteRow: 40
+    final readonly property int paletteSection: 28
+    final readonly property int paletteListMax: 360
+    final readonly property int paletteFooter: 38
+    final readonly property int paletteTarget: 160
+    final readonly property int guideWidth: 840
+    final readonly property int guideHeight: 580
+    final readonly property int guideArt: 300
+    final readonly property int guidePhoneWidth: 172
+    final readonly property int guidePhoneHeight: 352
+    final readonly property int guidePhoneBezel: 6
+    final readonly property int guideBadge: 24
+    final readonly property int guideTile: 32
+    final readonly property int guideRow: 34
+    final readonly property int guideBar: 8
+    final readonly property int guideToggleWidth: 28
+    final readonly property int guideToggleHeight: 16
+    final readonly property int guideToggleKnob: 12
+    final readonly property int guideRipple: 40
+    final readonly property int guideDot: 6
+    final readonly property int guideDotActive: 20
+    final readonly property int guidePulse: 76
+    final readonly property int guideWindowWidth: 256
+    final readonly property int guideWindowHeight: 156
+    final readonly property int guideHandsetWidth: 136
+    final readonly property int guideHandsetHeight: 66
+    final readonly property int guideCable: 44
+    final readonly property int workbenchBar: 48
+    final readonly property int workbenchSidebar: 304
+    final readonly property int workbenchBottom: 200
+    final readonly property int workbenchLeft: 208
+    final readonly property int workbenchCode: 640
+    final readonly property int tab: 34
+    final readonly property int tabIndicator: 2
+    final readonly property int componentTile: 64
+    final readonly property int componentRow: 44
+    final readonly property int componentBadge: 12
+    final readonly property int helpArticle: 800
+    final readonly property int helpProse: 720
+    final readonly property int helpStepsArt: 272
+    final readonly property int helpStepNumber: 26
+    final readonly property int helpMarker: 22
+    final readonly property int helpCardArt: 138
+    final readonly property int helpHeroArtWidth: 316
+    final readonly property int helpHeroArtHeight: 214
+    final readonly property int helpSearch: 42
+    final readonly property int helpTocRow: 28
+    final readonly property int bpNodeWidth: 176
+    final readonly property int bpHeader: 30
+    final readonly property int bpPinRow: 24
+    final readonly property int bpImageRow: 38
+    final readonly property int bpPin: 10
+    final readonly property int bpExecWidth: 9
+    final readonly property int bpExecHeight: 12
+    final readonly property real bpWire: 2.2
+    final readonly property real bpWireSelected: 3.4
+    final readonly property int bpWireBend: 40
+    final readonly property int bpReroute: 10
+    final readonly property int bpGrid: 20
+    final readonly property int bpSnap: 8
+    final readonly property int bpChip: 20
+    final readonly property int bpChipMax: 140
+    final readonly property int bpThumbWidth: 54
+    final readonly property int bpThumbHeight: 30
+    final readonly property int bpPure: 28
+    final readonly property int bpCodeWidth: 240
+    final readonly property int bpNoteWidth: 260
+    final readonly property int bpFlowDot: 7
+    final readonly property int bpMinimapWidth: 180
+    final readonly property int bpMinimapHeight: 120
+    final readonly property int bpPicker: 320
+    final readonly property int bpPickerList: 320
+    final readonly property int bpCommentTitle: 30
+    final readonly property int bpCommentMinWidth: 160
+    final readonly property int bpCommentMinHeight: 80
+    final readonly property int bpResize: 14
+    final readonly property int bpStateWidth: 168
+    final readonly property int bpEntryLead: 26
+    final readonly property int bpArrow: 8
+    final readonly property real bpTransition: 2
+    final readonly property real bpTransitionActive: 2.4
+    final readonly property int bpRing: 10
+    final readonly property int bpLoop: 44
+    final readonly property int bpCurve: 36
+    final readonly property int bpCrumb: 28
+    final readonly property int bpSection: 26
+    final readonly property int bpItem: 27
+    final readonly property int bpMember: 21
+    final readonly property int bpMemberMark: 8
+    final readonly property int bpTimeline: 196
+    final readonly property int bpTimelineHeader: 38
+    final readonly property int bpTrackLabel: 44
+    final readonly property int bpFrames: 56
+    final readonly property int bpSteps: 40
+    final readonly property int bpStep: 24
+    final readonly property int bpPlayhead: 12
+    final readonly property int bpKvRow: 26
+    final readonly property int bpKvKey: 60
+    final readonly property int bpListRow: 38
+    final readonly property int extensionPanel: 320
+    final readonly property int extensionPanelMin: 240
+    final readonly property int extensionPanelMax: 480
+    final readonly property int extensionChart: 160
+    final readonly property int extensionStatusBar: 48
+    final readonly property int aiBubble: 44
+    final readonly property int aiCardWidth: 400
+    final readonly property int aiCardHeight: 560
+    final readonly property int aiWindowSidebar: 240
+    final readonly property int aiModelPicker: 296
+    final readonly property int aiModelChip: 168
+    final readonly property int aiModelList: 224
 }

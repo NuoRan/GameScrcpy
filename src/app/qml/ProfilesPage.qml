@@ -815,8 +815,8 @@ Item {
                                                             onTriggered: DeviceManager.useProfile(modelData.serial, card.modelData.id)
                                                         }
 
-                                                        onObjectAdded: (index, object) => deviceMenu.insertItem(index, object)
-                                                        onObjectRemoved: (index, object) => deviceMenu.removeItem(object)
+                                                        onObjectAdded: (index, object) => deviceMenu.insertItem(index, object as Item)
+                                                        onObjectRemoved: (index, object) => deviceMenu.removeItem(object as Item)
                                                     }
                                                 }
                                             }
@@ -890,8 +890,8 @@ Item {
                                                             onTriggered: page.link(card.modelData, modelData)
                                                         }
 
-                                                        onObjectAdded: (index, object) => moreMenu.insertItem(index, object)
-                                                        onObjectRemoved: (index, object) => moreMenu.removeItem(object)
+                                                        onObjectAdded: (index, object) => moreMenu.insertItem(index, object as Item)
+                                                        onObjectRemoved: (index, object) => moreMenu.removeItem(object as Item)
                                                     }
 
                                                     MenuItem {

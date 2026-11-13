@@ -239,8 +239,8 @@ FocusScope {
                         onTriggered: side.show(modelData.id)
                     }
 
-                    onObjectAdded: (index, object) => switchMenu.insertItem(index, object)
-                    onObjectRemoved: (index, object) => switchMenu.removeItem(object)
+                    onObjectAdded: (index, object) => switchMenu.insertItem(index, object as Item)
+                    onObjectRemoved: (index, object) => switchMenu.removeItem(object as Item)
                 }
             }
         }

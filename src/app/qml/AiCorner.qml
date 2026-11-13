@@ -362,8 +362,8 @@ Item {
                     onTriggered: AiChats.open(modelData.id)
                 }
 
-                onObjectAdded: (index, object) => recentMenu.insertItem(index, object)
-                onObjectRemoved: (index, object) => recentMenu.removeItem(object)
+                onObjectAdded: (index, object) => recentMenu.insertItem(index, object as Item)
+                onObjectRemoved: (index, object) => recentMenu.removeItem(object as Item)
             }
 
             MenuItem {

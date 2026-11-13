@@ -1084,8 +1084,8 @@ Item {
                         onTriggered: DeviceManager.useProfile(overlay.serial, modelData.id)
                     }
 
-                    onObjectAdded: (index, object) => keymapMenu.insertItem(keymapMenu.firstProfile + index, object)
-                    onObjectRemoved: (index, object) => keymapMenu.removeItem(object)
+                    onObjectAdded: (index, object) => keymapMenu.insertItem(keymapMenu.firstProfile + index, object as Item)
+                    onObjectRemoved: (index, object) => keymapMenu.removeItem(object as Item)
                 }
 
                 MenuItem {
@@ -1281,8 +1281,8 @@ Item {
                         }
                     }
 
-                    onObjectAdded: (index, object) => tasksMenu.insertItem(index + 1, object)
-                    onObjectRemoved: (index, object) => tasksMenu.removeItem(object)
+                    onObjectAdded: (index, object) => tasksMenu.insertItem(index + 1, object as Item)
+                    onObjectRemoved: (index, object) => tasksMenu.removeItem(object as Item)
                 }
 
                 MenuItem {
@@ -1357,8 +1357,8 @@ Item {
                         onTriggered: extensionSide.show(modelData.id)
                     }
 
-                    onObjectAdded: (index, object) => panelsMenu.insertItem(index + 1, object)
-                    onObjectRemoved: (index, object) => panelsMenu.removeItem(object)
+                    onObjectAdded: (index, object) => panelsMenu.insertItem(index + 1, object as Item)
+                    onObjectRemoved: (index, object) => panelsMenu.removeItem(object as Item)
                 }
 
                 MenuSeparator {}
@@ -1560,7 +1560,7 @@ Item {
                         }
                         moreMenu.addItem(object)
                     }
-                    onObjectRemoved: (index, object) => moreMenu.removeItem(object)
+                    onObjectRemoved: (index, object) => moreMenu.removeItem(object as Item)
                 }
                 MenuSeparator {
                     visible: overlay.frameTaps.length > 0
@@ -1603,7 +1603,7 @@ Item {
                         }
                         moreMenu.addItem(object)
                     }
-                    onObjectRemoved: (index, object) => moreMenu.removeItem(object)
+                    onObjectRemoved: (index, object) => moreMenu.removeItem(object as Item)
                 }
                 MenuItem {
                     objectName: "editLogic"
@@ -1700,7 +1700,7 @@ Item {
                         }
                         moreMenu.addItem(object)
                     }
-                    onObjectRemoved: (index, object) => moreMenu.removeItem(object)
+                    onObjectRemoved: (index, object) => moreMenu.removeItem(object as Item)
                 }
                 CommandMenuItem { commandState: settingsCommand }
                 CommandMenuItem { commandState: disconnectCommand }

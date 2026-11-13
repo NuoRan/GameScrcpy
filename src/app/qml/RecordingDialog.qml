@@ -194,8 +194,8 @@ Dialog {
                             onTriggered: dialog.exportWith(exportItem.modelData)
                         }
 
-                        onObjectAdded: (index, object) => moreMenu.insertItem(2 + index, object)
-                        onObjectRemoved: (index, object) => moreMenu.removeItem(object)
+                        onObjectAdded: (index, object) => moreMenu.insertItem(2 + index, object as Item)
+                        onObjectRemoved: (index, object) => moreMenu.removeItem(object as Item)
                     }
 
                     ConvertMenuItems {

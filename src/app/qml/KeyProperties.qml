@@ -890,8 +890,8 @@ Item {
                                     onTriggered: panel.editor.addAttachment(panel.keyId, modelData.module)
                                 }
 
-                                onObjectAdded: (index, object) => offerMenu.insertItem(index, object)
-                                onObjectRemoved: (index, object) => offerMenu.removeItem(object)
+                                onObjectAdded: (index, object) => offerMenu.insertItem(index, object as Item)
+                                onObjectRemoved: (index, object) => offerMenu.removeItem(object as Item)
                             }
                         }
                     }

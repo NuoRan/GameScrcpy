@@ -432,8 +432,8 @@ SettingCard {
                         onTriggered: chooser.commit(modelData)
                     }
 
-                    onObjectAdded: (index, object) => modelsMenu.insertItem(index, object)
-                    onObjectRemoved: (index, object) => modelsMenu.removeItem(object)
+                    onObjectAdded: (index, object) => modelsMenu.insertItem(index, object as Item)
+                    onObjectRemoved: (index, object) => modelsMenu.removeItem(object as Item)
                 }
             }
         }
