@@ -2376,8 +2376,6 @@ QStringList DeviceManager::describe(const Measures& measures)
         switch (mode) {
         case render::PresentationMode::Composed:
             return tr("composed by Windows");
-        case render::PresentationMode::IndependentFlip:
-            return tr("independent flip");
         case render::PresentationMode::HardwareOverlay:
             return tr("hardware overlay");
         case render::PresentationMode::Unknown:

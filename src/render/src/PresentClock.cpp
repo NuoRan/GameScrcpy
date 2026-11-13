@@ -45,7 +45,6 @@ PresentationMode modeOf(DXGI_FRAME_PRESENTATION_MODE mode)
     case DXGI_FRAME_PRESENTATION_MODE_OVERLAY:
         return PresentationMode::HardwareOverlay;
     case DXGI_FRAME_PRESENTATION_MODE_NONE:
-        return PresentationMode::IndependentFlip;
     case DXGI_FRAME_PRESENTATION_MODE_COMPOSITION_FAILURE:
         return PresentationMode::Unknown;
     }

@@ -131,8 +131,6 @@ const char* modeName(gs::render::PresentationMode mode)
     switch (mode) {
     case gs::render::PresentationMode::Composed:
         return "composed by Windows";
-    case gs::render::PresentationMode::IndependentFlip:
-        return "independent flip";
     case gs::render::PresentationMode::HardwareOverlay:
         return "hardware overlay";
     case gs::render::PresentationMode::Unknown:
@@ -353,6 +351,7 @@ bool checkFilters(QQuickWindow& window, gs::render::VideoItem& video,
 int main(int argc, char* argv[])
 {
     QQuickWindow::setGraphicsApi(QSGRendererInterface::Direct3D11);
+    qputenv("QT_QPA_DISABLE_REDIRECTION_SURFACE", "1");
     if (!qEnvironmentVariableIsSet("QT_D3D_NO_VBLANK_THREAD")) {
         qputenv("QT_D3D_NO_VBLANK_THREAD", "1");
     }
@@ -395,9 +394,11 @@ int main(int argc, char* argv[])
     const QCommandLineOption guiBusyOption("gui-busy",
                                            "Keep the interface thread busy for this many milliseconds every frame.",
                                            "ms", "0");
+    const QCommandLineOption fullScreenOption("fullscreen", "Show the window full screen.");
+    const QCommandLineOption onTopOption("on-top", "Keep the window above all others, the taskbar included.");
     parser.addOptions({secondsOption, resizeOption, debugOption, softwareOption, sharpnessOption,
                        lowLatencyOption, checkOption, filterOption, paramOption, checkFilterOption,
-                       secondWindowOption, fpsOption, guiBusyOption});
+                       secondWindowOption, fpsOption, guiBusyOption, fullScreenOption, onTopOption});
     parser.process(app);
     const std::vector<gs::render::VideoFilter> filters =
         readFilters(parser.values(filterOption), parser.values(paramOption));
@@ -484,7 +485,12 @@ int main(int argc, char* argv[])
     video->setSource(slot);
     window.resize(480, 720);
     fill();
-    window.show();
+    window.setFlag(Qt::WindowStaysOnTopHint, parser.isSet(onTopOption));
+    if (parser.isSet(fullScreenOption)) {
+        window.showFullScreen();
+    } else {
+        window.show();
+    }
 
     std::atomic<std::uint64_t> presentedSecond{0};
     const auto secondSlot = std::make_shared<gs::render::FrameSlot>();

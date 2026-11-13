@@ -107,6 +107,6 @@ TEST_CASE("ADR-0114: the presentation mode is kept until it changes")
 {
     FrameSlot slot;
     CHECK(slot.presentationMode() == gs::render::PresentationMode::Unknown);
-    slot.setPresentationMode(gs::render::PresentationMode::IndependentFlip);
-    CHECK(slot.presentationMode() == gs::render::PresentationMode::IndependentFlip);
+    slot.setPresentationMode(gs::render::PresentationMode::HardwareOverlay);
+    CHECK(slot.presentationMode() == gs::render::PresentationMode::HardwareOverlay);
 }

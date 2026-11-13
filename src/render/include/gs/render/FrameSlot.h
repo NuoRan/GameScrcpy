@@ -16,7 +16,6 @@ namespace gs::render {
 enum class PresentationMode : std::uint8_t {
     Unknown,
     Composed,
-    IndependentFlip,
     HardwareOverlay,
 };
 
