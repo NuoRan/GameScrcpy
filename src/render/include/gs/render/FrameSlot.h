@@ -26,15 +26,25 @@ struct ScreenStats {
     double renderToScreenP95Ms = 0.0;
 };
 
+struct GpuTimingStats {
+    double meanMs = 0.0;
+    double p50Ms = 0.0;
+    double p95Ms = 0.0;
+    double maxMs = 0.0;
+    std::size_t count = 0;
+};
+
 class FrameSlot
 {
 public:
     using ShownListener = std::function<void(std::int64_t ptsUs, std::int64_t shownUs)>;
     using ScreenListener = std::function<void(std::int64_t ptsUs, std::int64_t receivedUs, std::int64_t takenUs,
                                               std::int64_t screenUs)>;
+    using GpuTimeListener = std::function<void(double ms)>;
 
     static constexpr std::size_t kMostQueued = 2;
     static constexpr std::size_t kMostScreenSamples = 1024;
+    static constexpr std::size_t kMostGpuSamples = 1024;
 
     void put(media::VideoFrame frame);
     [[nodiscard]] media::VideoFrame take(std::int64_t* takenUs = nullptr);
@@ -50,6 +60,11 @@ public:
 
     void recordScreen(std::int64_t ptsUs, std::int64_t receivedUs, std::int64_t takenUs, std::int64_t screenUs);
     [[nodiscard]] std::optional<ScreenStats> takeScreenStats();
+    void setGpuTimeListener(GpuTimeListener listener);
+    void setGpuTiming(bool on);
+    [[nodiscard]] bool gpuTiming() const noexcept;
+    void recordGpuTime(double ms);
+    [[nodiscard]] std::optional<GpuTimingStats> takeGpuTimingStats();
     void setPresentationMode(PresentationMode mode) noexcept;
     [[nodiscard]] PresentationMode presentationMode() const noexcept;
 
@@ -68,6 +83,7 @@ private:
 
     [[nodiscard]] bool pacedLocked() const noexcept;
     void addScreenLocked(const ScreenSample& sample);
+    void addGpuLocked(double ms);
 
     mutable std::mutex m_mutex;
     std::deque<media::VideoFrame> m_frames;
@@ -86,6 +102,11 @@ private:
     std::array<ScreenSample, kMostScreenSamples> m_screenSamples{};
     std::size_t m_screenCount = 0;
     std::size_t m_screenNext = 0;
+    std::shared_ptr<const GpuTimeListener> m_gpuListener;
+    std::array<double, kMostGpuSamples> m_gpuSamples{};
+    std::size_t m_gpuCount = 0;
+    std::size_t m_gpuNext = 0;
+    std::atomic<bool> m_gpuTiming{false};
     std::atomic<PresentationMode> m_mode{PresentationMode::Unknown};
 };
 

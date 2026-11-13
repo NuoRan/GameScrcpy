@@ -5,7 +5,7 @@
 //
 //   gs_video_render_probe <recording> [--seconds N] [--resize] [--debug-layer] [--software]
 //                         [--sharpness S] [--low-latency] [--check-sharpness] [--fps N]
-//                         [--gui-busy MS]
+//                         [--gui-busy MS] [--gpu-time] [--fullscreen] [--on-top]
 //
 // Exits with 0 when every packet decoded, pictures reached the screen and the debug layer, when
 // present, reported no error. It prints the mean arrival-to-render time and the frames presented
@@ -83,11 +83,18 @@ struct LatencySamples {
         renderToScreenMs.push_back(static_cast<double>(screenUs - takenUs) / 1000.0);
     }
 
+    void gpu(double ms)
+    {
+        const std::scoped_lock lock(mutex);
+        gpuMs.push_back(ms);
+    }
+
     std::mutex mutex;
     std::unordered_map<std::int64_t, std::int64_t> arrivals;
     std::vector<double> arrivalToTakenMs;
     std::vector<double> arrivalToScreenMs;
     std::vector<double> renderToScreenMs;
+    std::vector<double> gpuMs;
 };
 
 class SlotSink final : public gs::media::FrameSink
@@ -396,9 +403,11 @@ int main(int argc, char* argv[])
                                            "ms", "0");
     const QCommandLineOption fullScreenOption("fullscreen", "Show the window full screen.");
     const QCommandLineOption onTopOption("on-top", "Keep the window above all others, the taskbar included.");
+    const QCommandLineOption gpuTimeOption("gpu-time",
+                                           "Measure how long the graphics card draws the picture, filters included.");
     parser.addOptions({secondsOption, resizeOption, debugOption, softwareOption, sharpnessOption,
                        lowLatencyOption, checkOption, filterOption, paramOption, checkFilterOption,
-                       secondWindowOption, fpsOption, guiBusyOption, fullScreenOption, onTopOption});
+                       secondWindowOption, fpsOption, guiBusyOption, fullScreenOption, onTopOption, gpuTimeOption});
     parser.process(app);
     const std::vector<gs::render::VideoFilter> filters =
         readFilters(parser.values(filterOption), parser.values(paramOption));
@@ -516,6 +525,10 @@ int main(int argc, char* argv[])
                                        std::int64_t screenUs) {
         latency.screened(ptsUs, receivedUs, takenUs, screenUs);
     });
+    if (parser.isSet(gpuTimeOption)) {
+        slot->setGpuTimeListener([&latency](double ms) { latency.gpu(ms); });
+        slot->setGpuTiming(true);
+    }
     std::atomic<bool> failed{false};
     std::jthread player([&](std::stop_token stop) {
         gs::media::VideoDecoder decoder(parser.isSet(softwareOption) ? nullptr : graphics->device());
@@ -625,15 +638,18 @@ int main(int argc, char* argv[])
     std::vector<double> takenValues;
     std::vector<double> screenValues;
     std::vector<double> renderValues;
+    std::vector<double> gpuValues;
     {
         const std::scoped_lock lock(latency.mutex);
         takenValues = latency.arrivalToTakenMs;
         screenValues = latency.arrivalToScreenMs;
         renderValues = latency.renderToScreenMs;
+        gpuValues = latency.gpuMs;
     }
     const Spread taken = spreadOf(std::move(takenValues));
     const Spread toScreen = spreadOf(std::move(screenValues));
     const Spread afterRender = spreadOf(std::move(renderValues));
+    const Spread gpu = spreadOf(std::move(gpuValues));
     const QByteArray latencySetting = qgetenv("QT_D3D_MAX_FRAME_LATENCY");
     std::printf("wake route %s, frame latency %s, presentation %s\n",
                 qEnvironmentVariable("GS_RENDER_WAKE") == u"gui" ? "interface" : "render thread",
@@ -645,6 +661,10 @@ int main(int argc, char* argv[])
                 toScreen.worst, toScreen.count);
     std::printf("render to screen: p50 %.2f ms, p95 %.2f ms, max %.2f ms (%zu frames)\n", afterRender.p50,
                 afterRender.p95, afterRender.worst, afterRender.count);
+    if (parser.isSet(gpuTimeOption)) {
+        std::printf("gpu: p50 %.2f ms, p95 %.2f ms, max %.2f ms (%zu frames)\n", gpu.p50, gpu.p95, gpu.worst,
+                    gpu.count);
+    }
     if (!parser.isSet(checkFilterOption)) {
         for (const gs::render::VideoFilter& filter : filters) {
             const std::optional<gs::render::FilterStatus> status = statusOf(*video, filter.id);

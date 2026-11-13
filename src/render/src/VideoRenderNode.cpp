@@ -14,6 +14,7 @@ extern "C" {
 #include <libavutil/pixfmt.h>
 }
 
+#include <QDebug>
 #include <QMatrix4x4>
 #include <QQuickWindow>
 #include <QRunnable>
@@ -45,6 +46,7 @@ void setCropOf(Parameters& parameters, const QRectF& crop)
 }
 
 constexpr std::size_t kMaxCachedSurfaces = 64;
+std::atomic<bool> gpuQueriesMissingLogged{false};
 constexpr float kFullScreen[4][4] = {{-1.0F, 1.0F, 0.0F, 1.0F},
                                      {1.0F, 1.0F, 0.0F, 1.0F},
                                      {-1.0F, -1.0F, 0.0F, 1.0F},
@@ -116,6 +118,7 @@ void VideoRenderNode::setSource(std::shared_ptr<FrameSlot> slot, bool frozen)
             m_slot->clearRenderWaker(this);
         }
         m_slot = std::move(slot);
+        m_gpuMeasuring = false;
         installWake();
     }
     m_frozen = frozen;
@@ -285,9 +288,12 @@ void VideoRenderNode::render(const RenderState* state)
         m_window->rendererInterface()->getResource(m_window, QSGRendererInterface::DeviceContextResource));
     const QSize target = renderTarget()->pixelSize();
     ID3D11PixelShader* const picture = m_nv12 ? m_nv12Shader.Get() : m_planarShader.Get();
+    startGpuTiming(context);
+    markGpuBegin(context);
     if (!m_filters.active()) {
         bindWindow(context, state, target);
         draw(context, m_parameters.Get(), picture, m_views.data(), m_viewCount);
+        finishGpuTiming(context);
         return;
     }
     ComPtr<ID3D11RenderTargetView> window;
@@ -308,6 +314,7 @@ void VideoRenderNode::render(const RenderState* state)
     context->OMSetRenderTargets(1, window.GetAddressOf(), depth.Get());
     bindWindow(context, state, target);
     draw(context, m_finalParameters.Get(), m_copyShader.Get(), &filtered, 1);
+    finishGpuTiming(context);
 }
 
 void VideoRenderNode::bindWindow(ID3D11DeviceContext* context, const RenderState* state, QSize target)
@@ -364,6 +371,16 @@ void VideoRenderNode::releaseResources()
     m_blend.Reset();
     m_depthStencil.Reset();
     m_filters.release();
+    for (GpuQuerySet& set : m_gpuQueries) {
+        set.disjoint.Reset();
+        set.begin.Reset();
+        set.end.Reset();
+    }
+    m_gpuQueriesReady = false;
+    m_gpuMeasuring = false;
+    m_gpuActive = false;
+    m_gpuIssued = 0;
+    m_gpuRead = 0;
 }
 
 QSGRenderNode::StateFlags VideoRenderNode::changedStates() const
@@ -430,8 +447,103 @@ bool VideoRenderNode::createPipeline(ID3D11Device* device)
     created = created && SUCCEEDED(device->CreateRasterizerState(&rasterizer, &m_rasterizers[1]));
     if (!created) {
         releaseResources();
+        return false;
     }
-    return created;
+    createGpuQueries(device);
+    return true;
+}
+
+void VideoRenderNode::createGpuQueries(ID3D11Device* device)
+{
+    const D3D11_QUERY_DESC disjoint{D3D11_QUERY_TIMESTAMP_DISJOINT, 0};
+    const D3D11_QUERY_DESC stamp{D3D11_QUERY_TIMESTAMP, 0};
+    bool created = true;
+    for (GpuQuerySet& set : m_gpuQueries) {
+        created = created && SUCCEEDED(device->CreateQuery(&disjoint, &set.disjoint));
+    }
+    for (GpuQuerySet& set : m_gpuQueries) {
+        created = created && SUCCEEDED(device->CreateQuery(&stamp, &set.begin));
+        created = created && SUCCEEDED(device->CreateQuery(&stamp, &set.end));
+    }
+    m_gpuQueriesReady = created;
+    if (!created) {
+        for (GpuQuerySet& set : m_gpuQueries) {
+            set.disjoint.Reset();
+            set.begin.Reset();
+            set.end.Reset();
+        }
+        if (!gpuQueriesMissingLogged.exchange(true, std::memory_order_relaxed)) {
+            qDebug() << "video render node: the device has no timestamp queries, the graphics card time is not "
+                        "measured";
+        }
+    }
+}
+
+void VideoRenderNode::startGpuTiming(ID3D11DeviceContext* context)
+{
+    if (!m_gpuQueriesReady || !m_slot || !m_slot->gpuTiming()) {
+        m_gpuActive = false;
+        m_gpuMeasuring = false;
+        return;
+    }
+    if (!m_gpuMeasuring) {
+        m_gpuMeasuring = true;
+        m_gpuIssued = 0;
+        m_gpuRead = 0;
+    } else {
+        readGpuSamples(context);
+    }
+    context->Begin(m_gpuQueries[m_gpuIssued % kGpuQuerySets].disjoint.Get());
+    m_gpuActive = true;
+}
+
+void VideoRenderNode::markGpuBegin(ID3D11DeviceContext* context)
+{
+    if (!m_gpuActive) {
+        return;
+    }
+    context->End(m_gpuQueries[m_gpuIssued % kGpuQuerySets].begin.Get());
+}
+
+void VideoRenderNode::finishGpuTiming(ID3D11DeviceContext* context)
+{
+    if (!m_gpuActive) {
+        return;
+    }
+    GpuQuerySet& set = m_gpuQueries[m_gpuIssued % kGpuQuerySets];
+    context->End(set.end.Get());
+    context->End(set.disjoint.Get());
+    ++m_gpuIssued;
+    m_gpuActive = false;
+}
+
+void VideoRenderNode::readGpuSamples(ID3D11DeviceContext* context)
+{
+    while (m_gpuRead < m_gpuIssued) {
+        GpuQuerySet& set = m_gpuQueries[m_gpuRead % kGpuQuerySets];
+        D3D11_QUERY_DATA_TIMESTAMP_DISJOINT disjoint{};
+        const HRESULT state =
+            context->GetData(set.disjoint.Get(), &disjoint, sizeof(disjoint), D3D11_ASYNC_GETDATA_DONOTFLUSH);
+        if (state == S_FALSE && m_gpuIssued - m_gpuRead < kGpuQuerySets) {
+            return;
+        }
+        ++m_gpuRead;
+        if (state != S_OK || disjoint.Disjoint || disjoint.Frequency == 0) {
+            continue;
+        }
+        UINT64 startTicks = 0;
+        UINT64 endTicks = 0;
+        if (context->GetData(set.begin.Get(), &startTicks, sizeof(startTicks), D3D11_ASYNC_GETDATA_DONOTFLUSH) !=
+                S_OK ||
+            context->GetData(set.end.Get(), &endTicks, sizeof(endTicks), D3D11_ASYNC_GETDATA_DONOTFLUSH) != S_OK ||
+            endTicks <= startTicks) {
+            continue;
+        }
+        if (m_slot) {
+            m_slot->recordGpuTime(static_cast<double>(endTicks - startTicks) * 1000.0 /
+                                  static_cast<double>(disjoint.Frequency));
+        }
+    }
 }
 
 bool VideoRenderNode::bindSurface(ID3D11Device* device)

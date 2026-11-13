@@ -266,6 +266,88 @@ std::optional<ScreenStats> FrameSlot::takeScreenStats()
     return stats;
 }
 
+void FrameSlot::setGpuTimeListener(GpuTimeListener listener)
+{
+    const std::scoped_lock lock(m_mutex);
+    m_gpuListener = listener ? std::make_shared<const GpuTimeListener>(std::move(listener)) : nullptr;
+}
+
+void FrameSlot::setGpuTiming(bool on)
+{
+    if (m_gpuTiming.exchange(on, std::memory_order_relaxed) == on) {
+        return;
+    }
+    if (!on) {
+        const std::scoped_lock lock(m_mutex);
+        m_gpuCount = 0;
+        m_gpuNext = 0;
+    }
+}
+
+bool FrameSlot::gpuTiming() const noexcept
+{
+    return m_gpuTiming.load(std::memory_order_relaxed);
+}
+
+void FrameSlot::addGpuLocked(double ms)
+{
+    m_gpuSamples[m_gpuNext] = ms;
+    m_gpuNext = (m_gpuNext + 1) % kMostGpuSamples;
+    if (m_gpuCount < kMostGpuSamples) {
+        ++m_gpuCount;
+    }
+}
+
+void FrameSlot::recordGpuTime(double ms)
+{
+    std::shared_ptr<const GpuTimeListener> listener;
+    {
+        const std::scoped_lock lock(m_mutex);
+        if (!m_gpuTiming.load(std::memory_order_relaxed)) {
+            return;
+        }
+        addGpuLocked(ms);
+        listener = m_gpuListener;
+    }
+    if (listener) {
+        (*listener)(ms);
+    }
+}
+
+std::optional<GpuTimingStats> FrameSlot::takeGpuTimingStats()
+{
+    std::array<double, kMostGpuSamples> values{};
+    std::size_t count = 0;
+    {
+        const std::scoped_lock lock(m_mutex);
+        count = m_gpuCount;
+        for (std::size_t i = 0; i < count; ++i) {
+            values[i] = m_gpuSamples[i];
+        }
+        m_gpuCount = 0;
+        m_gpuNext = 0;
+    }
+    if (count == 0) {
+        return std::nullopt;
+    }
+    double total = 0.0;
+    for (std::size_t i = 0; i < count; ++i) {
+        total += values[i];
+    }
+    std::sort(values.begin(), values.begin() + static_cast<std::ptrdiff_t>(count));
+    const auto percentile = [count, &values](std::size_t fraction) {
+        const std::size_t rank = (count * fraction + 99) / 100;
+        return values[rank == 0 ? 0 : rank - 1];
+    };
+    GpuTimingStats stats;
+    stats.meanMs = total / static_cast<double>(count);
+    stats.p50Ms = percentile(50);
+    stats.p95Ms = percentile(95);
+    stats.maxMs = values[count - 1];
+    stats.count = count;
+    return stats;
+}
+
 void FrameSlot::setPresentationMode(PresentationMode mode) noexcept
 {
     m_mode.store(mode, std::memory_order_relaxed);

@@ -2229,6 +2229,9 @@ void DeviceManager::setDiagnostics(const QString& serial, bool shown)
     }
     Row& row = m_rows[static_cast<std::size_t>(index)];
     row.diagnostics = shown;
+    if (const std::shared_ptr<render::FrameSlot> frames = framesOf(row); frames != nullptr) {
+        frames->setGpuTiming(shown);
+    }
     if (!shown && row.mirror != nullptr) {
         row.mirror->setDiagnostics({});
     }
@@ -2244,6 +2247,7 @@ struct DeviceManager::Measures {
     std::optional<double> inputToRender;
     std::optional<double> inputToScreen;
     std::optional<render::ScreenStats> screen;
+    std::optional<render::GpuTimingStats> gpu;
     render::PresentationMode presentation = render::PresentationMode::Unknown;
     std::optional<double> mergeTickMs;
     std::optional<LatencyResult> touchDots;
@@ -2335,6 +2339,7 @@ DeviceManager::Measures DeviceManager::measure(Row& row)
         return measures;
     }
     render::FrameSlot& frames = *slot;
+    frames.setGpuTiming(row.diagnostics && row.mirror != nullptr);
     const std::uint64_t taken = frames.taken();
     const std::uint64_t replaced = frames.replaced();
     const double seconds = std::chrono::duration<double>(elapsed).count();
@@ -2344,6 +2349,7 @@ DeviceManager::Measures DeviceManager::measure(Row& row)
     row.framesReplaced = replaced;
     measures.arrivalToRender = frames.takeArrivalToRenderMs();
     measures.screen = frames.takeScreenStats();
+    measures.gpu = frames.takeGpuTimingStats();
     measures.presentation = frames.presentationMode();
     if (measures.sample.captureToReceiptMs && measures.arrivalToRender) {
         measures.captureToRender = *measures.sample.captureToReceiptMs + *measures.arrivalToRender;
@@ -2419,6 +2425,10 @@ QStringList DeviceManager::describe(const Measures& measures)
     lines << tr("Capture to encoder output: %1 ms").arg(maybe(sample.encodeMs));
     lines << tr("Network: %1 ms (including the phone's send queue)").arg(maybe(sample.networkMs));
     lines << tr("Arrival to render: %1 ms").arg(maybe(arrivalToRender));
+    if (measures.gpu) {
+        lines << tr("GPU drawing the picture: %1 ms per frame (95% within %2 ms)")
+                     .arg(number(measures.gpu->meanMs, 1), number(measures.gpu->p95Ms, 1));
+    }
     if (measures.screen) {
         lines << tr("Arrival to screen: %1 ms (95% within %2 ms), %3 ms of it after rendering; %4")
                      .arg(number(measures.screen->arrivalToScreenMs, 1),

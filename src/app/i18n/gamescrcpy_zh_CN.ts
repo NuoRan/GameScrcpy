@@ -21995,6 +21995,10 @@
         <translation>触摸从电脑发送队列到手机输入队列：现在 %1 ms，16 秒内最好 %2 ms（估计值）；等下一帧 %3 ms</translation>
     </message>
     <message>
+        <source>GPU drawing the picture: %1 ms per frame (95% within %2 ms)</source>
+        <translation>显卡绘制画面：每帧 %1 ms（95% 在 %2 ms 以内）</translation>
+    </message>
+    <message>
         <source>Arrival to screen: %1 ms (95% within %2 ms), %3 ms of it after rendering; %4</source>
         <translation>收包到上屏：%1 ms（95% 在 %2 ms 以内），其中渲染之后 %3 ms；%4</translation>
     </message>

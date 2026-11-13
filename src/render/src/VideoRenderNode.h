@@ -15,6 +15,7 @@
 
 #include <array>
 #include <atomic>
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -70,10 +71,23 @@ private:
         DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
     };
 
+    struct GpuQuerySet {
+        ComPtr<ID3D11Query> disjoint;
+        ComPtr<ID3D11Query> begin;
+        ComPtr<ID3D11Query> end;
+    };
+
+    static constexpr std::size_t kGpuQuerySets = 6;
+
     void takeFrame();
     void installWake();
     void postWake();
     bool createPipeline(ID3D11Device* device);
+    void createGpuQueries(ID3D11Device* device);
+    void startGpuTiming(ID3D11DeviceContext* context);
+    void markGpuBegin(ID3D11DeviceContext* context);
+    void finishGpuTiming(ID3D11DeviceContext* context);
+    void readGpuSamples(ID3D11DeviceContext* context);
     bool bindSurface(ID3D11Device* device);
     bool uploadPlanes(ID3D11Device* device, ID3D11DeviceContext* context);
     void bindWindow(ID3D11DeviceContext* context, const RenderState* state, QSize target);
@@ -123,6 +137,12 @@ private:
     float m_texelWidth = 0.0F;
     float m_texelHeight = 0.0F;
     FilterChain m_filters;
+    std::array<GpuQuerySet, kGpuQuerySets> m_gpuQueries;
+    std::uint64_t m_gpuIssued = 0;
+    std::uint64_t m_gpuRead = 0;
+    bool m_gpuQueriesReady = false;
+    bool m_gpuMeasuring = false;
+    bool m_gpuActive = false;
 };
 
 }

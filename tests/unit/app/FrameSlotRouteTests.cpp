@@ -110,3 +110,69 @@ TEST_CASE("ADR-0114: the presentation mode is kept until it changes")
     slot.setPresentationMode(gs::render::PresentationMode::HardwareOverlay);
     CHECK(slot.presentationMode() == gs::render::PresentationMode::HardwareOverlay);
 }
+
+TEST_CASE("ADR-0115: GPU time samples give the mean, the median, the 95th percentile and the maximum, then reset")
+{
+    FrameSlot slot;
+    CHECK_FALSE(slot.gpuTiming());
+    slot.setGpuTiming(true);
+    CHECK(slot.gpuTiming());
+    for (int i = 1; i <= 100; ++i) {
+        slot.recordGpuTime(static_cast<double>(i));
+    }
+    const std::optional<gs::render::GpuTimingStats> stats = slot.takeGpuTimingStats();
+    REQUIRE(stats);
+    CHECK(stats->count == 100);
+    CHECK(stats->meanMs == doctest::Approx(50.5));
+    CHECK(stats->p50Ms == doctest::Approx(50.0));
+    CHECK(stats->p95Ms == doctest::Approx(95.0));
+    CHECK(stats->maxMs == doctest::Approx(100.0));
+    CHECK_FALSE(slot.takeGpuTimingStats());
+}
+
+TEST_CASE("ADR-0115: GPU time samples per interval stay bounded")
+{
+    FrameSlot slot;
+    slot.setGpuTiming(true);
+    for (int i = 0; i < 2'000; ++i) {
+        slot.recordGpuTime(static_cast<double>(i));
+    }
+    const std::optional<gs::render::GpuTimingStats> stats = slot.takeGpuTimingStats();
+    REQUIRE(stats);
+    CHECK(stats->count == FrameSlot::kMostGpuSamples);
+    CHECK(stats->meanMs == doctest::Approx((976.0 + 1'999.0) / 2.0));
+    CHECK(stats->p95Ms == doctest::Approx(1'948.0));
+    CHECK(stats->maxMs == doctest::Approx(1'999.0));
+}
+
+TEST_CASE("ADR-0115: switching GPU timing off stops samples and drops the ones already taken")
+{
+    FrameSlot slot;
+    slot.recordGpuTime(1.0);
+    CHECK_FALSE(slot.takeGpuTimingStats());
+    slot.setGpuTiming(true);
+    slot.recordGpuTime(2.0);
+    slot.setGpuTiming(false);
+    slot.recordGpuTime(3.0);
+    CHECK_FALSE(slot.takeGpuTimingStats());
+}
+
+TEST_CASE("ADR-0115: the GPU time listener sees every kept sample until it is removed")
+{
+    FrameSlot slot;
+    std::vector<double> samples;
+    slot.setGpuTiming(true);
+    slot.setGpuTimeListener([&samples](double ms) { samples.push_back(ms); });
+    slot.recordGpuTime(1.5);
+    slot.recordGpuTime(2.5);
+    REQUIRE(samples.size() == 2);
+    CHECK(samples[0] == doctest::Approx(1.5));
+    CHECK(samples[1] == doctest::Approx(2.5));
+    slot.setGpuTimeListener({});
+    slot.recordGpuTime(3.5);
+    CHECK(samples.size() == 2);
+    slot.setGpuTiming(false);
+    slot.setGpuTimeListener([&samples](double ms) { samples.push_back(ms); });
+    slot.recordGpuTime(4.5);
+    CHECK(samples.size() == 2);
+}
