@@ -368,19 +368,60 @@ TEST_CASE("the phone's pointer follows the mouse only while the window is in fro
     REQUIRE(QTest::qWaitForWindowActive(&s.window));
     QTest::mouseMove(&s.window, QPoint(150, 150));
     QTest::mouseMove(&s.window, QPoint(155, 150));
-    REQUIRE(s.moves.size() == 2);
-    CHECK(s.moves[1] == QPoint(5, 0));
+    REQUIRE(s.moves.size() == 3);
+    CHECK(s.moves[1] == QPoint(-20, 75));
+    CHECK(s.moves[2] == QPoint(5, 0));
 
     QTest::mousePress(&s.window, Qt::LeftButton, {}, QPoint(155, 150));
     s.item->setCapturing(true);
     CHECK(s.buttons == std::vector<int>{1, 0});
     QTest::mouseMove(&s.window, QPoint(180, 160));
-    CHECK(s.moves.size() == 2);
+    CHECK(s.moves.size() == 3);
     s.item->setCapturing(false);
 
     s.item->setClaimedInputs({gs::input::Chord{.source = *gs::input::parseSource("Mouse.Right")}});
     QTest::mouseClick(&s.window, Qt::RightButton, {}, QPoint(180, 160));
     CHECK(s.buttons == std::vector<int>{1, 0});
+}
+
+TEST_CASE("the phone's pointer catches up when the mouse comes back into the window somewhere else (HID-006)")
+{
+    Surface s;
+    s.item->setRelativeMouse(true, QSizeF(200, 300));
+    QTest::mouseMove(&s.window, QPoint(150, 75));
+    QTest::mouseMove(&s.window, QPoint(170, 75));
+    REQUIRE(s.moves.size() == 1);
+    QTest::mouseMove(&s.window, QPoint(-20, 75));
+    QTest::mouseMove(&s.window, QPoint(250, 200));
+    REQUIRE(s.moves.size() == 2);
+    CHECK(s.moves[1] == QPoint(80, 125));
+}
+
+TEST_CASE("the phone's pointer stops at the edge of the picture as the phone's own does, so they still line up on the "
+          "way back (HID-006)")
+{
+    Surface s;
+    s.item->setRelativeMouse(true, QSizeF(200, 300));
+    QTest::mouseMove(&s.window, QPoint(150, 75));
+    QTest::mouseMove(&s.window, QPoint(170, 75));
+    QTest::mouseMove(&s.window, QPoint(60, 75));
+    QTest::mouseMove(&s.window, QPoint(40, 75));
+    QTest::mouseMove(&s.window, QPoint(120, 75));
+    CHECK(s.moves == std::vector<QPoint>{{20, 0}, {-70, 0}, {20, 0}});
+}
+
+TEST_CASE("the phone's pointer catches up with the mouse after the camera lock ends (HID-006)")
+{
+    Surface s;
+    s.item->setRelativeMouse(true, QSizeF(200, 300));
+    QTest::mouseMove(&s.window, QPoint(150, 75));
+    s.item->setCapturing(true);
+    QTest::mouseMove(&s.window, QPoint(190, 95));
+    CHECK(s.moves.empty());
+    s.item->setCapturing(false);
+    QTest::mouseMove(&s.window, QPoint(200, 100));
+    REQUIRE(s.moves.size() == 1);
+    CHECK(s.moves[0] == QPoint(50, 25));
 }
 
 int main(int argc, char** argv)

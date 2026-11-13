@@ -85,13 +85,18 @@ int MirrorInputItem::mouseButtonBit(Qt::MouseButton button) noexcept
 
 void MirrorInputItem::setRelativeMouse(bool on, QSizeF target)
 {
+    const bool resized = target != m_target;
     m_target = target;
     if (on == m_relative) {
+        if (resized) {
+            m_pointerOnPhone.reset();
+            m_rest = {};
+        }
         return;
     }
     cancel();
     m_relative = on;
-    m_lastPointer.reset();
+    m_pointerOnPhone.reset();
     m_rest = {};
     setAcceptHoverEvents(on);
 }
@@ -99,19 +104,20 @@ void MirrorInputItem::setRelativeMouse(bool on, QSizeF target)
 void MirrorInputItem::follow(QPointF position)
 {
     const bool front = window() != nullptr && window()->isActive();
-    if (!m_relative || m_capturing || !front || !(m_content.width() > 0.0) || !(m_content.height() > 0.0)) {
-        m_lastPointer.reset();
+    if (!m_relative || m_capturing || !front || !(m_content.width() > 0.0) || !(m_content.height() > 0.0) ||
+        !std::isfinite(position.x()) || !std::isfinite(position.y())) {
         return;
     }
-    if (!m_lastPointer) {
-        m_lastPointer = position;
-        return;
-    }
-    const QPointF delta = position - *m_lastPointer;
-    m_lastPointer = position;
     const double scaleX = m_target.width() > 0.0 ? m_target.width() / m_content.width() : 1.0;
     const double scaleY = m_target.height() > 0.0 ? m_target.height() / m_content.height() : 1.0;
-    m_rest += QPointF(delta.x() * scaleX, delta.y() * scaleY);
+    const QPointF onPhone(std::clamp(position.x() - m_content.left(), 0.0, m_content.width()) * scaleX,
+                          std::clamp(position.y() - m_content.top(), 0.0, m_content.height()) * scaleY);
+    if (!m_pointerOnPhone) {
+        m_pointerOnPhone = onPhone;
+        return;
+    }
+    m_rest += onPhone - *m_pointerOnPhone;
+    m_pointerOnPhone = onPhone;
     const int dx = static_cast<int>(std::trunc(m_rest.x()));
     const int dy = static_cast<int>(std::trunc(m_rest.y()));
     if (dx == 0 && dy == 0) {
@@ -209,7 +215,6 @@ void MirrorInputItem::setCapturing(bool on)
     if (on) {
         cancel();
         ungrabMouse();
-        m_lastPointer.reset();
     }
     setAcceptedMouseButtons(on ? Qt::NoButton : Qt::AllButtons);
 }
@@ -334,7 +339,6 @@ void MirrorInputItem::mouseUngrabEvent()
 
 void MirrorInputItem::hoverEnterEvent(QHoverEvent* event)
 {
-    m_lastPointer.reset();
     follow(event->position());
     event->accept();
 }
@@ -347,7 +351,6 @@ void MirrorInputItem::hoverMoveEvent(QHoverEvent* event)
 
 void MirrorInputItem::hoverLeaveEvent(QHoverEvent* event)
 {
-    m_lastPointer.reset();
     event->accept();
 }
 
@@ -433,7 +436,6 @@ void MirrorInputItem::focusOutEvent(QFocusEvent* event)
     if (std::exchange(m_buttons, 0) != 0) {
         emit mouseButtonsChanged(0);
     }
-    m_lastPointer.reset();
     QQuickItem::focusOutEvent(event);
 }
 

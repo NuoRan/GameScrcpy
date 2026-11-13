@@ -91,7 +91,7 @@ private:
     bool m_touching = false;
     bool m_relative = false;
     QSizeF m_target;
-    std::optional<QPointF> m_lastPointer;
+    std::optional<QPointF> m_pointerOnPhone;
     QPointF m_rest;
     int m_buttons = 0;
     Qt::MouseButtons m_keysHeld;

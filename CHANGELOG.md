@@ -2,6 +2,16 @@
 
 本文件记录每个版本的主要变化，格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### 修复
+
+- 没有画面的“控制”窗口（扩展提供的触控盒、AOA）里，鼠标移出窗口再从别处移回来，手机上的光标留在原地，两边的位置就对不上了；现在移回来时手机光标跟到鼠标所在的位置。鼠标在画面外的黑边里移动、切到别的窗口再回来、视角锁定结束后，也都会跟上。
+
+### English summary
+
+Fixed: in the Control window without a picture (touch boxes from extensions, AOA), the phone's pointer no longer stays behind when the mouse leaves the window and comes back somewhere else; it also catches up after the mouse moved through the letterbox, after another window was in front and after the camera lock.
+
 ## [2.1.0] - 2026-11-13
 
 2.1 把扩展平台做到第三版：扩展可以带来设备、连接手机的方式、画面与声音、朗读与语音命令、界面语言、AI 模型服务和格式转换，安装与更新也更安全。ESP32 触控盒搬出主程序，成为社区扩展；手机上的伴侣 App 重做。
