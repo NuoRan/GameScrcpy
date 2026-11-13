@@ -186,6 +186,126 @@ bool waitForSessionThreads(int expected)
     return true;
 }
 
+class LossyVideo final : public MediaChannel
+{
+public:
+    LossyVideo(std::unique_ptr<MediaChannel> inner, std::size_t lossyPacket, std::uint32_t lost)
+        : m_inner(std::move(inner)), m_lossyPacket(lossyPacket), m_lost(lost)
+    {
+    }
+
+    Expected<Packet, ChannelFailure> receive() override
+    {
+        auto received = m_inner->receive();
+        if (received) {
+            if (m_received == m_lossyPacket) {
+                received->lostBefore = m_lost;
+            }
+            ++m_received;
+        }
+        return received;
+    }
+
+    void interrupt() noexcept override { m_inner->interrupt(); }
+
+private:
+    std::unique_ptr<MediaChannel> m_inner;
+    std::size_t m_lossyPacket;
+    std::uint32_t m_lost;
+    std::size_t m_received = 0;
+};
+
+class LossyLink final : public Link
+{
+public:
+    LossyLink(std::unique_ptr<Link> inner, std::size_t lossyPacket, std::uint32_t lost)
+        : m_inner(std::move(inner)), m_lossyPacket(lossyPacket), m_lost(lost)
+    {
+    }
+
+    TransportKind kind() const noexcept override { return m_inner->kind(); }
+    const protocol::Welcome& welcome() const override { return m_inner->welcome(); }
+    FrameChannel& control() override { return m_inner->control(); }
+
+    Expected<std::unique_ptr<MediaChannel>, SessionFailure> openMedia(protocol::MediaChannel channel,
+                                                                      std::stop_token stop) override
+    {
+        auto opened = m_inner->openMedia(channel, std::move(stop));
+        if (!opened || channel != protocol::MediaChannel::Video) {
+            return opened;
+        }
+        return std::unique_ptr<MediaChannel>(std::make_unique<LossyVideo>(std::move(*opened), m_lossyPacket, m_lost));
+    }
+
+    Expected<std::unique_ptr<FrameChannel>, SessionFailure> openBulk(std::stop_token stop) override
+    {
+        return m_inner->openBulk(std::move(stop));
+    }
+
+private:
+    std::unique_ptr<Link> m_inner;
+    std::size_t m_lossyPacket;
+    std::uint32_t m_lost;
+};
+
+class LossyTransport final : public Transport
+{
+public:
+    LossyTransport(std::unique_ptr<Transport> inner, std::size_t lossyPacket, std::uint32_t lost)
+        : m_inner(std::move(inner)), m_lossyPacket(lossyPacket), m_lost(lost)
+    {
+    }
+
+    Expected<std::unique_ptr<Link>, SessionFailure> establish(const Token& token, const std::string& clientVersion,
+                                                              std::stop_token stop) override
+    {
+        auto link = m_inner->establish(token, clientVersion, std::move(stop));
+        if (!link) {
+            return link;
+        }
+        return std::unique_ptr<Link>(std::make_unique<LossyLink>(std::move(*link), m_lossyPacket, m_lost));
+    }
+
+private:
+    std::unique_ptr<Transport> m_inner;
+    std::size_t m_lossyPacket;
+    std::uint32_t m_lost;
+};
+
+class LossyHost final : public ServerHost
+{
+public:
+    LossyHost(FakeDeviceServer& server, std::size_t lossyPacket, std::uint32_t lost)
+        : m_host(server), m_lossyPacket(lossyPacket), m_lost(lost)
+    {
+    }
+
+    Expected<void, SessionFailure> start(const LaunchParams& params, Events& events, std::stop_token stop) override
+    {
+        return m_host.start(params, events, std::move(stop));
+    }
+
+    Expected<platform::TcpStream, SessionFailure> connect() override { return m_host.connect(); }
+
+    std::unique_ptr<Transport> transport(std::chrono::milliseconds handshakeTimeout) override
+    {
+        return std::make_unique<LossyTransport>(ServerHost::transport(handshakeTimeout), m_lossyPacket, m_lost);
+    }
+
+    Expected<void, SessionFailure> restore(bool afterFailure, std::chrono::steady_clock::time_point deadline,
+                                           std::stop_token stop) override
+    {
+        return m_host.restore(afterFailure, deadline, std::move(stop));
+    }
+
+    void stop(std::chrono::milliseconds grace) override { m_host.stop(grace); }
+
+private:
+    FakeServerHost m_host;
+    std::size_t m_lossyPacket;
+    std::uint32_t m_lost;
+};
+
 }
 
 TEST_CASE("a session handshakes, streams video and delivers control messages in order")
@@ -743,4 +863,45 @@ TEST_CASE("sessions leave no thread behind")
         REQUIRE(rig.listener.waitForPhase(SessionPhase::Stopped));
     }
     CHECK(sessionThreads() == 0);
+}
+
+TEST_CASE("ADR-0114: a lost video packet holds the frames back until a key frame, and the pause is reported once")
+{
+    FakeServerOptions serverOptions = streamingServer();
+    const std::array<std::uint8_t, 7> held{0, 0, 0, 1, 0x41, 0x9A, 0x02};
+    const std::array<std::uint8_t, 8> recovery{0, 0, 0, 1, 0x65, 0x88, 0x84, 0x01};
+    const std::array<std::uint8_t, 9> next{0, 0, 0, 1, 0x41, 0x9A, 0x04, 0x00, 0x01};
+    serverOptions.videoPackets.push_back(
+        *protocol::encodeMediaFrame(protocol::MediaChannel::Video, 1, {}, 33'000, 9'000, held));
+    serverOptions.videoPackets.push_back(
+        *protocol::encodeMediaFrame(protocol::MediaChannel::Video, 1, {}, 50'000, 9'000, held));
+    serverOptions.videoPackets.push_back(
+        *protocol::encodeMediaFrame(protocol::MediaChannel::Video, 1, {true, false}, 67'000, 9'000, recovery));
+    serverOptions.videoPackets.push_back(
+        *protocol::encodeMediaFrame(protocol::MediaChannel::Video, 1, {}, 83'000, 9'000, next));
+    constexpr std::size_t kLossyPacket = 3;
+    constexpr std::uint32_t kLost = 3;
+    FakeDeviceServer server(std::move(serverOptions));
+    RecordingListener listener;
+    Session session(std::make_unique<LossyHost>(server, kLossyPacket, kLost), withVideo(), listener);
+    session.start();
+    REQUIRE(listener.waitForStalls(1));
+    REQUIRE(listener.waitForVideo(5));
+
+    const auto stalls = listener.stalls();
+    REQUIRE(stalls.size() == 1);
+    CHECK(stalls[0].lostPackets == 3);
+    CHECK(stalls[0].keyFrameRequests >= 1);
+    const auto video = listener.video();
+    REQUIRE(video.size() == 5);
+    CHECK(video[0].kind == protocol::MediaKind::Session);
+    CHECK(video[1].kind == protocol::MediaKind::Config);
+    CHECK(video[2].size == 6);
+    CHECK(video[3].size == recovery.size());
+    CHECK(video[4].size == next.size());
+    CHECK(listener.videoThreadCorrect());
+    REQUIRE(server.waitForReceived<protocol::RequestKeyFrame>(1));
+
+    session.stop();
+    REQUIRE(listener.waitForEnd());
 }

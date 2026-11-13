@@ -110,6 +110,20 @@ TEST_CASE("the reported round trip stays within its field")
     CHECK(high->roundTripUs == 0xFFFF'FFFFU);
 }
 
+TEST_CASE("ADR-0114: the last round trip can be read, 0 until one is measured, and a new video connection keeps it")
+{
+    ReceiverStats stats;
+    CHECK(stats.lastRoundTripUs() == 0);
+    stats.setRoundTrip(6'300);
+    CHECK(stats.lastRoundTripUs() == 6'300);
+    stats.reset();
+    CHECK(stats.lastRoundTripUs() == 6'300);
+    stats.setRoundTrip(-5);
+    CHECK(stats.lastRoundTripUs() == 0);
+    stats.setRoundTrip(5'000'000'000);
+    CHECK(stats.lastRoundTripUs() == 4'294'967'295);
+}
+
 TEST_CASE("the shards WiFi direct lost and rebuilt go into the next report, once (SPEC 10.7)")
 {
     ReceiverStats stats;

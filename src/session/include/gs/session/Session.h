@@ -38,6 +38,12 @@ struct Heartbeat {
     std::int64_t serverTimeUs = 0;
 };
 
+struct VideoStall {
+    std::chrono::microseconds waited{};
+    std::uint32_t lostPackets = 0;
+    std::uint32_t keyFrameRequests = 0;
+};
+
 template <typename M>
 inline constexpr bool kIsInput = std::is_same_v<M, protocol::TouchFrame> || std::is_same_v<M, protocol::Key> ||
                                  std::is_same_v<M, protocol::Text> || std::is_same_v<M, protocol::Scroll> ||
@@ -57,6 +63,7 @@ public:
     virtual void onVideoOpened() {}
     virtual void onVideoClosed() {}
     virtual void onVideoPacket(const protocol::MediaPacket&) {}
+    virtual void onVideoStall(const VideoStall&) {}
     virtual void onAudioOpened() {}
     virtual void onAudioClosed() {}
     virtual void onAudioPacket(const protocol::MediaPacket&) {}

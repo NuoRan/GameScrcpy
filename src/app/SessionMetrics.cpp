@@ -82,6 +82,17 @@ void SessionMetrics::heartbeat(const session::Heartbeat& heartbeat) noexcept
     waitForFrameAfter(heartbeat.serverTimeUs);
 }
 
+void SessionMetrics::videoStall(const session::VideoStall& stall) noexcept
+{
+    m_stalls.fetch_add(1, std::memory_order_relaxed);
+    m_stallLostPackets.fetch_add(stall.lostPackets, std::memory_order_relaxed);
+    const std::int64_t waitedUs = stall.waited.count();
+    std::int64_t longest = m_longestStallUs.load(std::memory_order_relaxed);
+    while (waitedUs > longest &&
+           !m_longestStallUs.compare_exchange_weak(longest, waitedUs, std::memory_order_relaxed)) {
+    }
+}
+
 void SessionMetrics::waitForFrameAfter(std::int64_t injectedUs) noexcept
 {
     const std::size_t count = m_capturedPts.count;
@@ -150,6 +161,9 @@ SessionMetrics::Sample SessionMetrics::sample(std::chrono::microseconds elapsed)
         result.roundTripMs = milliseconds(m_roundTripUs.load(std::memory_order_relaxed));
         result.sendDelayMs = milliseconds(m_sendDelayUs.load(std::memory_order_relaxed));
     }
+    result.stalls = m_stalls.exchange(0, std::memory_order_relaxed);
+    result.longestStallMs = milliseconds(m_longestStallUs.exchange(0, std::memory_order_relaxed));
+    result.lostPackets = m_stallLostPackets.exchange(0, std::memory_order_relaxed);
     const std::lock_guard lock(m_timingMutex);
     if (const std::optional<double> input = m_input.mean()) {
         result.inputMs = std::max(0.0, *input);

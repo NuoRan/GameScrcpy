@@ -32,7 +32,6 @@ namespace gs::session {
 namespace {
 
 constexpr std::string_view kLog = "session";
-constexpr std::int64_t kKeyFrameRequestSpacingUs = 500'000;
 constexpr std::int64_t kProbeSpacingUs = 100'000;
 
 using SteadyClock = std::chrono::steady_clock;
@@ -612,7 +611,7 @@ private:
             bool video;
             ~Closed() { video ? listener.onVideoClosed() : listener.onAudioClosed(); }
         } closed{m_listener, video};
-        detail::KeyFrameGate gate(kKeyFrameRequestSpacingUs);
+        detail::KeyFrameGate gate;
         while (true) {
             const auto received = source.receive();
             if (!received) {
@@ -635,13 +634,21 @@ private:
             if (const auto report = m_receiverStats.add(packet->header, received->bytes.size(), arrivalUs)) {
                 send(*report);
             }
-            const auto decision = gate.admit(packet->header, received->lostBefore, arrivalUs);
+            const auto decision =
+                gate.admit(packet->header, received->lostBefore, arrivalUs, m_receiverStats.lastRoundTripUs());
             if (decision.askKeyFrame) {
-                log::debug(kLog, "[{}] {} video packets lost; asking for a key frame", m_id, received->lostBefore);
+                if (received->lostBefore != 0) {
+                    log::debug(kLog, "[{}] {} video packets lost; asking for a key frame", m_id, received->lostBefore);
+                } else {
+                    log::debug(kLog, "[{}] no key frame yet; asking for one again", m_id);
+                }
                 send(protocol::RequestKeyFrame{});
             }
             if (decision.deliver) {
                 m_listener.onVideoPacket(*packet);
+            }
+            if (decision.stall) {
+                m_listener.onVideoStall(*decision.stall);
             }
         }
     }

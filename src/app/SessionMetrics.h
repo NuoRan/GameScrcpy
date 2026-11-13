@@ -10,6 +10,7 @@
 
 namespace gs::session {
 struct Heartbeat;
+struct VideoStall;
 }
 
 namespace gs::app {
@@ -21,6 +22,7 @@ public:
                     std::int64_t decodeUs) noexcept;
     void decoderHolds(int frames) noexcept;
     void heartbeat(const session::Heartbeat& heartbeat) noexcept;
+    void videoStall(const session::VideoStall& stall) noexcept;
 
     struct Sample {
         double framesPerSecond = 0;
@@ -31,6 +33,9 @@ public:
         std::optional<double> networkMs;
         std::optional<double> roundTripMs;
         std::optional<double> sendDelayMs;
+        std::uint64_t stalls = 0;
+        double longestStallMs = 0;
+        std::uint64_t lostPackets = 0;
         std::optional<double> inputMs;
         std::optional<double> frameWaitMs;
         int heldFrames = 0;
@@ -73,6 +78,9 @@ private:
     std::atomic<std::int64_t> m_roundTripUs{0};
     std::atomic<std::int64_t> m_sendDelayUs{0};
     std::atomic<int> m_heldFrames{0};
+    std::atomic<std::uint64_t> m_stalls{0};
+    std::atomic<std::int64_t> m_longestStallUs{0};
+    std::atomic<std::uint64_t> m_stallLostPackets{0};
 
     std::mutex m_timingMutex;
     Window<32> m_capturedPts;

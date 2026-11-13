@@ -18,6 +18,7 @@ public:
     void addLoss(std::uint32_t lostShards, std::uint32_t rebuiltShards);
     [[nodiscard]] std::optional<protocol::ReceiverReport> take(std::int64_t nowUs);
     void setRoundTrip(std::int64_t roundTripUs) noexcept;
+    [[nodiscard]] std::int64_t lastRoundTripUs() const noexcept;
     void reset();
 
 private:

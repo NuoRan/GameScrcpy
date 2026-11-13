@@ -2383,6 +2383,13 @@ QStringList DeviceManager::describe(const Measures& measures)
     lines << tr("Network: %1 ms (including the phone's send queue)").arg(maybe(sample.networkMs));
     lines << tr("Arrival to render: %1 ms").arg(maybe(arrivalToRender));
     lines << tr("Round trip: %1 ms; input waited at most %2 ms").arg(maybe(sample.roundTripMs), maybe(sample.sendDelayMs));
+    if (sample.stalls > 0 || sample.longestStallMs > 0 || sample.lostPackets > 0) {
+        lines << tr("Pauses for a key frame: %1, the longest %2 ms; %3 packets lost beyond repair")
+                     .arg(QString::number(sample.stalls), number(sample.longestStallMs, 0),
+                          QString::number(sample.lostPackets));
+    } else {
+        lines << tr("Pauses for a key frame: none");
+    }
     if (audio.sampleRate > 0) {
         const auto ms = [&](double frameCount) { return number(frameCount * 1000.0 / audio.sampleRate, 1); };
         lines << tr("Audio: %1 ms buffered, target %2 ms; %3 ms of silence so far")

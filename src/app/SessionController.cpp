@@ -113,13 +113,21 @@ public:
             m_controller.m_metrics.decoderHolds(m_decoder->heldFrames());
         }
         if (pushed) {
-            m_awaitingKeyFrame = m_awaitingKeyFrame && !packet.header.keyFrame;
+            if (m_awaitingKeyFrame && packet.header.keyFrame) {
+                m_awaitingKeyFrame = false;
+                const session::VideoStall stall{.waited = std::chrono::microseconds(receivedUs - m_awaitingSinceUs),
+                                                .keyFrameRequests = 1};
+                m_controller.m_metrics.videoStall(stall);
+            }
         } else if (!m_awaitingKeyFrame) {
             m_awaitingKeyFrame = true;
+            m_awaitingSinceUs = receivedUs;
             qWarning("video of %s: %s", qUtf8Printable(m_controller.m_serial), pushed.error().message.c_str());
             m_controller.m_session->send(protocol::RequestKeyFrame{});
         }
     }
+
+    void onVideoStall(const session::VideoStall& stall) override { m_controller.m_metrics.videoStall(stall); }
 
     void onHeartbeat(const session::Heartbeat& heartbeat) override
     {
@@ -476,6 +484,7 @@ private:
     std::atomic<int> m_densityDpi{0};
     std::chrono::steady_clock::time_point m_nextThumbnail;
     bool m_awaitingKeyFrame = false;
+    std::int64_t m_awaitingSinceUs = 0;
     media::AudioPlayer m_audio;
     bool m_audioWorking = true;
     record::MediaHead m_videoHead;

@@ -70,6 +70,11 @@ void ReceiverStats::setRoundTrip(std::int64_t roundTripUs) noexcept
     m_roundTripUs.store(saturated<std::uint32_t>(roundTripUs), std::memory_order_relaxed);
 }
 
+std::int64_t ReceiverStats::lastRoundTripUs() const noexcept
+{
+    return m_roundTripUs.load(std::memory_order_relaxed);
+}
+
 void ReceiverStats::reset()
 {
     const std::lock_guard lock(m_mutex);

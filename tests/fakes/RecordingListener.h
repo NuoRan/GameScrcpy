@@ -51,6 +51,13 @@ public:
             m_video.push_back({packet.header.kind, packet.header.session, packet.payload.size()});
         });
     }
+    void onVideoStall(const VideoStall& stall) override
+    {
+        record([&] {
+            m_videoThreadCorrect = m_videoThreadCorrect && m_videoThread == std::this_thread::get_id();
+            m_stalls.push_back(stall);
+        });
+    }
     void onAudioOpened() override
     {
         record([&] {
@@ -105,6 +112,11 @@ public:
         return waitFor(timeout, [&] { return m_video.size() >= count; });
     }
 
+    bool waitForStalls(std::size_t count, std::chrono::milliseconds timeout = std::chrono::seconds(5))
+    {
+        return waitFor(timeout, [&] { return m_stalls.size() >= count; });
+    }
+
     bool waitForAudio(std::size_t count, std::chrono::milliseconds timeout = std::chrono::seconds(5))
     {
         return waitFor(timeout, [&] { return m_audio.size() >= count; });
@@ -145,6 +157,7 @@ public:
     [[nodiscard]] std::vector<protocol::Welcome> welcomes() const { return copy(m_welcomes); }
     [[nodiscard]] std::vector<Heartbeat> heartbeats() const { return copy(m_heartbeats); }
     [[nodiscard]] std::vector<VideoRecord> video() const { return copy(m_video); }
+    [[nodiscard]] std::vector<VideoStall> stalls() const { return copy(m_stalls); }
     [[nodiscard]] std::vector<protocol::ToClientMessage> messages() const { return copy(m_messages); }
 
     [[nodiscard]] std::size_t videoOpenings() const { return locked([&] { return m_videoOpenings; }); }
@@ -198,6 +211,7 @@ private:
     std::vector<protocol::ToClientMessage> m_messages;
     std::vector<Heartbeat> m_heartbeats;
     std::vector<VideoRecord> m_video;
+    std::vector<VideoStall> m_stalls;
     std::thread::id m_videoThread;
     std::size_t m_videoOpenings = 0;
     std::size_t m_videoClosings = 0;

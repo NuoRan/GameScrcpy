@@ -9,6 +9,7 @@
 
 using gs::app::SessionMetrics;
 using gs::session::Heartbeat;
+using gs::session::VideoStall;
 using namespace std::chrono_literals;
 
 namespace {
@@ -128,4 +129,26 @@ TEST_CASE("ADR-0114: session metrics give the most frames the decoder held back 
     metrics.decoderHolds(1);
     metrics.decoderHolds(0);
     CHECK(metrics.sample(500ms).heldFrames == 1);
+}
+
+TEST_CASE("ADR-0114: session metrics count the pauses for a key frame, the longest and the packets lost, per sample")
+{
+    SessionMetrics metrics;
+    const SessionMetrics::Sample calm = metrics.sample(1s);
+    CHECK(calm.stalls == 0);
+    CHECK(calm.longestStallMs == 0);
+    CHECK(calm.lostPackets == 0);
+
+    metrics.videoStall(VideoStall{.waited = 120ms, .lostPackets = 3, .keyFrameRequests = 1});
+    metrics.videoStall(VideoStall{.waited = 340ms, .keyFrameRequests = 1});
+    metrics.videoStall(VideoStall{.waited = 80ms, .lostPackets = 5, .keyFrameRequests = 3});
+    const SessionMetrics::Sample paused = metrics.sample(1s);
+    CHECK(paused.stalls == 3);
+    CHECK(paused.longestStallMs == doctest::Approx(340));
+    CHECK(paused.lostPackets == 8);
+
+    const SessionMetrics::Sample after = metrics.sample(1s);
+    CHECK(after.stalls == 0);
+    CHECK(after.longestStallMs == 0);
+    CHECK(after.lostPackets == 0);
 }
