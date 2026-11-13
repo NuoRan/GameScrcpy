@@ -137,7 +137,7 @@ public:
         const std::uint8_t number = video ? protocol::kVideoChannel : protocol::kAudioChannel;
         const auto open = protocol::encodeDatagramHeader({.channel = number, .connection = m_connection});
         const auto deadline = SteadyClock::now() + kOpenGiveUpAfter;
-        const std::stop_callback wake(stop, [this] { m_changed.notify_all(); });
+        const std::stop_callback wake(stop, [this] { wakeAll(); });
         std::unique_lock lock(m_mutex);
         m_media[number] = MediaState{};
         m_media[number].requested = true;
@@ -153,7 +153,7 @@ public:
                                               protocol::ErrorCode::ChannelUnavailable));
             }
             static_cast<void>(m_socket.sendTo(m_server, open));
-            m_changed.wait_until(lock, std::min(now + kOpenResendInterval, deadline));
+            m_mediaChanged[number].wait_until(lock, std::min(now + kOpenResendInterval, deadline));
         }
         return std::unique_ptr<MediaChannel>(std::make_unique<DirectMediaChannel>(*this, number));
     }
@@ -187,7 +187,7 @@ public:
             if (*frame) {
                 break;
             }
-            if (m_changed.wait_until(lock, deadline) == std::cv_status::timeout && SteadyClock::now() >= deadline) {
+            if (m_controlChanged.wait_until(lock, deadline) == std::cv_status::timeout && SteadyClock::now() >= deadline) {
                 return makeUnexpected(failure(FailureKind::Timeout, "no Welcome on the control stream in time"));
             }
         }
@@ -211,7 +211,7 @@ public:
             const std::lock_guard lock(m_mutex);
             m_closed = true;
         }
-        m_changed.notify_all();
+        wakeAll();
         m_socket.interrupt();
     }
 
@@ -219,6 +219,21 @@ private:
     friend class ControlChannel;
     friend class BulkChannel;
     friend class DirectMediaChannel;
+
+    void wakeAll() noexcept
+    {
+        m_controlChanged.notify_all();
+        m_bulkChanged.notify_all();
+        for (auto& media : m_mediaChanged) {
+            media.notify_all();
+        }
+        m_sendChanged.notify_all();
+    }
+
+    [[nodiscard]] static bool ready(const MediaState& media, std::uint8_t channel) noexcept
+    {
+        return channel == protocol::kVideoChannel ? media.video.hasDelivery() : media.audio.hasDelivery();
+    }
 
     static Expected<bool, protocol::DecodeError> takeFrame(ReliableStream& stream, protocol::FrameContext context,
                                                            std::vector<std::uint8_t>& out)
@@ -254,25 +269,61 @@ private:
             if (!header || header->connection != m_connection) {
                 continue;
             }
+            bool controlWake = false;
+            bool bulkWake = false;
+            bool mediaWake = false;
+            bool senderWake = false;
+            bool allWake = false;
             {
                 const std::lock_guard lock(m_mutex);
                 if (header->channel == protocol::kVideoChannel || header->channel == protocol::kAudioChannel) {
+                    MediaState& media = m_media[header->channel];
+                    const bool wasOpened = media.opened;
+                    const bool hadPacket = ready(media, header->channel);
                     if (protocol::isMediaClosed(datagram)) {
                         static_cast<void>(
                             m_socket.sendTo(m_server, protocol::encodeMediaClosed(header->channel, m_connection)));
-                        m_media[header->channel].closed = true;
+                        media.closed = true;
+                        mediaWake = true;
                     } else {
-                        take(m_media[header->channel], header->channel, datagram);
+                        take(media, header->channel, datagram);
+                        mediaWake = (!wasOpened && media.opened) || (!hadPacket && ready(media, header->channel));
                     }
                 } else {
-                    ReliableStream& stream =
-                        header->channel == protocol::kControlChannel ? m_controlStream : m_bulkStream;
+                    const bool control = header->channel == protocol::kControlChannel;
+                    ReliableStream& stream = control ? m_controlStream : m_bulkStream;
+                    const std::size_t wasReadable = stream.readable().size();
+                    const bool wasSettled = stream.settled();
+                    const auto wasDue = stream.deadline();
                     if (stream.receive(datagram, SteadyClock::now()).verdict == ReliableStream::Verdict::Broken) {
                         m_broken = true;
+                        allWake = true;
+                    } else {
+                        if (control) {
+                            controlWake = stream.readable().size() > wasReadable || (!wasSettled && stream.settled());
+                        } else {
+                            bulkWake = stream.readable().size() > wasReadable;
+                        }
+                        senderWake = stream.deadline() < wasDue;
                     }
                 }
             }
-            m_changed.notify_all();
+            if (allWake) {
+                wakeAll();
+            } else {
+                if (controlWake) {
+                    m_controlChanged.notify_all();
+                }
+                if (bulkWake) {
+                    m_bulkChanged.notify_all();
+                }
+                if (mediaWake) {
+                    m_mediaChanged[header->channel].notify_all();
+                }
+                if (senderWake) {
+                    m_sendChanged.notify_one();
+                }
+            }
         }
     }
 
@@ -290,9 +341,9 @@ private:
             }
             const auto wake = std::min(m_controlStream.deadline(), m_bulkStream.deadline());
             if (wake == SteadyClock::time_point::max()) {
-                m_changed.wait(lock);
+                m_sendChanged.wait(lock);
             } else if (wake > now) {
-                m_changed.wait_until(lock, wake);
+                m_sendChanged.wait_until(lock, wake);
             }
         }
     }
@@ -319,7 +370,10 @@ private:
     platform::UdpEndpoint m_server;
     std::uint32_t m_connection;
     std::mutex m_mutex;
-    std::condition_variable m_changed;
+    std::condition_variable m_controlChanged;
+    std::condition_variable m_bulkChanged;
+    std::array<std::condition_variable, 3> m_mediaChanged;
+    std::condition_variable m_sendChanged;
     ReliableStream m_controlStream;
     ReliableStream m_bulkStream;
     std::array<MediaState, 3> m_media;
@@ -351,12 +405,13 @@ Expected<std::span<const std::uint8_t>, ChannelFailure> ControlChannel::receive(
         if (m_link.m_closed || (m_link.m_goodbyeSent && m_link.m_controlStream.settled())) {
             return makeUnexpected(ChannelFailure{ChannelError::Closed});
         }
-        m_link.m_changed.wait(lock);
+        m_link.m_controlChanged.wait(lock);
     }
 }
 
 bool ControlChannel::send(std::span<const std::uint8_t> frames)
 {
+    bool senderWake = false;
     {
         const std::lock_guard lock(m_link.m_mutex);
         if (m_link.m_closed || m_link.m_broken) {
@@ -369,17 +424,26 @@ bool ControlChannel::send(std::span<const std::uint8_t> frames)
             m_link.m_goodbyeSent = m_link.m_goodbyeSent || type == static_cast<std::uint16_t>(protocol::Goodbye::kType);
             rest = rest.subspan(std::min<std::size_t>(rest.size(), protocol::kFrameHeaderSize + length));
         }
+        const auto wasDue = m_link.m_controlStream.deadline();
         m_link.m_controlStream.send(frames);
+        const auto now = SteadyClock::now();
+        for (auto datagram = m_link.m_controlStream.poll(now); !datagram.empty();
+             datagram = m_link.m_controlStream.poll(now)) {
+            static_cast<void>(m_link.m_socket.sendTo(m_link.m_server, datagram));
+        }
+        senderWake = m_link.m_controlStream.deadline() < wasDue;
     }
-    m_link.m_changed.notify_all();
+    if (senderWake) {
+        m_link.m_sendChanged.notify_one();
+    }
     return true;
 }
 
 void ControlChannel::drain(SteadyClock::time_point deadline)
 {
     std::unique_lock lock(m_link.m_mutex);
-    m_link.m_changed.wait_until(lock, deadline,
-                                [this] { return m_link.m_closed || m_link.m_controlStream.settled(); });
+    m_link.m_controlChanged.wait_until(lock, deadline,
+                                       [this] { return m_link.m_closed || m_link.m_controlStream.settled(); });
 }
 
 void ControlChannel::interrupt() noexcept
@@ -401,7 +465,7 @@ Expected<std::span<const std::uint8_t>, ChannelFailure> BulkChannel::receive()
         if (m_link.m_closed || m_link.m_bulkInterrupted) {
             return makeUnexpected(ChannelFailure{ChannelError::Closed});
         }
-        m_link.m_changed.wait(lock);
+        m_link.m_bulkChanged.wait(lock);
     }
 }
 
@@ -411,7 +475,7 @@ void BulkChannel::interrupt() noexcept
         const std::lock_guard lock(m_link.m_mutex);
         m_link.m_bulkInterrupted = true;
     }
-    m_link.m_changed.notify_all();
+    m_link.wakeAll();
 }
 
 Expected<MediaChannel::Packet, ChannelFailure> DirectMediaChannel::receive()
@@ -430,7 +494,7 @@ Expected<MediaChannel::Packet, ChannelFailure> DirectMediaChannel::receive()
         if (media.closed) {
             return makeUnexpected(ChannelFailure{ChannelError::Closed});
         }
-        m_link.m_changed.wait(lock);
+        m_link.m_mediaChanged[m_channel].wait(lock);
     }
 }
 
@@ -440,7 +504,7 @@ void DirectMediaChannel::interrupt() noexcept
         const std::lock_guard lock(m_link.m_mutex);
         m_link.m_media[m_channel].interrupted = true;
     }
-    m_link.m_changed.notify_all();
+    m_link.wakeAll();
 }
 
 MediaChannel::LossCounts DirectMediaChannel::takeLossCounts() noexcept

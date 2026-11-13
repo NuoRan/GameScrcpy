@@ -68,6 +68,7 @@ public:
 
     void add(const VideoShard& shard);
     [[nodiscard]] std::optional<MediaDelivery> next();
+    [[nodiscard]] bool hasDelivery() const noexcept { return !m_ready.empty(); }
     [[nodiscard]] const Stats& stats() const noexcept { return m_stats; }
 
 private:
@@ -109,6 +110,7 @@ class AudioAssembler
 public:
     void add(const AudioDatagram& datagram);
     [[nodiscard]] std::optional<MediaDelivery> next();
+    [[nodiscard]] bool hasDelivery() const noexcept { return !m_ready.empty(); }
     [[nodiscard]] std::uint64_t packetsLost() const noexcept { return m_packetsLost; }
 
 private:

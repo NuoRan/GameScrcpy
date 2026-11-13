@@ -167,6 +167,36 @@ TEST_CASE("audio datagrams carry the previous packet, so one lost datagram costs
     CHECK(run({0, 2, 1}) == Out{{toHex(packets[0]), 0}, {toHex(packets[1]), 0}, {toHex(packets[2]), 0}});
 }
 
+TEST_CASE("ADR-0114: an assembler says whether a whole packet is ready before a reader asks for it")
+{
+    const std::vector<std::uint8_t> packet(5000, 0x5A);
+    const auto shards = testing::videoShards(0, packet, 1000, 0);
+    REQUIRE(shards.size() == 5);
+    VideoAssembler video;
+    CHECK_FALSE(video.hasDelivery());
+    for (std::size_t i = 0; i + 1 < shards.size(); ++i) {
+        video.add(*decodeVideoShard(shards[i]));
+        CHECK_FALSE(video.hasDelivery());
+    }
+    video.add(*decodeVideoShard(shards.back()));
+    CHECK(video.hasDelivery());
+    REQUIRE(video.next().has_value());
+    CHECK_FALSE(video.hasDelivery());
+
+    const json vector = mediaVector();
+    const auto datagrams = datagramsOf(vector.at("audio").at("datagrams"));
+    AudioAssembler audio;
+    CHECK_FALSE(audio.hasDelivery());
+    audio.add(*decodeAudioDatagram(datagrams[0]));
+    CHECK(audio.hasDelivery());
+    REQUIRE(audio.next().has_value());
+    CHECK_FALSE(audio.hasDelivery());
+    audio.add(*decodeAudioDatagram(datagrams[0]));
+    CHECK_FALSE(audio.hasDelivery());
+    audio.add(*decodeAudioDatagram(datagrams[1]));
+    CHECK(audio.hasDelivery());
+}
+
 TEST_CASE("parity arriving after its group is rebuilt is not lost; what never comes counts once a later packet is whole")
 {
     const std::vector<std::uint8_t> first(2500, 0x11);

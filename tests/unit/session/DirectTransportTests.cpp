@@ -55,7 +55,24 @@ std::vector<std::uint8_t> frameOf(const M& message)
 class FakeUdpServer
 {
 public:
-    explicit FakeUdpServer(double loss = 0, bool closeVideo = false) : m_loss(loss), m_closeVideo(closeVideo)
+    struct Script {
+        std::vector<std::vector<std::uint8_t>> video;
+        std::uint16_t shardSize = 1000;
+        std::uint8_t parity = 1;
+        bool dropOneShard = true;
+        bool closeVideo = false;
+        bool openAudio = false;
+    };
+
+    explicit FakeUdpServer(double loss = 0, bool closeVideo = false)
+        : FakeUdpServer(Script{.closeVideo = closeVideo}, loss)
+    {
+    }
+
+    explicit FakeUdpServer(const Script& script, double loss = 0)
+        : m_loss(loss), m_closeVideo(script.closeVideo), m_openAudio(script.openAudio),
+          m_video(script.video.empty() ? videoPackets() : script.video), m_shardSize(script.shardSize),
+          m_parity(script.parity), m_dropOneShard(script.dropOneShard)
     {
         m_thread = std::jthread([this](std::stop_token stop) { run(stop); });
     }
@@ -72,6 +89,8 @@ public:
     [[nodiscard]] platform::UdpEndpoint endpoint() const { return platform::UdpEndpoint::loopback(m_socket.localPort()); }
     [[nodiscard]] bool saidGoodbye() const { return m_goodbye.load(); }
     [[nodiscard]] int closedAcknowledgements() const { return m_closedAcknowledgements.load(); }
+    void dropNextControl(std::uint32_t count) { m_dropControl.store(count); }
+    [[nodiscard]] std::uint32_t droppedControls() const { return m_droppedControls.load(); }
 
 private:
     void run(const std::stop_token& stop)
@@ -115,12 +134,23 @@ private:
                        header->channel == protocol::kVideoChannel && datagram.size() == protocol::kDatagramHeaderSize) {
                 openVideo();
             } else if (m_control && received->from == m_peer && header->connection == kConnection &&
+                       header->channel == protocol::kAudioChannel && m_openAudio &&
+                       datagram.size() == protocol::kDatagramHeaderSize) {
+                const auto opened =
+                    protocol::encodeDatagramHeader({.channel = protocol::kAudioChannel, .connection = kConnection});
+                static_cast<void>(m_socket.sendTo(m_peer, opened));
+            } else if (m_control && received->from == m_peer && header->connection == kConnection &&
                        header->channel == protocol::kVideoChannel && protocol::isMediaClosed(datagram)) {
                 m_closedAcknowledgements.fetch_add(1);
             } else if (m_control && received->from == m_peer && header->connection == kConnection &&
-                       header->channel == protocol::kControlChannel && !lose()) {
-                static_cast<void>(m_control->receive(datagram, SteadyClock::now()));
-                serve();
+                       header->channel == protocol::kControlChannel) {
+                if (m_dropControl.load() > 0u) {
+                    m_dropControl.fetch_sub(1);
+                    m_droppedControls.fetch_add(1);
+                } else if (!lose()) {
+                    static_cast<void>(m_control->receive(datagram, SteadyClock::now()));
+                    serve();
+                }
             } else if (m_bulk && received->from == m_peer && header->connection == kConnection &&
                        header->channel == protocol::kBulkChannel) {
                 static_cast<void>(m_bulk->receive(datagram, SteadyClock::now()));
@@ -168,10 +198,11 @@ private:
             return;
         }
         m_videoSent = true;
-        for (std::uint32_t number = 0; number < videoPackets().size(); ++number) {
-            const auto shards = protocol::testing::videoShards(number, videoPackets()[number], 1000, 1, kConnection);
+        for (std::uint32_t number = 0; number < m_video.size(); ++number) {
+            const auto shards =
+                protocol::testing::videoShards(number, m_video[number], m_shardSize, m_parity, kConnection);
             for (std::size_t i = 0; i < shards.size(); ++i) {
-                if (number != 0 || i != 1) {
+                if (!m_dropOneShard || number != 0 || i != 1) {
                     static_cast<void>(m_socket.sendTo(m_peer, shards[i]));
                 }
             }
@@ -257,6 +288,13 @@ private:
 
     double m_loss;
     bool m_closeVideo;
+    bool m_openAudio = false;
+    std::vector<std::vector<std::uint8_t>> m_video;
+    std::uint16_t m_shardSize = 1000;
+    std::uint8_t m_parity = 1;
+    bool m_dropOneShard = true;
+    std::atomic<std::uint32_t> m_dropControl{0};
+    std::atomic<std::uint32_t> m_droppedControls{0};
     std::atomic<int> m_closedAcknowledgements{0};
     std::mt19937 m_random{7};
     platform::UdpSocket m_socket = *platform::UdpSocket::bind(platform::UdpEndpoint::loopback(0));
@@ -287,6 +325,29 @@ protocol::Pong pongFrom(FrameChannel& control)
     REQUIRE(pong != nullptr);
     return *pong;
 }
+
+class FailSafe
+{
+public:
+    explicit FailSafe(FrameChannel& channel, std::chrono::milliseconds limit = 3s)
+    {
+        m_thread = std::jthread([&channel, limit](std::stop_token stop) {
+            const auto until = SteadyClock::now() + limit;
+            while (!stop.stop_requested() && SteadyClock::now() < until) {
+                std::this_thread::sleep_for(5ms);
+            }
+            if (!stop.stop_requested()) {
+                channel.interrupt();
+            }
+        });
+    }
+
+    FailSafe(const FailSafe&) = delete;
+    FailSafe& operator=(const FailSafe&) = delete;
+
+private:
+    std::jthread m_thread;
+};
 
 }
 
@@ -562,4 +623,173 @@ TEST_CASE("under 10% loss both ways the control stream keeps every frame and the
         ordered = ordered && pongFrom(control).nonce == i;
     }
     CHECK(ordered);
+}
+
+TEST_CASE("ADR-0114: a control frame leaves while the sender sleeps on a retransmission timer")
+{
+    FakeUdpServer server;
+    detail::DirectTransport transport(server.endpoint());
+    auto link = transport.establish(token, "test", {});
+    REQUIRE(link.has_value());
+    FrameChannel& control = (*link)->control();
+    FailSafe guard(control, 10s);
+    REQUIRE(control.send(ping(1)));
+    CHECK(pongFrom(control).nonce == 1);
+    control.drain(SteadyClock::now() + 500ms);
+    std::this_thread::sleep_for(50ms);
+
+    server.dropNextControl(6u);
+    REQUIRE(control.send(ping(2)));
+    const auto dropped = SteadyClock::now() + 8s;
+    while (server.droppedControls() < 6u && SteadyClock::now() < dropped) {
+        std::this_thread::sleep_for(2ms);
+    }
+    REQUIRE(server.droppedControls() == 6u);
+
+    const auto before = SteadyClock::now();
+    REQUIRE(control.send(ping(3)));
+    CHECK(pongFrom(control).nonce == 2);
+    CHECK(pongFrom(control).nonce == 3);
+    CHECK(SteadyClock::now() - before < 500ms);
+}
+
+TEST_CASE("ADR-0114: a control datagram lost on the wire after the direct send is retransmitted")
+{
+    FakeUdpServer server;
+    detail::DirectTransport transport(server.endpoint());
+    auto link = transport.establish(token, "test", {});
+    REQUIRE(link.has_value());
+    FrameChannel& control = (*link)->control();
+    FailSafe guard(control);
+    REQUIRE(control.send(ping(1)));
+    CHECK(pongFrom(control).nonce == 1);
+    control.drain(SteadyClock::now() + 500ms);
+    std::this_thread::sleep_for(50ms);
+
+    server.dropNextControl(1);
+    REQUIRE(control.send(ping(2)));
+    CHECK(pongFrom(control).nonce == 2);
+}
+
+TEST_CASE("ADR-0114: a video packet split into a hundred shards is handed out once, whole")
+{
+    FakeUdpServer::Script script;
+    script.video = {std::vector<std::uint8_t>(100'000)};
+    for (std::size_t i = 0; i < script.video[0].size(); ++i) {
+        script.video[0][i] = static_cast<std::uint8_t>(i * 31 + 7);
+    }
+    script.shardSize = 1000;
+    script.parity = 0;
+    script.dropOneShard = false;
+    script.closeVideo = true;
+    FakeUdpServer server(script);
+    detail::DirectTransport transport(server.endpoint());
+    auto link = transport.establish(token, "test", {});
+    REQUIRE(link.has_value());
+    auto video = (*link)->openMedia(protocol::MediaChannel::Video, {});
+    REQUIRE(video.has_value());
+
+    const auto packet = (*video)->receive();
+    REQUIRE(packet.has_value());
+    CHECK(packet->lostBefore == 0);
+    CHECK(std::vector<std::uint8_t>(packet->bytes.begin(), packet->bytes.end()) == script.video[0]);
+
+    const auto end = (*video)->receive();
+    REQUIRE_FALSE(end.has_value());
+    CHECK(end.error().error == ChannelError::Closed);
+}
+
+TEST_CASE("ADR-0114: closing the link returns the control, bulk, video and audio readers and drain at once")
+{
+    FakeUdpServer::Script script;
+    script.openAudio = true;
+    FakeUdpServer server(script);
+    detail::DirectTransport transport(server.endpoint());
+    auto link = transport.establish(token, "test", {});
+    REQUIRE(link.has_value());
+    FrameChannel& control = (*link)->control();
+    auto bulk = (*link)->openBulk({});
+    REQUIRE(bulk.has_value());
+    auto video = (*link)->openMedia(protocol::MediaChannel::Video, {});
+    REQUIRE(video.has_value());
+    for (std::size_t i = 0; i < FakeUdpServer::videoPackets().size(); ++i) {
+        REQUIRE((*video)->receive().has_value());
+    }
+    auto audio = (*link)->openMedia(protocol::MediaChannel::Audio, {});
+    REQUIRE(audio.has_value());
+
+    server.dropNextControl(1000u);
+    REQUIRE(control.send(ping(1)));
+
+    std::atomic<int> waiting{0};
+    std::array<std::atomic<int>, 4> outcomes{};
+    for (auto& outcome : outcomes) {
+        outcome.store(-1);
+    }
+    std::atomic<bool> draining{false};
+    const auto watch = [&](auto& channel, std::atomic<int>& outcome) {
+        return std::jthread([target = &channel, &waiting, &outcome](std::stop_token) {
+            waiting.fetch_add(1);
+            const auto result = target->receive();
+            outcome.store(result.has_value() ? 100 : static_cast<int>(result.error().error));
+        });
+    };
+    std::vector<std::jthread> threads;
+    threads.push_back(watch(control, outcomes[0]));
+    threads.push_back(watch(**bulk, outcomes[1]));
+    threads.push_back(watch(**video, outcomes[2]));
+    threads.push_back(watch(**audio, outcomes[3]));
+    std::jthread drainer([&control, &draining](std::stop_token) {
+        draining.store(true);
+        control.drain(SteadyClock::now() + 5s);
+    });
+    const auto started = SteadyClock::now() + 2s;
+    while ((waiting.load() < 4 || !draining.load()) && SteadyClock::now() < started) {
+        std::this_thread::sleep_for(2ms);
+    }
+    REQUIRE(waiting.load() == 4);
+    REQUIRE(draining.load());
+    std::this_thread::sleep_for(50ms);
+
+    const auto before = SteadyClock::now();
+    control.interrupt();
+    threads.clear();
+    drainer.join();
+    CHECK(SteadyClock::now() - before < 1s);
+    for (const auto& outcome : outcomes) {
+        CHECK(outcome.load() == static_cast<int>(ChannelError::Closed));
+    }
+}
+
+TEST_CASE("ADR-0114: control frames and video shards interleave without either stream losing a wake-up")
+{
+    FakeUdpServer::Script script;
+    script.video = std::vector<std::vector<std::uint8_t>>(20, std::vector<std::uint8_t>(8000));
+    for (std::size_t number = 0; number < script.video.size(); ++number) {
+        for (std::size_t i = 0; i < script.video[number].size(); ++i) {
+            script.video[number][i] = static_cast<std::uint8_t>(i * 7 + number);
+        }
+    }
+    script.shardSize = 1000;
+    script.parity = 0;
+    script.dropOneShard = false;
+    FakeUdpServer server(script);
+    detail::DirectTransport transport(server.endpoint());
+    auto link = transport.establish(token, "test", {});
+    REQUIRE(link.has_value());
+    FrameChannel& control = (*link)->control();
+    FailSafe guard(control);
+    auto video = (*link)->openMedia(protocol::MediaChannel::Video, {});
+    REQUIRE(video.has_value());
+
+    for (std::uint32_t number = 0; number < script.video.size(); ++number) {
+        REQUIRE(control.send(ping(number)));
+        const auto packet = (*video)->receive();
+        REQUIRE(packet.has_value());
+        CHECK(packet->lostBefore == 0);
+        CHECK(std::vector<std::uint8_t>(packet->bytes.begin(), packet->bytes.end()) == script.video[number]);
+    }
+    for (std::uint32_t number = 0; number < script.video.size(); ++number) {
+        CHECK(pongFrom(control).nonce == number);
+    }
 }
