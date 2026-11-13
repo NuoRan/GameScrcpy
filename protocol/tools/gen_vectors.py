@@ -1773,17 +1773,30 @@ def video_datagrams(number: int, packet: bytes, shard_size: int, parity: list[in
     count = -(-len(packet) // shard_size)
     groups = -(-count // SHARDS_PER_GROUP)
     assert len(parity) == groups
-    out = []
+    data = []
+    checks = []
     for group in range(groups):
         k = min(SHARDS_PER_GROUP, count - SHARDS_PER_GROUP * group)
-        m = parity[group]
         first = SHARDS_PER_GROUP * group
-        data = [packet[(first + i) * shard_size:(first + i + 1) * shard_size] for i in range(k)]
-        padded = [shard + bytes(shard_size - len(shard)) for shard in data]
-        parities = rs_combine(rs_rows(k, m)[k:], padded) if m else []
-        for index, shard in enumerate(data + parities):
-            header = shard_header(number, len(packet), shard_size, group, index, k, m)
-            out.append(datagram(VIDEO_CHANNEL, UDP_CONNECTION, header + shard))
+        shards = [packet[(first + i) * shard_size:(first + i + 1) * shard_size] for i in range(k)]
+        padded = [shard + bytes(shard_size - len(shard)) for shard in shards]
+        data.append(shards)
+        checks.append(rs_combine(rs_rows(k, parity[group])[k:], padded) if parity[group] else [])
+
+    def emit(group: int, index: int, shard: bytes) -> bytes:
+        k = len(data[group])
+        header = shard_header(number, len(packet), shard_size, group, index, k, parity[group])
+        return datagram(VIDEO_CHANNEL, UDP_CONNECTION, header + shard)
+
+    out = []
+    for index in range(SHARDS_PER_GROUP):
+        for group, shards in enumerate(data):
+            if index < len(shards):
+                out.append(emit(group, index, shards[index]))
+    for index in range(max((len(check) for check in checks), default=0)):
+        for group, check in enumerate(checks):
+            if index < len(check):
+                out.append(emit(group, len(data[group]) + index, check[index]))
     return out
 
 
@@ -1813,6 +1826,7 @@ def direct_media_vectors() -> list[dict]:
     key = media_bytes(2, 1, 1, 1_000_000, 4_000, pattern_bytes(300, 21))
     small = media_bytes(2, 0, 1, 1_033_333, 3_500, pattern_bytes(30, 22))
     two_groups = media_bytes(2, 0, 1, 1_066_666, 3_000, pattern_bytes(16 * 69 + 5 - 20, 23))
+    three_groups = media_bytes(2, 0, 1, 1_100_000, 2_500, pattern_bytes(3 * SHARDS_PER_GROUP * 16 - 20, 25))
     largest = media_bytes(2, 1, 2, 2_000_000, 5_000, pattern_bytes(2 * MAX_SHARD_SIZE - 20, 24))
     assert recommended_shard_size(len(largest)) == MAX_SHARD_SIZE
     video = [
@@ -1820,9 +1834,11 @@ def direct_media_vectors() -> list[dict]:
                    [([0], True), ([1], True), ([0, 1], False)]),
         video_case("no-parity", 1, small, 20, [0], [([1], False)]),
         video_case("two-groups", 2, two_groups, 16, [3, 2],
-                   [([0, 10, 63], True), ([0, 10, 63, 64], False), ([67, 68, 69, 70], False),
-                    ([66, 72, 73], True), ([0, 66], True)]),
+                   [([0, 16, 69], True), ([0, 16, 69, 70], False), ([1, 3, 5, 7], False),
+                    ([74, 11, 71], True), ([0, 70], True)]),
         video_case("largest-shards", 3, largest, MAX_SHARD_SIZE, [1], [([1], True)]),
+        video_case("burst-across-groups", 4, three_groups, 16, [2, 2, 2],
+                   [(list(range(6)), True), (list(range(9)), False)]),
     ]
 
     def malformed_video(name: str, payload: bytes, error: str) -> dict:

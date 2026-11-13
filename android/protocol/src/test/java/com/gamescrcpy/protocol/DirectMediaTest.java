@@ -1,5 +1,6 @@
 package com.gamescrcpy.protocol;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -10,7 +11,9 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Random;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.junit.jupiter.api.Test;
@@ -79,6 +82,82 @@ class DirectMediaTest {
             final byte[] key = Json.fromHex(video.getJSONObject(0).getString("bytes"));
             assertEquals(video.getJSONObject(0).getInt("shardSize"), DirectMedia.recommendedShardSize(key.length));
         }
+    }
+
+    @Test
+    void theSlicerSendsEveryDataShardBeforeAnyParityShardInterleavedAcrossGroups() {
+        for (final int groups : new int[] {1, 2, 3}) {
+            final int shardSize = 16;
+            final int count = groups == 2 ? 70 : groups * 64;
+            final int parity = 2;
+            final byte[] packet = new byte[count * shardSize];
+            new Random(groups).nextBytes(packet);
+            final List<int[]> order = new ArrayList<>();
+            final List<byte[]> shards = new ArrayList<>();
+            new DirectMedia.VideoSlicer().slice(0, 0, packet, 0, packet.length, shardSize, (group, k) -> parity,
+                    (datagram, length) -> {
+                        final DirectMedia.VideoShard shard = DirectMedia.decodeVideoShard(datagram, length);
+                        order.add(new int[] {shard.group, shard.index});
+                        shards.add(Arrays.copyOfRange(datagram, shard.offset, shard.offset + shard.size));
+                    });
+
+            final List<int[]> expected = new ArrayList<>();
+            for (int index = 0; index < DirectMedia.SHARDS_PER_GROUP; ++index) {
+                for (int group = 0; group < groups; ++group) {
+                    if (index < shardsInGroup(count, group)) {
+                        expected.add(new int[] {group, index});
+                    }
+                }
+            }
+            for (int index = 0; index < parity; ++index) {
+                for (int group = 0; group < groups; ++group) {
+                    expected.add(new int[] {group, shardsInGroup(count, group) + index});
+                }
+            }
+            assertEquals(expected.size(), order.size(), groups + " groups");
+            for (int i = 0; i < expected.size(); ++i) {
+                assertArrayEquals(expected.get(i), order.get(i), groups + " groups, datagram " + i);
+            }
+
+            final byte[] data = new byte[packet.length];
+            int copied = 0;
+            for (int i = 0; i < order.size(); ++i) {
+                final int group = order.get(i)[0];
+                final int index = order.get(i)[1];
+                if (index < shardsInGroup(count, group)) {
+                    final int at = (group * DirectMedia.SHARDS_PER_GROUP + index) * shardSize;
+                    System.arraycopy(shards.get(i), 0, data, at, shards.get(i).length);
+                    copied += shards.get(i).length;
+                }
+            }
+            assertEquals(packet.length, copied, groups + " groups");
+            assertArrayEquals(packet, data, groups + " groups");
+
+            for (int group = 0; group < groups; ++group) {
+                final int k = shardsInGroup(count, group);
+                final byte[][] full = new byte[k + parity][shardSize];
+                for (int i = 0; i < order.size(); ++i) {
+                    if (order.get(i)[0] == group) {
+                        System.arraycopy(shards.get(i), 0, full[order.get(i)[1]], 0, shards.get(i).length);
+                    }
+                }
+                final byte[][] withParity = new byte[k + parity][];
+                for (int i = 0; i < k + parity; ++i) {
+                    withParity[i] = full[i].clone();
+                }
+                new ReedSolomon(k, parity).encode(withParity, shardSize);
+                for (int i = 0; i < order.size(); ++i) {
+                    if (order.get(i)[0] == group && order.get(i)[1] >= k) {
+                        assertArrayEquals(withParity[order.get(i)[1]], full[order.get(i)[1]],
+                                groups + " groups, group " + group + " parity " + (order.get(i)[1] - k));
+                    }
+                }
+            }
+        }
+    }
+
+    private static int shardsInGroup(int count, int group) {
+        return Math.min(DirectMedia.SHARDS_PER_GROUP, count - group * DirectMedia.SHARDS_PER_GROUP);
     }
 
     @Test

@@ -8,6 +8,7 @@ public final class ReedSolomon {
 
     private static final byte[] EXP = new byte[512];
     private static final int[] LOG = new int[256];
+    private static final byte[][] MUL = new byte[256][256];
 
     static {
         int value = 1;
@@ -21,6 +22,14 @@ public final class ReedSolomon {
         }
         for (int power = 255; power < 512; ++power) {
             EXP[power] = EXP[power - 255];
+        }
+        for (int coefficient = 1; coefficient < 256; ++coefficient) {
+            final byte[] row = MUL[coefficient];
+            final int scale = LOG[coefficient];
+            row[0] = 0;
+            for (int at = 1; at < 256; ++at) {
+                row[at] = EXP[scale + LOG[at]];
+            }
         }
     }
 
@@ -141,12 +150,9 @@ public final class ReedSolomon {
         if (coefficient == 0) {
             return;
         }
-        final int scale = LOG[coefficient];
+        final byte[] row = MUL[coefficient];
         for (int b = 0; b < length; ++b) {
-            final int value = in[b] & 0xFF;
-            if (value != 0) {
-                out[b] ^= EXP[scale + LOG[value]];
-            }
+            out[b] ^= row[in[b] & 0xFF];
         }
     }
 

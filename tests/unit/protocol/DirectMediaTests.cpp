@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
+#include <iterator>
 #include <random>
 #include <string>
 #include <vector>
@@ -113,6 +114,43 @@ TEST_CASE("video shards decode to their fields and put the packet back, with or 
             } else {
                 CHECK_FALSE(rebuilt.has_value());
             }
+        }
+    }
+}
+
+TEST_CASE("ADR-0114: the shards of one packet complete it in any arrival order")
+{
+    const json vector = mediaVector();
+    for (const json& entry : vector.at("video")) {
+        const auto name = entry.at("name").get<std::string>();
+        CAPTURE(name);
+        const auto datagrams = datagramsOf(entry.at("datagrams"));
+        const auto expected = entry.at("bytes").get<std::string>();
+        std::vector<std::vector<std::uint8_t>> data;
+        std::vector<std::vector<std::uint8_t>> parity;
+        for (const auto& datagram : datagrams) {
+            const auto shard = decodeVideoShard(datagram);
+            REQUIRE(shard.has_value());
+            if (shard->index < shard->k) {
+                data.push_back(datagram);
+            } else {
+                parity.push_back(datagram);
+            }
+        }
+        std::vector<std::vector<std::uint8_t>> parityFirst = parity;
+        parityFirst.insert(parityFirst.end(), data.begin(), data.end());
+        const std::vector<std::vector<std::uint8_t>> reversed(datagrams.rbegin(), datagrams.rend());
+        const std::vector<std::vector<std::uint8_t>>* const orders[] = {&datagrams, &parityFirst, &reversed};
+        for (const auto* order : orders) {
+            VideoAssembler assembler;
+            for (const auto& datagram : *order) {
+                assembler.add(*decodeVideoShard(datagram));
+            }
+            const auto delivered = assembler.next();
+            REQUIRE(delivered.has_value());
+            CHECK(toHex(delivered->bytes) == expected);
+            CHECK_FALSE(assembler.next().has_value());
+            CHECK(assembler.stats().packetsLost == entry.at("packet").get<std::uint64_t>());
         }
     }
 }

@@ -20,6 +20,45 @@ import org.junit.jupiter.api.Test;
 
 class ReedSolomonTest {
 
+    private static final int[] REFERENCE_EXP = new int[512];
+    private static final int[] REFERENCE_LOG = new int[256];
+
+    static {
+        int value = 1;
+        for (int power = 0; power < 255; ++power) {
+            REFERENCE_EXP[power] = value;
+            REFERENCE_LOG[value] = power;
+            value <<= 1;
+            if ((value & 0x100) != 0) {
+                value ^= 0x11D;
+            }
+        }
+        for (int power = 255; power < 512; ++power) {
+            REFERENCE_EXP[power] = REFERENCE_EXP[power - 255];
+        }
+    }
+
+    private static int referenceMultiply(int a, int b) {
+        return a == 0 || b == 0 ? 0 : REFERENCE_EXP[REFERENCE_LOG[a] + REFERENCE_LOG[b]];
+    }
+
+    private static byte[][] referenceEncode(byte[][] data, int parityShards, int length) {
+        final int k = data.length;
+        final byte[][] out = new byte[parityShards][length];
+        for (int i = 0; i < parityShards; ++i) {
+            for (int j = 0; j < k; ++j) {
+                final int coefficient = REFERENCE_EXP[255 - REFERENCE_LOG[(k + i) ^ j]];
+                if (coefficient == 0) {
+                    continue;
+                }
+                for (int b = 0; b < length; ++b) {
+                    out[i][b] ^= (byte) referenceMultiply(coefficient, data[j][b] & 0xFF);
+                }
+            }
+        }
+        return out;
+    }
+
     private static JSONArray vectors() throws IOException {
         final Path directory = Path.of(System.getProperty("gs.protocol.vectorDir", "../../protocol/vectors"));
         final String text = Files.readString(directory.resolve("fec").resolve("reed-solomon.json"), StandardCharsets.UTF_8);
@@ -118,6 +157,41 @@ class ReedSolomonTest {
                 tooFew[order.get(i)] = false;
             }
             assertFalse(code.reconstruct(copy(shards), tooFew, length));
+        }
+    }
+
+    @Test
+    void theMultiplicationTableGivesTheSameParityAsTheLogarithmAlgorithm() {
+        final Random random = new Random(1114);
+        final int[][] pairs = {{1, 1}, {1, 32}, {5, 2}, {64, 1}, {64, 32}, {64, 16}};
+        for (final int[] pair : pairs) {
+            checkAgainstReference(pair[0], pair[1], 1176, random);
+        }
+        for (int round = 0; round < 80; ++round) {
+            checkAgainstReference(1 + random.nextInt(64), random.nextInt(33), 1 + random.nextInt(512), random);
+        }
+    }
+
+    private static void checkAgainstReference(int k, int m, int length, Random random) {
+        final byte[][] data = new byte[k][length];
+        for (int d = 0; d < k; ++d) {
+            random.nextBytes(data[d]);
+            for (int b = d % 4; b < length; b += 11) {
+                data[d][b] = 0;
+            }
+        }
+        final byte[][] reference = referenceEncode(data, m, length);
+        final byte[][] shards = new byte[k + m][length];
+        for (int d = 0; d < k; ++d) {
+            shards[d] = data[d].clone();
+        }
+        for (int i = 0; i < m; ++i) {
+            shards[k + i] = new byte[length];
+            Arrays.fill(shards[k + i], (byte) 0xAA);
+        }
+        new ReedSolomon(k, m).encode(shards, length);
+        for (int i = 0; i < m; ++i) {
+            assertArrayEquals(reference[i], shards[k + i], "k=" + k + " m=" + m + " parity " + i);
         }
     }
 }

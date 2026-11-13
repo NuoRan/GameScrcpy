@@ -37,8 +37,14 @@ public final class DirectMedia {
     }
 
     public static final class VideoSlicer {
+        static final int KEPT_GROUPS = 32;
+
         private final byte[] datagram = new byte[Reliable.DATAGRAM_LIMIT];
-        private byte[][] shards = new byte[0][];
+        private final byte[][] data = new byte[SHARDS_PER_GROUP][];
+        private byte[][] code = new byte[0][];
+        private byte[][][] parities = new byte[0][][];
+        private int[] dataShards = new int[0];
+        private int[] parityShards = new int[0];
 
         public void slice(long connection, long number, byte[] packet, int offset, int length, int shardSize,
                           IntBinaryOperator parity, Sink sink) {
@@ -46,45 +52,90 @@ public final class DirectMedia {
                 throw new EncodeException(EncodeError.VALUE_OUT_OF_RANGE);
             }
             final int count = (length + shardSize - 1) / shardSize;
-            for (int group = 0; group * SHARDS_PER_GROUP < count; ++group) {
-                final int first = group * SHARDS_PER_GROUP;
-                final int k = Math.min(SHARDS_PER_GROUP, count - first);
+            final int groups = (count + SHARDS_PER_GROUP - 1) / SHARDS_PER_GROUP;
+            prepareGroups(groups);
+            for (int group = 0; group < groups; ++group) {
+                final int k = Math.min(SHARDS_PER_GROUP, count - group * SHARDS_PER_GROUP);
                 final int m = parity.applyAsInt(group, k);
                 if (m < 0 || k + m > ReedSolomon.MAX_SHARDS) {
                     throw new EncodeException(EncodeError.VALUE_OUT_OF_RANGE);
                 }
-                for (int i = 0; i < k; ++i) {
-                    final int at = (first + i) * shardSize;
-                    send(connection, number, length, shardSize, group, i, k, m, packet, offset + at,
-                            Math.min(shardSize, length - at), sink);
+                dataShards[group] = k;
+                parityShards[group] = m;
+            }
+            final int rows = groups == 1 ? dataShards[0] : SHARDS_PER_GROUP;
+            for (int index = 0; index < rows; ++index) {
+                for (int group = 0; group < groups; ++group) {
+                    if (index < dataShards[group]) {
+                        final int at = (group * SHARDS_PER_GROUP + index) * shardSize;
+                        send(connection, number, length, shardSize, group, index, dataShards[group], parityShards[group],
+                                packet, offset + at, Math.min(shardSize, length - at), sink);
+                    }
                 }
+            }
+            int parityRows = 0;
+            for (int group = 0; group < groups; ++group) {
+                final int k = dataShards[group];
+                final int m = parityShards[group];
+                parityRows = Math.max(parityRows, m);
                 if (m == 0) {
                     continue;
                 }
-                prepare(k + m, shardSize);
+                final byte[][] groupParity = parityBuffers(group, m);
+                if (code.length < k + m) {
+                    code = new byte[k + m][];
+                }
+                final int first = group * SHARDS_PER_GROUP * shardSize;
                 for (int i = 0; i < k; ++i) {
-                    final int at = (first + i) * shardSize;
+                    if (data[i] == null) {
+                        data[i] = new byte[MAX_SHARD_SIZE];
+                    }
+                    final int at = first + i * shardSize;
                     final int size = Math.min(shardSize, length - at);
-                    System.arraycopy(packet, offset + at, shards[i], 0, size);
-                    Arrays.fill(shards[i], size, shardSize, (byte) 0);
+                    System.arraycopy(packet, offset + at, data[i], 0, size);
+                    Arrays.fill(data[i], size, shardSize, (byte) 0);
+                    code[i] = data[i];
                 }
-                final byte[][] groupShards = Arrays.copyOf(shards, k + m);
-                new ReedSolomon(k, m).encode(groupShards, shardSize);
-                for (int i = k; i < k + m; ++i) {
-                    send(connection, number, length, shardSize, group, i, k, m, groupShards[i], 0, shardSize, sink);
+                System.arraycopy(groupParity, 0, code, k, m);
+                new ReedSolomon(k, m).encode(code, shardSize);
+            }
+            for (int index = 0; index < parityRows; ++index) {
+                for (int group = 0; group < groups; ++group) {
+                    final int k = dataShards[group];
+                    final int m = parityShards[group];
+                    if (index < m) {
+                        send(connection, number, length, shardSize, group, k + index, k, m, parities[group][index], 0,
+                                shardSize, sink);
+                    }
                 }
+            }
+            for (int group = KEPT_GROUPS; group < groups; ++group) {
+                parities[group] = null;
             }
         }
 
-        private void prepare(int count, int shardSize) {
-            if (shards.length < count) {
-                shards = Arrays.copyOf(shards, count);
+        private void prepareGroups(int groups) {
+            if (parities.length < groups) {
+                parities = Arrays.copyOf(parities, groups);
+            }
+            if (dataShards.length < groups) {
+                dataShards = Arrays.copyOf(dataShards, groups);
+                parityShards = Arrays.copyOf(parityShards, groups);
+            }
+        }
+
+        private byte[][] parityBuffers(int group, int count) {
+            byte[][] buffers = parities[group];
+            if (buffers == null || buffers.length < count) {
+                buffers = buffers == null ? new byte[count][] : Arrays.copyOf(buffers, count);
+                parities[group] = buffers;
             }
             for (int i = 0; i < count; ++i) {
-                if (shards[i] == null || shards[i].length != shardSize) {
-                    shards[i] = new byte[shardSize];
+                if (buffers[i] == null) {
+                    buffers[i] = new byte[MAX_SHARD_SIZE];
                 }
             }
+            return buffers;
         }
 
         private void send(long connection, long number, int packetSize, int shardSize, int group, int index, int k,
