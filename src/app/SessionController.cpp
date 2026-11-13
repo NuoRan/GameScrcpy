@@ -324,6 +324,9 @@ private:
         head.see(packet);
         if (recorder != nullptr) {
             deliver(packet);
+            if (channel == protocol::MediaChannel::Video && recorder->takeKeyFrameRequest()) {
+                m_controller.m_session->send(protocol::RequestKeyFrame{});
+            }
         }
     }
 

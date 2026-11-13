@@ -416,6 +416,72 @@ TEST_CASE("recording: the recorder appends the video packets it gets byte for by
     CHECK(readBytes(root.path() / "late.gsrec" / "video.media") == expected);
 }
 
+TEST_CASE("ADR-0114: a recording asks for a key frame every ten seconds of video and again while one is late")
+{
+    const std::vector<std::uint8_t> original = readBytes(media("emulator_h264.media"));
+    const std::vector<MediaPacket> packets = packetsOf(original);
+    const auto described = std::ranges::find_if(
+        packets, [](const MediaPacket& packet) { return packet.header.kind == MediaKind::Session; });
+    REQUIRE(described != packets.end());
+    const auto configured = std::find_if(described, packets.end(), [](const MediaPacket& packet) {
+        return packet.header.kind == MediaKind::Config;
+    });
+    REQUIRE(configured != packets.end());
+    const auto framed = std::find_if(configured, packets.end(), [](const MediaPacket& packet) {
+        return packet.header.kind == MediaKind::Frame;
+    });
+    REQUIRE(framed != packets.end());
+    REQUIRE(configured->header.session == described->header.session);
+    REQUIRE(framed->header.session == described->header.session);
+    const auto frameAt = [&framed](std::int64_t ptsUs, bool key) {
+        MediaPacket packet = *framed;
+        packet.header.ptsUs = ptsUs;
+        packet.header.keyFrame = key;
+        return packet;
+    };
+
+    const Folder root;
+    auto started = record::Recorder::start(record::RecorderOptions{
+        .folder = root.path() / "keys.gsrec", .clock = std::make_shared<ManualClock>(Microseconds{0})});
+    REQUIRE(started);
+    const std::shared_ptr<record::Recorder> recorder = *started;
+    const auto asks = [&recorder](const MediaPacket& packet) {
+        recorder->video(packet);
+        return recorder->takeKeyFrameRequest();
+    };
+
+    recorder->video(*described);
+    recorder->video(*configured);
+    CHECK_FALSE(recorder->takeKeyFrameRequest());
+    CHECK_FALSE(asks(frameAt(0, false)));
+    CHECK_FALSE(asks(frameAt(999'000, false)));
+    CHECK(asks(frameAt(1'000'000, false)));
+    CHECK_FALSE(recorder->takeKeyFrameRequest());
+    CHECK_FALSE(asks(frameAt(1'999'000, false)));
+    CHECK(asks(frameAt(2'000'000, false)));
+    CHECK_FALSE(asks(frameAt(2'100'000, true)));
+    CHECK(recorder->hasVideo());
+
+    CHECK_FALSE(asks(frameAt(12'099'000, false)));
+    CHECK(asks(frameAt(12'100'000, false)));
+    CHECK_FALSE(recorder->takeKeyFrameRequest());
+    CHECK_FALSE(asks(frameAt(13'099'000, false)));
+    CHECK(asks(frameAt(13'100'000, false)));
+    CHECK_FALSE(asks(frameAt(13'200'000, true)));
+    CHECK_FALSE(asks(frameAt(23'199'000, false)));
+    CHECK(asks(frameAt(23'200'000, false)));
+
+    recorder->video(*described);
+    CHECK_FALSE(recorder->takeKeyFrameRequest());
+    recorder->video(*configured);
+    CHECK_FALSE(asks(frameAt(30'000'000, false)));
+    CHECK(asks(frameAt(31'000'000, false)));
+    CHECK_FALSE(asks(frameAt(31'100'000, true)));
+
+    static_cast<void>(recorder->stop());
+    CHECK_FALSE(recorder->takeKeyFrameRequest());
+}
+
 TEST_CASE("recording: operations keep touches, keys and wheel turns, and only the length of typed text")
 {
     gs::protocol::TouchFrame frame;

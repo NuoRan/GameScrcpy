@@ -21,6 +21,7 @@ struct RecorderOptions {
     std::int64_t startedAtMs = script::kDefaultSessionStartMs;
     double frameRate = 60.0;
     std::chrono::milliseconds rewriteEvery{3000};
+    std::chrono::milliseconds keyFrameEvery{10'000};
     std::shared_ptr<const Clock> clock;
 };
 
@@ -42,6 +43,7 @@ class Recorder
 {
 public:
     static constexpr std::size_t kMostQueuedBytes = std::size_t{128} << 20;
+    static constexpr std::chrono::milliseconds kKeyFrameRetry{1000};
 
     [[nodiscard]] static Expected<std::shared_ptr<Recorder>, std::string> start(RecorderOptions options);
 
@@ -53,6 +55,8 @@ public:
     void audio(const protocol::MediaPacket& packet);
     void event(script::SessionEventKind kind, std::string id, bool value = false);
     void operation(script::SessionAction action);
+
+    [[nodiscard]] bool takeKeyFrameRequest();
 
     [[nodiscard]] Microseconds elapsed() const;
     [[nodiscard]] std::size_t operationCount() const;

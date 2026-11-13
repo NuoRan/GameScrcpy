@@ -42,6 +42,9 @@ struct Track {
     bool configured = false;
     bool keyed = false;
     bool written = false;
+    std::optional<std::int64_t> latestPtsUs;
+    std::optional<std::int64_t> keyPtsUs;
+    std::optional<std::int64_t> askedPtsUs;
 };
 
 }
@@ -218,6 +221,9 @@ void Recorder::video(const protocol::MediaPacket& packet)
         track.session = packet.header.session;
         track.configured = false;
         track.keyed = false;
+        track.latestPtsUs.reset();
+        track.keyPtsUs.reset();
+        track.askedPtsUs.reset();
         if (const auto* info = std::get_if<protocol::VideoSessionInfo>(&packet.session)) {
             ++state.videoSessions;
             if (state.width == 0) {
@@ -235,16 +241,46 @@ void Recorder::video(const protocol::MediaPacket& packet)
         state.enqueue(protocol::MediaChannel::Video, packet, track);
         return;
     case protocol::MediaKind::Frame:
-        if (!track.configured || packet.header.session != *track.session || (!track.keyed && !packet.header.keyFrame)) {
+        if (!track.configured || packet.header.session != *track.session) {
             return;
         }
-        track.keyed = true;
+        track.latestPtsUs = packet.header.ptsUs;
+        if (packet.header.keyFrame) {
+            track.keyed = true;
+            track.keyPtsUs = packet.header.ptsUs;
+            track.askedPtsUs.reset();
+        } else if (!track.keyed) {
+            if (!track.keyPtsUs) {
+                track.keyPtsUs = packet.header.ptsUs;
+            }
+            return;
+        }
         if (!state.videoStartPtsUs) {
             state.videoStartPtsUs = packet.header.ptsUs - state.now().count();
         }
         state.enqueue(protocol::MediaChannel::Video, packet, track);
         return;
     }
+}
+
+bool Recorder::takeKeyFrameRequest()
+{
+    State& state = *m_state;
+    const std::scoped_lock lock(state.mutex);
+    Track& track = state.video;
+    if (state.stopping || !state.problem.empty() || !track.latestPtsUs || !track.keyPtsUs) {
+        return false;
+    }
+    const std::int64_t retryUs = std::chrono::duration_cast<std::chrono::microseconds>(kKeyFrameRetry).count();
+    const std::int64_t dueUs =
+        track.keyed ? std::chrono::duration_cast<std::chrono::microseconds>(state.options.keyFrameEvery).count()
+                    : retryUs;
+    const std::int64_t nowUs = *track.latestPtsUs;
+    if (nowUs - *track.keyPtsUs < dueUs || (track.askedPtsUs && nowUs - *track.askedPtsUs < retryUs)) {
+        return false;
+    }
+    track.askedPtsUs = nowUs;
+    return true;
 }
 
 void Recorder::audio(const protocol::MediaPacket& packet)
