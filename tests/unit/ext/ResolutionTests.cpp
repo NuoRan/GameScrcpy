@@ -239,6 +239,37 @@ TEST_CASE("ADR-0113: an author tool writes the version this GameScrcpy offers as
     CHECK_FALSE(requirementFor(ExtensionPoint::Preset).has_value());
 }
 
+TEST_CASE("ADR-0113: writtenFor names the version the author wrote against, or the earliest release whose versions fit")
+{
+    Manifest manifest = extension("alice.app", "1.0.0");
+    manifest.requirements.clear();
+    manifest.requirements.insert_or_assign(ExtensionPoint::Script, *VersionRange::parse("^1.0"));
+    REQUIRE(writtenFor(manifest).has_value());
+    CHECK(writtenFor(manifest)->text() == "2.0.0");
+
+    manifest.requirements.insert_or_assign(ExtensionPoint::Script, *VersionRange::parse("^1.1"));
+    REQUIRE(writtenFor(manifest).has_value());
+    CHECK(writtenFor(manifest)->text() == "2.1.0");
+
+    manifest.requirements.clear();
+    manifest.requirements.insert_or_assign(ExtensionPoint::Native, *VersionRange::parse("^2.0"));
+    REQUIRE(writtenFor(manifest).has_value());
+    CHECK(writtenFor(manifest)->text() == "2.1.0");
+
+    manifest.requirements.clear();
+    manifest.requirements.insert_or_assign(ExtensionPoint::Script, *VersionRange::parse("^1.2"));
+    CHECK_FALSE(writtenFor(manifest).has_value());
+
+    manifest.requirements.clear();
+    manifest.requirements.insert_or_assign(ExtensionPoint::Command, *VersionRange::parse("^1.0"));
+    CHECK_FALSE(writtenFor(manifest).has_value());
+
+    manifest.requirements.insert_or_assign(ExtensionPoint::Script, *VersionRange::parse("^1.2"));
+    manifest.gamescrcpy = *Version::parse("2.2.0");
+    REQUIRE(writtenFor(manifest).has_value());
+    CHECK(writtenFor(manifest)->text() == "2.2.0");
+}
+
 TEST_CASE("an update names the permissions it adds or widens and the dependencies it adds")
 {
     Manifest before = extension("alice.app", "1.0.0");

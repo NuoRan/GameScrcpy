@@ -2,6 +2,7 @@
 
 #include "ExtensionContent.h"
 
+#include <gs/base/BuildInfo.h>
 #include <gs/ext/Archive.h>
 #include <gs/ext/Manifest.h>
 #include <gs/ext/Package.h>
@@ -105,11 +106,23 @@ QString limited(const QString& text, qsizetype most)
     return QString::fromUcs4(reinterpret_cast<const char32_t*>(points.constData()), most);
 }
 
+std::string gameVersionText()
+{
+    const std::string_view version = buildInfo().version;
+    const std::size_t first = version.find('.');
+    if (first == std::string_view::npos) {
+        return std::string(version);
+    }
+    const std::size_t second = version.find('.', first + 1);
+    return std::string(second == std::string_view::npos ? version : version.substr(0, second));
+}
+
 ext::Manifest baseManifest(const QString& name, const QString& description, std::string_view kind)
 {
     ext::Manifest manifest;
     manifest.id = exportedExtensionId(name, kind);
     manifest.version = ext::Version{1, 0, 0};
+    manifest.gamescrcpy = ext::Version::parse(gameVersionText() + ".0");
     manifest.name = limited(name.trimmed().isEmpty() ? QString::fromStdString(manifest.id) : name.trimmed(), 100)
                         .toStdString();
     manifest.description = limited(description.trimmed(), 1000).toStdString();

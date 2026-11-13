@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "example.deck-bridge",
   "version": "1.0.0",
+  "gamescrcpy": "2.1",
   "name": "Deck bridge",
   "description": "Lets Stream Deck and other programs on this computer press keys that profiles bind, over HTTP on 127.0.0.1.",
   "authors": ["GameScrcpy"],

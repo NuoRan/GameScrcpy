@@ -179,6 +179,34 @@ const HostApi& currentHostApi()
     return api;
 }
 
+namespace {
+
+struct Release {
+    Version version;
+    HostApi api;
+};
+
+const std::vector<Release>& releaseHistory()
+{
+    static const std::vector<Release> history = [] {
+        HostApi twenty;
+        twenty.versions[ExtensionPoint::Filter] = {Version{1, 0, 0}};
+        twenty.versions[ExtensionPoint::Theme] = {Version{1, 0, 0}};
+        twenty.versions[ExtensionPoint::Profile] = {Version{1, 0, 0}};
+        twenty.versions[ExtensionPoint::Native] = {Version{1, 0, 0}};
+        twenty.versions[ExtensionPoint::Component] = {Version{1, 0, 0}};
+        twenty.versions[ExtensionPoint::Task] = {Version{1, 0, 0}};
+        twenty.versions[ExtensionPoint::Script] = {Version{1, 0, 0}};
+        twenty.versions[ExtensionPoint::Panel] = {Version{1, 0, 0}};
+        std::vector<Release> releases{{Version{2, 0, 0}, std::move(twenty)}};
+        releases.push_back({Version{2, 1, 0}, currentHostApi()});
+        return releases;
+    }();
+    return history;
+}
+
+}
+
 std::optional<VersionRange> requirementFor(ExtensionPoint point)
 {
     const HostApi& host = currentHostApi();
@@ -188,6 +216,19 @@ std::optional<VersionRange> requirementFor(ExtensionPoint point)
     }
     const Version& newest = *std::ranges::max_element(offered->second);
     return VersionRange::parse("^" + std::to_string(newest.major) + "." + std::to_string(newest.minor));
+}
+
+std::optional<Version> writtenFor(const Manifest& manifest)
+{
+    if (manifest.gamescrcpy) {
+        return manifest.gamescrcpy;
+    }
+    for (const Release& release : releaseHistory()) {
+        if (checkCompatibility(manifest, release.api).empty()) {
+            return release.version;
+        }
+    }
+    return std::nullopt;
 }
 
 std::vector<Diagnostic> checkCompatibility(const Manifest& manifest, const HostApi& host)

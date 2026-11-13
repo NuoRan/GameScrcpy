@@ -128,6 +128,7 @@ For an extension whose manifest has `updates.index` (see the [manifest reference
 
 - `gs validate` reports no errors, ideally no warnings; scripts pass `gs check`; tests pass `gs ext test` (and native extensions once more with `--hosted`).
 - `requires` names the version of each extension point you wrote against, with the new minor version wherever you use something new (native extensions write `"native": "^2.0"`).
+- The manifest says `"gamescrcpy": "2.1"`, the major.minor of the GameScrcpy version you wrote the extension against; without it `gs validate` warns `gamescrcpy-missing` and the card cannot show the version you wrote.
 - The `id` has a prefix of your own, and `license`, `authors` and `repository` are filled in; `description` says in a sentence or two what the extension does.
 - Every permission's `reason` is something users understand.
 - Names, descriptions, panel titles, tours and help have translations (`l10n` and `locales`).

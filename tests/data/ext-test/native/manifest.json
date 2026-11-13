@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "gstest.mock",
   "version": "1.0.0",
+  "gamescrcpy": "2.1",
   "name": "Mock host test",
   "description": "GameScrcpy's test DLL, described for gs ext test.",
   "authors": ["GameScrcpy"],

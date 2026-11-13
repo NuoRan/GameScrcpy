@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "example.notes-panel",
   "version": "1.0.0",
+  "gamescrcpy": "2.1",
   "name": "Notes",
   "description": "Keeps short notes as text files in a folder you choose, and adds the newest GameScrcpy release as a note when you ask.",
   "authors": ["GameScrcpy"],

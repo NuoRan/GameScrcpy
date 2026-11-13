@@ -223,6 +223,8 @@ std::string_view codeName(Code code) noexcept
         return "locale-invalid";
     case Code::PermissionPathsFixed:
         return "permission-paths-fixed";
+    case Code::GameScrcpyVersionMissing:
+        return "gamescrcpy-missing";
     }
     return "unknown";
 }
@@ -509,6 +511,8 @@ std::string_view fixHint(Code code) noexcept
     case Code::PermissionPathsFixed:
         return "Fixed paths give the extension nothing: name its folders in \"folders\" and open them with "
                "files.folder(name); the user picks each real folder the first time.";
+    case Code::GameScrcpyVersionMissing:
+        return "Write the GameScrcpy version you built the extension against, such as \"gamescrcpy\": \"2.1\".";
     }
     return "";
 }

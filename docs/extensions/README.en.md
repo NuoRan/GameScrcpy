@@ -100,6 +100,8 @@ The versions GameScrcpy 2.1.0 offers:
 
 When it loads an extension, GameScrcpy checks `requires` against this table: an extension point the program does not have, a version newer than the program offers, or a range that every version the program offers lies above (an extension made for an older GameScrcpy) keeps the extension off, and the card and `gs validate` say which of the three it is. The first time GameScrcpy starts after an update, if extensions you had turned on no longer open for one of these reasons, it shows one prompt that lists them with "Check for updates" and "Open Extensions".
 
+The manifest can also say with `gamescrcpy` which GameScrcpy version its author wrote it against: the card, its details, the install dialog and the prompt after an update say "Made for GameScrcpy 2.1", a missing field is worked out from `requires`, and compatibility still comes from `requires` (see [Manifest reference](manifest.en.md#which-version-it-was-written-for)).
+
 The manifest format also keeps the extension points `command` and `preset`; 2.1.0 does not offer them yet, so an extension that asks for them installs but is never turned on. A contribution whose extension point is missing from `requires` makes `gs validate` report `contribution-undeclared`; an extension point or version the program does not offer keeps the extension off, with the reason on the Extensions page. Later versions only add extension points and add to existing ones; published fields and functions keep their meaning.
 
 ## Permissions

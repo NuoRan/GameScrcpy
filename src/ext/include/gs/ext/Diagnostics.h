@@ -118,6 +118,7 @@ enum class Code : std::uint8_t {
     VisionEngineInvalid,
     LocaleInvalid,
     PermissionPathsFixed,
+    GameScrcpyVersionMissing,
 };
 
 struct Diagnostic {

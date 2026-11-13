@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "example.read-aloud",
   "version": "1.0.0",
+  "gamescrcpy": "2.1",
   "name": "Read aloud",
   "description": "Reads the text in a part of the phone's picture with the text recognition of Windows, and reads it out.",
   "authors": ["GameScrcpy"],

@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "example.tour-and-help",
   "version": "1.0.0",
+  "gamescrcpy": "2.1",
   "name": "Tour and help",
   "description": "Shows how an extension brings its own guided tour and help articles, with a page and a card in Settings for the tour to point at.",
   "authors": ["GameScrcpy"],

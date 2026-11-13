@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "gamescrcpy.crt-scanlines",
   "version": "1.0.0",
+  "gamescrcpy": "2.1",
   "name": "CRT scanlines",
   "description": "Darkens every few rows of the picture, like an old CRT screen.",
   "authors": ["GameScrcpy"],

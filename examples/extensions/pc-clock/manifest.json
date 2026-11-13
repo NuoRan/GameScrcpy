@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "gamescrcpy.pc-clock",
   "version": "1.0.0",
+  "gamescrcpy": "2.1",
   "name": "PC clock",
   "description": "A sample native extension: a system node that gives the computer's current time as text.",
   "authors": ["GameScrcpy"],

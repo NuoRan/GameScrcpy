@@ -410,6 +410,44 @@ TEST_CASE("the JSON Schema comes from the same declarations as the reader")
     CHECK(patch["properties"]["target"]["pattern"].is_string());
 }
 
+TEST_CASE("ADR-0113: a manifest says which GameScrcpy version its author wrote it for")
+{
+    Json json = base();
+    const LoadedManifest plain = load(json);
+    CHECK(plain.usable);
+    CHECK_FALSE(plain.manifest.gamescrcpy.has_value());
+
+    json["gamescrcpy"] = "2.1";
+    LoadedManifest loaded = load(json);
+    CHECK_MESSAGE(loaded.usable, listed(loaded));
+    CHECK(loaded.diagnostics.empty());
+    REQUIRE(loaded.manifest.gamescrcpy.has_value());
+    CHECK(*loaded.manifest.gamescrcpy == Version{2, 1, 0, {}});
+    CHECK(Json::parse(saveManifest(loaded.manifest))["gamescrcpy"] == "2.1.0");
+    CHECK(loadManifest(saveManifest(loaded.manifest)).manifest == loaded.manifest);
+
+    json["gamescrcpy"] = "2.1.0";
+    loaded = load(json);
+    CHECK(loaded.diagnostics.empty());
+    REQUIRE(loaded.manifest.gamescrcpy.has_value());
+    CHECK(*loaded.manifest.gamescrcpy == Version{2, 1, 0, {}});
+
+    for (const char* bad : {"2", "2.x", "2.1.0-beta", "2.1.0.0", ""}) {
+        json["gamescrcpy"] = bad;
+        const LoadedManifest problems = load(json);
+        CHECK_FALSE(problems.usable);
+        CHECK_MESSAGE(reports(problems, Code::VersionInvalid, "$.gamescrcpy"), bad);
+    }
+
+    json["gamescrcpy"] = 2;
+    CHECK(reports(load(json), Code::WrongType, "$.gamescrcpy"));
+
+    Json schema = Json::parse(manifestJsonSchema());
+    CHECK(schema["properties"]["gamescrcpy"]["type"] == "string");
+    CHECK(schema["properties"]["gamescrcpy"]["pattern"].is_string());
+    CHECK_FALSE(contains(schema["required"], "gamescrcpy"));
+}
+
 TEST_CASE("profile contributions name their profiles, patches name a target, and both need the profile point (PRF-006)")
 {
     Json json = base();

@@ -2,6 +2,7 @@
 
 #include "ScriptProject.h"
 
+#include <gs/base/BuildInfo.h>
 #include <gs/ext/Manifest.h>
 #include <gs/ext/Resolution.h>
 #include <gs/script/ApiFiles.h>
@@ -307,12 +308,24 @@ std::string jsonText(const Json& value)
     return value.dump(2, ' ', false, Json::error_handler_t::replace) + "\n";
 }
 
+std::string gameVersionText()
+{
+    const std::string_view version = buildInfo().version;
+    const std::size_t first = version.find('.');
+    if (first == std::string_view::npos) {
+        return std::string(version);
+    }
+    const std::size_t second = version.find('.', first + 1);
+    return std::string(second == std::string_view::npos ? version : version.substr(0, second));
+}
+
 Json baseManifest(const std::string& id, const std::string& name, std::string_view description)
 {
     Json manifest = Json::object();
     manifest["schemaVersion"] = 1;
     manifest["id"] = id;
     manifest["version"] = "0.1.0";
+    manifest["gamescrcpy"] = gameVersionText();
     manifest["name"] = name;
     manifest["description"] = std::string(description);
     manifest["license"] = "MIT";

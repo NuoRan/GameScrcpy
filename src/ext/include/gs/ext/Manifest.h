@@ -1080,6 +1080,7 @@ struct Manifest {
     std::int64_t schemaVersion = kSchemaVersion;
     std::string id;
     Version version;
+    std::optional<Version> gamescrcpy;
     std::string name;
     std::string description;
     std::vector<std::string> authors;
@@ -1101,6 +1102,7 @@ struct Manifest {
         v.schemaVersion("schemaVersion", m.schemaVersion);
         v.text("id", m.id, {.required = true, .maxLength = kMaxIdLength, .format = TextFormat::ExtensionId});
         v.version("version", m.version);
+        v.gameVersion("gamescrcpy", m.gamescrcpy);
         v.text("name", m.name, {.required = true, .maxLength = 100});
         v.text("description", m.description, {.maxLength = 1000});
         v.textList("authors", m.authors, {.maxItems = 32, .maxLength = 100});

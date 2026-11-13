@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "example.key-list",
   "version": "1.0.0",
+  "gamescrcpy": "2.1",
   "name": "Key list",
   "description": "Imports key lists written as plain text as profiles, and exports profiles as key lists.",
   "authors": ["GameScrcpy"],

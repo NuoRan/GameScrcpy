@@ -23,6 +23,19 @@ using Json = nlohmann::ordered_json;
 constexpr int kMaxNesting = 32;
 constexpr std::string_view kVersionPattern =
     R"(^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$)";
+constexpr std::string_view kGameVersionPattern =
+    R"(^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(\.(0|[1-9][0-9]*))?$)";
+
+std::optional<Version> gameVersionOf(std::string_view text)
+{
+    if (text.find('-') != std::string_view::npos) {
+        return std::nullopt;
+    }
+    if (const std::optional<Version> parsed = Version::parse(text)) {
+        return parsed;
+    }
+    return Version::parse(std::string(text) + ".0");
+}
 
 bool nestingWithinLimit(std::string_view text) noexcept
 {
@@ -1415,6 +1428,24 @@ public:
         field = *parsed;
     }
 
+    void gameVersion(std::string_view name, std::optional<Version>& field)
+    {
+        const Json* node = find(name);
+        if (node == nullptr) {
+            return;
+        }
+        if (!node->is_string()) {
+            wrongType(name, *node);
+            return;
+        }
+        const std::optional<Version> parsed = gameVersionOf(node->get_ref<const std::string&>());
+        if (!parsed) {
+            report(Severity::Error, Code::VersionInvalid, name, node->dump());
+            return;
+        }
+        field = parsed;
+    }
+
     void textList(std::string_view name, std::vector<std::string>& field, const ListRule& rule)
     {
         const Json* node = find(name);
@@ -1844,6 +1875,13 @@ public:
 
     void version(std::string_view name, const Version& field) { set(name, field.text()); }
 
+    void gameVersion(std::string_view name, const std::optional<Version>& field)
+    {
+        if (field) {
+            set(name, field->text());
+        }
+    }
+
     void textList(std::string_view name, const std::vector<std::string>& field, const ListRule&)
     {
         if (!field.empty()) {
@@ -2108,6 +2146,11 @@ public:
     void version(std::string_view name, const Version&)
     {
         property(name, {{"type", "string"}, {"pattern", kVersionPattern}}, true);
+    }
+
+    void gameVersion(std::string_view name, const std::optional<Version>&)
+    {
+        property(name, {{"type", "string"}, {"pattern", kGameVersionPattern}});
     }
 
     void textList(std::string_view name, const std::vector<std::string>&, const ListRule& rule)

@@ -128,6 +128,7 @@ GameScrcpy 检查签名的规则：
 
 - `gs validate` 没有错误，最好也没有警告；有脚本的过了 `gs check`；有测试的过了 `gs ext test`（原生扩展再用 `--hosted` 跑一次）。
 - `requires` 写成你照着写的那个版本的扩展点版本，用到新东西就写新的次版本（原生扩展写 `"native": "^2.0"`）。
+- 清单写了 `"gamescrcpy": "2.1"`：你照着写扩展的 GameScrcpy 版本的主.次；没写的 `gs validate` 报 `gamescrcpy-missing` 警告，卡片上也读不到你写的版本。
 - `id` 用你自己的前缀，`license`、`authors`、`repository` 都写好；`description` 一两句说清扩展做什么。
 - 每项权限的 `reason` 写的是用户能看懂的理由。
 - 名字、说明、面板标题、引导与帮助有中文译文（`l10n` 与 `locales`）。

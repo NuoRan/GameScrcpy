@@ -11,6 +11,7 @@
   "schemaVersion": 1,
   "id": "alice.lap-timer",
   "version": "1.2.0",
+  "gamescrcpy": "2.1",
   "name": "Lap timer",
   "description": "Times laps with a key and shows them in a page of the main window.",
   "authors": ["Alice"],
@@ -61,6 +62,7 @@
 | `schemaVersion` | yes | Always `1` |
 | `id` | yes | Two or more parts joined by dots, each of lowercase letters, digits and hyphens (no hyphen at either end, never two in a row), at most 64 characters, such as `alice.lap-timer`. Ids starting with `gamescrcpy.` are kept for official extensions |
 | `version` | yes | A semantic version `major.minor.patch`, optionally with a prerelease tag, such as `1.2.0-beta.1` |
+| `gamescrcpy` | | The GameScrcpy version the author wrote the extension against: `major.minor` or `major.minor.patch` (such as `2.1` or `2.1.0`), without a prerelease tag; see [Which version it was written for](#which-version-it-was-written-for) below |
 | `name` | yes | At most 100 characters |
 | `description` | | At most 1000 characters |
 | `authors` | | Up to 32 names of at most 100 characters each |
@@ -140,6 +142,20 @@ When it loads an extension, GameScrcpy checks `requires` against the table above
 | `host-api-outdated` | Every version the program offers lies above the range: the extension was made for an older GameScrcpy | Made for an older GameScrcpy |
 
 A range with only a lower bound (such as `>=1.0`) is never `host-api-outdated`. An extension made for an older version has to write the version the program offers, such as `"native": "^2.0"`; the user asks the author for a new version or checks for updates. The first time GameScrcpy starts after an update it lists the extensions you had turned on that no longer open for one of these reasons, with "Check for updates" and "Open Extensions".
+
+### Which version it was written for
+
+The manifest can say which GameScrcpy version its author wrote it against:
+
+```json
+"gamescrcpy": "2.1"
+```
+
+Write `major.minor` or `major.minor.patch`, without a prerelease tag; `2`, `2.x` or `2.1.0-beta` is `version-invalid`. The field only says which version it was written for; it does not decide whether the extension works: its card, its details, the install dialog and the prompt after an update say "Made for GameScrcpy 2.1", and one that does not fit this GameScrcpy adds the reason, such as "Made for GameScrcpy 2.0, which 2.1 cannot use" or "Made for GameScrcpy 2.2, which needs a newer GameScrcpy". Compatibility always comes from `requires`: an extension written for an older version that `requires` accepts opens as usual and shows no prompt.
+
+When the field is missing, GameScrcpy works the version out from `requires`: it takes the earliest version whose table of extension point versions (the eight extension points of 2.0.0 are all 1.0; 2.1.0 is the table above) satisfies every entry, and when even 2.0.0 does not (a `command` requirement, say) it shows no version and only whether the extension fits this GameScrcpy.
+
+`gs ext init` and "Export as extension" write the major.minor of the current version. `gs validate` and `gs pack` warn with `gamescrcpy-missing` when the field is missing and say how to add it; loading an extension in GameScrcpy does not.
 
 ### `dependencies`
 
@@ -493,6 +509,7 @@ Each result of `gs validate` has a code and a hint; these are the ones met most 
 | `unknown-field` | A field the format does not know (a warning) |
 | `id-invalid`, `id-reserved` | The `id` is not written right, or starts with `gamescrcpy.` |
 | `version-invalid`, `range-invalid` | A version or version range is not written right |
+| `gamescrcpy-missing` | The manifest does not say which GameScrcpy version it was written for (a warning, from `gs validate` and `gs pack` only; see "Which version it was written for" above) |
 | `path-invalid`, `file-missing` | A package path is not written right, or the file is not in the package |
 | `extension-point-unknown`, `contribution-undeclared` | An unknown extension point, or a contribution without its extension point |
 | `host-api-missing`, `host-api-version`, `host-api-outdated` | The program does not have this extension point, the version asked for is newer than it offers, or the extension was made for an older program (see "The three results of the check" above) |

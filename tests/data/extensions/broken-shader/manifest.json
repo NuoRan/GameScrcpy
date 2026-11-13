@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "gstest.broken-shader",
   "version": "1.0.0",
+  "gamescrcpy": "2.1",
   "name": "Broken shader",
   "description": "Valid filter directives with HLSL that does not compile.",
   "authors": ["GameScrcpy tests"],

@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "example.voice-commands",
   "version": "1.0.0",
+  "gamescrcpy": "2.1",
   "name": "Voice commands",
   "description": "Say a command and it presses the key you chose for it, then answers out loud.",
   "authors": ["GameScrcpy"],

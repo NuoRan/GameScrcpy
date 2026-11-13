@@ -11,6 +11,7 @@
   "schemaVersion": 1,
   "id": "alice.lap-timer",
   "version": "1.2.0",
+  "gamescrcpy": "2.1",
   "name": "Lap timer",
   "description": "Times laps with a key and shows them in a page of the main window.",
   "authors": ["Alice"],
@@ -61,6 +62,7 @@
 | `schemaVersion` | 是 | 固定为 `1` |
 | `id` | 是 | 两段以上、用点连起来，每段是小写字母、数字和连字符（不以连字符开头或结尾，不连写两个），最长 64 个字符，例如 `alice.lap-timer`。`gamescrcpy.` 开头的留给官方扩展 |
 | `version` | 是 | 语义化版本 `主.次.修订`，可以带预发布标签，如 `1.2.0-beta.1` |
+| `gamescrcpy` | | 作者照着写的 GameScrcpy 版本：`主.次` 或 `主.次.修订`（如 `2.1`、`2.1.0`），不带预发布标签；见下文[为哪个版本编写](#为哪个版本编写) |
 | `name` | 是 | 最长 100 个字符 |
 | `description` | | 最长 1000 个字符 |
 | `authors` | | 最多 32 个名字，每个最长 100 个字符 |
@@ -140,6 +142,20 @@ GameScrcpy 载入扩展时对照上表检查 `requires`：不满足的扩展不�
 | `host-api-outdated` | 程序提供的每个版本都比范围允许的新，扩展是为旧版 GameScrcpy 做的 | 为旧版 GameScrcpy 制作 |
 
 只有下界的范围（如 `>=1.0`）永远不会是 `host-api-outdated`。为旧版写的扩展要把 `requires` 改成程序提供的版本，例如 `"native": "^2.0"`；用户则向作者要新版本或检查更新。GameScrcpy 更新后第一次启动时，会列出你开着、却因为这些原因打不开的扩展，并给出“检查更新”与“打开扩展页”。
+
+### 为哪个版本编写
+
+清单可以写明作者照着写的 GameScrcpy 版本：
+
+```json
+"gamescrcpy": "2.1"
+```
+
+写 `主.次` 或 `主.次.修订`，不带预发布标签；写成 `2`、`2.x`、`2.1.0-beta` 报 `version-invalid`。这一项只说明“为哪个版本编写”，不决定能不能用：扩展卡片、详情、安装框与升级后的提示写“为 GameScrcpy 2.1 编写”，与这个 GameScrcpy 不兼容的还写明原因，如“为 GameScrcpy 2.0 编写，与 2.1 不兼容”“为 GameScrcpy 2.2 编写，需要更新版的 GameScrcpy”。兼容始终由 `requires` 判断，写着旧版本但 `requires` 满足的扩展照常打开，不弹提示。
+
+没写这一项时，GameScrcpy 按 `requires` 推算：在各版本提供的扩展点版本表（2.0.0 的八个扩展点都是 1.0，2.1.0 见上表）里取最早一个能满足 `requires` 的版本；连 2.0.0 都满足不了（例如要 `command`）就不写版本，只说明它与这个 GameScrcpy 兼不兼容。
+
+`gs ext init` 与“导出为扩展”会写上当前版本的主.次。`gs validate` 与 `gs pack` 对没写这一项的清单给 `gamescrcpy-missing` 警告，并说明怎么补；GameScrcpy 载入扩展时不提示。
 
 ### `dependencies`
 
@@ -493,6 +509,7 @@ GameScrcpy 载入扩展时对照上表检查 `requires`：不满足的扩展不�
 | `unknown-field` | 不认识的字段（警告） |
 | `id-invalid`、`id-reserved` | `id` 写法不对，或者用了 `gamescrcpy.` 开头 |
 | `version-invalid`、`range-invalid` | 版本或版本范围写法不对 |
+| `gamescrcpy-missing` | 清单没写作者照着写的 GameScrcpy 版本（警告，只在 `gs validate` 与 `gs pack` 里给，见上文“为哪个版本编写”） |
 | `path-invalid`、`file-missing` | 包内路径写法不对，或文件不在包里 |
 | `extension-point-unknown`、`contribution-undeclared` | 不认识的扩展点，或者贡献了东西却没声明扩展点 |
 | `host-api-missing`、`host-api-version`、`host-api-outdated` | 程序没有这个扩展点、要的版本比程序新，或者是为旧版 GameScrcpy 做的（见上文“三种检查结果”） |

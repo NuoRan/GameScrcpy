@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "gamescrcpy.slate-theme",
   "version": "1.0.0",
+  "gamescrcpy": "2.1",
   "name": "Slate",
   "description": "Cool blue-grey surfaces for the hub and the mirror windows.",
   "authors": ["GameScrcpy"],

@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "example.event-log",
   "version": "1.0.0",
+  "gamescrcpy": "2.1",
   "name": "Event log",
   "description": "Lists what happens in GameScrcpy as it happens: phones connecting, profiles applied, apps in front, recordings, extensions and settings.",
   "authors": ["GameScrcpy"],

@@ -7,6 +7,7 @@
 
 #include "unit/ext/TestFiles.h"
 
+#include <gs/base/BuildInfo.h>
 #include <gs/ext/Archive.h>
 #include <gs/ext/Manifest.h>
 #include <gs/ext/Package.h>
@@ -54,6 +55,13 @@ constexpr const char* kComponentDemo = R"({"format":"gamescrcpy.profile","versio
 QString textOf(const fs::path& path)
 {
     return QString::fromStdWString(path.wstring());
+}
+
+std::string releasedVersionText()
+{
+    const std::string_view version = gs::buildInfo().version;
+    const std::size_t last = version.rfind('.');
+    return std::string(last == std::string_view::npos ? version : version.substr(0, last)) + ".0";
 }
 
 std::vector<std::string> archived(const fs::path& archive)
@@ -132,6 +140,8 @@ TEST_CASE("a component of mine exported as an extension package validates, insta
     const gs::ext::Manifest manifest = validated(archive);
     CHECK(manifest.id == "my.combo");
     CHECK(manifest.version.text() == "1.0.0");
+    REQUIRE(manifest.gamescrcpy.has_value());
+    CHECK(manifest.gamescrcpy->text() == releasedVersionText());
     CHECK(manifest.name == "Combo");
     CHECK(manifest.description == "Taps twice");
     CHECK(manifest.declares(gs::ext::ExtensionPoint::Component));

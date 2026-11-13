@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "gstest.plain-http-updates",
   "version": "1.0.0",
+  "gamescrcpy": "2.1",
   "name": "Plain http updates",
   "description": "A manifest whose update list is not on an https address.",
   "authors": ["GameScrcpy tests"],

@@ -2,6 +2,7 @@
   "schemaVersion": 1,
   "id": "gstest.missing-license",
   "version": "1.0.0",
+  "gamescrcpy": "2.1",
   "name": "Missing license",
   "description": "A manifest without the required license field.",
   "authors": ["GameScrcpy tests"],

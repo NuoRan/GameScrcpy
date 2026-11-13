@@ -62,6 +62,18 @@ if(GS_BUILD_TESTS)
              COMMAND gs_cli validate "${gs_cli_test_data}/plain-http-updates")
     set_tests_properties(gs_cli_validate_plain_http_updates_exit PROPERTIES WILL_FAIL TRUE)
 
+    add_test(NAME gs_cli_validate_gamescrcpy_missing
+             COMMAND gs_cli validate "${gs_cli_test_data}/no-gamescrcpy")
+    set_tests_properties(gs_cli_validate_gamescrcpy_missing PROPERTIES
+                         PASS_REGULAR_EXPRESSION "warning gamescrcpy-missing at [$][.]gamescrcpy")
+    add_test(NAME gs_cli_validate_gamescrcpy_missing_json
+             COMMAND gs_cli validate "${gs_cli_test_data}/no-gamescrcpy" --json)
+    set_tests_properties(gs_cli_validate_gamescrcpy_missing_json PROPERTIES PASS_REGULAR_EXPRESSION
+                                                                        "\"code\": \"gamescrcpy-missing\"")
+    add_test(NAME gs_cli_validate_gamescrcpy_named COMMAND gs_cli validate "${gs_cli_test_data}/signed-theme")
+    set_tests_properties(gs_cli_validate_gamescrcpy_named PROPERTIES PASS_REGULAR_EXPRESSION
+                                                                   "gstest[.]signed-theme 1[.]0[.]0: ok")
+
     add_test(NAME gs_cli_usage COMMAND gs_cli)
     set_tests_properties(gs_cli_usage PROPERTIES PASS_REGULAR_EXPRESSION "usage:")
     add_test(NAME gs_cli_usage_exit COMMAND gs_cli)
@@ -376,7 +388,7 @@ if(GS_BUILD_TESTS)
     foreach(kind IN ITEMS script theme)
         add_test(NAME gs_cli_ext_init_${kind}_validate COMMAND gs_cli validate "${gs_cli_ext_init}/${kind}")
         set_tests_properties(gs_cli_ext_init_${kind}_validate PROPERTIES
-                             PASS_REGULAR_EXPRESSION "gstest[.]init-${kind} 0[.]1[.]0: (ok|0 error)"
+                             PASS_REGULAR_EXPRESSION "gstest[.]init-${kind} 0[.]1[.]0: ok"
                              FIXTURES_REQUIRED gs_cli_ext_init_${kind})
         add_test(NAME gs_cli_ext_init_${kind}_test COMMAND gs_cli ext test "${gs_cli_ext_init}/${kind}")
         set_tests_properties(gs_cli_ext_init_${kind}_test PROPERTIES PASS_REGULAR_EXPRESSION "\n1 passed, 0 failed\n"

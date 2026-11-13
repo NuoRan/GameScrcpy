@@ -21,7 +21,8 @@ function(gs_folder name dlls)
     file(COPY_FILE "${library}" "${folder}/bin/x64/clock.dll")
     file(COPY_FILE "${library}" "${folder}/bin/arm64/clock.dll")
     file(WRITE "${folder}/manifest.json"
-         "{\"schemaVersion\": 1, \"id\": \"gstest.architectures\", \"version\": \"1.0.0\", \"name\": \"Architectures\", "
+         "{\"schemaVersion\": 1, \"id\": \"gstest.architectures\", \"version\": \"1.0.0\", \"gamescrcpy\": \"2.1\", "
+         "\"name\": \"Architectures\", "
          "\"license\": \"MIT\", \"requires\": {\"native\": \"^2.0\"}, \"contributes\": {\"native\": {\"dll\": ${dlls}}}}")
 endfunction()
 

@@ -397,6 +397,10 @@ ext::PackageCheck inspect(const fs::path& input, bool folder, const ext::LoadOpt
         checkProfiles(*check.manifest, reader, check.diagnostics);
     }
     if (check.manifest) {
+        if (!check.manifest->gamescrcpy) {
+            check.diagnostics.push_back(
+                {ext::Severity::Warning, ext::Code::GameScrcpyVersionMissing, "$.gamescrcpy"});
+        }
         std::vector<ext::Diagnostic> compatibility =
             ext::checkCompatibility(*check.manifest, ext::currentHostApi());
         check.diagnostics.insert(check.diagnostics.end(), compatibility.begin(), compatibility.end());
