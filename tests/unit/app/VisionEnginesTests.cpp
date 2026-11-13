@@ -289,6 +289,28 @@ TEST_CASE("ADR-0112: the registry lists Windows first and the engines of extensi
     CHECK(fixture.engines.engines()[0].id == u"system");
 }
 
+TEST_CASE("ADR-0115: the Windows engine looks for the OCR languages after it is made and the registry announces them "
+          "once they arrive")
+{
+    Fixture fixture;
+    const auto engine = std::make_shared<gs::app::SystemVisionEngine>();
+    int announced = 0;
+    QObject::connect(&fixture.engines, &VisionEngines::enginesChanged, &fixture.engines, [&announced] { ++announced; });
+    fixture.engines.addEngine(engine);
+    CHECK(announced == 1);
+    REQUIRE(pumpUntil([&announced] { return announced >= 2; }));
+    CHECK(announced == 2);
+    CHECK(engine->languagesKnown());
+    const std::vector<VisionEngineInfo> listed = fixture.engines.engines();
+    REQUIRE(listed.size() == 2);
+    CHECK(listed[0] == engine->info());
+    QStringList expected;
+    for (const std::string& tag : gs::platform::textLanguages()) {
+        expected.append(QString::fromStdString(tag));
+    }
+    CHECK(engine->info().languages == expected);
+}
+
 TEST_CASE("ADR-0112: vision.recognize takes a frame, runs the engine with the params and maps what it found from the "
           "region to the whole picture")
 {

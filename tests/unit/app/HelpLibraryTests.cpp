@@ -772,6 +772,7 @@ TEST_CASE("ADR-0112: extensions add help articles under their own group, found b
     HelpLibrary help(settings, root.path(), [](const QString& language, const QString& text) {
         return language == kChinese && text == QStringLiteral("Extensions") ? QStringLiteral("扩展") : QString();
     });
+    REQUIRE_FALSE(help.topics().empty());
     int contents = 0;
     QObject::connect(&help, &HelpLibrary::contentsChanged, &help, [&contents] { ++contents; });
     const QUrl folder = QUrl::fromLocalFile(QDir(root.path()).absolutePath() + QStringLiteral("/boards/"));
@@ -899,4 +900,46 @@ TEST_CASE("ADR-0112: an extension's help is read in time that grows with its len
         help.article(QStringLiteral("ext/mallory.slow/t7")).value(QStringLiteral("sections")).toList();
     REQUIRE(sections.size() == 1);
     CHECK(sections.front().toMap().value(QStringLiteral("title")).toString() == QStringLiteral("a"));
+}
+
+TEST_CASE("ADR-0115: the help library builds on the first question and applies what was set before that, in order")
+{
+    const QTemporaryDir data;
+    const QTemporaryDir root;
+    REQUIRE(data.isValid());
+    REQUIRE(root.isValid());
+    writeSmallLibrary(root.path());
+    write(root.path() + QStringLiteral("/pack/apples.md"), QStringLiteral("# りんご\n\n赤いりんご。\n"));
+    AppSettings settings(data.path().toStdWString());
+    REQUIRE(settings.setValue(kLanguage, kEnglish));
+    HelpLibrary help(settings, root.path());
+    CHECK_FALSE(help.loaded());
+    help.setLanguagePacks(
+        {{.code = QStringLiteral("ja"), .translations = {}, .folder = root.path() + QStringLiteral("/pack")}});
+    help.setExtensionTopics({{.extension = QStringLiteral("alice.boards"),
+                              .extensionName = QStringLiteral("Alice boards"),
+                              .id = QStringLiteral("setup"),
+                              .titles = {{kEnglish, QStringLiteral("Setting up")}},
+                              .texts = {{kEnglish, QStringLiteral("Plug the board in.\n")}}}});
+    CHECK_FALSE(help.loaded());
+    const QVariantList contents = help.contents();
+    CHECK(help.loaded());
+    CHECK(listed(contents, QStringLiteral("slug")) ==
+          QStringList{QStringLiteral("apples"), QStringLiteral("pears"), QStringLiteral("api"), QStringLiteral("api/touch"),
+                      QStringLiteral("api/globals"), QStringLiteral("api/zebra"),
+                      QStringLiteral("ext/alice.boards/setup")});
+    CHECK(listed(contents, QStringLiteral("label")).back() == QStringLiteral("Extensions"));
+    CHECK(help.article(QStringLiteral("apples"), QStringLiteral("ja")).value(QStringLiteral("title")).toString() ==
+          QStringLiteral("りんご"));
+    CHECK(help.article(QStringLiteral("apples"), QStringLiteral("ja")).value(QStringLiteral("text")).toString() ==
+          QStringLiteral("赤いりんご。\n"));
+    CHECK(help.article(QStringLiteral("apples")).value(QStringLiteral("title")).toString() == QStringLiteral("Apples"));
+    CHECK(help.article(QStringLiteral("ext/alice.boards/setup")).value(QStringLiteral("text")).toString() ==
+          QStringLiteral("Plug the board in.\n"));
+
+    HelpLibrary searched(settings, root.path());
+    CHECK_FALSE(searched.loaded());
+    searched.setQuery(QStringLiteral("green"));
+    CHECK(searched.loaded());
+    CHECK(listed(searched.contents(), QStringLiteral("slug")) == QStringList{QStringLiteral("pears")});
 }

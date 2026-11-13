@@ -95,6 +95,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 Q_IMPORT_QML_PLUGIN(GameScrcpy_ThemePlugin)
@@ -415,6 +416,10 @@ int main(int argc, char* argv[])
     if (parser.isSet(smokeTest)) {
         smokeWatch.emplace();
     }
+    std::unique_ptr<gs::render::GraphicsDevice> graphicsMade;
+    std::jthread graphicsWatch([&graphicsMade] {
+        graphicsMade = gs::render::GraphicsDevice::create(false, qEnvironmentVariableIntValue("GS_FORCE_WARP") == 1);
+    });
     qInfo().noquote() << "GameScrcpy" << gs::app::toQString(gs::buildInfo().version) << "started";
     QtLogSink logSink;
     gs::log::setSink(&logSink);
@@ -526,8 +531,8 @@ int main(int argc, char* argv[])
     gs::app::Converters converters(nullptr);
     converters.follow(extensions);
 
-    const auto graphics =
-        gs::render::GraphicsDevice::create(false, qEnvironmentVariableIntValue("GS_FORCE_WARP") == 1);
+    graphicsWatch.join();
+    const std::unique_ptr<gs::render::GraphicsDevice> graphics = std::move(graphicsMade);
     if (graphics && graphics->warp()) {
         qWarning("drawing video without a GPU: %s", graphics->description().c_str());
     }
@@ -741,8 +746,9 @@ int main(int argc, char* argv[])
     if (auto* hub = engine.rootObjects().isEmpty() ? nullptr
                                                    : qobject_cast<QQuickWindow*>(engine.rootObjects().constFirst())) {
         auto first = std::make_shared<QMetaObject::Connection>();
-        *first = QObject::connect(hub, &QQuickWindow::frameSwapped, &app, [first] {
+        *first = QObject::connect(hub, &QQuickWindow::frameSwapped, &app, [first, &help] {
             QObject::disconnect(*first);
+            QMetaObject::invokeMethod(&help, [&help] { help.ensureLoaded(); }, Qt::QueuedConnection);
             qInfo("hub window shown %lld ms after the process started",
                   static_cast<long long>(gs::platform::millisecondsSinceProcessStart()));
         }, Qt::QueuedConnection);

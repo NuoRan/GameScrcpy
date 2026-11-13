@@ -440,45 +440,56 @@ T.Popup {
             border.color: Theme.colors.strokeSubtle
             clip: true
 
-            GuideHero {
-                anchors.centerIn: parent
-                opacity: guide.page === 0 ? 1 : 0
-                visible: opacity > 0
+            Loader {
+                anchors.fill: parent
+                active: guide.visible
 
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: Theme.motion.base
-                    }
-                }
-            }
+                sourceComponent: Component {
+                    Item {
+                        anchors.fill: parent
 
-            GuidePhone {
-                anchors.centerIn: parent
-                opacity: guide.page === 1 ? 1 : 0
-                visible: opacity > 0
-                screen: guide.current.screen
-                title: guide.current.phoneTitle
-                target: guide.current.target
+                        GuideHero {
+                            anchors.centerIn: parent
+                            opacity: guide.page === 0 ? 1 : 0
+                            visible: opacity > 0
 
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: Theme.motion.base
-                    }
-                }
-            }
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: Theme.motion.base
+                                }
+                            }
+                        }
 
-            GuidePhone {
-                anchors.centerIn: parent
-                opacity: guide.page === 2 ? 1 : 0
-                visible: opacity > 0
-                screen: guide.found ? "ready"
-                      : guide.leadState === "unauthorized" ? "allow"
-                      : guide.leadState === "failed" ? "failed" : "waiting"
-                caption: guide.found || guide.leadState === "failed" ? guide.leadName : qsTr("Waiting for the phone")
+                        GuidePhone {
+                            anchors.centerIn: parent
+                            opacity: guide.page === 1 ? 1 : 0
+                            visible: opacity > 0
+                            screen: guide.current.screen
+                            title: guide.current.phoneTitle
+                            target: guide.current.target
 
-                Behavior on opacity {
-                    NumberAnimation {
-                        duration: Theme.motion.base
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: Theme.motion.base
+                                }
+                            }
+                        }
+
+                        GuidePhone {
+                            anchors.centerIn: parent
+                            opacity: guide.page === 2 ? 1 : 0
+                            visible: opacity > 0
+                            screen: guide.found ? "ready"
+                                  : guide.leadState === "unauthorized" ? "allow"
+                                  : guide.leadState === "failed" ? "failed" : "waiting"
+                            caption: guide.found || guide.leadState === "failed" ? guide.leadName : qsTr("Waiting for the phone")
+
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: Theme.motion.base
+                                }
+                            }
+                        }
                     }
                 }
             }

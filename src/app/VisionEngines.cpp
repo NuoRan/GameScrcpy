@@ -213,17 +213,62 @@ QString problemOf(exthost::CallStatus status, const std::string& problem)
 
 SystemVisionEngine::SystemVisionEngine()
 {
-    for (const std::string& tag : platform::textLanguages()) {
-        m_languages.append(fromUtf8(tag));
+    m_languagesWatch = std::make_unique<platform::TextLanguages>(
+        [this](std::vector<std::string> tags) { languagesReady(std::move(tags)); });
+}
+
+SystemVisionEngine::~SystemVisionEngine() = default;
+
+bool SystemVisionEngine::languagesKnown() const
+{
+    const std::scoped_lock lock(m_languagesMutex);
+    return m_languagesKnown;
+}
+
+void SystemVisionEngine::setLanguagesReady(std::function<void()> ready)
+{
+    std::function<void()> tell;
+    {
+        const std::scoped_lock lock(m_languagesMutex);
+        m_ready = std::move(ready);
+        if (m_languagesKnown) {
+            tell = m_ready;
+        }
+    }
+    if (tell) {
+        tell();
+    }
+}
+
+void SystemVisionEngine::languagesReady(std::vector<std::string> tags)
+{
+    QStringList languages;
+    for (const std::string& tag : tags) {
+        languages.append(fromUtf8(tag));
+    }
+    std::function<void()> tell;
+    {
+        const std::scoped_lock lock(m_languagesMutex);
+        m_languages = std::move(languages);
+        m_languagesKnown = true;
+        tell = m_ready;
+    }
+    if (tell) {
+        tell();
     }
 }
 
 VisionEngineInfo SystemVisionEngine::info() const
 {
+    QStringList languages;
+    {
+        const std::scoped_lock lock(m_languagesMutex);
+        languages = m_languages;
+    }
     return {.id = fromView(VisionEngines::kSystem),
             .title = QStringLiteral("Windows"),
             .kinds = {fromView(exthost::visionKindName(exthost::VisionKind::Ocr))},
-            .languages = m_languages};
+            .languages = std::move(languages)};
 }
 
 VisionReply SystemVisionEngine::recognize(const VisionPicture& picture, const VisionAsk& ask)
@@ -554,6 +599,11 @@ void VisionEngines::addEngine(std::shared_ptr<VisionEngine> engine)
 {
     const QString id = engine->info().id;
     removeEngine(id);
+    if (auto* system = dynamic_cast<SystemVisionEngine*>(engine.get())) {
+        system->setLanguagesReady([shared = m_shared] {
+            shared->post([](VisionEngines& self) { self.publish(); });
+        });
+    }
     m_engines.emplace(id, std::move(engine));
     publish();
 }

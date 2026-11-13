@@ -140,33 +140,92 @@ bool optionalNumber(const QJsonValue& value, double low, double high)
 SystemSpeechEngine::SystemSpeechEngine(platform::SpeechOutput output)
     : m_speech(std::make_unique<platform::SystemSpeech>(output))
 {
-    for (const platform::SpeechVoice& voice : m_speech->voices()) {
-        m_voices.push_back({.id = fromUtf8(voice.id), .name = fromUtf8(voice.name), .language = fromUtf8(voice.language)});
-    }
-    for (const std::string& language : m_speech->languages()) {
-        m_languages.append(fromUtf8(language));
-    }
+    m_enumerate = std::jthread([this] {
+        std::vector<SpeechVoiceInfo> voices;
+        for (const platform::SpeechVoice& voice : m_speech->voices()) {
+            voices.push_back({.id = fromUtf8(voice.id), .name = fromUtf8(voice.name), .language = fromUtf8(voice.language)});
+        }
+        QStringList languages;
+        for (const std::string& language : m_speech->languages()) {
+            languages.append(fromUtf8(language));
+        }
+        fillKnown(std::move(voices), std::move(languages));
+    });
 }
 
 SystemSpeechEngine::~SystemSpeechEngine() = default;
 
+void SystemSpeechEngine::fillKnown(std::vector<SpeechVoiceInfo> voices, QStringList languages)
+{
+    std::function<void()> tell;
+    {
+        const std::scoped_lock lock(m_voicesMutex);
+        m_voices = std::move(voices);
+        m_languages = std::move(languages);
+        m_known = true;
+        tell = m_ready;
+    }
+    if (tell) {
+        tell();
+    }
+}
+
+void SystemSpeechEngine::setVoicesReady(std::function<void()> ready)
+{
+    std::function<void()> tell;
+    {
+        const std::scoped_lock lock(m_voicesMutex);
+        m_ready = std::move(ready);
+        if (m_known) {
+            tell = m_ready;
+        }
+    }
+    if (tell) {
+        tell();
+    }
+}
+
+bool SystemSpeechEngine::voicesKnown() const
+{
+    const std::scoped_lock lock(m_voicesMutex);
+    return m_known;
+}
+
+void SystemSpeechEngine::settle()
+{
+    std::call_once(m_settled, [this] {
+        if (m_enumerate.joinable()) {
+            m_enumerate.join();
+        }
+    });
+}
+
 SpeechEngineInfo SystemSpeechEngine::info() const
 {
+    QStringList languages;
+    bool speech = false;
+    {
+        const std::scoped_lock lock(m_voicesMutex);
+        languages = m_languages;
+        speech = !m_voices.empty();
+    }
     return {.id = fromView(SpeechEngines::kSystem),
             .title = QStringLiteral("Windows"),
-            .say = !m_voices.empty(),
-            .listen = !m_languages.isEmpty(),
+            .say = speech,
+            .listen = !languages.isEmpty(),
             .dictation = false,
-            .languages = m_languages};
+            .languages = std::move(languages)};
 }
 
 void SystemSpeechEngine::voices(Voices done)
 {
+    settle();
     std::vector<SpeechVoiceInfo> found;
     for (const platform::SpeechVoice& voice : m_speech->voices()) {
         found.push_back({.id = fromUtf8(voice.id), .name = fromUtf8(voice.name), .language = fromUtf8(voice.language)});
     }
     if (!found.empty()) {
+        const std::scoped_lock lock(m_voicesMutex);
         m_voices = found;
     }
     done(std::move(found), {});
@@ -176,11 +235,17 @@ std::uint64_t SystemSpeechEngine::say(const SpeechLineRequest& line, Spoken spok
 {
     QString voice;
     if (!line.voice.isEmpty()) {
-        const auto found = std::ranges::find_if(m_voices, [&line](const SpeechVoiceInfo& known) {
-            return known.id.compare(line.voice, Qt::CaseInsensitive) == 0 ||
-                   known.name.compare(line.voice, Qt::CaseInsensitive) == 0;
+        settle();
+        std::vector<SpeechVoiceInfo> known;
+        {
+            const std::scoped_lock lock(m_voicesMutex);
+            known = m_voices;
+        }
+        const auto found = std::ranges::find_if(known, [&line](const SpeechVoiceInfo& each) {
+            return each.id.compare(line.voice, Qt::CaseInsensitive) == 0 ||
+                   each.name.compare(line.voice, Qt::CaseInsensitive) == 0;
         });
-        if (found == m_voices.end()) {
+        if (found == known.end()) {
             spoken(false, QStringLiteral("GS-API-110 Windows has no voice %1").arg(line.voice));
             return 0;
         }
@@ -468,6 +533,9 @@ void SpeechEngines::addEngine(std::unique_ptr<SpeechEngine> engine)
 {
     const QString id = engine->info().id;
     removeEngine(id);
+    if (auto* system = dynamic_cast<SystemSpeechEngine*>(engine.get())) {
+        system->setVoicesReady([shared = m_shared] { shared->post([](SpeechEngines& self) { self.publish(); }); });
+    }
     m_engines.emplace(id, std::move(engine));
     publish();
 }
@@ -640,6 +708,9 @@ void SpeechEngines::say(const LogicCaller& caller, quint64 id, const QString& js
     const QString settled = wanted.engine.isEmpty() ? fromView(kSystem) : wanted.engine;
     const QString engine = chosen.isString() && !chosen.toString().isEmpty() ? chosen.toString() : settled;
     const auto found = m_engines.find(engine);
+    if (found != m_engines.end()) {
+        found->second->settle();
+    }
     if (found == m_engines.end() || !found->second->info().say) {
         refuse(QStringLiteral("GS-API-110 there is no speech engine %1 that reads aloud").arg(engine));
         return;
@@ -753,6 +824,9 @@ void SpeechEngines::listen(const LogicCaller& caller, quint64 id, const QString&
     const QString settled = wanted.listenEngine.isEmpty() ? fromView(kSystem) : wanted.listenEngine;
     const QString engine = chosen.isString() && !chosen.toString().isEmpty() ? chosen.toString() : settled;
     const auto found = m_engines.find(engine);
+    if (found != m_engines.end()) {
+        found->second->settle();
+    }
     if (found == m_engines.end() || !found->second->info().listen) {
         refuse(QStringLiteral("GS-API-110 there is no speech engine %1 that listens").arg(engine));
         return;
@@ -1046,6 +1120,9 @@ bool SpeechEngines::preview()
     const SpeechDefaults wanted = defaults();
     const QString engine = wanted.engine.isEmpty() ? fromView(kSystem) : wanted.engine;
     const auto found = m_engines.find(engine);
+    if (found != m_engines.end()) {
+        found->second->settle();
+    }
     if (found == m_engines.end() || !found->second->info().say) {
         return false;
     }

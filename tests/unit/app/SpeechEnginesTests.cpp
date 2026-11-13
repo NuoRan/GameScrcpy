@@ -461,6 +461,7 @@ TEST_CASE("ADR-0112: the Windows engine reads a text without a sound and hears a
     });
     auto made = std::make_unique<gs::app::SystemSpeechEngine>(gs::platform::SpeechOutput::Nowhere);
     gs::app::SystemSpeechEngine& system = *made;
+    system.settle();
     const SpeechEngineInfo info = system.info();
     engines.addEngine(std::move(made));
     CHECK(info.id == u"system");
@@ -493,4 +494,27 @@ TEST_CASE("ADR-0112: the Windows engine reads a text without a sound and hears a
     CHECK(told[0].value.value(u"phrase").toString() == u"打开地图");
     CHECK(told[1].value.value(u"type").toString() == u"closed");
     CHECK(told[1].value.value(u"reason").toString() == u"engine");
+}
+
+TEST_CASE("ADR-0115: the Windows engine looks for its voices after it is made and the registry announces them once "
+          "they arrive")
+{
+    Application app;
+    SpeechEngines engines(nullptr);
+    auto made = std::make_unique<gs::app::SystemSpeechEngine>(gs::platform::SpeechOutput::Nowhere);
+    auto* system = made.get();
+    int announced = 0;
+    QObject::connect(&engines, &SpeechEngines::enginesChanged, &engines, [&announced] { ++announced; });
+    engines.addEngine(std::move(made));
+    CHECK(announced == 1);
+    REQUIRE(pumpUntil([&announced] { return announced >= 2; }));
+    CHECK(announced == 2);
+    CHECK(system->voicesKnown());
+    const SpeechEngineInfo info = system->info();
+    QStringList languages;
+    for (const std::string& language : system->speech().languages()) {
+        languages.append(QString::fromStdString(language));
+    }
+    CHECK(info.languages == languages);
+    CHECK(info.say == !system->speech().voices().empty());
 }

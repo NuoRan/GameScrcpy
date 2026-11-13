@@ -16,9 +16,11 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 class QJSEngine;
@@ -84,6 +86,7 @@ public:
     SpeechEngine& operator=(const SpeechEngine&) = delete;
 
     [[nodiscard]] virtual SpeechEngineInfo info() const = 0;
+    virtual void settle() {}
     virtual void voices(Voices done) = 0;
     virtual std::uint64_t say(const SpeechLineRequest& line, Spoken spoken) = 0;
     virtual void stop(std::uint64_t token) = 0;
@@ -98,18 +101,29 @@ public:
     ~SystemSpeechEngine() override;
 
     [[nodiscard]] SpeechEngineInfo info() const override;
+    void settle() override;
     void voices(Voices done) override;
     std::uint64_t say(const SpeechLineRequest& line, Spoken spoken) override;
     void stop(std::uint64_t token) override;
     std::uint64_t listen(const SpeechListenRequest& wanted, Heard heard, Ended ended) override;
     void unlisten(std::uint64_t token) override;
 
+    void setVoicesReady(std::function<void()> ready);
+    [[nodiscard]] bool voicesKnown() const;
+
     [[nodiscard]] platform::SystemSpeech& speech() noexcept { return *m_speech; }
 
 private:
+    void fillKnown(std::vector<SpeechVoiceInfo> voices, QStringList languages);
+
+    mutable std::mutex m_voicesMutex;
+    std::function<void()> m_ready;
+    bool m_known = false;
+    std::once_flag m_settled;
     std::unique_ptr<platform::SystemSpeech> m_speech;
     std::vector<SpeechVoiceInfo> m_voices;
     QStringList m_languages;
+    std::jthread m_enumerate;
 };
 
 struct ExtensionSpeechEngineInfo {

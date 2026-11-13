@@ -73,7 +73,8 @@ Window {
 
     function showExtension(id: string) {
         rail.currentIndex = 3
-        if (!extensionsPage.reveal(id))
+        const page = extensionsPage.ensure() as ExtensionsPage
+        if (page === null || !page.reveal(id))
             root.notify(qsTr("This extension is not installed"), "warn")
     }
 
@@ -159,7 +160,7 @@ Window {
         case "extensions":
             AppSettings.resetTour(key)
             rail.currentIndex = 3
-            Qt.callLater(() => extensionsPage.startTour())
+            Qt.callLater(() => (extensionsPage.ensure() as ExtensionsPage).startTour())
             break
         case "settings":
             AppSettings.resetTour(key)
@@ -212,8 +213,9 @@ Window {
         const extension = extensionTour.entry !== null ? extensionTour.entry.extension : ""
         if (target === "card") {
             rail.currentIndex = 3
-            return root.findWhere(extensionsPage, item => item.objectName === "extensionCard"
-                                                         && item.modelData?.id === extension)
+            const page = extensionsPage.ensure() as ExtensionsPage
+            return root.findWhere(page, item => item.objectName === "extensionCard"
+                                               && item.modelData?.id === extension)
         }
         if (target === "device") {
             rail.currentIndex = 0
@@ -789,10 +791,24 @@ Window {
                 }
             }
 
-            ExtensionsPage {
+            LazyPage {
                 id: extensionsPage
-                onPackageChosen: packageUrl => root.confirmPackage(packageUrl)
-                onTourRequested: key => root.replayTour(key)
+
+                page: Component {
+                    ExtensionsPage {}
+                }
+            }
+
+            Connections {
+                target: extensionsPage.item as ExtensionsPage
+
+                function onPackageChosen(url: string) {
+                    root.confirmPackage(url)
+                }
+
+                function onTourRequested(key: string) {
+                    root.replayTour(key)
+                }
             }
 
             LazyPage {

@@ -93,10 +93,12 @@ public:
     [[nodiscard]] QString language() const { return m_language; }
     [[nodiscard]] QString query() const { return m_query; }
     void setQuery(const QString& query);
-    [[nodiscard]] QVariantList contents() const { return m_contents; }
+    [[nodiscard]] QVariantList contents() const;
     [[nodiscard]] QString firstArticle() const;
-    [[nodiscard]] const std::vector<HelpTopic>& topics() const noexcept { return m_topics; }
-    [[nodiscard]] const std::vector<HelpGroup>& groups() const noexcept { return m_groups; }
+    void ensureLoaded() const;
+    [[nodiscard]] bool loaded() const noexcept { return m_loaded; }
+    [[nodiscard]] const std::vector<HelpTopic>& topics() const;
+    [[nodiscard]] const std::vector<HelpGroup>& groups() const;
     [[nodiscard]] const HelpTopic* find(QStringView slug) const;
     [[nodiscard]] QUrl baseUrl() const;
     void setExtensionTopics(std::vector<ExtensionHelp> topics);
@@ -113,6 +115,8 @@ signals:
 
 private:
     void load();
+    void applyExtensionTopics(std::vector<ExtensionHelp> topics);
+    [[nodiscard]] bool applyLanguagePacks(std::vector<HelpLanguage> packs);
     void loadReference(std::size_t group, const QString& icon);
     [[nodiscard]] std::map<QString, std::map<QString, QString>>
     translatedReference(const std::map<QString, QString>& bundled) const;
@@ -135,12 +139,18 @@ private:
     Translate m_translate;
     QString m_language;
     QString m_query;
-    std::vector<HelpGroup> m_groups;
-    std::vector<HelpTopic> m_topics;
-    QStringList m_popular;
-    QVariantList m_contents;
-    std::optional<std::size_t> m_extensionGroup;
+    mutable bool m_loaded = false;
+    mutable std::vector<HelpGroup> m_groups;
+    mutable std::vector<HelpTopic> m_topics;
+    mutable QStringList m_popular;
+    mutable QVariantList m_contents;
+    mutable std::optional<std::size_t> m_extensionGroup;
     std::vector<HelpLanguage> m_packs;
+    mutable std::optional<std::vector<HelpLanguage>> m_pendingPacks;
+    mutable std::optional<std::vector<ExtensionHelp>> m_pendingTopics;
+    mutable quint64 m_pendingPacksAt = 0;
+    mutable quint64 m_pendingTopicsAt = 0;
+    mutable quint64 m_pendingClock = 0;
 };
 
 }

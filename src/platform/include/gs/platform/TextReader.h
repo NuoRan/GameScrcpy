@@ -4,8 +4,10 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace gs::platform {
@@ -45,5 +47,19 @@ enum class TextProblem : std::uint8_t { NoLanguage, Failed };
                                                          std::ptrdiff_t stride, std::string_view language);
 [[nodiscard]] std::vector<std::string> textLanguages();
 [[nodiscard]] bool joinsWithSpace(char32_t before, char32_t after) noexcept;
+
+class TextLanguages
+{
+public:
+    using Done = std::function<void(std::vector<std::string>)>;
+
+    explicit TextLanguages(Done done);
+    ~TextLanguages();
+    TextLanguages(const TextLanguages&) = delete;
+    TextLanguages& operator=(const TextLanguages&) = delete;
+
+private:
+    std::jthread m_thread;
+};
 
 }

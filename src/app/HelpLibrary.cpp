@@ -262,8 +262,6 @@ HelpLibrary::HelpLibrary(const AppSettings& settings, QString root, Translate tr
     if (s_instance == nullptr) {
         s_instance = this;
     }
-    load();
-    m_contents = listed();
     connect(&settings, &AppSettings::languageChanged, this, &HelpLibrary::followLanguage);
 }
 
@@ -283,6 +281,7 @@ HelpLibrary* HelpLibrary::create(QQmlEngine*, QJSEngine*)
 
 void HelpLibrary::setQuery(const QString& query)
 {
+    ensureLoaded();
     if (query == m_query) {
         return;
     }
@@ -295,8 +294,53 @@ void HelpLibrary::setQuery(const QString& query)
     }
 }
 
+QVariantList HelpLibrary::contents() const
+{
+    ensureLoaded();
+    return m_contents;
+}
+
+void HelpLibrary::ensureLoaded() const
+{
+    if (m_loaded) {
+        return;
+    }
+    m_loaded = true;
+    auto* self = const_cast<HelpLibrary*>(this);
+    self->load();
+    const bool topicsFirst =
+        m_pendingTopics && m_pendingPacks && m_pendingTopicsAt < m_pendingPacksAt;
+    if (topicsFirst) {
+        self->applyExtensionTopics(std::move(*m_pendingTopics));
+        static_cast<void>(self->applyLanguagePacks(std::move(*m_pendingPacks)));
+    } else {
+        if (m_pendingPacks) {
+            static_cast<void>(self->applyLanguagePacks(std::move(*m_pendingPacks)));
+        }
+        if (m_pendingTopics) {
+            self->applyExtensionTopics(std::move(*m_pendingTopics));
+        }
+    }
+    m_pendingPacks.reset();
+    m_pendingTopics.reset();
+    self->m_contents = self->listed();
+}
+
+const std::vector<HelpTopic>& HelpLibrary::topics() const
+{
+    ensureLoaded();
+    return m_topics;
+}
+
+const std::vector<HelpGroup>& HelpLibrary::groups() const
+{
+    ensureLoaded();
+    return m_groups;
+}
+
 QString HelpLibrary::firstArticle() const
 {
+    ensureLoaded();
     const auto first = std::ranges::find_if(m_topics, [](const HelpTopic& topic) { return !topic.reference; });
     if (first != m_topics.end()) {
         return first->slug;
@@ -306,6 +350,7 @@ QString HelpLibrary::firstArticle() const
 
 const HelpTopic* HelpLibrary::find(QStringView slug) const
 {
+    ensureLoaded();
     const auto found = std::ranges::find_if(m_topics, [slug](const HelpTopic& topic) { return topic.slug == slug; });
     return found != m_topics.end() ? &*found : nullptr;
 }
@@ -319,6 +364,18 @@ QUrl HelpLibrary::baseUrl() const
 }
 
 void HelpLibrary::setExtensionTopics(std::vector<ExtensionHelp> topics)
+{
+    if (!m_loaded) {
+        m_pendingTopics = std::move(topics);
+        m_pendingTopicsAt = ++m_pendingClock;
+        return;
+    }
+    applyExtensionTopics(std::move(topics));
+    m_contents = listed();
+    emit contentsChanged();
+}
+
+void HelpLibrary::applyExtensionTopics(std::vector<ExtensionHelp> topics)
 {
     std::erase_if(m_topics, [](const HelpTopic& topic) { return !topic.extension.isEmpty(); });
     if (!m_extensionGroup) {
@@ -356,17 +413,29 @@ void HelpLibrary::setExtensionTopics(std::vector<ExtensionHelp> topics)
         makeSearchable(topic);
         m_topics.push_back(std::move(topic));
     }
+}
+
+void HelpLibrary::setLanguagePacks(std::vector<HelpLanguage> packs)
+{
+    if (!m_loaded) {
+        m_pendingPacks = std::move(packs);
+        m_pendingPacksAt = ++m_pendingClock;
+        return;
+    }
+    if (!applyLanguagePacks(std::move(packs))) {
+        return;
+    }
     m_contents = listed();
     emit contentsChanged();
 }
 
-void HelpLibrary::setLanguagePacks(std::vector<HelpLanguage> packs)
+bool HelpLibrary::applyLanguagePacks(std::vector<HelpLanguage> packs)
 {
     std::erase_if(packs, [](const HelpLanguage& pack) {
         return pack.code.isEmpty() || std::ranges::find(kLanguages, QStringView(pack.code)) != kLanguages.end();
     });
     if (packs == m_packs) {
-        return;
+        return false;
     }
     for (HelpTopic& topic : m_topics) {
         if (!topic.extension.isEmpty()) {
@@ -391,8 +460,7 @@ void HelpLibrary::setLanguagePacks(std::vector<HelpLanguage> packs)
     for (HelpTopic& topic : m_topics) {
         makeSearchable(topic);
     }
-    m_contents = listed();
-    emit contentsChanged();
+    return true;
 }
 
 void HelpLibrary::addPack(const HelpLanguage& pack, const std::map<QString, QString>& bundled)
@@ -597,6 +665,7 @@ void HelpLibrary::decorate(QVariantList& blocks) const
 
 QVariantMap HelpLibrary::home(const QString& language) const
 {
+    ensureLoaded();
     const QString shown = language.isEmpty() ? m_language : language;
     QVariantList guides;
     QVariantList reference;
@@ -836,6 +905,10 @@ void HelpLibrary::followLanguage()
         return;
     }
     m_language = language;
+    if (!m_loaded) {
+        emit languageChanged();
+        return;
+    }
     m_contents = listed();
     emit languageChanged();
     emit contentsChanged();

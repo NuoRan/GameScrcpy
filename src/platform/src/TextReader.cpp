@@ -271,4 +271,25 @@ std::vector<std::string> textLanguages()
         Tags{});
 }
 
+TextLanguages::TextLanguages(Done done)
+    : m_thread([done = std::move(done)] {
+        std::vector<std::string> tags;
+        if (joinMultithreaded()) {
+            try {
+                for (const Language& each : ocr::OcrEngine::AvailableRecognizerLanguages()) {
+                    tags.push_back(winrt::to_string(each.LanguageTag()));
+                }
+            } catch (...) {
+                tags.clear();
+            }
+        }
+        if (done) {
+            done(std::move(tags));
+        }
+    })
+{
+}
+
+TextLanguages::~TextLanguages() = default;
+
 }

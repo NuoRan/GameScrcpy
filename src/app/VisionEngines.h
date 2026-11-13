@@ -15,12 +15,17 @@
 #include <functional>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <string>
 #include <string_view>
 #include <utility>
 #include <vector>
+
+namespace gs::platform {
+class TextLanguages;
+}
 
 namespace gs::app {
 
@@ -68,12 +73,22 @@ class SystemVisionEngine final : public VisionEngine
 {
 public:
     SystemVisionEngine();
+    ~SystemVisionEngine() override;
 
     [[nodiscard]] VisionEngineInfo info() const override;
     [[nodiscard]] VisionReply recognize(const VisionPicture& picture, const VisionAsk& ask) override;
 
+    void setLanguagesReady(std::function<void()> ready);
+    [[nodiscard]] bool languagesKnown() const;
+
 private:
+    void languagesReady(std::vector<std::string> tags);
+
+    mutable std::mutex m_languagesMutex;
     QStringList m_languages;
+    std::function<void()> m_ready;
+    bool m_languagesKnown = false;
+    std::unique_ptr<platform::TextLanguages> m_languagesWatch;
 };
 
 struct ExtensionVisionEngineInfo {
