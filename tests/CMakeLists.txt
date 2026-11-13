@@ -54,6 +54,7 @@ gs_add_unit_test(gs_platform_tests
         unit/platform/KeyboardLayoutTests.cpp
         unit/platform/RunningMarkerTests.cpp
         unit/platform/SpeechTests.cpp
+        unit/platform/StreamingPowerTests.cpp
         unit/platform/TextReaderTests.cpp
         unit/platform/UdpSocketTests.cpp
     LIBRARIES

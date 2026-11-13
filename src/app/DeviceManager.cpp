@@ -2797,6 +2797,14 @@ void DeviceManager::sessionChanged(const QString& serial, const session::Session
     row.session = state;
     const bool streaming = state.phase == session::SessionPhase::Streaming;
     const bool reconnecting = state.phase == session::SessionPhase::Reconnecting;
+    const std::string powerKey = row.serial.toStdString();
+    if (streaming) {
+        const bool wireless = row.link == session::TransportKind::WifiDirect || isWireless(row.serial);
+        m_streamPower.begin(powerKey,
+                            wireless ? platform::StreamingLink::Wireless : platform::StreamingLink::Wired);
+    } else {
+        m_streamPower.end(powerKey);
+    }
     if ((wasStreaming && reconnecting) || (wasReconnecting && streaming)) {
         if (row.logic != nullptr) {
             row.logic->setConnected(streaming);
@@ -7845,6 +7853,7 @@ void DeviceManager::removeRow(int index)
     stopRecording(m_rows[static_cast<std::size_t>(index)], false);
     Row& row = m_rows[static_cast<std::size_t>(index)];
     const QString deviceId = row.demo == nullptr ? row.deviceId : QString();
+    m_streamPower.end(row.serial.toStdString());
     stopCompanion(row);
     beginRemoveRows({}, index, index);
     if (row.mirror != nullptr) {

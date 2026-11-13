@@ -24,6 +24,7 @@
 #include <gs/adb/DeviceList.h>
 #include <gs/adb/DeviceTracker.h>
 #include <gs/input/DeviceEvents.h>
+#include <gs/platform/StreamingPower.h>
 #include <gs/platform/Usb.h>
 #include <gs/script/Services.h>
 #include <gs/session/AdbServerHost.h>
@@ -817,6 +818,8 @@ private:
     bool m_keyHints = true;
     std::unique_ptr<platform::ForegroundWatcher> m_foreground;
     std::unique_ptr<platform::TrayNotice> m_tray;
+    platform::SystemStreamingPower m_streamSystem;
+    platform::StreamingPower m_streamPower{m_streamSystem};
     TrayNotices m_notices;
     QPointer<QQmlEngine> m_engine;
     std::unique_ptr<DeviceIdentifier> m_identifier;

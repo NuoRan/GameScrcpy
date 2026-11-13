@@ -13,6 +13,7 @@ add_library(gs_platform STATIC
     include/gs/platform/KeyboardLayout.h
     include/gs/platform/RunningMarker.h
     include/gs/platform/Speech.h
+    include/gs/platform/StreamingPower.h
     include/gs/platform/TcpStream.h
     include/gs/platform/TextReader.h
     include/gs/platform/Thread.h
@@ -30,6 +31,7 @@ add_library(gs_platform STATIC
     src/KeyboardLayout.cpp
     src/RunningMarker.cpp
     src/Speech.cpp
+    src/StreamingPower.cpp
     src/TcpStream.cpp
     src/TextReader.cpp
     src/Thread.cpp
