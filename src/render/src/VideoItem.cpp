@@ -1,5 +1,6 @@
 #include "gs/render/VideoItem.h"
 
+#include "VideoGeometry.h"
 #include "VideoRenderNode.h"
 
 #include <QMetaObject>
@@ -12,42 +13,6 @@
 #include <utility>
 
 namespace gs::render {
-
-namespace {
-
-QRectF fitted(const QSize& picture, const QRectF& bounds)
-{
-    if (picture.isEmpty() || bounds.isEmpty()) {
-        return {};
-    }
-    const qreal scale = std::min(bounds.width() / picture.width(), bounds.height() / picture.height());
-    const QSizeF size(picture.width() * scale, picture.height() * scale);
-    return {bounds.x() + (bounds.width() - size.width()) / 2, bounds.y() + (bounds.height() - size.height()) / 2,
-            size.width(), size.height()};
-}
-
-QSize croppedSize(const QSize& frame, const QRectF& crop)
-{
-    if (frame.isEmpty()) {
-        return frame;
-    }
-    return {std::max(1, static_cast<int>(std::lround(frame.width() * crop.width()))),
-            std::max(1, static_cast<int>(std::lround(frame.height() * crop.height())))};
-}
-
-QRectF normalCrop(const QRectF& crop)
-{
-    const qreal left = std::clamp(crop.x(), 0.0, 1.0);
-    const qreal top = std::clamp(crop.y(), 0.0, 1.0);
-    const qreal right = std::clamp(crop.x() + crop.width(), left, 1.0);
-    const qreal bottom = std::clamp(crop.y() + crop.height(), top, 1.0);
-    if (right - left < 0.01 || bottom - top < 0.01) {
-        return {0.0, 0.0, 1.0, 1.0};
-    }
-    return {left, top, right - left, bottom - top};
-}
-
-}
 
 QSize VideoItem::frameSize() const
 {
@@ -192,19 +157,12 @@ QSGNode* VideoItem::updatePaintNode(QSGNode* oldNode, UpdatePaintNodeData*)
             },
             Qt::QueuedConnection);
     }
-    if (m_slot) {
-        if (media::VideoFrame frame = m_slot->take(); frame && !m_frozen) {
-            node->setFrame(std::move(frame));
-        }
-        if (m_slot->pending()) {
-            QMetaObject::invokeMethod(this, [this] { update(); }, Qt::QueuedConnection);
-        }
-    }
+    node->setSource(m_slot, m_frozen);
     if (const QSize size = node->frameSize(); size != m_frameSize) {
         m_frameSize = size;
         QMetaObject::invokeMethod(this, &VideoItem::updateContentRect, Qt::QueuedConnection);
     }
-    node->setRect(fitted(croppedSize(m_frameSize, m_crop), boundingRect()));
+    node->setBounds(boundingRect());
     node->setCrop(m_crop);
     node->setSharpness(static_cast<float>(m_sharpness));
     node->markDirty(QSGNode::DirtyMaterial);

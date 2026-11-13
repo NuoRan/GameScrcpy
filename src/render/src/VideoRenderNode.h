@@ -1,8 +1,10 @@
 #pragma once
 
 #include "FilterChain.h"
+#include "PresentClock.h"
 
 #include <gs/media/VideoDecoder.h>
+#include <gs/render/FrameSlot.h>
 
 #include <QRectF>
 #include <QSGRenderNode>
@@ -12,8 +14,10 @@
 #include <wrl/client.h>
 
 #include <array>
+#include <atomic>
 #include <cstdint>
 #include <map>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -21,14 +25,18 @@ class QQuickWindow;
 
 namespace gs::render {
 
+struct WakeFlag {
+    std::atomic<bool> posted{false};
+};
+
 class VideoRenderNode final : public QSGRenderNode
 {
 public:
     explicit VideoRenderNode(QQuickWindow* window);
     ~VideoRenderNode() override;
 
-    void setFrame(media::VideoFrame frame);
-    void setRect(const QRectF& rect);
+    void setSource(std::shared_ptr<FrameSlot> slot, bool frozen);
+    void setBounds(const QRectF& bounds);
     void setCrop(const QRectF& crop);
     void setSharpness(float sharpness);
     void setFilters(std::vector<VideoFilter> filters);
@@ -62,6 +70,9 @@ private:
         DXGI_FORMAT format = DXGI_FORMAT_UNKNOWN;
     };
 
+    void takeFrame();
+    void installWake();
+    void postWake();
     bool createPipeline(ID3D11Device* device);
     bool bindSurface(ID3D11Device* device);
     bool uploadPlanes(ID3D11Device* device, ID3D11DeviceContext* context);
@@ -70,12 +81,23 @@ private:
               ID3D11ShaderResourceView* const* views, UINT count);
 
     QQuickWindow* m_window;
+    std::shared_ptr<FrameSlot> m_slot;
+    std::shared_ptr<WakeFlag> m_wake;
+    PresentClock m_present;
+    bool m_guiWake = false;
+    bool m_frozen = false;
     media::VideoFrame m_frame;
     bool m_frameChanged = false;
     bool m_ready = false;
-    QRectF m_rect;
+    QSize m_reportedSize;
+    QRectF m_bounds;
+    QRectF m_drawnRect;
     QRectF m_crop{0.0, 0.0, 1.0, 1.0};
     float m_sharpness = 0.0F;
+    std::int64_t m_takenPtsUs = 0;
+    std::int64_t m_takenReceivedUs = 0;
+    std::int64_t m_takenUs = 0;
+    bool m_drewFrame = false;
 
     ComPtr<ID3D11VertexShader> m_vertexShader;
     ComPtr<ID3D11PixelShader> m_nv12Shader;

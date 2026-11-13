@@ -3,6 +3,7 @@
 #include <QString>
 #include <QtGlobal>
 
+#include <algorithm>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -34,6 +35,13 @@ public:
     void line(char kind, std::int64_t nowUs, std::int64_t ptsUs, std::int64_t receivedUs, std::size_t queued)
     {
         m_out << kind << ' ' << nowUs << ' ' << ptsUs << ' ' << receivedUs << ' ' << queued << '\n';
+    }
+
+    void screenLine(std::int64_t nowUs, std::int64_t ptsUs, std::int64_t receivedUs, std::int64_t takenUs,
+                    std::int64_t screenUs)
+    {
+        m_out << 'd' << ' ' << nowUs << ' ' << ptsUs << ' ' << receivedUs << ' ' << takenUs << ' ' << screenUs
+              << '\n';
     }
 
 private:
@@ -72,13 +80,17 @@ void FrameSlot::put(media::VideoFrame frame)
             m_frames.pop_front();
             ++m_replaced;
         }
-        if (wasEmpty && m_waker) {
-            m_waker();
+        if (wasEmpty) {
+            if (m_renderWaker) {
+                m_renderWaker();
+            } else if (m_waker) {
+                m_waker();
+            }
         }
     }
 }
 
-media::VideoFrame FrameSlot::take()
+media::VideoFrame FrameSlot::take(std::int64_t* takenUs)
 {
     std::shared_ptr<const ShownListener> listener;
     std::int64_t nowUs = 0;
@@ -98,6 +110,9 @@ media::VideoFrame FrameSlot::take()
         if (Trace& trace = Trace::instance(); trace.on()) {
             trace.line('t', nowUs, frame.ptsUs(), frame.receivedUs(), m_frames.size());
         }
+    }
+    if (takenUs != nullptr) {
+        *takenUs = nowUs;
     }
     if (listener) {
         (*listener)(frame.ptsUs(), nowUs);
@@ -153,6 +168,112 @@ void FrameSlot::setWaker(std::function<void()> waker)
 {
     const std::scoped_lock lock(m_mutex);
     m_waker = std::move(waker);
+}
+
+void FrameSlot::setRenderWaker(const void* owner, std::function<void()> waker)
+{
+    const std::scoped_lock lock(m_mutex);
+    m_renderOwner = owner;
+    m_renderWaker = std::move(waker);
+}
+
+void FrameSlot::clearRenderWaker(const void* owner)
+{
+    const std::scoped_lock lock(m_mutex);
+    if (m_renderOwner == owner) {
+        m_renderWaker = {};
+        m_renderOwner = nullptr;
+    }
+}
+
+void FrameSlot::wakeGui()
+{
+    const std::scoped_lock lock(m_mutex);
+    if (m_waker) {
+        m_waker();
+    }
+}
+
+void FrameSlot::setScreenListener(ScreenListener listener)
+{
+    const std::scoped_lock lock(m_mutex);
+    m_screen = listener ? std::make_shared<const ScreenListener>(std::move(listener)) : nullptr;
+}
+
+void FrameSlot::addScreenLocked(const ScreenSample& sample)
+{
+    m_screenSamples[m_screenNext] = sample;
+    m_screenNext = (m_screenNext + 1) % kMostScreenSamples;
+    if (m_screenCount < kMostScreenSamples) {
+        ++m_screenCount;
+    }
+}
+
+void FrameSlot::recordScreen(std::int64_t ptsUs, std::int64_t receivedUs, std::int64_t takenUs,
+                             std::int64_t screenUs)
+{
+    std::shared_ptr<const ScreenListener> listener;
+    const std::int64_t nowUs = steadyMicros();
+    {
+        const std::scoped_lock lock(m_mutex);
+        addScreenLocked({ptsUs, receivedUs, takenUs, screenUs});
+        listener = m_screen;
+        if (Trace& trace = Trace::instance(); trace.on()) {
+            trace.screenLine(nowUs, ptsUs, receivedUs, takenUs, screenUs);
+        }
+    }
+    if (listener) {
+        (*listener)(ptsUs, receivedUs, takenUs, screenUs);
+    }
+}
+
+std::optional<ScreenStats> FrameSlot::takeScreenStats()
+{
+    std::array<double, kMostScreenSamples> arrival{};
+    std::array<double, kMostScreenSamples> render{};
+    std::size_t count = 0;
+    {
+        const std::scoped_lock lock(m_mutex);
+        count = m_screenCount;
+        for (std::size_t i = 0; i < count; ++i) {
+            const ScreenSample& sample = m_screenSamples[i];
+            arrival[i] = static_cast<double>(sample.screenUs - sample.receivedUs) / 1000.0;
+            render[i] = static_cast<double>(sample.screenUs - sample.takenUs) / 1000.0;
+        }
+        m_screenCount = 0;
+        m_screenNext = 0;
+    }
+    if (count == 0) {
+        return std::nullopt;
+    }
+    const auto mean = [count](const std::array<double, kMostScreenSamples>& values) {
+        double total = 0.0;
+        for (std::size_t i = 0; i < count; ++i) {
+            total += values[i];
+        }
+        return total / static_cast<double>(count);
+    };
+    const auto percentile95 = [count](std::array<double, kMostScreenSamples>& values) {
+        std::sort(values.begin(), values.begin() + static_cast<std::ptrdiff_t>(count));
+        const std::size_t rank = (count * 95 + 99) / 100;
+        return values[rank == 0 ? 0 : rank - 1];
+    };
+    ScreenStats stats;
+    stats.arrivalToScreenMs = mean(arrival);
+    stats.renderToScreenMs = mean(render);
+    stats.arrivalToScreenP95Ms = percentile95(arrival);
+    stats.renderToScreenP95Ms = percentile95(render);
+    return stats;
+}
+
+void FrameSlot::setPresentationMode(PresentationMode mode) noexcept
+{
+    m_mode.store(mode, std::memory_order_relaxed);
+}
+
+PresentationMode FrameSlot::presentationMode() const noexcept
+{
+    return m_mode.load(std::memory_order_relaxed);
 }
 
 std::uint64_t FrameSlot::replaced() const

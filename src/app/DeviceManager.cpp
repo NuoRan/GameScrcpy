@@ -58,6 +58,7 @@
 #include <gs/platform/Foreground.h>
 #include <gs/platform/Thread.h>
 #include <gs/platform/TrayNotice.h>
+#include <gs/render/FrameSlot.h>
 #include <gs/render/GraphicsDevice.h>
 
 #include <nlohmann/json.hpp>
@@ -2241,6 +2242,9 @@ struct DeviceManager::Measures {
     std::optional<double> arrivalToRender;
     std::optional<double> captureToRender;
     std::optional<double> inputToRender;
+    std::optional<double> inputToScreen;
+    std::optional<render::ScreenStats> screen;
+    render::PresentationMode presentation = render::PresentationMode::Unknown;
     std::optional<LatencyResult> touchDots;
     media::AudioStats audio;
 };
@@ -2332,6 +2336,8 @@ DeviceManager::Measures DeviceManager::measure(Row& row)
     row.framesTaken = taken;
     row.framesReplaced = replaced;
     measures.arrivalToRender = frames.takeArrivalToRenderMs();
+    measures.screen = frames.takeScreenStats();
+    measures.presentation = frames.presentationMode();
     if (measures.sample.captureToReceiptMs && measures.arrivalToRender) {
         measures.captureToRender = *measures.sample.captureToReceiptMs + *measures.arrivalToRender;
     }
@@ -2339,9 +2345,16 @@ DeviceManager::Measures DeviceManager::measure(Row& row)
         measures.inputToRender =
             *measures.sample.inputMs + measures.sample.frameWaitMs.value_or(0.0) + *measures.captureToRender;
     }
+    if (measures.screen && measures.sample.captureToReceiptMs && measures.sample.inputMs) {
+        measures.inputToScreen = *measures.sample.inputMs + measures.sample.frameWaitMs.value_or(0.0) +
+                                 *measures.sample.captureToReceiptMs + measures.screen->arrivalToScreenMs;
+    }
     if (feed != nullptr && measures.arrivalToRender) {
         measures.captureToRender = measures.arrivalToRender;
         measures.inputToRender = measures.arrivalToRender;
+        if (measures.screen) {
+            measures.inputToScreen = measures.screen->arrivalToScreenMs;
+        }
     }
     return measures;
 }
@@ -2359,6 +2372,19 @@ QStringList DeviceManager::describe(const Measures& measures)
     const auto maybe = [&](const std::optional<double>& value) {
         return value ? number(*value, 1) : QStringLiteral("–");
     };
+    const auto modeText = [](render::PresentationMode mode) {
+        switch (mode) {
+        case render::PresentationMode::Composed:
+            return tr("composed by Windows");
+        case render::PresentationMode::IndependentFlip:
+            return tr("independent flip");
+        case render::PresentationMode::HardwareOverlay:
+            return tr("hardware overlay");
+        case render::PresentationMode::Unknown:
+            break;
+        }
+        return tr("presentation unknown");
+    };
     QStringList lines;
     lines << tr("Video: %1 fps received, %2 shown, %3 replaced before shown")
                  .arg(number(sample.framesPerSecond, 0), number(shownPerSecond, 0), number(replacedPerSecond, 0));
@@ -2370,6 +2396,9 @@ QStringList DeviceManager::describe(const Measures& measures)
         lines << tr("Decoding: %1 ms per frame").arg(maybe(sample.decodeMs));
     }
     lines << tr("Input to render: %1 ms, the game's own reaction not included").arg(maybe(measures.inputToRender));
+    if (measures.inputToScreen) {
+        lines << tr("Input to screen: %1 ms").arg(number(*measures.inputToScreen, 1));
+    }
     lines << tr("Input reaching the phone: %1 ms; waiting for the next frame: %2 ms")
                  .arg(maybe(sample.inputMs), maybe(sample.frameWaitMs));
     if (measures.touchDots) {
@@ -2382,6 +2411,12 @@ QStringList DeviceManager::describe(const Measures& measures)
     lines << tr("Capture to encoder output: %1 ms").arg(maybe(sample.encodeMs));
     lines << tr("Network: %1 ms (including the phone's send queue)").arg(maybe(sample.networkMs));
     lines << tr("Arrival to render: %1 ms").arg(maybe(arrivalToRender));
+    if (measures.screen) {
+        lines << tr("Arrival to screen: %1 ms (95% within %2 ms), %3 ms of it after rendering; %4")
+                     .arg(number(measures.screen->arrivalToScreenMs, 1),
+                          number(measures.screen->arrivalToScreenP95Ms, 1),
+                          number(measures.screen->renderToScreenMs, 1), modeText(measures.presentation));
+    }
     lines << tr("Round trip: %1 ms; input waited at most %2 ms").arg(maybe(sample.roundTripMs), maybe(sample.sendDelayMs));
     if (sample.stalls > 0 || sample.longestStallMs > 0 || sample.lostPackets > 0) {
         lines << tr("Pauses for a key frame: %1, the longest %2 ms; %3 packets lost beyond repair")

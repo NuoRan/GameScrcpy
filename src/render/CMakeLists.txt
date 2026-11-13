@@ -13,6 +13,9 @@ qt_add_qml_module(gs_render
         src/FilterChain.h
         src/FrameSlot.cpp
         src/GraphicsDevice.cpp
+        src/PresentClock.cpp
+        src/PresentClock.h
+        src/VideoGeometry.h
         src/VideoItem.cpp
         src/VideoRenderNode.cpp
         src/VideoRenderNode.h

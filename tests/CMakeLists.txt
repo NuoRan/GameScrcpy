@@ -922,10 +922,12 @@ if(GS_BUILD_APP)
     set_tests_properties(gs_shortcut_tests PROPERTIES ENVIRONMENT_MODIFICATION "${GS_QT_TEST_ENVIRONMENT}")
 
     add_executable(gs_mirror_input_tests
+        unit/app/FrameSlotRouteTests.cpp
         unit/app/GridWindowTests.cpp
         unit/app/ItemOrderTests.cpp
         unit/app/MirrorInputItemTests.cpp
         unit/app/VideoFreezeTests.cpp
+        unit/app/VideoPresentTests.cpp
         "${PROJECT_SOURCE_DIR}/src/app/DemoFeed.cpp"
         "${PROJECT_SOURCE_DIR}/src/app/DemoFeed.h"
         "${PROJECT_SOURCE_DIR}/src/app/GridCells.cpp"
@@ -941,7 +943,8 @@ if(GS_BUILD_APP)
         "${PROJECT_SOURCE_DIR}/src/app/MirrorInputItem.cpp"
         "${PROJECT_SOURCE_DIR}/src/app/MirrorInputItem.h"
     )
-    target_include_directories(gs_mirror_input_tests PRIVATE "${PROJECT_SOURCE_DIR}/src/app")
+    target_include_directories(gs_mirror_input_tests PRIVATE "${PROJECT_SOURCE_DIR}/src/app"
+                                                             "${PROJECT_SOURCE_DIR}/src/render/src")
     target_link_libraries(gs_mirror_input_tests PRIVATE
         gs::doctest gs::input gs::platform gs::record gs::render Qt6::Gui Qt6::Qml Qt6::Quick Qt6::Test)
     target_compile_definitions(gs_mirror_input_tests PRIVATE

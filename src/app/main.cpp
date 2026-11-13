@@ -330,6 +330,9 @@ int main(int argc, char* argv[])
     if (!qEnvironmentVariableIsSet("QT_D3D_NO_VBLANK_THREAD")) {
         qputenv("QT_D3D_NO_VBLANK_THREAD", "1");
     }
+    if (!qEnvironmentVariableIsSet("QT_D3D_MAX_FRAME_LATENCY")) {
+        qputenv("QT_D3D_MAX_FRAME_LATENCY", "1");
+    }
     if (!qEnvironmentVariableIsSet("QT_QPA_UPDATE_IDLE_TIME")) {
         qputenv("QT_QPA_UPDATE_IDLE_TIME", "0");
     }

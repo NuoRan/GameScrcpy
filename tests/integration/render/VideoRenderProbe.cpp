@@ -4,7 +4,8 @@
 // PLAN 4.4) and doubles as a stress tool:
 //
 //   gs_video_render_probe <recording> [--seconds N] [--resize] [--debug-layer] [--software]
-//                         [--sharpness S] [--low-latency] [--check-sharpness]
+//                         [--sharpness S] [--low-latency] [--check-sharpness] [--fps N]
+//                         [--gui-busy MS]
 //
 // Exits with 0 when every packet decoded, pictures reached the screen and the debug layer, when
 // present, reported no error. It prints the mean arrival-to-render time and the frames presented
@@ -44,17 +45,55 @@
 #include <mutex>
 #include <optional>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 namespace {
 
 constexpr double kSharpenedEnergy = 1.1;
 
+struct LatencySamples {
+    void arrived(std::int64_t ptsUs, std::int64_t receivedUs)
+    {
+        const std::scoped_lock lock(mutex);
+        if (arrivals.size() >= 4096) {
+            arrivals.clear();
+        }
+        arrivals[ptsUs] = receivedUs;
+    }
+
+    void taken(std::int64_t ptsUs, std::int64_t shownUs)
+    {
+        const std::scoped_lock lock(mutex);
+        const auto it = arrivals.find(ptsUs);
+        if (it == arrivals.end()) {
+            return;
+        }
+        arrivalToTakenMs.push_back(static_cast<double>(shownUs - it->second) / 1000.0);
+        arrivals.erase(it);
+    }
+
+    void screened(std::int64_t ptsUs, std::int64_t receivedUs, std::int64_t takenUs, std::int64_t screenUs)
+    {
+        (void)ptsUs;
+        const std::scoped_lock lock(mutex);
+        arrivalToScreenMs.push_back(static_cast<double>(screenUs - receivedUs) / 1000.0);
+        renderToScreenMs.push_back(static_cast<double>(screenUs - takenUs) / 1000.0);
+    }
+
+    std::mutex mutex;
+    std::unordered_map<std::int64_t, std::int64_t> arrivals;
+    std::vector<double> arrivalToTakenMs;
+    std::vector<double> arrivalToScreenMs;
+    std::vector<double> renderToScreenMs;
+};
+
 class SlotSink final : public gs::media::FrameSink
 {
 public:
-    explicit SlotSink(gs::render::FrameSlot& slot, gs::render::FrameSlot* second = nullptr)
-        : m_slot(slot), m_second(second)
+    explicit SlotSink(gs::render::FrameSlot& slot, gs::render::FrameSlot* second = nullptr,
+                      LatencySamples* latency = nullptr)
+        : m_slot(slot), m_second(second), m_latency(latency)
     {
     }
 
@@ -62,6 +101,9 @@ public:
     {
         ++decoded;
         hardware = frame.hardware();
+        if (m_latency != nullptr) {
+            m_latency->arrived(frame.ptsUs(), frame.receivedUs());
+        }
         if (m_second != nullptr) {
             m_second->put(frame.share());
         }
@@ -74,12 +116,53 @@ public:
 private:
     gs::render::FrameSlot& m_slot;
     gs::render::FrameSlot* m_second;
+    LatencySamples* m_latency;
 };
 
 struct Measure {
     bool lit = false;
     double energy = 0;
 };
+
+const char* modeName(gs::render::PresentationMode mode)
+{
+    switch (mode) {
+    case gs::render::PresentationMode::Composed:
+        return "composed by Windows";
+    case gs::render::PresentationMode::IndependentFlip:
+        return "independent flip";
+    case gs::render::PresentationMode::HardwareOverlay:
+        return "hardware overlay";
+    case gs::render::PresentationMode::Unknown:
+        break;
+    }
+    return "presentation unknown";
+}
+
+struct Spread {
+    double p50 = 0;
+    double p95 = 0;
+    double worst = 0;
+    std::size_t count = 0;
+};
+
+Spread spreadOf(std::vector<double> values)
+{
+    Spread result;
+    result.count = values.size();
+    if (values.empty()) {
+        return result;
+    }
+    std::sort(values.begin(), values.end());
+    const auto at = [&values](double fraction) {
+        const std::size_t rank = static_cast<std::size_t>(fraction * static_cast<double>(values.size()) + 0.999);
+        return values[rank == 0 ? 0 : std::min(rank, values.size()) - 1];
+    };
+    result.p50 = at(0.5);
+    result.p95 = at(0.95);
+    result.worst = values.back();
+    return result;
+}
 
 Measure measure(const QImage& grab)
 {
@@ -271,6 +354,12 @@ int main(int argc, char* argv[])
     if (!qEnvironmentVariableIsSet("QT_D3D_NO_VBLANK_THREAD")) {
         qputenv("QT_D3D_NO_VBLANK_THREAD", "1");
     }
+    if (!qEnvironmentVariableIsSet("QT_D3D_MAX_FRAME_LATENCY")) {
+        qputenv("QT_D3D_MAX_FRAME_LATENCY", "1");
+    }
+    if (!qEnvironmentVariableIsSet("QT_QPA_UPDATE_IDLE_TIME")) {
+        qputenv("QT_QPA_UPDATE_IDLE_TIME", "0");
+    }
     if (std::any_of(argv + 1, argv + argc, [](const char* argument) { return std::strcmp(argument, "--check-filter") == 0; })) {
         qputenv("QT_ENABLE_HIGHDPI_SCALING", "0");
     }
@@ -295,9 +384,15 @@ int main(int argc, char* argv[])
     const QCommandLineOption secondWindowOption(
         "second-window", "Also play the picture in a second window sharing the device, and check that both windows "
                          "keep presenting.");
+    const QCommandLineOption fpsOption("fps", "Feed the recording's frames at this rate instead of the recorded "
+                                              "pace.",
+                                       "fps");
+    const QCommandLineOption guiBusyOption("gui-busy",
+                                           "Keep the interface thread busy for this many milliseconds every frame.",
+                                           "ms", "0");
     parser.addOptions({secondsOption, resizeOption, debugOption, softwareOption, sharpnessOption,
                        lowLatencyOption, checkOption, filterOption, paramOption, checkFilterOption,
-                       secondWindowOption});
+                       secondWindowOption, fpsOption, guiBusyOption});
     parser.process(app);
     const std::vector<gs::render::VideoFilter> filters =
         readFilters(parser.values(filterOption), parser.values(paramOption));
@@ -322,6 +417,34 @@ int main(int argc, char* argv[])
         packets.push_back(*packet);
     }
 
+    const int requestedFps = parser.value(fpsOption).toInt();
+    double recordedFrameMs = 0;
+    {
+        std::int64_t firstPts = -1;
+        std::int64_t lastPts = -1;
+        std::size_t frames = 0;
+        for (const auto& packet : packets) {
+            if (packet.header.kind != gs::protocol::MediaKind::Frame) {
+                continue;
+            }
+            firstPts = firstPts < 0 ? packet.header.ptsUs : firstPts;
+            lastPts = packet.header.ptsUs;
+            ++frames;
+        }
+        if (frames > 1 && lastPts > firstPts) {
+            recordedFrameMs = static_cast<double>(lastPts - firstPts) / 1000.0 / static_cast<double>(frames - 1);
+        }
+    }
+    if (requestedFps > 0) {
+        std::int64_t index = 0;
+        for (auto& packet : packets) {
+            if (packet.header.kind == gs::protocol::MediaKind::Frame) {
+                packet.header.ptsUs = index * 1'000'000 / requestedFps;
+                ++index;
+            }
+        }
+    }
+
     const auto graphics = gs::render::GraphicsDevice::create(parser.isSet(debugOption));
     if (!graphics) {
         std::fprintf(stderr, "no Direct3D 11 device\n");
@@ -331,6 +454,7 @@ int main(int argc, char* argv[])
                 graphics->debugLayer() ? ", debug layer" : "");
 
     std::atomic<std::uint64_t> presented{0};
+    LatencySamples latency;
     QQuickWindow window;
     if (parser.isSet(lowLatencyOption)) {
         QSurfaceFormat unthrottled = window.requestedFormat();
@@ -375,7 +499,12 @@ int main(int argc, char* argv[])
         second->show();
     }
 
-    SlotSink sink(*slot, second != nullptr ? secondSlot.get() : nullptr);
+    SlotSink sink(*slot, second != nullptr ? secondSlot.get() : nullptr, &latency);
+    slot->setShownListener([&latency](std::int64_t ptsUs, std::int64_t shownUs) { latency.taken(ptsUs, shownUs); });
+    slot->setScreenListener([&latency](std::int64_t ptsUs, std::int64_t receivedUs, std::int64_t takenUs,
+                                       std::int64_t screenUs) {
+        latency.screened(ptsUs, receivedUs, takenUs, screenUs);
+    });
     std::atomic<bool> failed{false};
     std::jthread player([&](std::stop_token stop) {
         gs::media::VideoDecoder decoder(parser.isSet(softwareOption) ? nullptr : graphics->device());
@@ -410,6 +539,19 @@ int main(int argc, char* argv[])
             window.resize(random->bounded(240, 1200), random->bounded(240, 900));
         });
         resizer.start(250);
+    }
+    QTimer busy;
+    const int busyMs = parser.value(guiBusyOption).toInt();
+    if (busyMs > 0) {
+        const double frameMs = requestedFps > 0 ? 1000.0 / static_cast<double>(requestedFps) : recordedFrameMs;
+        if (frameMs > 0) {
+            QObject::connect(&busy, &QTimer::timeout, [busyMs] {
+                const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds(busyMs);
+                while (std::chrono::steady_clock::now() < until) {
+                }
+            });
+            busy.start(std::max(1, static_cast<int>(frameMs)));
+        }
     }
     double waitedMs = 0;
     std::uint64_t waitedFrames = 0;
@@ -469,6 +611,29 @@ int main(int argc, char* argv[])
                 window.requestedFormat().swapInterval(), sharpness,
                 static_cast<double>(presentedFrames) / played.count(),
                 waitedFrames > 0 ? waitedMs / static_cast<double>(waitedFrames) : 0.0);
+    std::vector<double> takenValues;
+    std::vector<double> screenValues;
+    std::vector<double> renderValues;
+    {
+        const std::scoped_lock lock(latency.mutex);
+        takenValues = latency.arrivalToTakenMs;
+        screenValues = latency.arrivalToScreenMs;
+        renderValues = latency.renderToScreenMs;
+    }
+    const Spread taken = spreadOf(std::move(takenValues));
+    const Spread toScreen = spreadOf(std::move(screenValues));
+    const Spread afterRender = spreadOf(std::move(renderValues));
+    const QByteArray latencySetting = qgetenv("QT_D3D_MAX_FRAME_LATENCY");
+    std::printf("wake route %s, frame latency %s, presentation %s\n",
+                qEnvironmentVariable("GS_RENDER_WAKE") == u"gui" ? "interface" : "render thread",
+                latencySetting.isEmpty() ? "2 (Qt default)" : latencySetting.constData(),
+                modeName(slot->presentationMode()));
+    std::printf("arrival to render: p50 %.2f ms, p95 %.2f ms, max %.2f ms (%zu frames)\n", taken.p50, taken.p95,
+                taken.worst, taken.count);
+    std::printf("arrival to screen: p50 %.2f ms, p95 %.2f ms, max %.2f ms (%zu frames)\n", toScreen.p50, toScreen.p95,
+                toScreen.worst, toScreen.count);
+    std::printf("render to screen: p50 %.2f ms, p95 %.2f ms, max %.2f ms (%zu frames)\n", afterRender.p50,
+                afterRender.p95, afterRender.worst, afterRender.count);
     if (!parser.isSet(checkFilterOption)) {
         for (const gs::render::VideoFilter& filter : filters) {
             const std::optional<gs::render::FilterStatus> status = statusOf(*video, filter.id);

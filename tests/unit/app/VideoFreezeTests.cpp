@@ -7,6 +7,7 @@
 #include <doctest/doctest.h>
 
 #include <QSGNode>
+#include <QSGRenderNode>
 #include <QSize>
 
 #include <chrono>
@@ -36,6 +37,8 @@ public:
 
     QSize paint()
     {
+        m_node = updatePaintNode(m_node, nullptr);
+        static_cast<QSGRenderNode*>(m_node)->prepare();
         m_node = updatePaintNode(m_node, nullptr);
         return frameSize();
     }

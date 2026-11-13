@@ -1,5 +1,7 @@
 #include "VideoRenderNode.h"
 
+#include "VideoGeometry.h"
+
 #include <gs/media/ColorMatrix.h>
 
 #include "video_ps_copy.h"
@@ -14,10 +16,12 @@ extern "C" {
 
 #include <QMatrix4x4>
 #include <QQuickWindow>
+#include <QRunnable>
 #include <QVector4D>
 #include <rhi/qrhi.h>
 
 #include <cstring>
+#include <utility>
 
 namespace gs::render {
 
@@ -57,24 +61,118 @@ bool upload(ID3D11DeviceContext* context, ID3D11Buffer* buffer, const Parameters
     return true;
 }
 
+class RepaintJob final : public QRunnable
+{
+public:
+    RepaintJob(QQuickWindow* window, std::shared_ptr<WakeFlag> wake) : m_window(window), m_wake(std::move(wake)) {}
+
+    void run() override
+    {
+        m_wake->posted.store(false, std::memory_order_release);
+        if (m_window != nullptr) {
+            m_window->update();
+        }
+    }
+
+private:
+    QQuickWindow* m_window;
+    std::shared_ptr<WakeFlag> m_wake;
+};
+
 }
 
-VideoRenderNode::VideoRenderNode(QQuickWindow* window) : m_window(window) {}
+VideoRenderNode::VideoRenderNode(QQuickWindow* window)
+    : m_window(window), m_wake(std::make_shared<WakeFlag>())
+{
+    m_guiWake = qEnvironmentVariable("GS_RENDER_WAKE") == u"gui";
+    m_present.setSink([this](const PresentClock::Sample& sample, PresentationMode) {
+        if (m_slot) {
+            m_slot->recordScreen(sample.ptsUs, sample.receivedUs, sample.takenUs, sample.screenUs);
+        }
+    });
+    m_present.setModeSink([this](PresentationMode mode) {
+        if (m_slot) {
+            m_slot->setPresentationMode(mode);
+        }
+    });
+    if (m_window != nullptr) {
+        m_present.attach(m_window);
+    }
+}
 
 VideoRenderNode::~VideoRenderNode()
 {
+    if (m_slot) {
+        m_slot->clearRenderWaker(this);
+    }
+    m_present.detach();
     releaseResources();
 }
 
-void VideoRenderNode::setFrame(media::VideoFrame frame)
+void VideoRenderNode::setSource(std::shared_ptr<FrameSlot> slot, bool frozen)
 {
-    m_frame = std::move(frame);
-    m_frameChanged = true;
+    if (slot != m_slot) {
+        if (m_slot) {
+            m_slot->clearRenderWaker(this);
+        }
+        m_slot = std::move(slot);
+        installWake();
+    }
+    m_frozen = frozen;
 }
 
-void VideoRenderNode::setRect(const QRectF& rect)
+void VideoRenderNode::installWake()
 {
-    m_rect = rect;
+    if (!m_slot || m_window == nullptr || m_guiWake) {
+        return;
+    }
+    m_slot->setRenderWaker(this, [this] { postWake(); });
+}
+
+void VideoRenderNode::postWake()
+{
+    QQuickWindow* window = m_window;
+    if (window == nullptr || !window->isExposed()) {
+        return;
+    }
+    if (m_wake->posted.exchange(true, std::memory_order_acq_rel)) {
+        return;
+    }
+    window->scheduleRenderJob(new RepaintJob(window, m_wake), QQuickWindow::NoStage);
+}
+
+void VideoRenderNode::takeFrame()
+{
+    if (!m_slot) {
+        return;
+    }
+    std::int64_t takenUs = 0;
+    media::VideoFrame frame = m_slot->take(&takenUs);
+    if (frame && !m_frozen) {
+        const QSize size(frame.width(), frame.height());
+        m_takenPtsUs = frame.ptsUs();
+        m_takenReceivedUs = frame.receivedUs();
+        m_takenUs = takenUs;
+        m_frame = std::move(frame);
+        m_frameChanged = true;
+        m_drewFrame = true;
+        if (size != m_reportedSize) {
+            m_reportedSize = size;
+            m_slot->wakeGui();
+        }
+    }
+    if (m_slot->pending()) {
+        if (m_guiWake || m_window == nullptr) {
+            m_slot->wakeGui();
+        } else {
+            m_window->update();
+        }
+    }
+}
+
+void VideoRenderNode::setBounds(const QRectF& bounds)
+{
+    m_bounds = bounds;
 }
 
 void VideoRenderNode::setCrop(const QRectF& crop)
@@ -104,7 +202,17 @@ QSize VideoRenderNode::frameSize() const
 
 void VideoRenderNode::prepare()
 {
+    m_wake->posted.store(false, std::memory_order_release);
+    takeFrame();
+    m_drawnRect = fitted(croppedSize(frameSize(), m_crop), m_bounds);
+    if (m_window == nullptr) {
+        return;
+    }
     QSGRendererInterface* renderer = m_window->rendererInterface();
+    if (renderer == nullptr) {
+        m_ready = false;
+        return;
+    }
     auto* device = static_cast<ID3D11Device*>(renderer->getResource(m_window, QSGRendererInterface::DeviceResource));
     auto* context = static_cast<ID3D11DeviceContext*>(
         renderer->getResource(m_window, QSGRendererInterface::DeviceContextResource));
@@ -122,7 +230,8 @@ void VideoRenderNode::prepare()
 
     Parameters parameters{};
     const QMatrix4x4 transform = *projectionMatrix() * *matrix();
-    const QPointF corners[4] = {m_rect.topLeft(), m_rect.topRight(), m_rect.bottomLeft(), m_rect.bottomRight()};
+    const QPointF corners[4] = {m_drawnRect.topLeft(), m_drawnRect.topRight(), m_drawnRect.bottomLeft(),
+                                m_drawnRect.bottomRight()};
     for (std::size_t i = 0; i < 4; ++i) {
         const QVector4D clip = transform.map(QVector4D(static_cast<float>(corners[i].x()),
                                                        static_cast<float>(corners[i].y()), 0.0F, 1.0F));
@@ -167,6 +276,10 @@ void VideoRenderNode::render(const RenderState* state)
 {
     if (!m_ready) {
         return;
+    }
+    if (m_drewFrame) {
+        m_drewFrame = false;
+        m_present.drew(m_takenPtsUs, m_takenReceivedUs, m_takenUs);
     }
     auto* context = static_cast<ID3D11DeviceContext*>(
         m_window->rendererInterface()->getResource(m_window, QSGRendererInterface::DeviceContextResource));
@@ -265,7 +378,7 @@ QSGRenderNode::RenderingFlags VideoRenderNode::flags() const
 
 QRectF VideoRenderNode::rect() const
 {
-    return m_rect;
+    return m_bounds;
 }
 
 bool VideoRenderNode::createPipeline(ID3D11Device* device)
