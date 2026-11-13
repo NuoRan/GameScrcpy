@@ -4,6 +4,7 @@ import com.gamescrcpy.protocol.Enums.ErrorCode;
 import com.gamescrcpy.protocol.Message;
 import com.gamescrcpy.protocol.Messages.RequestFailed;
 import com.gamescrcpy.server.Log;
+import com.gamescrcpy.server.ThreadPriority;
 import com.gamescrcpy.server.transport.FrameEndpoint;
 import java.io.IOException;
 import java.util.concurrent.Executor;
@@ -42,7 +43,7 @@ public final class BulkRequests implements AutoCloseable {
     }
 
     private final ExecutorService replies = Executors.newSingleThreadExecutor(runnable -> {
-        final Thread thread = new Thread(runnable, "gs-bulk-out");
+        final Thread thread = new Thread(ThreadPriority.atDefault(runnable), "gs-bulk-out");
         thread.setDaemon(true);
         return thread;
     });

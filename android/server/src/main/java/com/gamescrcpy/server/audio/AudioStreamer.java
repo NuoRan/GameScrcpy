@@ -7,6 +7,7 @@ import com.gamescrcpy.protocol.Enums.ErrorCode;
 import com.gamescrcpy.protocol.Messages.AudioSessionInfo;
 import com.gamescrcpy.server.Log;
 import com.gamescrcpy.server.MediaClock;
+import com.gamescrcpy.server.ThreadPriority;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -91,6 +92,7 @@ final class AudioStreamer {
     }
 
     private void feed() {
+        ThreadPriority.raise(ThreadPriority.AUDIO);
         long frame = 0;
         try {
             while (!ended.get()) {
@@ -115,6 +117,7 @@ final class AudioStreamer {
     }
 
     private void send() {
+        ThreadPriority.raise(ThreadPriority.AUDIO);
         final MediaCodec.BufferInfo info = new MediaCodec.BufferInfo();
         long previousPts = Long.MIN_VALUE;
         try {

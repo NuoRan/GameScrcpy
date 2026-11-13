@@ -3,6 +3,7 @@ package com.gamescrcpy.server.device;
 import android.os.BatteryManager;
 import com.gamescrcpy.protocol.Messages.DeviceStatus;
 import com.gamescrcpy.server.Log;
+import com.gamescrcpy.server.ThreadPriority;
 import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
@@ -42,7 +43,7 @@ public final class DeviceStatusSampler implements AutoCloseable {
     private final CpuTimes cpu;
     private final Sink sink;
     private final ScheduledExecutorService timer = Executors.newSingleThreadScheduledExecutor(task -> {
-        final Thread thread = new Thread(task, "gs-status");
+        final Thread thread = new Thread(ThreadPriority.atDefault(task), "gs-status");
         thread.setDaemon(true);
         return thread;
     });

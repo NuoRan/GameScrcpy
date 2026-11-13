@@ -5,6 +5,7 @@ import com.gamescrcpy.protocol.Enums.ScreenshotFormat;
 import com.gamescrcpy.protocol.Messages.RequestScreenshot;
 import com.gamescrcpy.protocol.Messages.Screenshot;
 import com.gamescrcpy.server.Log;
+import com.gamescrcpy.server.ThreadPriority;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -22,7 +23,7 @@ public final class ScreenshotService implements AutoCloseable {
     private final Platform platform;
     private final BulkRequests bulk;
     private final ExecutorService captures = Executors.newSingleThreadExecutor(runnable -> {
-        final Thread thread = new Thread(runnable, "gs-screenshot");
+        final Thread thread = new Thread(ThreadPriority.atDefault(runnable), "gs-screenshot");
         thread.setDaemon(true);
         return thread;
     });

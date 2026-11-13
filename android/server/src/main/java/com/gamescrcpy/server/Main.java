@@ -102,6 +102,7 @@ public final class Main {
                 new BuildDeviceDescriptor(SERVER_VERSION, handler::capabilities), handler, config,
                 () -> System.nanoTime() / 1000);
         final Thread sessionThread = new Thread(() -> {
+            ThreadPriority.raise(ThreadPriority.VIDEO);
             final SessionServer.Outcome outcome = session.run();
             handler.shutdown();
             Log.i("session ended (" + outcome + ")");

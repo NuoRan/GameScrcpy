@@ -10,6 +10,7 @@ import com.gamescrcpy.protocol.Messages.ReceiverReport;
 import com.gamescrcpy.protocol.Messages.VideoSessionInfo;
 import com.gamescrcpy.server.Log;
 import com.gamescrcpy.server.MediaClock;
+import com.gamescrcpy.server.ThreadPriority;
 import com.gamescrcpy.server.device.DisplaySnapshot;
 import com.gamescrcpy.server.device.EncoderCatalog.Encoder;
 import com.gamescrcpy.server.transport.FrameEndpoint;
@@ -380,6 +381,7 @@ public final class VideoController {
                 new StreamerListener(), streamed(), paused, firstFrameTimeoutNanos);
         streamer = started;
         thread = new Thread(() -> {
+            ThreadPriority.raise(ThreadPriority.VIDEO);
             threadSetup.run();
             started.run();
             streamerEnded(started);

@@ -4,6 +4,7 @@ import com.gamescrcpy.protocol.Constants;
 import com.gamescrcpy.protocol.Enums.MediaKind;
 import com.gamescrcpy.protocol.Media;
 import com.gamescrcpy.server.Log;
+import com.gamescrcpy.server.ThreadPriority;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
@@ -208,6 +209,7 @@ final class VideoSendQueue implements VideoPackets.Sink {
     }
 
     private void send() {
+        ThreadPriority.raise(ThreadPriority.VIDEO);
         while (true) {
             final Entry entry;
             final int size;

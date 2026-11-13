@@ -3,6 +3,7 @@ package com.gamescrcpy.server.uhid;
 import com.gamescrcpy.protocol.Messages.UhidCreate;
 import com.gamescrcpy.protocol.Messages.UhidOutput;
 import com.gamescrcpy.server.Log;
+import com.gamescrcpy.server.ThreadPriority;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,7 +46,7 @@ final class UhidDevice {
             throw e;
         }
         final UhidDevice device = new UhidDevice(message.id, file, descriptor, new HashMap<>(features), client);
-        final Thread reader = new Thread(device::readEvents, "gs-uhid-" + message.id);
+        final Thread reader = new Thread(ThreadPriority.atDefault(device::readEvents), "gs-uhid-" + message.id);
         reader.setDaemon(true);
         reader.start();
         return device;

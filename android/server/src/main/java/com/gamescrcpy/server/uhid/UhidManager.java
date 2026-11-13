@@ -7,6 +7,7 @@ import com.gamescrcpy.protocol.Messages.UhidFeature;
 import com.gamescrcpy.protocol.Messages.UhidInput;
 import com.gamescrcpy.protocol.Messages.UhidStatus;
 import com.gamescrcpy.server.Log;
+import com.gamescrcpy.server.ThreadPriority;
 import com.gamescrcpy.server.wrappers.InputDevices;
 import com.gamescrcpy.server.wrappers.PlatformException;
 import java.io.IOException;
@@ -167,7 +168,7 @@ public final class UhidManager {
     }
 
     private void watch(UhidDevice device, int vendorId, int productId, Set<Integer> before) {
-        final Thread watcher = new Thread(() -> lookFor(device, vendorId, productId, before),
+        final Thread watcher = new Thread(ThreadPriority.atDefault(() -> lookFor(device, vendorId, productId, before)),
                 "gs-uhid-status-" + device.id());
         watcher.setDaemon(true);
         watcher.start();

@@ -15,6 +15,7 @@ import com.gamescrcpy.protocol.Messages.ClientHello;
 import com.gamescrcpy.protocol.Messages.Welcome;
 import com.gamescrcpy.protocol.ReedSolomon;
 import com.gamescrcpy.protocol.Reliable;
+import com.gamescrcpy.server.ThreadPriority;
 import java.io.EOFException;
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -107,6 +108,7 @@ public final class UdpTransport implements SessionTransport {
     }
 
     private void receiveLoop() {
+        ThreadPriority.raise(ThreadPriority.VIDEO);
         final byte[] buffer = new byte[Datagram.MAX_SIZE + 1];
         final DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
         while (true) {
@@ -166,6 +168,7 @@ public final class UdpTransport implements SessionTransport {
     }
 
     private void sendLoop() {
+        ThreadPriority.raise(ThreadPriority.VIDEO);
         synchronized (lock) {
             while (!(closed && association == null)) {
                 final long now = clock.getAsLong();

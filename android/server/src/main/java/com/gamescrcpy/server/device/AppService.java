@@ -8,6 +8,7 @@ import com.gamescrcpy.protocol.Messages.RequestAppIcon;
 import com.gamescrcpy.protocol.Messages.RequestAppList;
 import com.gamescrcpy.protocol.Messages.StartApp;
 import com.gamescrcpy.server.Log;
+import com.gamescrcpy.server.ThreadPriority;
 import com.gamescrcpy.server.transport.FrameEndpoint;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -178,7 +179,7 @@ public final class AppService implements AutoCloseable {
     }
 
     private static Thread worker(Runnable runnable, String name) {
-        final Thread thread = new Thread(runnable, name);
+        final Thread thread = new Thread(ThreadPriority.atDefault(runnable), name);
         thread.setDaemon(true);
         return thread;
     }
