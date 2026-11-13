@@ -11,6 +11,7 @@
 #include "QtConversions.h"
 #include "ThemeTokens.h"
 
+#include <gs/base/JsonNesting.h>
 #include <gs/base/Log.h>
 #include <gs/ext/Archive.h>
 #include <gs/ext/Bundle.h>
@@ -1146,8 +1147,9 @@ bool ExtensionHost::setGlobalAddOnParam(const QString& id, const QString& name, 
     }
     settings::ExtensionStates states = m_settings.extensions();
     settings::GlobalAddOn& chosen = states[extension].addOns[attachment];
-    nlohmann::json params = chosen.params.empty() ? nlohmann::json::object()
-                                                  : nlohmann::json::parse(chosen.params, nullptr, false);
+    nlohmann::json params = chosen.params.empty() || !jsonNestingWithin(chosen.params, kMostJsonNesting)
+                                ? nlohmann::json::object()
+                                : nlohmann::json::parse(chosen.params, nullptr, false);
     if (!params.is_object()) {
         params = nlohmann::json::object();
     }

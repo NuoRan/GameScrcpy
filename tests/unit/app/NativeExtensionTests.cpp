@@ -1403,6 +1403,52 @@ TEST_CASE("ADR-0112: the extension host gives a native extension its settings an
           nlohmann::json{{"global", {{"port", "COM3"}, {"speed", 5}}}, {"devices", {{"phone-1", {{"port", "COM9"}}}}}});
 }
 
+TEST_CASE("ADR-0112: add-on parameters in the settings nested more than 64 levels deep are shown and changed as if "
+          "none were chosen, so that they cannot overflow the stack of GameScrcpy")
+{
+    Scratch scratch;
+    const fs::path builtin = scratch / "builtin";
+    const fs::path folder = builtin / "gamescrcpy.addon-probe/1.0.0";
+    fs::create_directories(folder);
+    fs::copy_file(kTestDll, folder / "native.dll");
+    writeFile(folder / "manifest.json", R"({
+  "schemaVersion": 1,
+  "id": "gamescrcpy.addon-probe",
+  "version": "1.0.0",
+  "name": "Add-on probe",
+  "description": "Shifts every key.",
+  "authors": ["GameScrcpy"],
+  "license": "Apache-2.0",
+  "requires": {"native": "^2.0"},
+  "contributes": {"native": {"dll": "native.dll", "attachments": [
+    {"name": "shift", "title": "Shift", "appliesTo": ["*"], "params": [
+      {"key": "dx", "type": "number", "title": "Distance", "default": 0.1, "min": -1, "max": 1},
+      {"key": "sleepMs", "type": "integer", "title": "Sleep", "default": 0, "min": 0, "max": 1000}
+    ]}
+  ]}}
+})");
+    app::AppSettings settings(scratch / "data");
+    app::ExtensionHost host(settings, {.user = scratch / "user", .builtin = builtin, .hostProgram = kProgram});
+    host.start(false);
+    REQUIRE(host.extensions().size() == 1);
+    INFO(listed(host.extensions()[0].diagnostics));
+    REQUIRE(host.extensions()[0].usable());
+    const std::string deep = R"({"dx":)" + std::string(30000, '[') + std::string(30000, ']') + "}";
+
+    app::DeclaredModule declared;
+    declared.params = host.extensions()[0].manifest->contributes.native->attachments.at(0).params;
+    const QVariantList shown = app::declaredParamMaps(declared, deep);
+    REQUIRE(shown.size() == 2);
+    CHECK(shown[0].toMap().value(QStringLiteral("json")).toString() == QStringLiteral("0.1"));
+
+    app::settings::ExtensionStates states = settings.extensions();
+    states["gamescrcpy.addon-probe"].addOns["shift"].params = deep;
+    settings.setExtensions(states);
+    CHECK(host.setGlobalAddOnParam(QStringLiteral("gamescrcpy.addon-probe"), QStringLiteral("shift"),
+                                   QStringLiteral("sleepMs"), QStringLiteral("5")));
+    CHECK(settings.extensions().at("gamescrcpy.addon-probe").addOns.at("shift").params == R"({"sleepMs":5})");
+}
+
 TEST_CASE("ADR-0112: a DLL's device provider lists its devices, says when they change and does their actions, in "
           "GameScrcpy and in gs-exthost.exe")
 {

@@ -3521,7 +3521,8 @@ std::string chosenText(const ext::DeclaredParam& param, const Json& chosen)
 
 Json chosenOf(const std::string& params)
 {
-    return params.empty() ? Json::object() : Json::parse(params, nullptr, false);
+    return params.empty() || !jsonNestingWithin(params, kMostJsonNesting) ? Json::object()
+                                                                          : Json::parse(params, nullptr, false);
 }
 
 QVariantMap paramMap(const ext::DeclaredParam& param, const NativeTexts& texts, std::size_t at, const Json& chosen)
