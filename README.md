@@ -58,7 +58,7 @@ GameScrcpy 把安卓手机的画面低延迟地投到电脑上，键位直接摆
 
 - **USB 调试**：默认方式，不需要额外硬件。
 - **AOA**：手机把电脑当成一块 USB 触摸屏，不打开 USB 调试也能操作（实验性）。
-- **触控盒**：扩展提供的小板子扮成手机的触摸屏和键盘，不开 USB 调试也能操作。ESP32 触控盒现在是社区扩展 `community.esp32`，在单独的项目 GameScrcpy-ESP32 里发布，GameScrcpy 本身不包含它（实验性）。
+- **触控盒**：扩展提供的小板子扮成手机的触摸屏和键盘，不开 USB 调试也能操作。ESP32 触控盒现在是社区扩展 `community.esp32`，在单独的项目 [GameScrcpy-ESP32](https://github.com/NuoRan/GameScrcpy-ESP32) 里发布，GameScrcpy 本身不包含它（实验性）。
 - **采集卡**：显示 HDMI 采集卡的画面，配合 AOA 或触控盒操作（实验性）。
 
 ### 扩展

@@ -60,7 +60,7 @@ The user interface is available in Simplified Chinese and English, and language 
 
 - **USB debugging**: the default, no extra hardware needed.
 - **AOA**: the phone takes the PC for a USB touch screen and works without USB debugging (experimental).
-- **Touch boxes**: a small board from an extension acts as the phone's touch screen and keyboard, so the phone works without USB debugging. The ESP32 touch box is now the community extension `community.esp32`, published in its own project, GameScrcpy-ESP32; GameScrcpy itself does not include it (experimental).
+- **Touch boxes**: a small board from an extension acts as the phone's touch screen and keyboard, so the phone works without USB debugging. The ESP32 touch box is now the community extension `community.esp32`, published in its own project, [GameScrcpy-ESP32](https://github.com/NuoRan/GameScrcpy-ESP32); GameScrcpy itself does not include it (experimental).
 - **Capture cards**: shows the picture of an HDMI capture card, with touch through AOA or a touch box (experimental).
 
 ### Extensions
