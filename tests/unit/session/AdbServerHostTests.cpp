@@ -126,6 +126,21 @@ TEST_CASE("ADR-0114 GS_TOUCH_LEAD_MS puts a touch lead of 0 to 8 ms on the serve
     }
 }
 
+TEST_CASE("ADR-0117 GS_BLOCK_INPUT turns the server's block model input off")
+{
+    const auto command = [](const wchar_t* block) {
+        const EnvironmentVariable variable(L"GS_BLOCK_INPUT", block);
+        LaunchParams params;
+        params.socketName = "gamescrcpy_0123456789abcdef";
+        return serverCommand(*package(), params);
+    };
+    CHECK(command(L"0").find(" blockInput=0") != std::string::npos);
+    CHECK(command(L"1").find(" blockInput=1") != std::string::npos);
+    for (const wchar_t* ignored : {L"", L"2", L"-1", L"0.5", L"x"}) {
+        CHECK(command(ignored).find("blockInput") == std::string::npos);
+    }
+}
+
 TEST_CASE("a device that has not allowed USB debugging fails while deploying")
 {
     FakeAdbServer adb(device("emulator-5556          unauthorized transport_id:4"));
