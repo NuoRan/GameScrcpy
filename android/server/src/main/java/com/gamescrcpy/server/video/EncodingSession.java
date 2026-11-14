@@ -16,6 +16,7 @@ public interface EncodingSession extends AutoCloseable {
         public long readyUs;
         public boolean keyFrame;
         public int index = -1;
+        public Object payload;
     }
 
     interface Factory {
