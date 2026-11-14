@@ -199,11 +199,14 @@ final class BlockModelSession implements EncodingSession {
         final boolean config = (bufferInfo.flags & MediaCodec.BUFFER_FLAG_CODEC_CONFIG) != 0;
         ByteBuffer data = null;
         Object payload = null;
+        boolean unreadable = false;
         try {
             final MediaCodec.OutputFrame frame = codec.getOutputFrame(index);
             if (bufferInfo.size > 0) {
                 final MediaCodec.LinearBlock block = frame.getLinearBlock();
-                if (block != null && block.isMappable()) {
+                if (block == null || !block.isMappable()) {
+                    unreadable = true;
+                } else {
                     final ByteBuffer mapped = block.map();
                     final int offset = Math.max(0, Math.min(bufferInfo.offset, mapped.capacity()));
                     final int end = Math.max(offset,
@@ -216,7 +219,10 @@ final class BlockModelSession implements EncodingSession {
             }
         } catch (RuntimeException e) {
             Log.w("the block model cannot read an output frame", e);
-            pump.fail("cannot read the encoder output");
+            unreadable = true;
+        }
+        if (unreadable) {
+            pump.fail("the encoder output is not readable");
             return;
         }
         if (data == null) {
