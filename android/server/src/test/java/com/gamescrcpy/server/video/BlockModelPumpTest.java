@@ -228,14 +228,14 @@ class BlockModelPumpTest {
     }
 
     @Test
-    void anInterruptedSessionEndsAtOnce() {
+    void anInterruptedSessionEndsAtOnce() throws EncoderException {
         final BlockModelPump pump = pump(0);
         pump.interrupt();
         assertEquals(EncodingSession.Kind.END, pump.next(EncodingSession.NO_DEADLINE).kind);
     }
 
     @Test
-    void anOutputIsHandedOverOnceAndItsPayloadComesBackOnRelease() {
+    void anOutputIsHandedOverOnceAndItsPayloadComesBackOnRelease() throws EncoderException {
         final BlockModelPump pump = pump(0);
         final ByteBuffer data = ByteBuffer.allocate(4);
         assertTrue(pump.output(EncodingSession.Kind.FRAME, data, 1_000, 2_000, true, 7, "block", false));
@@ -254,7 +254,7 @@ class BlockModelPumpTest {
     }
 
     @Test
-    void closingReturnsEveryHeldImageAndTheOutputsStillQueued() {
+    void closingReturnsEveryHeldImageAndTheOutputsStillQueued() throws EncoderException {
         final BlockModelPump pump = pump(0);
         pump.slotAvailable(0);
         final FakeImage image = new FakeImage(FRAME_NANOS);

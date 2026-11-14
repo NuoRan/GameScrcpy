@@ -249,7 +249,7 @@ std::string blockInputArgument()
 
 std::string serverCommand(const ServerPackage& package, const LaunchParams& params, std::string_view extra)
 {
-    return std::format("trap '' HUP PIPE; CLASSPATH={} exec app_process / com.gamescrcpy.server.Main {} {} {} {}{}{}",
+    return std::format("trap '' HUP PIPE; CLASSPATH={} exec app_process / com.gamescrcpy.server.Main {} {} {} {}{}{}{}",
                        adb::shellQuote(package.remotePath()), protocol::kProtocolVersion,
                        adb::shellQuote("socket=" + params.socketName),
                        adb::shellQuote(std::format("lingerMs={}", params.linger.count())),
