@@ -56,6 +56,7 @@
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <numbers>
 #include <optional>
 #include <string>
 #include <utility>
@@ -80,6 +81,14 @@ constexpr std::int64_t kTouchStartUs = 500'000;
 constexpr std::int64_t kTouchTailUs = 2'000'000;
 constexpr std::int64_t kTouchLimitUs = 60'000'000;
 constexpr std::int64_t kNoMorePresses = std::numeric_limits<std::int64_t>::max();
+constexpr int kPanTickMs = 4;
+constexpr int kPanTickMinMs = 1;
+constexpr int kPanTickMaxMs = 20;
+constexpr double kPanPeriodSeconds = 1.2;
+constexpr double kPanCentreX = 0.72;
+constexpr double kPanReachX = 0.10;
+constexpr double kPanY = 0.40;
+constexpr std::uint8_t kPanPointer = 1;
 constexpr std::size_t kIntervalBins = 10'000;
 constexpr std::int64_t kIntervalBinUs = 100;
 
@@ -526,6 +535,8 @@ private:
 struct RunOptions {
     int seconds = 20;
     int presses = 0;
+    bool pan = false;
+    int panMs = kPanTickMs;
 };
 
 struct ProbeOptions {
@@ -538,6 +549,9 @@ struct ProbeOptions {
     protocol::VideoCodec codec = protocol::VideoCodec::H264;
     bool software = false;
     int presses = 0;
+    bool pan = false;
+    int panMs = kPanTickMs;
+    bool onTop = false;
 };
 
 class SessionRun final
@@ -552,6 +566,9 @@ public:
         m_tick.setInterval(kTickMs);
         m_tick.setTimerType(Qt::PreciseTimer);
         QObject::connect(&m_tick, &QTimer::timeout, &m_app, [this] { tick(); });
+        m_panTimer.setInterval(m_options.panMs);
+        m_panTimer.setTimerType(Qt::PreciseTimer);
+        QObject::connect(&m_panTimer, &QTimer::timeout, &m_app, [this] { pan(); });
     }
 
     void start()
@@ -574,6 +591,8 @@ private:
     void startTouchTest();
     void pressOnce();
     void endTouchTest();
+    void pan();
+    void endPan();
     void fail();
     void requestStop();
     void report() const;
@@ -612,6 +631,13 @@ private:
     std::int64_t m_touchDeadlineUs = 0;
     std::int64_t m_pressAtUs = 0;
     std::int64_t m_touchTailUs = 0;
+
+    QTimer m_panTimer;
+    bool m_panDown = false;
+    std::int64_t m_panStartUs = 0;
+    std::uint64_t m_panFrames = 0;
+    std::uint16_t m_panX = 0;
+    std::uint16_t m_panY = 0;
 
     std::vector<double> m_framesPerSecond;
     std::vector<double> m_megabits;
@@ -690,6 +716,13 @@ void SessionRun::beginStreaming()
                 linkName(m_listener.link()));
     std::printf("%d s of measurement, %s\n", m_options.seconds,
                 m_meter ? "with a touch-dot test" : "without a touch-dot test");
+    if (m_options.pan) {
+        std::printf("panning: a finger held on the right of the screen sweeps sideways every %.1f s, a move every %d "
+                    "ms\n",
+                    kPanPeriodSeconds, m_options.panMs);
+        m_panStartUs = nowUs();
+        m_panTimer.start();
+    }
 }
 
 void SessionRun::sample()
@@ -866,6 +899,48 @@ void SessionRun::endTouchTest()
                  progress.missed);
 }
 
+void SessionRun::pan()
+{
+    if (!m_sampling) {
+        endPan();
+        return;
+    }
+    const std::uint16_t video = m_listener.videoSession();
+    if (video == 0) {
+        return;
+    }
+    const double seconds = static_cast<double>(nowUs() - m_panStartUs) / 1e6;
+    m_panX = input::fixedCoordinate(kPanCentreX +
+                                    kPanReachX * std::sin(2.0 * std::numbers::pi * seconds / kPanPeriodSeconds));
+    m_panY = input::fixedCoordinate(kPanY);
+    protocol::TouchFrame frame;
+    frame.videoSession = video;
+    frame.points.push_back(protocol::TouchPoint{
+        .action = m_panDown ? protocol::TouchAction::Move : protocol::TouchAction::Down,
+        .pointerId = kPanPointer,
+        .x = m_panX,
+        .y = m_panY,
+        .pressure = 0xFFFF});
+    if (m_session.send(frame)) {
+        m_panDown = true;
+        ++m_panFrames;
+    }
+}
+
+void SessionRun::endPan()
+{
+    m_panTimer.stop();
+    if (!m_panDown) {
+        return;
+    }
+    m_panDown = false;
+    protocol::TouchFrame frame;
+    frame.videoSession = m_listener.videoSession();
+    frame.points.push_back(protocol::TouchPoint{
+        .action = protocol::TouchAction::Up, .pointerId = kPanPointer, .x = m_panX, .y = m_panY, .pressure = 0});
+    (void)m_session.send(frame);
+}
+
 void SessionRun::fail()
 {
     if (const std::optional<SessionFailure> failure = m_listener.failure()) {
@@ -890,6 +965,7 @@ void SessionRun::requestStop()
         m_sampling = false;
         m_runEndUs = nowUs();
     }
+    endPan();
     m_dots.restore();
     m_session.stop();
 }
@@ -938,6 +1014,11 @@ void SessionRun::report() const
     if (m_slot) {
         std::puts(std::format("  on the PC screen: {} frames drawn, {} replaced before drawn, {} dropped by Windows",
                               m_slot->taken(), m_slot->replaced(), m_slot->discarded())
+                      .c_str());
+    }
+    if (m_options.pan && seconds > 0) {
+        std::puts(std::format("  panning: {} touch frames, {:.0f} per second", m_panFrames,
+                              static_cast<double>(m_panFrames) / seconds)
                       .c_str());
     }
     if (m_options.presses > 0 && !m_touchStarted) {
@@ -1032,8 +1113,17 @@ int main(int argc, char* argv[])
         QStringLiteral("Put this touch lead, 0 to 8 ms, on the server's command line."), QStringLiteral("ms"));
     const QCommandLineOption logOption(QStringLiteral("log"),
                                        QStringLiteral("Print the session's and the server's log lines."));
+    const QCommandLineOption panOption(
+        QStringLiteral("pan"),
+        QStringLiteral("Hold a finger on the right of the screen and sweep it sideways while measuring, the way a "
+                       "game is aimed."));
+    const QCommandLineOption onTopOption(QStringLiteral("on-top"), QStringLiteral("Keep the window above the others."));
+    const QCommandLineOption panMsOption(QStringLiteral("pan-ms"),
+                                         QStringLiteral("Milliseconds between the moves of --pan, 1 to 20."),
+                                         QStringLiteral("ms"), QString::number(kPanTickMs));
     parser.addOptions({serialOption, secondsOption, transportOption, maxFpsOption, bitrateOption, maxSizeOption,
-                       codecOption, softwareOption, touchTestOption, touchLeadOption, logOption});
+                       codecOption, softwareOption, touchTestOption, touchLeadOption, logOption, panOption,
+                       onTopOption, panMsOption});
     parser.process(app);
     if (parser.isSet(logOption)) {
         log::setMinimumLevel(log::Level::Debug);
@@ -1084,6 +1174,14 @@ int main(int argc, char* argv[])
     if (options.presses == 1 || options.presses == 2) {
         return usage("--touch-test needs 0 or at least 3 presses to give a median");
     }
+    options.pan = parser.isSet(panOption);
+    if (options.pan && options.presses > 0) {
+        return usage("--pan and --touch-test cannot run together");
+    }
+    if (!readInt(parser.value(panMsOption), kPanTickMinMs, kPanTickMaxMs, options.panMs)) {
+        return usage("--pan-ms must be 1 to 20");
+    }
+    options.onTop = parser.isSet(onTopOption);
     if (parser.isSet(touchLeadOption)) {
         int parsedLead = 0;
         if (!readInt(parser.value(touchLeadOption), 0, 8, parsedLead)) {
@@ -1111,6 +1209,7 @@ int main(int argc, char* argv[])
     graphics->share(window);
     window.setColor(Qt::black);
     window.setTitle(QStringLiteral("gs_session_probe"));
+    window.setFlag(Qt::WindowStaysOnTopHint, options.onTop);
     auto* video = new render::VideoItem(window.contentItem());
     video->setSource(slot);
     const auto fill = [video, &window] { video->setSize(window.size()); };
@@ -1160,7 +1259,8 @@ int main(int argc, char* argv[])
     listener.useSession(session);
     TouchDots dots(session);
     SessionRun run(app, session, listener, slot, metrics, meter, dots,
-                   RunOptions{.seconds = options.seconds, .presses = options.presses});
+                   RunOptions{.seconds = options.seconds, .presses = options.presses, .pan = options.pan,
+                              .panMs = options.panMs});
 
     session.start();
     run.start();
