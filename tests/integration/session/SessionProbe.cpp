@@ -1130,6 +1130,9 @@ int main(int argc, char* argv[])
     const adb::AdbClient adb;
     SessionOptions sessionOptions;
     sessionOptions.clientVersion = "session-probe";
+    if (parser.isSet(logOption)) {
+        sessionOptions.serverLogLevel = "debug";
+    }
     protocol::ConfigureVideo videoConfig;
     videoConfig.codec = options.codec;
     videoConfig.maxSize = static_cast<std::uint16_t>(options.maxSize);
