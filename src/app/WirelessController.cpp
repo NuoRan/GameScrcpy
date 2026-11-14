@@ -3,15 +3,22 @@
 #include "AppSettings.h"
 #include "DevicePresentation.h"
 #include "FailureAdvice.h"
+#include "LanHosts.h"
 #include "QrPicture.h"
 
+#include <gs/adb/DeviceIdentity.h>
+
 #include <QDebug>
+#include <QHostAddress>
 #include <QJSEngine>
 #include <QMetaObject>
+#include <QNetworkInterface>
 #include <QRandomGenerator>
+#include <QTcpSocket>
 
 #include <algorithm>
 #include <chrono>
+#include <format>
 #include <string_view>
 #include <utility>
 
@@ -20,6 +27,29 @@ namespace gs::app {
 namespace {
 
 constexpr std::chrono::milliseconds kDiscoveryInterval{2000};
+constexpr std::chrono::milliseconds kNetworkRound{3000};
+constexpr std::chrono::minutes kNetworkSearch{5};
+constexpr std::size_t kMostLanHosts = 1024;
+
+std::vector<LanAddress> ownAddresses()
+{
+    std::vector<LanAddress> own;
+    for (const QNetworkInterface& face : QNetworkInterface::allInterfaces()) {
+        const QNetworkInterface::InterfaceFlags flags = face.flags();
+        if (!flags.testFlag(QNetworkInterface::IsUp) || !flags.testFlag(QNetworkInterface::IsRunning)
+            || flags.testFlag(QNetworkInterface::IsLoopBack) || flags.testFlag(QNetworkInterface::IsPointToPoint)
+            || face.type() == QNetworkInterface::Virtual) {
+            continue;
+        }
+        for (const QNetworkAddressEntry& entry : face.addressEntries()) {
+            const QHostAddress ip = entry.ip();
+            if (ip.protocol() == QAbstractSocket::IPv4Protocol) {
+                own.push_back({.ip = ip.toIPv4Address(), .prefix = entry.prefixLength()});
+            }
+        }
+    }
+    return own;
+}
 
 }
 
@@ -32,6 +62,8 @@ WirelessController::WirelessController(adb::AdbClient adb, AppSettings& settings
     s_instance = this;
     m_discovery.setInterval(kDiscoveryInterval);
     connect(&m_discovery, &QTimer::timeout, this, &WirelessController::poll);
+    m_networkRounds.setInterval(kNetworkRound);
+    connect(&m_networkRounds, &QTimer::timeout, this, &WirelessController::networkTick);
 }
 
 WirelessController::~WirelessController()
@@ -298,6 +330,182 @@ void WirelessController::paired(std::uint64_t attempt, const QString& address, b
         m_pairDetail = QString::fromStdString(result.error().message);
     }
     emit pairingChanged();
+}
+
+void WirelessController::connectOverNetwork(const QString& serial, const QString& name)
+{
+    if (serial.isEmpty()) {
+        return;
+    }
+    stopNetworkSearch();
+    const std::uint64_t attempt = m_networkAttempt;
+    m_networkPhone = name.isEmpty() ? serial : name;
+    m_networkAddress.clear();
+    m_networkId.clear();
+    setNetwork(QStringLiteral("enabling"));
+    m_networkTask = std::jthread([this, attempt, serial = serial.toStdString(), client = m_adb] {
+        std::string id;
+        std::optional<adb::AdbError> problem;
+        if (const adb::AdbResult<adb::DeviceInfo> info = adb::readDeviceInfo(client, serial); info) {
+            id = info->id;
+            if (const adb::AdbResult<std::string> switched = client.tcpip(serial, kNetworkPort); !switched) {
+                problem = switched.error();
+            }
+        } else {
+            problem = info.error();
+        }
+        QMetaObject::invokeMethod(
+            this, [this, attempt, id = std::move(id), problem = std::move(problem)] { networkEnabled(attempt, id, problem); },
+            Qt::QueuedConnection);
+    });
+}
+
+void WirelessController::stopNetworkSearch()
+{
+    ++m_networkAttempt;
+    m_networkRounds.stop();
+    dropProbes();
+    m_identifyTask.request_stop();
+    m_identifying = false;
+    m_rejected.clear();
+    if (!m_networkState.isEmpty()) {
+        setNetwork({});
+    }
+}
+
+void WirelessController::networkEnabled(std::uint64_t attempt, const std::string& id,
+                                        const std::optional<adb::AdbError>& problem)
+{
+    if (attempt != m_networkAttempt) {
+        return;
+    }
+    if (problem || id.empty()) {
+        qWarning().noquote() << "network debugging could not be turned on for" << m_networkPhone << ":"
+                             << (problem ? QString::fromStdString(problem->message) : QString());
+        setNetwork(QStringLiteral("unavailable"), problem ? QString::fromStdString(problem->message) : QString());
+        return;
+    }
+    qInfo().noquote() << m_networkPhone << "listens for adb on port" << kNetworkPort << "until it restarts";
+    m_networkId = id;
+    m_networkDeadline = std::chrono::steady_clock::now() + kNetworkSearch;
+    setNetwork(QStringLiteral("searching"));
+    probe();
+    m_networkRounds.start();
+}
+
+void WirelessController::networkTick()
+{
+    std::vector<std::uint32_t> open;
+    for (QTcpSocket* socket : m_probes) {
+        if (socket->state() == QAbstractSocket::ConnectedState) {
+            open.push_back(socket->peerAddress().toIPv4Address());
+        }
+    }
+    dropProbes();
+    if (m_networkState != u"searching") {
+        m_networkRounds.stop();
+        return;
+    }
+    if (!open.empty() && !m_identifying) {
+        identify(std::move(open));
+    }
+    if (std::chrono::steady_clock::now() >= m_networkDeadline) {
+        m_networkRounds.stop();
+        m_identifyTask.request_stop();
+        setNetwork(QStringLiteral("notFound"));
+        return;
+    }
+    probe();
+}
+
+void WirelessController::probe()
+{
+    const std::vector<LanAddress> own = ownAddresses();
+    for (const std::uint32_t host : lanHosts(own, kMostLanHosts)) {
+        if (std::ranges::find(m_rejected, host) != m_rejected.end()) {
+            continue;
+        }
+        auto* socket = new QTcpSocket(this);
+        socket->connectToHost(QHostAddress(host), kNetworkPort);
+        m_probes.push_back(socket);
+    }
+}
+
+void WirelessController::dropProbes()
+{
+    for (QTcpSocket* socket : std::exchange(m_probes, {})) {
+        socket->abort();
+        socket->deleteLater();
+    }
+}
+
+void WirelessController::identify(std::vector<std::uint32_t> open)
+{
+    m_identifying = true;
+    const std::uint64_t attempt = m_networkAttempt;
+    m_identifyTask = std::jthread([this, attempt, open = std::move(open), id = m_networkId,
+                                   client = m_adb](const std::stop_token& stop) {
+        std::vector<std::string> known;
+        if (const adb::AdbResult<std::vector<adb::DeviceEntry>> devices = client.devices(); devices) {
+            for (const adb::DeviceEntry& device : *devices) {
+                known.push_back(device.serial);
+            }
+        }
+        QString found;
+        std::vector<std::uint32_t> rejected;
+        for (const std::uint32_t host : open) {
+            if (stop.stop_requested()) {
+                return;
+            }
+            const std::string address =
+                std::format("{}:{}", QHostAddress(host).toString().toStdString(), kNetworkPort);
+            const adb::AdbResult<std::string> serial = client.connect(address, stop);
+            if (!serial) {
+                continue;
+            }
+            if (client.waitForDevice(*serial, stop)) {
+                const adb::AdbResult<adb::DeviceInfo> info = adb::readDeviceInfo(client, *serial);
+                if (info && info->id == id) {
+                    found = QString::fromStdString(*serial);
+                    break;
+                }
+            }
+            if (std::ranges::find(known, *serial) == known.end()) {
+                (void)client.disconnect(*serial);
+            }
+            rejected.push_back(host);
+        }
+        QMetaObject::invokeMethod(
+            this,
+            [this, attempt, found, rejected = std::move(rejected)] { identified(attempt, found, rejected); },
+            Qt::QueuedConnection);
+    });
+}
+
+void WirelessController::identified(std::uint64_t attempt, const QString& found,
+                                    const std::vector<std::uint32_t>& rejected)
+{
+    if (attempt != m_networkAttempt) {
+        return;
+    }
+    m_identifying = false;
+    m_rejected.insert(m_rejected.end(), rejected.begin(), rejected.end());
+    if (found.isEmpty() || m_networkState != u"searching") {
+        return;
+    }
+    m_networkRounds.stop();
+    dropProbes();
+    m_networkAddress = found;
+    m_settings.rememberConnection(found);
+    qInfo().noquote() << "found" << m_networkPhone << "on the network at" << found;
+    setNetwork(QStringLiteral("connected"));
+}
+
+void WirelessController::setNetwork(const QString& state, const QString& detail)
+{
+    m_networkState = state;
+    m_networkDetail = detail;
+    emit networkChanged();
 }
 
 }

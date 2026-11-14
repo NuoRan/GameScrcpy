@@ -638,6 +638,10 @@ Window {
                 rail.currentIndex = 0
                 devicesPage.showFiles(target)
                 break
+            case "device.network":
+                rail.currentIndex = 0
+                devicesPage.showNetwork()
+                break
             case "devices.grid":
                 DeviceManager.showGrid()
                 return

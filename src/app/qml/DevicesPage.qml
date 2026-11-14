@@ -41,6 +41,13 @@ Item {
         })
     }
 
+    function showNetwork() {
+        appsSerial = ""
+        filesSerial = ""
+        AppSettings.wirelessCollapsed = false
+        Qt.callLater(() => list.positionViewAtEnd())
+    }
+
     function openCaptureSheet(serial: string): bool {
         return captureSheet.show(serial)
     }

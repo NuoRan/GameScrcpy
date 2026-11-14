@@ -24,6 +24,7 @@ device.measureLatency
 device.mini
 device.mirror
 device.mute
+device.network
 device.notifications
 device.orientation.follow
 device.orientation.landscape

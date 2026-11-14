@@ -440,6 +440,17 @@ void addDeviceCommands(CommandTable& table, DeviceCommandHost& host, const UiReq
          .enabled = [](const DeviceFacts& facts) { return facts.wireless; },
          .run = [&host](const DeviceFacts& facts) { host.endWireless(facts.serial); }});
     add(table, host,
+        {.id = "device.network",
+         .title = GS_TRANSLATE_NOOP("Commands", "Connect over the network"),
+         .keywords = GS_TRANSLATE_NOOP("Commands", "network ethernet cable lan wifi wireless adb tcpip 5555 usb "
+                                                   "unplug"),
+         .icon = "link",
+         .enabled = [](const DeviceFacts& facts) { return facts.usbDebugging; },
+         .run = [&host, request](const DeviceFacts& facts) {
+             host.connectOverNetwork(facts.serial, facts.name);
+             request(QStringLiteral("device.network"), facts.serial);
+         }});
+    add(table, host,
         {.id = "device.apps",
          .title = GS_TRANSLATE_NOOP("Commands", "Apps"),
          .keywords = GS_TRANSLATE_NOOP("Commands", "applications games launch start open independent display"),

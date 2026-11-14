@@ -42,6 +42,7 @@ struct DeviceFacts {
     int transport = 0;
     bool transportChoice = true;
     bool wireless = false;
+    bool usbDebugging = false;
     bool apps = false;
     bool files = false;
     bool noPicture = false;
@@ -80,6 +81,7 @@ public:
     virtual void setKeyHints(const QString& serial, bool shown) = 0;
     virtual void stepProfile(const QString& serial, int step) = 0;
     virtual void endWireless(const QString& serial) = 0;
+    virtual void connectOverNetwork(const QString&, const QString&) {}
     virtual void setRecording(const QString&, bool) {}
     virtual void showSystemPanel(const QString&, protocol::SystemPanelAction) {}
 };

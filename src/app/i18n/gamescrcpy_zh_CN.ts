@@ -5211,6 +5211,14 @@
         <translation>无线 断开 wifi adb</translation>
     </message>
     <message>
+        <source>Connect over the network</source>
+        <translation>通过网络连接</translation>
+    </message>
+    <message>
+        <source>network ethernet cable lan wifi wireless adb tcpip 5555 usb unplug</source>
+        <translation>网络 网线 有线 局域网 无线 wifi adb tcpip 5555 usb 拔线</translation>
+    </message>
+    <message>
         <source>Apps</source>
         <translation>应用</translation>
     </message>
@@ -21080,6 +21088,34 @@
     <message>
         <source>Pairing code</source>
         <translation>配对码</translation>
+    </message>
+    <message>
+        <source>Turning on network debugging on %1…</source>
+        <translation>正在为 %1 开启网络调试…</translation>
+    </message>
+    <message>
+        <source>%1 takes adb connections on port 5555 until it restarts. Unplug the USB cable and connect the phone to the same network as this computer, by cable or Wi-Fi; GameScrcpy finds it and connects.</source>
+        <translation>%1 已在 5555 端口接受 adb 连接，直到手机重启。拔掉 USB 线，让手机和这台电脑连上同一个网络（网线或 Wi-Fi 都行），GameScrcpy 会自己找到它并连上。</translation>
+    </message>
+    <message>
+        <source>Connected to %1 at %2; it is in the list above.</source>
+        <translation>已通过 %2 连上 %1，它已出现在上方的列表中。</translation>
+    </message>
+    <message>
+        <source>Network debugging could not be turned on for %1.</source>
+        <translation>没能为 %1 开启网络调试。</translation>
+    </message>
+    <message>
+        <source>%1 was not found on the network within 5 minutes. Make sure it is on the same network as this computer, then connect it with USB and choose Connect over the network again.</source>
+        <translation>5 分钟内没在网络上找到 %1。请确认它和这台电脑在同一个网络里，然后用 USB 连上，再选一次&quot;通过网络连接&quot;。</translation>
+    </message>
+    <message>
+        <source>Stop looking</source>
+        <translation>停止查找</translation>
+    </message>
+    <message>
+        <source>Dismiss</source>
+        <translation>关闭</translation>
     </message>
     <message>
         <source>Use a QR code</source>

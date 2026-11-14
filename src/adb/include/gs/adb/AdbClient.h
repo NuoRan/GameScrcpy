@@ -102,6 +102,8 @@ public:
     [[nodiscard]] AdbResult<std::string> pair(std::string_view address, std::string_view code,
                                               std::stop_token stop = {}) const;
     [[nodiscard]] AdbResult<std::vector<WirelessService>> wirelessServices() const;
+    [[nodiscard]] AdbResult<std::string> tcpip(std::string_view serial, std::uint16_t port) const;
+    [[nodiscard]] AdbResult<void> waitForDevice(std::string_view serial, std::stop_token stop = {}) const;
 
     [[nodiscard]] AdbResult<ShellResult> shell(std::string_view serial, std::string_view command) const;
     [[nodiscard]] AdbResult<ShellProcess> spawn(std::string_view serial, std::string_view command) const;

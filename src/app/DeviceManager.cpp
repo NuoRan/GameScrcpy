@@ -1014,6 +1014,9 @@ DeviceFacts DeviceManager::factsOf(const Row& row) const
     facts.transport = static_cast<int>(row.transport);
     facts.transportChoice = row.capture == nullptr && !isBoxRow(row) && !row.transported;
     facts.wireless = isWireless(row.serial);
+    facts.usbDebugging = row.host.isEmpty() && row.state == adb::DeviceState::Device && !facts.wireless &&
+                         !row.serial.isEmpty() && !row.serial.startsWith(u"emulator-") && row.demo == nullptr &&
+                         row.capture == nullptr && !row.aoaOnly && !isBoxRow(row);
     facts.fullScreen = row.mirror != nullptr && row.mirror->fullScreen();
     facts.mini = row.mirror != nullptr && row.mirror->mini();
     facts.editing = row.mirror != nullptr && row.mirror->editing();

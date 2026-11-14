@@ -28,6 +28,7 @@ namespace {
 
 constexpr auto kRequestTimeout = std::chrono::seconds(10);
 constexpr auto kWirelessTimeout = std::chrono::seconds(45);
+constexpr std::size_t kMaxTcpipReply = 1024;
 constexpr std::size_t kMaxShellOutput = 16U << 20U;
 constexpr std::size_t kSyncDataMax = 64U * 1024U;
 constexpr std::size_t kSyncPathMax = 1024;
@@ -446,6 +447,40 @@ AdbResult<void> AdbClient::disconnect(std::string_view address) const
         return makeUnexpected(std::move(reply.error()));
     }
     return {};
+}
+
+AdbResult<std::string> AdbClient::tcpip(std::string_view serial, std::uint16_t port) const
+{
+    AdbResult<TcpStream> stream = openService(m_port, serial, std::format("tcpip:{}", port));
+    if (!stream) {
+        return makeUnexpected(std::move(stream.error()));
+    }
+    std::string reply;
+    std::array<std::uint8_t, 256> buffer{};
+    while (reply.size() < kMaxTcpipReply) {
+        const std::size_t received = stream->readSome(buffer);
+        if (received == 0) {
+            break;
+        }
+        reply.append(reinterpret_cast<const char*>(buffer.data()), received);
+    }
+    while (!reply.empty() && std::isspace(static_cast<unsigned char>(reply.back())) != 0) {
+        reply.pop_back();
+    }
+    if (reply.starts_with("restarting in TCP mode")) {
+        return reply;
+    }
+    return failure(AdbErrorKind::Rejected, reply.empty() ? std::string("the phone did not answer") : std::move(reply));
+}
+
+AdbResult<void> AdbClient::waitForDevice(std::string_view serial, std::stop_token stop) const
+{
+    AdbResult<TcpStream> stream = hostSerialRequest(m_port, serial, "wait-for-any-device");
+    if (!stream) {
+        return makeUnexpected(std::move(stream.error()));
+    }
+    const std::stop_callback cancel(stop, [&stream] { stream->interrupt(); });
+    return readStatus(*stream);
 }
 
 AdbResult<ShellResult> AdbClient::shell(std::string_view serial, std::string_view command) const

@@ -1,6 +1,7 @@
 #include "unit/adb/FakeAdbServer.h"
 
 #include "AppSettings.h"
+#include "LanHosts.h"
 #include "WirelessController.h"
 
 #include <doctest/doctest.h>
@@ -12,6 +13,7 @@
 #include <QVariantList>
 #include <QVariantMap>
 
+#include <algorithm>
 #include <array>
 #include <atomic>
 #include <chrono>
@@ -170,4 +172,41 @@ TEST_CASE("UI-005, ADB-007: a phone paired with its code and connected by addres
     const QVariantList recent = reopened.recentConnections();
     REQUIRE(recent.size() == 1);
     CHECK(addressAt(recent, 0) == QStringLiteral("192.168.1.20:41555"));
+}
+
+TEST_CASE("2026-11-14: the phone is looked for on this computer's own networks, at most a /24 each, never on itself")
+{
+    using gs::app::LanAddress;
+    using gs::app::lanHosts;
+    constexpr auto ip = [](std::uint32_t a, std::uint32_t b, std::uint32_t c, std::uint32_t d) {
+        return (a << 24) | (b << 16) | (c << 8) | d;
+    };
+
+    const std::array home{LanAddress{.ip = ip(192, 168, 31, 68), .prefix = 24}};
+    const std::vector<std::uint32_t> hosts = lanHosts(home, 1024);
+    REQUIRE(hosts.size() == 253);
+    CHECK(hosts.front() == ip(192, 168, 31, 1));
+    CHECK(hosts.back() == ip(192, 168, 31, 254));
+    CHECK(std::ranges::find(hosts, ip(192, 168, 31, 68)) == hosts.end());
+
+    const std::array wide{LanAddress{.ip = ip(10, 1, 2, 3), .prefix = 16}};
+    const std::vector<std::uint32_t> narrowed = lanHosts(wide, 1024);
+    REQUIRE(narrowed.size() == 253);
+    CHECK(narrowed.front() == ip(10, 1, 2, 1));
+
+    const std::array small{LanAddress{.ip = ip(192, 168, 7, 9), .prefix = 30}};
+    CHECK(lanHosts(small, 1024) == std::vector<std::uint32_t>{ip(192, 168, 7, 10)});
+
+    const std::array skipped{LanAddress{.ip = ip(127, 0, 0, 1), .prefix = 8},
+                             LanAddress{.ip = ip(169, 254, 3, 4), .prefix = 16},
+                             LanAddress{.ip = ip(192, 168, 1, 5), .prefix = 32}};
+    CHECK(lanHosts(skipped, 1024).empty());
+
+    const std::array twice{LanAddress{.ip = ip(192, 168, 31, 68), .prefix = 24},
+                           LanAddress{.ip = ip(192, 168, 31, 70), .prefix = 24}};
+    const std::vector<std::uint32_t> shared = lanHosts(twice, 1024);
+    CHECK(shared.size() == 252);
+    CHECK(std::ranges::find(shared, ip(192, 168, 31, 70)) == shared.end());
+
+    CHECK(lanHosts(home, 10).size() == 10);
 }

@@ -114,6 +114,7 @@ Card {
     DeviceCommand { id: appSwitchCommand; command: "device.appSwitch" }
     DeviceCommand { id: diagnosticsCommand; command: "device.diagnostics" }
     DeviceCommand { id: endWirelessCommand; command: "device.endWireless" }
+    DeviceCommand { id: networkCommand; command: "device.network" }
     DeviceCommand { id: settingsCommand; command: "device.settings" }
     DeviceCommand { id: appsCommand; command: "device.apps" }
     DeviceCommand { id: filesCommand; command: "device.files" }
@@ -532,8 +533,8 @@ Card {
 
                     readonly property bool ownItems: appsCommand.enabled || filesCommand.enabled || screenCommand.enabled
                                                      || followCommand.enabled || backCommand.enabled
-                                                     || endWirelessCommand.enabled || card.isCapture
-                                                     || card.menuActions.length > 0
+                                                     || endWirelessCommand.enabled || networkCommand.enabled
+                                                     || card.isCapture || card.menuActions.length > 0
 
                     objectName: "deviceMore"
                     visible: moreButton.ownItems || extensionItems.count > 0
@@ -608,6 +609,11 @@ Card {
                             height: visible ? implicitHeight : 0
                         }
                         CommandMenuItem { commandState: endWirelessCommand }
+                        MenuSeparator {
+                            visible: backCommand.enabled && networkCommand.enabled
+                            height: visible ? implicitHeight : 0
+                        }
+                        CommandMenuItem { commandState: networkCommand }
                         MenuSeparator {
                             visible: card.isCapture && (backCommand.enabled || diagnosticsCommand.enabled)
                             height: visible ? implicitHeight : 0

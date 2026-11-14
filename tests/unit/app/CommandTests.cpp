@@ -125,6 +125,10 @@ public:
         calls.append(QStringLiteral("profile %1 %2").arg(serial).arg(step));
     }
     void endWireless(const QString& serial) override { calls.append(QStringLiteral("end ") + serial); }
+    void connectOverNetwork(const QString& serial, const QString& name) override
+    {
+        calls.append(QStringLiteral("network %1 %2").arg(serial, name));
+    }
     void showSystemPanel(const QString& serial, gs::protocol::SystemPanelAction action) override
     {
         calls.append(QStringLiteral("panel %1 %2").arg(serial).arg(static_cast<int>(action)));
@@ -579,6 +583,26 @@ TEST_CASE("commands the interface carries out are requested with their target")
     CHECK(requests == QStringList{QStringLiteral("device.settings A"), QStringLiteral("hub.settings "),
                                   QStringLiteral("settings.search ")});
     CHECK(host.calls == QStringList{QStringLiteral("end 10.0.0.2:5555"), QStringLiteral("retry")});
+}
+
+TEST_CASE("2026-11-14: a phone on USB can be switched to network debugging, which also opens the wireless section")
+{
+    FakeHost host;
+    DeviceFacts& usb = host.add(QStringLiteral("R58M123ABC"));
+    usb.name = QStringLiteral("Redmi K80");
+    usb.usbDebugging = true;
+    host.add(QStringLiteral("10.0.0.2:5555")).wireless = true;
+    Commands commands(host);
+    QStringList requests;
+    QObject::connect(&commands, &Commands::uiRequested, &commands,
+                     [&requests](const QString& id, const QString& target) { requests.append(id + u' ' + target); });
+
+    CHECK_FALSE(commands.isEnabled(QStringLiteral("device.network"), QStringLiteral("10.0.0.2:5555")));
+    CHECK(commands.isEnabled(QStringLiteral("device.network"), QStringLiteral("R58M123ABC")));
+    CHECK(commands.trigger(QStringLiteral("device.network"), QStringLiteral("R58M123ABC")));
+    CHECK(host.calls == QStringList{QStringLiteral("network R58M123ABC Redmi K80")});
+    CHECK(requests == QStringList{QStringLiteral("device.network R58M123ABC")});
+    CHECK_FALSE(DeviceFacts{}.usbDebugging);
 }
 
 TEST_CASE("without a picture the key editor still opens and recording does not; the extensions page can be asked for "

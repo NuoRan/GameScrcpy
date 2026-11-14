@@ -8,6 +8,7 @@
 #include <QVariant>
 #include <QtQml/qqmlregistration.h>
 
+#include <chrono>
 #include <cstdint>
 #include <optional>
 #include <thread>
@@ -15,6 +16,7 @@
 
 class QJSEngine;
 class QQmlEngine;
+class QTcpSocket;
 
 namespace gs::app {
 
@@ -44,7 +46,14 @@ class WirelessController : public QObject
     Q_PROPERTY(int qrSize READ qrSize NOTIFY qrChanged FINAL)
     Q_PROPERTY(QString qrPath READ qrPath NOTIFY qrChanged FINAL)
 
+    Q_PROPERTY(QString networkState READ networkState NOTIFY networkChanged FINAL)
+    Q_PROPERTY(QString networkPhone READ networkPhone NOTIFY networkChanged FINAL)
+    Q_PROPERTY(QString networkAddress READ networkAddress NOTIFY networkChanged FINAL)
+    Q_PROPERTY(QString networkDetail READ networkDetail NOTIFY networkChanged FINAL)
+
 public:
+    static constexpr std::uint16_t kNetworkPort = 5555;
+
     WirelessController(adb::AdbClient adb, AppSettings& settings, QObject* parent = nullptr);
     ~WirelessController() override;
 
@@ -66,6 +75,10 @@ public:
     [[nodiscard]] QString qrText() const { return m_qrText; }
     [[nodiscard]] int qrSize() const { return m_qrSize; }
     [[nodiscard]] QString qrPath() const { return m_qrPath; }
+    [[nodiscard]] QString networkState() const { return m_networkState; }
+    [[nodiscard]] QString networkPhone() const { return m_networkPhone; }
+    [[nodiscard]] QString networkAddress() const { return m_networkAddress; }
+    [[nodiscard]] QString networkDetail() const { return m_networkDetail; }
 
     Q_INVOKABLE void connectTo(const QString& address);
     Q_INVOKABLE void cancel();
@@ -74,6 +87,8 @@ public:
     Q_INVOKABLE void cancelPairing();
     Q_INVOKABLE void showQrCode();
     Q_INVOKABLE void hideQrCode();
+    Q_INVOKABLE void connectOverNetwork(const QString& serial, const QString& name);
+    Q_INVOKABLE void stopNetworkSearch();
     void retranslate();
 
 signals:
@@ -82,6 +97,7 @@ signals:
     void nearbyChanged();
     void discoveringChanged();
     void qrChanged();
+    void networkChanged();
 
 private:
     void finished(std::uint64_t attempt, const adb::AdbResult<std::string>& serial);
@@ -90,6 +106,13 @@ private:
     void clearPairingOutcome();
     void poll();
     void discovered(const adb::AdbResult<std::vector<adb::WirelessService>>& services);
+    void networkEnabled(std::uint64_t attempt, const std::string& id, const std::optional<adb::AdbError>& problem);
+    void networkTick();
+    void probe();
+    void dropProbes();
+    void identify(std::vector<std::uint32_t> open);
+    void identified(std::uint64_t attempt, const QString& found, const std::vector<std::uint32_t>& rejected);
+    void setNetwork(const QString& state, const QString& detail = {});
 
     static inline WirelessController* s_instance = nullptr;
 
@@ -120,10 +143,23 @@ private:
     bool m_qrPairingStarted = false;
     bool m_querying = false;
     QTimer m_discovery;
+    std::uint64_t m_networkAttempt = 0;
+    QString m_networkState;
+    QString m_networkPhone;
+    QString m_networkAddress;
+    QString m_networkDetail;
+    std::string m_networkId;
+    QTimer m_networkRounds;
+    std::chrono::steady_clock::time_point m_networkDeadline;
+    std::vector<QTcpSocket*> m_probes;
+    std::vector<std::uint32_t> m_rejected;
+    bool m_identifying = false;
     std::jthread m_disconnecting;
     std::jthread m_lookup;
     std::jthread m_pairingTask;
     std::jthread m_connecting;
+    std::jthread m_networkTask;
+    std::jthread m_identifyTask;
 };
 
 }

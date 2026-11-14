@@ -321,6 +321,43 @@ TEST_CASE("adb client: wireless connect replies")
     CHECK(client.disconnect("192.168.1.20:5555").error().kind == AdbErrorKind::Rejected);
 }
 
+TEST_CASE("2026-11-14: adb client turns on network debugging on a port and waits for a device to be ready")
+{
+    std::string reply;
+    std::string waitReply;
+    FakeAdbServer server([&](FakeConnection& c) {
+        const std::string first = c.readRequest();
+        if (first == "host-serial:192.168.31.137:5555:wait-for-any-device") {
+            c.write(waitReply);
+            return;
+        }
+        CHECK(first == "host:transport:R58M123ABC");
+        c.write("OKAY");
+        CHECK(c.readRequest() == "tcpip:5555");
+        c.write(reply);
+    });
+    const AdbClient client(server.port());
+
+    reply = "OKAYrestarting in TCP mode port: 5555\n";
+    CHECK(client.tcpip("R58M123ABC", 5555).value() == "restarting in TCP mode port: 5555");
+    reply = "OKAYinvalid port\n";
+    const auto refused = client.tcpip("R58M123ABC", 5555);
+    REQUIRE_FALSE(refused);
+    CHECK(refused.error().kind == AdbErrorKind::Rejected);
+    CHECK(refused.error().message == "invalid port");
+    reply = "OKAY";
+    CHECK(client.tcpip("R58M123ABC", 5555).error().message == "the phone did not answer");
+    reply = "FAIL" + FakeConnection::prefixed("closed");
+    CHECK(client.tcpip("R58M123ABC", 5555).error().kind == AdbErrorKind::Rejected);
+
+    waitReply = "OKAYOKAY";
+    CHECK(client.waitForDevice("192.168.31.137:5555"));
+    waitReply = "OKAYFAIL" + FakeConnection::prefixed("device unauthorized");
+    const auto unauthorized = client.waitForDevice("192.168.31.137:5555");
+    REQUIRE_FALSE(unauthorized);
+    CHECK(unauthorized.error().message == "device unauthorized");
+}
+
 TEST_CASE("adb client: wireless pairing replies")
 {
     std::string reply;

@@ -568,6 +568,69 @@ Column {
                         wrapMode: Text.Wrap
                     }
                 }
+
+                ColumnLayout {
+                    id: networkBox
+
+                    readonly property string phoneName: WirelessController.networkPhone
+                    readonly property string phase: WirelessController.networkState
+                    readonly property bool looking: networkBox.phase === "enabling" || networkBox.phase === "searching"
+
+                    objectName: "networkSearch"
+                    Layout.fillWidth: true
+                    Layout.topMargin: Theme.space.sm
+                    visible: networkBox.phase !== ""
+                    spacing: Theme.space.xxs
+
+                    Text {
+                        Layout.fillWidth: true
+                        textFormat: Text.PlainText
+                        wrapMode: Text.Wrap
+                        font.pixelSize: Theme.type.caption.size
+                        color: networkBox.phase === "connected" ? Theme.colors.successText
+                             : networkBox.phase === "unavailable" || networkBox.phase === "notFound"
+                               ? Theme.colors.dangerText : Theme.colors.textSecondary
+                        text: {
+                            switch (networkBox.phase) {
+                            case "enabling":
+                                return qsTr("Turning on network debugging on %1…").arg(networkBox.phoneName)
+                            case "searching":
+                                return qsTr("%1 takes adb connections on port 5555 until it restarts. Unplug the USB "
+                                            + "cable and connect the phone to the same network as this computer, by "
+                                            + "cable or Wi-Fi; GameScrcpy finds it and connects.")
+                                       .arg(networkBox.phoneName)
+                            case "connected":
+                                return qsTr("Connected to %1 at %2; it is in the list above.")
+                                       .arg(networkBox.phoneName).arg(WirelessController.networkAddress)
+                            case "unavailable":
+                                return qsTr("Network debugging could not be turned on for %1.").arg(networkBox.phoneName)
+                            case "notFound":
+                                return qsTr("%1 was not found on the network within 5 minutes. Make sure it is on the "
+                                            + "same network as this computer, then connect it with USB and choose "
+                                            + "Connect over the network again.").arg(networkBox.phoneName)
+                            }
+                            return ""
+                        }
+                    }
+
+                    Text {
+                        Layout.fillWidth: true
+                        visible: WirelessController.networkDetail !== ""
+                        textFormat: Text.PlainText
+                        text: qsTr("adb: %1").arg(WirelessController.networkDetail)
+                        color: Theme.colors.textTertiary
+                        font.pixelSize: Theme.type.caption.size
+                        wrapMode: Text.Wrap
+                    }
+
+                    Button {
+                        objectName: "networkSearchStop"
+                        tone: "ghost"
+                        small: true
+                        text: networkBox.looking ? qsTr("Stop looking") : qsTr("Dismiss")
+                        onClicked: WirelessController.stopNetworkSearch()
+                    }
+                }
             }
         }
     }

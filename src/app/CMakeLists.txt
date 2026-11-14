@@ -461,6 +461,8 @@ qt_add_qml_module(GameScrcpy
         WindowFit.h
         WirelessController.cpp
         WirelessController.h
+        LanHosts.cpp
+        LanHosts.h
         WebSocketClient.cpp
         WebSocketClient.h
         BlueprintLabels.cpp

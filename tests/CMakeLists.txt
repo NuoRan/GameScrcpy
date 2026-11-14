@@ -846,6 +846,8 @@ if(GS_BUILD_APP)
         unit/app/AcceptanceInputTests.cpp
         unit/app/AcceptanceSettingsTests.cpp
         unit/app/AcceptanceWirelessTests.cpp
+        "${PROJECT_SOURCE_DIR}/src/app/LanHosts.cpp"
+        "${PROJECT_SOURCE_DIR}/src/app/LanHosts.h"
         "${PROJECT_SOURCE_DIR}/src/app/WirelessController.cpp"
         "${PROJECT_SOURCE_DIR}/src/app/WirelessController.h"
     )

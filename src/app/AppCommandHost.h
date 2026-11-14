@@ -38,6 +38,7 @@ public:
     void setKeyHints(const QString& serial, bool shown) override;
     void stepProfile(const QString& serial, int step) override;
     void endWireless(const QString& serial) override;
+    void connectOverNetwork(const QString& serial, const QString& name) override;
     void setRecording(const QString& serial, bool on) override;
     void showSystemPanel(const QString& serial, protocol::SystemPanelAction action) override;
 

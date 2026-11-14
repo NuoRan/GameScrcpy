@@ -138,6 +138,11 @@ void AppCommandHost::endWireless(const QString& serial)
     m_wireless.disconnectDevice(serial);
 }
 
+void AppCommandHost::connectOverNetwork(const QString& serial, const QString& name)
+{
+    m_wireless.connectOverNetwork(serial, name);
+}
+
 void AppCommandHost::setRecording(const QString& serial, bool on)
 {
     m_devices.setRecording(serial, on);
