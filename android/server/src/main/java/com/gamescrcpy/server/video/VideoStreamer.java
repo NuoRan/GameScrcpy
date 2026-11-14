@@ -237,6 +237,9 @@ public final class VideoStreamer implements Runnable {
             final EncodingSession.Output output;
             try {
                 output = session.next(frameSeen ? EncodingSession.NO_DEADLINE : firstFrameDeadline);
+            } catch (BlockModelException e) {
+                Log.i(attempt + ": " + e.describe() + "; using the input surface");
+                return;
             } catch (EncoderException e) {
                 if (frameSeen && streamRetries < MAX_STREAM_RETRIES) {
                     ++streamRetries;

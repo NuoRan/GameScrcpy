@@ -54,6 +54,15 @@ class OptionsTest {
     }
 
     @Test
+    void adr0117TheBlockInputIsOnUnlessTheLaunchArgumentsTurnItOff() {
+        assertTrue(Options.parse("1", "socket=s").blockInput);
+        assertTrue(Options.parse("1", "socket=s", "blockInput=1").blockInput);
+        assertFalse(Options.parse("1", "socket=s", "blockInput=0").blockInput);
+        assertThrows(IllegalArgumentException.class, () -> Options.parse("1", "socket=s", "blockInput=2"));
+        assertThrows(IllegalArgumentException.class, () -> Options.parse("1", "socket=s", "blockInput=on"));
+    }
+
+    @Test
     void readsTheTokenFromTheFirstLineOfStandardInput() throws Exception {
         final byte[] token = Options.readToken(new ByteArrayInputStream(
                 "GS_TOKEN=000102030405060708090a0b0c0d0eff\nrest".getBytes(StandardCharsets.US_ASCII)));
