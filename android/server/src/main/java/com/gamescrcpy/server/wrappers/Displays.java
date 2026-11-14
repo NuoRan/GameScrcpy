@@ -84,33 +84,13 @@ public final class Displays {
     private DisplaySnapshot snapshot(int displayId, Object info) throws PlatformException {
         try {
             final DisplayCutout cutout = (DisplayCutout) fields.displayCutout.get(info);
-            final long refresh = refreshMilliHz(info);
             return new DisplaySnapshot(displayId, fields.logicalWidth.getInt(info), fields.logicalHeight.getInt(info),
                     fields.rotation.getInt(info), fields.layerStack.getInt(info), fields.flags.getInt(info),
-                    fields.logicalDensityDpi.getInt(info), refresh, fields.state.getInt(info),
+                    fields.logicalDensityDpi.getInt(info), refreshMilliHz(info), fields.state.getInt(info),
                     cutout == null ? 0 : cutout.getSafeInsetLeft(), cutout == null ? 0 : cutout.getSafeInsetTop(),
-                    cutout == null ? 0 : cutout.getSafeInsetRight(), cutout == null ? 0 : cutout.getSafeInsetBottom(),
-                    Math.max(refresh, peakRefreshMilliHz(info)));
+                    cutout == null ? 0 : cutout.getSafeInsetRight(), cutout == null ? 0 : cutout.getSafeInsetBottom());
         } catch (ReflectiveOperationException | RuntimeException e) {
             throw new PlatformException("unexpected DisplayInfo layout", e);
-        }
-    }
-
-    private long peakRefreshMilliHz(Object info) {
-        if (fields.supportedModes == null) {
-            return 0;
-        }
-        try {
-            long peak = 0;
-            final Object modes = fields.supportedModes.get(info);
-            if (modes instanceof android.view.Display.Mode[] list) {
-                for (android.view.Display.Mode mode : list) {
-                    peak = Math.max(peak, Math.round(mode.getRefreshRate() * 1000.0));
-                }
-            }
-            return peak;
-        } catch (ReflectiveOperationException | RuntimeException e) {
-            return 0;
         }
     }
 
@@ -140,7 +120,6 @@ public final class Displays {
         final Field type;
         final Field ownerUid;
         final Field displayCutout;
-        final Field supportedModes;
 
         Fields(Class<?> info) throws NoSuchFieldException {
             this.info = info;
@@ -154,15 +133,6 @@ public final class Displays {
             type = info.getDeclaredField("type");
             ownerUid = info.getDeclaredField("ownerUid");
             displayCutout = info.getDeclaredField("displayCutout");
-            supportedModes = optionalField(info, "supportedModes");
-        }
-
-        private static Field optionalField(Class<?> type, String name) {
-            try {
-                return type.getDeclaredField(name);
-            } catch (NoSuchFieldException e) {
-                return null;
-            }
         }
     }
 }

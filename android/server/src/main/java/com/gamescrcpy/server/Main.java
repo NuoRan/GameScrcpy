@@ -73,9 +73,8 @@ public final class Main {
         final SessionServer.Config config = new SessionServer.Config();
         config.lingerMillis = options.lingerMillis;
         final NewDisplays independent = newDisplays();
-        final VideoController video = new VideoController(
-                new MediaCodecSessionFactory(independent, options.blockInput), EncoderCatalog::available,
-                EncoderCatalog::supportsSize, Main::displaySnapshot, independent);
+        final VideoController video = new VideoController(new MediaCodecSessionFactory(independent),
+                EncoderCatalog::available, EncoderCatalog::supportsSize, Main::displaySnapshot, independent);
         final ServerSessionHandler handler = new ServerSessionHandler(video, options.touchLeadMillis);
         Runtime.getRuntime().addShutdownHook(new Thread(handler::restoreDevice, "gs-restore"));
         final SecureRandom random = new SecureRandom();

@@ -1,6 +1,6 @@
 package com.gamescrcpy.server.video;
 
-public class EncoderException extends Exception {
+public final class EncoderException extends Exception {
 
     private static final long serialVersionUID = 1L;
 

@@ -211,49 +211,38 @@ ServerPackage::ServerPackage(std::vector<std::uint8_t> bytes, std::filesystem::p
 
 namespace {
 
-std::optional<int> environmentNumber(const wchar_t* name, int minimum, int maximum)
+std::string touchLeadArgument()
 {
     std::array<wchar_t, 16> text{};
-    const DWORD length = ::GetEnvironmentVariableW(name, text.data(), static_cast<DWORD>(text.size()));
+    const DWORD length =
+        ::GetEnvironmentVariableW(L"GS_TOUCH_LEAD_MS", text.data(), static_cast<DWORD>(text.size()));
     if (length == 0 || length >= text.size()) {
-        return std::nullopt;
+        return {};
     }
     std::string narrow;
     narrow.reserve(length);
     for (DWORD i = 0; i < length; ++i) {
         if (text[i] > 0x7F) {
-            return std::nullopt;
+            return {};
         }
         narrow.push_back(static_cast<char>(text[i]));
     }
-    const std::optional<int> value = parseNumber<int>(narrow);
-    if (!value || *value < minimum || *value > maximum) {
-        return std::nullopt;
+    const std::optional<int> lead = parseNumber<int>(narrow);
+    if (!lead || *lead < 0 || *lead > 8) {
+        return {};
     }
-    return value;
-}
-
-std::string touchLeadArgument()
-{
-    const std::optional<int> lead = environmentNumber(L"GS_TOUCH_LEAD_MS", 0, 8);
-    return lead ? std::format(" touchLead={}", *lead) : std::string{};
-}
-
-std::string blockInputArgument()
-{
-    const std::optional<int> block = environmentNumber(L"GS_BLOCK_INPUT", 0, 1);
-    return block ? std::format(" blockInput={}", *block) : std::string{};
+    return std::format(" touchLead={}", *lead);
 }
 
 }
 
 std::string serverCommand(const ServerPackage& package, const LaunchParams& params, std::string_view extra)
 {
-    return std::format("trap '' HUP PIPE; CLASSPATH={} exec app_process / com.gamescrcpy.server.Main {} {} {} {}{}{}{}",
+    return std::format("trap '' HUP PIPE; CLASSPATH={} exec app_process / com.gamescrcpy.server.Main {} {} {} {}{}{}",
                        adb::shellQuote(package.remotePath()), protocol::kProtocolVersion,
                        adb::shellQuote("socket=" + params.socketName),
                        adb::shellQuote(std::format("lingerMs={}", params.linger.count())),
-                       adb::shellQuote("log=" + params.logLevel), extra, touchLeadArgument(), blockInputArgument());
+                       adb::shellQuote("log=" + params.logLevel), extra, touchLeadArgument());
 }
 
 std::string serverInput(const LaunchParams& params)

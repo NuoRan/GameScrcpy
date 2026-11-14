@@ -4,16 +4,9 @@ import com.gamescrcpy.protocol.Messages.Display;
 
 public record DisplaySnapshot(int displayId, int width, int height, int rotation, int layerStack, int flags,
                               int densityDpi, long refreshMilliHz, int state, int safeLeft, int safeTop,
-                              int safeRight, int safeBottom, long peakRefreshMilliHz) {
+                              int safeRight, int safeBottom) {
 
     public static final int STATE_ON = 2;
-
-    public DisplaySnapshot(int displayId, int width, int height, int rotation, int layerStack, int flags,
-                           int densityDpi, long refreshMilliHz, int state, int safeLeft, int safeTop, int safeRight,
-                           int safeBottom) {
-        this(displayId, width, height, rotation, layerStack, flags, densityDpi, refreshMilliHz, state, safeLeft,
-                safeTop, safeRight, safeBottom, refreshMilliHz);
-    }
 
     public boolean isOn() {
         return state == STATE_ON;

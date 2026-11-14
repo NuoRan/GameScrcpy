@@ -9,9 +9,6 @@ import java.nio.charset.StandardCharsets;
 public final class Options {
 
     public static final int DEFAULT_TOUCH_LEAD_MILLIS = 5;
-    public static final int BLOCK_INPUT_AUTOMATIC = -1;
-    public static final int BLOCK_INPUT_OFF = 0;
-    public static final int BLOCK_INPUT_ON = 1;
 
     public final int protocolVersion;
     public final String socketName;
@@ -20,10 +17,9 @@ public final class Options {
     public final long lingerMillis;
     public final String logLevel;
     public final int touchLeadMillis;
-    public final int blockInput;
 
     private Options(int protocolVersion, String socketName, boolean udp, int udpPort, long lingerMillis,
-                    String logLevel, int touchLeadMillis, int blockInput) {
+                    String logLevel, int touchLeadMillis) {
         this.protocolVersion = protocolVersion;
         this.socketName = socketName;
         this.udp = udp;
@@ -31,7 +27,6 @@ public final class Options {
         this.lingerMillis = lingerMillis;
         this.logLevel = logLevel;
         this.touchLeadMillis = touchLeadMillis;
-        this.blockInput = blockInput;
     }
 
     public static Options parse(String... args) {
@@ -45,7 +40,6 @@ public final class Options {
         long linger = 15_000;
         String log = "info";
         int lead = DEFAULT_TOUCH_LEAD_MILLIS;
-        int block = BLOCK_INPUT_AUTOMATIC;
         for (int i = 1; i < args.length; ++i) {
             final int equals = args[i].indexOf('=');
             if (equals <= 0) {
@@ -69,12 +63,6 @@ public final class Options {
                 case "udpPort" -> udpPort = parseInteger("udpPort", value, 0, 65_535);
                 case "lingerMs" -> linger = parseInteger("lingerMs", value, 0, 600_000);
                 case "touchLead" -> lead = parseInteger("touchLead", value, 0, 8);
-                case "blockInput" -> {
-                    if (!value.matches("0|1")) {
-                        throw new IllegalArgumentException("malformed blockInput: " + value);
-                    }
-                    block = value.equals("1") ? BLOCK_INPUT_ON : BLOCK_INPUT_OFF;
-                }
                 case "log" -> {
                     if (!value.matches("trace|debug|info|warning|error")) {
                         throw new IllegalArgumentException("unknown log level: " + value);
@@ -87,7 +75,7 @@ public final class Options {
         if (socket == null) {
             throw new IllegalArgumentException("missing socket=<name>");
         }
-        return new Options(version, socket, udp, udpPort, linger, log, lead, block);
+        return new Options(version, socket, udp, udpPort, linger, log, lead);
     }
 
     public static byte[] readToken(InputStream input) throws IOException {

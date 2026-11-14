@@ -53,7 +53,6 @@ private:
 
     Sink m_sink;
     ModeSink m_modeSink;
-    bool m_waitForBlank = false;
     QMetaObject::Connection m_connection;
     QQuickWindow* m_window = nullptr;
     IDXGISwapChain* m_swapChain = nullptr;
