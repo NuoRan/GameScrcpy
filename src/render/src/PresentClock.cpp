@@ -53,7 +53,10 @@ PresentationMode modeOf(DXGI_FRAME_PRESENTATION_MODE mode)
 
 }
 
-PresentClock::PresentClock(QObject* parent) : QObject(parent) {}
+PresentClock::PresentClock(QObject* parent)
+    : QObject(parent), m_waitForBlank(qEnvironmentVariable("GS_PRESENT_WAIT") == u"1")
+{
+}
 
 PresentClock::~PresentClock()
 {
@@ -113,6 +116,10 @@ bool PresentClock::refreshSwapChain()
     auto* swapChain = static_cast<QRhiSwapChain*>(
         renderer->getResource(m_window, QSGRendererInterface::RhiSwapchainResource));
     auto* chain = swapChain != nullptr ? static_cast<QD3D11SwapChain*>(swapChain) : nullptr;
+    if (chain != nullptr && !m_waitForBlank && chain->swapInterval != 0
+        && (chain->swapChainFlags & DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING) == 0) {
+        chain->swapInterval = 0;
+    }
     IDXGISwapChain* native = chain != nullptr ? chain->swapChain : nullptr;
     if (native == m_swapChain) {
         return native != nullptr;
