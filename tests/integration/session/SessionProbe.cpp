@@ -21,6 +21,7 @@
 #include "SessionMetrics.h"
 
 #include <gs/adb/AdbClient.h>
+#include <gs/base/Log.h>
 #include <gs/input/Geometry.h>
 #include <gs/media/LumaSampler.h>
 #include <gs/media/VideoDecoder.h>
@@ -89,6 +90,18 @@ std::int64_t steadyMicros()
 }
 
 std::atomic<bool> g_interrupted{false};
+
+class StderrSink final : public log::Sink
+{
+public:
+    void write(const log::Record& record) noexcept override
+    {
+        std::fprintf(stderr, "[%.*s] %.*s\n", static_cast<int>(record.category.size()), record.category.data(),
+                     static_cast<int>(record.message.size()), record.message.data());
+    }
+};
+
+StderrSink g_logSink;
 std::atomic<QGuiApplication*> g_app{nullptr};
 
 BOOL WINAPI onConsoleControl(DWORD type)
@@ -1012,9 +1025,15 @@ int main(int argc, char* argv[])
     const QCommandLineOption touchLeadOption(
         QStringLiteral("touch-lead"),
         QStringLiteral("Put this touch lead, 0 to 8 ms, on the server's command line."), QStringLiteral("ms"));
+    const QCommandLineOption logOption(QStringLiteral("log"),
+                                       QStringLiteral("Print the session's and the server's log lines."));
     parser.addOptions({serialOption, secondsOption, transportOption, maxFpsOption, bitrateOption, maxSizeOption,
-                       codecOption, softwareOption, touchTestOption, touchLeadOption});
+                       codecOption, softwareOption, touchTestOption, touchLeadOption, logOption});
     parser.process(app);
+    if (parser.isSet(logOption)) {
+        log::setMinimumLevel(log::Level::Debug);
+        log::setSink(&g_logSink);
+    }
 
     ProbeOptions options;
     options.serial = parser.value(serialOption).toStdString();
