@@ -2242,6 +2242,7 @@ struct DeviceManager::Measures {
     SessionMetrics::Sample sample;
     double shownPerSecond = 0;
     double replacedPerSecond = 0;
+    double discardedPerSecond = 0;
     std::optional<double> arrivalToRender;
     std::optional<double> captureToRender;
     std::optional<double> inputToRender;
@@ -2306,6 +2307,7 @@ void DeviceManager::restartMeasures(Row& row)
     if (const std::shared_ptr<render::FrameSlot> frames = framesOf(row); frames != nullptr) {
         row.framesTaken = frames->taken();
         row.framesReplaced = frames->replaced();
+        row.framesDiscarded = frames->discarded();
         (void)frames->takeArrivalToRenderMs();
     }
 }
@@ -2342,11 +2344,15 @@ DeviceManager::Measures DeviceManager::measure(Row& row)
     frames.setGpuTiming(row.diagnostics && row.mirror != nullptr);
     const std::uint64_t taken = frames.taken();
     const std::uint64_t replaced = frames.replaced();
+    const std::uint64_t discarded = frames.discarded();
     const double seconds = std::chrono::duration<double>(elapsed).count();
     measures.shownPerSecond = seconds > 0 ? static_cast<double>(taken - row.framesTaken) / seconds : 0;
     measures.replacedPerSecond = seconds > 0 ? static_cast<double>(replaced - row.framesReplaced) / seconds : 0;
+    measures.discardedPerSecond =
+        seconds > 0 ? static_cast<double>(discarded - row.framesDiscarded) / seconds : 0;
     row.framesTaken = taken;
     row.framesReplaced = replaced;
+    row.framesDiscarded = discarded;
     measures.arrivalToRender = frames.takeArrivalToRenderMs();
     measures.screen = frames.takeScreenStats();
     measures.gpu = frames.takeGpuTimingStats();
@@ -2397,8 +2403,9 @@ QStringList DeviceManager::describe(const Measures& measures)
         return tr("presentation unknown");
     };
     QStringList lines;
-    lines << tr("Video: %1 fps received, %2 shown, %3 replaced before shown")
-                 .arg(number(sample.framesPerSecond, 0), number(shownPerSecond, 0), number(replacedPerSecond, 0));
+    lines << tr("Video: %1 fps received, %2 drawn, %3 replaced before drawn, %4 dropped by Windows")
+                 .arg(number(sample.framesPerSecond, 0), number(shownPerSecond, 0), number(replacedPerSecond, 0),
+                      number(measures.discardedPerSecond, 1));
     lines << tr("Bit rate: %1 Mbit/s").arg(number(sample.megabitsPerSecond, 1));
     if (sample.heldFrames > 0) {
         lines << tr("Decoding: %1 ms per frame; the decoder holds %2 frames back")

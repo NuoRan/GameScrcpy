@@ -370,4 +370,16 @@ std::uint64_t FrameSlot::taken() const
     return m_taken;
 }
 
+void FrameSlot::recordDiscarded(std::uint64_t frames)
+{
+    const std::scoped_lock lock(m_mutex);
+    m_discarded += frames;
+}
+
+std::uint64_t FrameSlot::discarded() const
+{
+    const std::scoped_lock lock(m_mutex);
+    return m_discarded;
+}
+
 }

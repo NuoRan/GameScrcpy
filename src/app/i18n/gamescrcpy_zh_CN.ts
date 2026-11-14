@@ -21737,10 +21737,6 @@
         <translation>这台手机不能使用 UHID 触摸屏，触控改用普通方式。</translation>
     </message>
     <message>
-        <source>Video: %1 fps received, %2 shown, %3 replaced before shown</source>
-        <translation>视频：每秒收到 %1 帧，显示 %2 帧，%3 帧未显示即被替换</translation>
-    </message>
-    <message>
         <source>Bit rate: %1 Mbit/s</source>
         <translation>码率：%1 Mbit/s</translation>
     </message>
@@ -21977,6 +21973,10 @@
     <message>
         <source>presentation unknown</source>
         <translation>呈现方式未知</translation>
+    </message>
+    <message>
+        <source>Video: %1 fps received, %2 drawn, %3 replaced before drawn, %4 dropped by Windows</source>
+        <translation>视频：每秒收到 %1 帧，绘制 %2 帧，%3 帧未绘制即被替换，Windows 丢掉 %4 帧</translation>
     </message>
     <message>
         <source>Decoding: %1 ms per frame; the decoder holds %2 frames back</source>

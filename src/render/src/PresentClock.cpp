@@ -53,7 +53,10 @@ PresentationMode modeOf(DXGI_FRAME_PRESENTATION_MODE mode)
 
 }
 
-PresentClock::PresentClock(QObject* parent) : QObject(parent) {}
+PresentClock::PresentClock(QObject* parent)
+    : QObject(parent), m_newestFrame(qEnvironmentVariable("GS_PRESENT_NEWEST") == u"1")
+{
+}
 
 PresentClock::~PresentClock()
 {
@@ -68,6 +71,11 @@ void PresentClock::setSink(Sink sink)
 void PresentClock::setModeSink(ModeSink sink)
 {
     m_modeSink = std::move(sink);
+}
+
+void PresentClock::setDiscardSink(DiscardSink sink)
+{
+    m_discardSink = std::move(sink);
 }
 
 void PresentClock::detach()
@@ -85,6 +93,8 @@ void PresentClock::detach()
     m_pendingCount = 0;
     m_presented = false;
     m_drew = false;
+    m_shownPresentCount = 0;
+    m_shownPresentRefresh = 0;
 }
 
 bool PresentClock::attach(QQuickWindow* window)
@@ -113,6 +123,10 @@ bool PresentClock::refreshSwapChain()
     auto* swapChain = static_cast<QRhiSwapChain*>(
         renderer->getResource(m_window, QSGRendererInterface::RhiSwapchainResource));
     auto* chain = swapChain != nullptr ? static_cast<QD3D11SwapChain*>(swapChain) : nullptr;
+    if (chain != nullptr && m_newestFrame && chain->swapInterval != 0
+        && (chain->swapChainFlags & DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING) == 0) {
+        chain->swapInterval = 0;
+    }
     IDXGISwapChain* native = chain != nullptr ? chain->swapChain : nullptr;
     if (native == m_swapChain) {
         return native != nullptr;
@@ -120,6 +134,8 @@ bool PresentClock::refreshSwapChain()
     m_swapChain = native;
     m_pendingCount = 0;
     m_presented = false;
+    m_shownPresentCount = 0;
+    m_shownPresentRefresh = 0;
     if (m_media != nullptr) {
         m_media->Release();
         m_media = nullptr;
@@ -183,6 +199,17 @@ void PresentClock::afterFrame()
     DXGI_FRAME_STATISTICS stats{};
     if (FAILED(m_swapChain->GetFrameStatistics(&stats)) || stats.SyncQPCTime.QuadPart <= 0) {
         return;
+    }
+    if (stats.PresentCount != m_shownPresentCount) {
+        if (m_shownPresentCount != 0 && stats.PresentCount > m_shownPresentCount) {
+            const std::uint32_t presents = stats.PresentCount - m_shownPresentCount;
+            const std::uint32_t refreshes = stats.PresentRefreshCount - m_shownPresentRefresh;
+            if (refreshes < presents && m_discardSink) {
+                m_discardSink(presents - refreshes);
+            }
+        }
+        m_shownPresentCount = stats.PresentCount;
+        m_shownPresentRefresh = stats.PresentRefreshCount;
     }
     const std::int64_t syncQpc = stats.SyncQPCTime.QuadPart;
     if (m_lastSyncQpc > 0 && stats.SyncRefreshCount > m_lastSyncRefresh && syncQpc > m_lastSyncQpc) {

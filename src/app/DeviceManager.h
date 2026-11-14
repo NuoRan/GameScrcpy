@@ -490,6 +490,7 @@ private:
         std::chrono::steady_clock::time_point sampledAt;
         std::uint64_t framesTaken = 0;
         std::uint64_t framesReplaced = 0;
+        std::uint64_t framesDiscarded = 0;
         ProblemFilter problems;
         SessionController* controller = nullptr;
         MirrorWindow* mirror = nullptr;

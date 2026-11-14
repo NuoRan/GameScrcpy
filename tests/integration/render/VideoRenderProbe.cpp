@@ -45,6 +45,7 @@
 #include <iterator>
 #include <mutex>
 #include <optional>
+#include <random>
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -405,9 +406,15 @@ int main(int argc, char* argv[])
     const QCommandLineOption onTopOption("on-top", "Keep the window above all others, the taskbar included.");
     const QCommandLineOption gpuTimeOption("gpu-time",
                                            "Measure how long the graphics card draws the picture, filters included.");
+    const QCommandLineOption arrivalOption(
+        "arrival", "How frames arrive: even, pairs (two at once every other frame time, like the phone's input "
+                   "surface at 120 fps) or jitter (each frame early or late at random).",
+        "pattern", "even");
+    const QCommandLineOption jitterOption("jitter-ms", "The standard deviation of the arrival jitter.", "ms", "3.5");
     parser.addOptions({secondsOption, resizeOption, debugOption, softwareOption, sharpnessOption,
                        lowLatencyOption, checkOption, filterOption, paramOption, checkFilterOption,
-                       secondWindowOption, fpsOption, guiBusyOption, fullScreenOption, onTopOption, gpuTimeOption});
+                       secondWindowOption, fpsOption, guiBusyOption, fullScreenOption, onTopOption, gpuTimeOption,
+                       arrivalOption, jitterOption});
     parser.process(app);
     const std::vector<gs::render::VideoFilter> filters =
         readFilters(parser.values(filterOption), parser.values(paramOption));
@@ -457,6 +464,39 @@ int main(int argc, char* argv[])
                 packet.header.ptsUs = index * 1'000'000 / requestedFps;
                 ++index;
             }
+        }
+    }
+
+    const QString arrival = parser.value(arrivalOption);
+    if (arrival != u"even" && arrival != u"pairs" && arrival != u"jitter") {
+        std::fprintf(stderr, "--arrival must be even, pairs or jitter\n");
+        return 2;
+    }
+    std::vector<std::int64_t> dueUs(packets.size(), 0);
+    {
+        std::vector<std::size_t> frames;
+        for (std::size_t i = 0; i < packets.size(); ++i) {
+            if (packets[i].header.kind == gs::protocol::MediaKind::Frame) {
+                frames.push_back(i);
+            }
+        }
+        const std::int64_t firstPts = frames.empty() ? 0 : packets[frames.front()].header.ptsUs;
+        std::mt19937 random(20261114);
+        const double jitterUs = parser.value(jitterOption).toDouble() * 1000.0;
+        std::normal_distribution<double> noise(0.0, jitterUs);
+        std::int64_t previous = 0;
+        for (std::size_t k = 0; k < frames.size(); ++k) {
+            const std::int64_t own = packets[frames[k]].header.ptsUs - firstPts;
+            std::int64_t due = own;
+            if (arrival == u"pairs") {
+                due = k % 2 == 0 && k + 1 < frames.size() ? packets[frames[k + 1]].header.ptsUs - firstPts
+                                                          : own + 300;
+            } else if (arrival == u"jitter") {
+                due = own + static_cast<std::int64_t>(std::clamp(noise(random), -2.0 * jitterUs, 2.0 * jitterUs));
+            }
+            due = std::max(due, previous);
+            previous = due;
+            dueUs[frames[k]] = due;
         }
     }
 
@@ -536,13 +576,11 @@ int main(int argc, char* argv[])
         std::condition_variable_any wake;
         while (!stop.stop_requested()) {
             const auto start = std::chrono::steady_clock::now();
-            std::int64_t firstPts = -1;
-            for (const auto& packet : packets) {
+            for (std::size_t i = 0; i < packets.size(); ++i) {
+                const auto& packet = packets[i];
                 if (packet.header.kind == gs::protocol::MediaKind::Frame) {
-                    firstPts = firstPts < 0 ? packet.header.ptsUs : firstPts;
                     std::unique_lock lock(mutex);
-                    wake.wait_until(lock, stop, start + std::chrono::microseconds(packet.header.ptsUs - firstPts),
-                                    [] { return false; });
+                    wake.wait_until(lock, stop, start + std::chrono::microseconds(dueUs[i]), [] { return false; });
                 }
                 if (stop.stop_requested()) {
                     return;
@@ -626,10 +664,11 @@ int main(int argc, char* argv[])
     for (const auto& error : errors) {
         std::fprintf(stderr, "debug layer: %s\n", error.c_str());
     }
-    std::printf("decoded %llu (%s), shown %llu, replaced before shown %llu, debug layer errors %zu\n",
+    std::printf("decoded %llu (%s), shown %llu, replaced before shown %llu, dropped by Windows %llu, "
+                "debug layer errors %zu\n",
                 static_cast<unsigned long long>(sink.decoded.load()), sink.hardware ? "GPU" : "software",
                 static_cast<unsigned long long>(slot->taken()), static_cast<unsigned long long>(slot->replaced()),
-                errors.size());
+                static_cast<unsigned long long>(slot->discarded()), errors.size());
     std::printf("swap interval %d, sharpness %.2f: presented %.1f frames per second, "
                 "arrival to render %.2f ms\n",
                 window.requestedFormat().swapInterval(), sharpness,

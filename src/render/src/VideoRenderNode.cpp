@@ -97,6 +97,11 @@ VideoRenderNode::VideoRenderNode(QQuickWindow* window)
             m_slot->setPresentationMode(mode);
         }
     });
+    m_present.setDiscardSink([this](std::uint32_t frames) {
+        if (m_slot) {
+            m_slot->recordDiscarded(frames);
+        }
+    });
     if (m_window != nullptr) {
         m_present.attach(m_window);
     }

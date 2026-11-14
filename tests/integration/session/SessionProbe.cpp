@@ -935,6 +935,11 @@ void SessionRun::report() const
                           number(pts.meanMs, 2), number(pts.deviationMs, 2), number(pts.p95Ms, 2),
                           number(pts.longestMs, 2), pts.count)
                   .c_str());
+    if (m_slot) {
+        std::puts(std::format("  on the PC screen: {} frames drawn, {} replaced before drawn, {} dropped by Windows",
+                              m_slot->taken(), m_slot->replaced(), m_slot->discarded())
+                      .c_str());
+    }
     if (m_options.presses > 0 && !m_touchStarted) {
         std::puts("  the touch test did not run");
     }

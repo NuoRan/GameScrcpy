@@ -70,6 +70,8 @@ public:
 
     [[nodiscard]] std::uint64_t replaced() const;
     [[nodiscard]] std::uint64_t taken() const;
+    void recordDiscarded(std::uint64_t frames);
+    [[nodiscard]] std::uint64_t discarded() const;
     [[nodiscard]] std::optional<double> takeArrivalToRenderMs();
     [[nodiscard]] bool paced() const;
 
@@ -94,6 +96,7 @@ private:
     std::shared_ptr<const ScreenListener> m_screen;
     std::uint64_t m_replaced = 0;
     std::uint64_t m_taken = 0;
+    std::uint64_t m_discarded = 0;
     std::int64_t m_waitedUs = 0;
     std::uint64_t m_waitedFrames = 0;
     std::int64_t m_displayIntervalUs = -1;
