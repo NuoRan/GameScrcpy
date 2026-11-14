@@ -1074,6 +1074,21 @@ if(GS_BUILD_APP)
         TIMEOUT 900
         ENVIRONMENT_MODIFICATION "${GS_QT_TEST_ENVIRONMENT}"
     )
+
+    add_executable(gs_session_probe
+        integration/session/SessionProbe.cpp
+        "${PROJECT_SOURCE_DIR}/src/app/LatencyMeter.cpp"
+        "${PROJECT_SOURCE_DIR}/src/app/LatencyMeter.h"
+        "${PROJECT_SOURCE_DIR}/src/app/SessionMetrics.cpp"
+        "${PROJECT_SOURCE_DIR}/src/app/SessionMetrics.h"
+    )
+    target_include_directories(gs_session_probe PRIVATE "${PROJECT_SOURCE_DIR}/src/app")
+    target_link_libraries(gs_session_probe PRIVATE
+        gs::adb gs::base gs::input gs::media gs::platform gs::protocol gs::render gs::session
+        Qt6::Core Qt6::Gui Qt6::Quick ws2_32)
+    target_compile_definitions(gs_session_probe PRIVATE
+        GS_DEFAULT_SERVER_APK="${PROJECT_SOURCE_DIR}/android/server/build/outputs/apk/release/server-release-unsigned.apk")
+    gs_apply_compiler_policy(gs_session_probe)
 endif()
 
 add_executable(gs_session_device_tests integration/session/SessionDeviceTests.cpp)
