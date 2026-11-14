@@ -956,6 +956,7 @@ void SessionController::start(session::TransportChoice transport, const settings
               static_cast<unsigned>(kControlOnlyMaxFps));
     }
     m_controlSink = std::make_unique<SessionControlSink>(*m_session);
+    m_channel->setTouchRateHz(settings.touch.rateHz);
     m_touchBackend = touchBackendOf(backendOf(settings.touch.method), m_forcedTouch);
     m_touchNoted = false;
     m_touchMissing = false;

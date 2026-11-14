@@ -1102,6 +1102,7 @@ input::MappingEngine* InputHost::engineOf(Lane& lane, Microseconds now)
         if (const std::uint64_t pacing = lane.channel->pacing(); pacing != lane.pacing) {
             lane.pacing = pacing;
             lane.engine->setRefreshHz(lane.channel->refreshHz());
+            lane.engine->setTouchRateHz(lane.channel->touchRateHz());
         }
         return &*lane.engine;
     }
@@ -1115,6 +1116,7 @@ input::MappingEngine* InputHost::engineOf(Lane& lane, Microseconds now)
     input::EngineConfig config;
     config.screen = screen->geometry;
     config.refreshHz = screen->refreshHz;
+    config.touchRateHz = lane.channel->touchRateHz();
     config.maxPointers = kEnginePointers;
     config.defaultLockKey = m_lockKey;
     config.seed = m_seed;

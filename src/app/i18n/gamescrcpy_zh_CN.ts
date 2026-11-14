@@ -18637,6 +18637,18 @@
         <translation>touch device serial usb hid bluetooth box port 触控 设备 串口 蓝牙 盒子 端口</translation>
     </message>
     <message>
+        <source>Touch send rate</source>
+        <translation>触控发送频率</translation>
+    </message>
+    <message>
+        <source>How many times a second finger moves go to the phone. Automatic sends twice as often as the phone&apos;s screen refreshes, 240 times at 120 Hz. A higher rate gets each move there a little sooner but makes the phone work harder.</source>
+        <translation>每秒把手指的移动发给手机几次。自动时按手机屏幕刷新率的两倍发，120 Hz 时每秒 240 次。调高能让每次移动早一点到，但手机要多干些活。</translation>
+    </message>
+    <message>
+        <source>touch send rate frequency hz moves latency aim camera smooth polling</source>
+        <translation>touch send rate frequency hz moves latency aim camera smooth polling 触控 发送 频率 回报率 移动 延迟 转视角 跟手 平滑</translation>
+    </message>
+    <message>
         <source>Picture source</source>
         <translation>画面来源</translation>
     </message>
@@ -19235,6 +19247,18 @@
         <translation>AI 小助手的服务和密钥在“AI”里配置。帮助里可以重新看这段引导。</translation>
     </message>
     <message>
+        <source>A move every %1 ms</source>
+        <translation>每 %1 毫秒发一次移动</translation>
+    </message>
+    <message>
+        <source>Each phone uses twice its own refresh rate</source>
+        <translation>每台手机按自己刷新率的两倍</translation>
+    </message>
+    <message>
+        <source>%1 times a second for the phone at %2 Hz now</source>
+        <translation>手机当前 %2 Hz，每秒 %1 次</translation>
+    </message>
+    <message>
         <source>Ask each time</source>
         <translation>每次都问</translation>
     </message>
@@ -19317,6 +19341,10 @@
     <message>
         <source>How to install the WinUSB driver</source>
         <translation>如何安装 WinUSB 驱动</translation>
+    </message>
+    <message>
+        <source>Twice the screen&apos;s refresh rate</source>
+        <translation>屏幕刷新率的两倍</translation>
     </message>
     <message>
         <source>The same commands as in the command palette. When the current profile binds a key too, the game gets it first.</source>

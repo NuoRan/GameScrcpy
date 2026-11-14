@@ -137,12 +137,14 @@ public:
     void setOperationObserver(std::shared_ptr<OperationObserver> observer);
     void setVideo(std::uint16_t videoSession, std::uint16_t width, std::uint16_t height);
     void setRefreshHz(double hz);
+    void setTouchRateHz(int hz);
 
     [[nodiscard]] std::optional<InputScreen> screen() const;
     [[nodiscard]] SinkCapabilities capabilities() const;
     [[nodiscard]] std::uint64_t revision() const noexcept { return m_revision.load(std::memory_order_acquire); }
     [[nodiscard]] std::uint64_t pacing() const noexcept { return m_pacing.load(std::memory_order_acquire); }
     [[nodiscard]] double refreshHz() const;
+    [[nodiscard]] int touchRateHz() const;
 
     [[nodiscard]] bool send(const protocol::TouchFrame& frame);
     [[nodiscard]] bool send(const protocol::Key& key);
@@ -177,6 +179,7 @@ private:
     std::shared_ptr<OperationObserver> m_operations;
     std::optional<InputScreen> m_screen;
     double m_refreshHz = 60.0;
+    int m_touchRateHz = 0;
     std::atomic<std::uint64_t> m_revision{1};
     std::atomic<std::uint64_t> m_pacing{1};
     std::atomic<std::int64_t> m_touchWaitSumUs{0};

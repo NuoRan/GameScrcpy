@@ -165,6 +165,16 @@ Item {
         return hertz > 0 ? qsTr("The phone is at %1 Hz now").arg(Math.round(hertz)) : ""
     }
 
+    function touchRateText(rate: int): string {
+        if (rate > 0)
+            return qsTr("A move every %1 ms").arg((1000 / Math.max(rate, 60)).toFixed(1))
+        const hertz = phone.refreshHz ?? 0
+        if (hertz <= 0)
+            return qsTr("Each phone uses twice its own refresh rate")
+        const sent = Math.min(Math.max(2 * hertz, 120), 480)
+        return qsTr("%1 times a second for the phone at %2 Hz now").arg(Math.round(sent)).arg(Math.round(hertz))
+    }
+
     function toggleLabels(reducedBySystem: bool): var {
         return {
             system: qsTr("Follow Windows (%1)").arg(reducedBySystem ? qsTr("on") : qsTr("off")),
@@ -759,6 +769,22 @@ Item {
                             text: qsTr("How to install the WinUSB driver")
                             onClicked: Commands.trigger("app.help", "aoa-driver")
                         }
+                    }
+
+                    SliderSetting {
+                        objectName: "touchRate"
+                        path: "touch.rateHz"
+                        unit: "Hz"
+                        step: 10
+                        sliderFrom: 60
+                        marks: [120, 240, 360, 480, 1000]
+                        info: page.touchRateText(value ?? 0)
+                        special: ({
+                            value: 0,
+                            text: qsTr("Twice the screen's refresh rate"),
+                            fallback: 240,
+                            note: page.touchRateText(0)
+                        })
                     }
                 }
             }

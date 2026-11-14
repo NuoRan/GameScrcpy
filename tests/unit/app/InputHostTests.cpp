@@ -337,6 +337,30 @@ TEST_CASE("ADR-0115: a channel tells its sink how long a touch frame may wait, o
     CHECK(other.touchWait.count() == 8'333);
 }
 
+TEST_CASE("2026-11-14: a touch rate the user picks sets the touch wait and bumps the pacing only when it changes")
+{
+    LimitSink sink;
+    ControlChannel channel;
+    channel.attach(sink);
+    channel.setRefreshHz(120.0);
+    CHECK(channel.touchRateHz() == 0);
+    CHECK(sink.touchWait.count() == 5'000);
+
+    const std::uint64_t before = channel.pacing();
+    channel.setTouchRateHz(100);
+    CHECK(channel.touchRateHz() == 100);
+    CHECK(sink.touchWait.count() == 10'000);
+    CHECK(channel.pacing() > before);
+
+    const std::uint64_t same = channel.pacing();
+    channel.setTouchRateHz(100);
+    CHECK(channel.pacing() == same);
+
+    channel.setTouchRateHz(-5);
+    CHECK(channel.touchRateHz() == 0);
+    CHECK(sink.touchWait.count() == 5'000);
+}
+
 TEST_CASE("mouse bindings act only while the camera is locked, the lock survives a new engine and ends with the device (ADR-0070)")
 {
     constexpr std::string_view kShooter = R"({"format":"gamescrcpy.profile","version":3,

@@ -153,7 +153,7 @@ MappingEngine::MappingEngine(const Profile& profile, const EngineConfig& config,
     , m_listener(listener)
     , m_sink(touches)
     , m_pointers(config.maxPointers)
-    , m_builder(config.pacingTick.value_or(pacingTickFor(config.refreshHz)))
+    , m_builder(config.pacingTick.value_or(pacingTickFor(config.refreshHz, config.touchRateHz)))
     , m_out(m_pointers, m_builder)
     , m_frame(Microseconds{static_cast<long long>(1'000'000.0 / std::max(config.refreshHz, 1.0))})
 {
@@ -687,8 +687,8 @@ void MappingEngine::tellTrouble(std::size_t control)
 
 Microseconds MappingEngine::frameTick() const noexcept
 {
-    const Microseconds tick = m_config.pacingTick.value_or(pacingTickFor(m_config.refreshHz));
-    return tick.count() > 0 ? tick : pacingTickFor(m_config.refreshHz);
+    const Microseconds tick = m_config.pacingTick.value_or(pacingTickFor(m_config.refreshHz, m_config.touchRateHz));
+    return tick.count() > 0 ? tick : pacingTickFor(m_config.refreshHz, m_config.touchRateHz);
 }
 
 bool MappingEngine::retuneControl(const Control& control, Microseconds now)
@@ -1500,7 +1500,15 @@ void MappingEngine::setRefreshHz(double hz) noexcept
     }
     m_config.refreshHz = hz;
     if (!m_config.pacingTick) {
-        m_builder.setTick(pacingTickFor(hz));
+        m_builder.setTick(pacingTickFor(hz, m_config.touchRateHz));
+    }
+}
+
+void MappingEngine::setTouchRateHz(int hz) noexcept
+{
+    m_config.touchRateHz = std::max(hz, 0);
+    if (!m_config.pacingTick) {
+        m_builder.setTick(pacingTickFor(m_config.refreshHz, m_config.touchRateHz));
     }
 }
 

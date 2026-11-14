@@ -60,6 +60,7 @@ public:
 struct EngineConfig {
     ScreenGeometry screen;
     double refreshHz = 60.0;
+    int touchRateHz = 0;
     std::optional<Microseconds> pacingTick;
     std::uint8_t maxPointers = PointerAllocator::kMaxPointers;
     std::uint32_t seed = 0;
@@ -90,6 +91,7 @@ public:
     void resetAll(Microseconds now);
     void setVideoSession(std::uint16_t session) noexcept { m_builder.setVideoSession(session); }
     void setRefreshHz(double hz) noexcept;
+    void setTouchRateHz(int hz) noexcept;
 
     void setCameraLock(Switch action, Microseconds now);
     bool setState(std::string_view id, Switch action, Microseconds now);

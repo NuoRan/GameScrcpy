@@ -1339,3 +1339,37 @@ TEST_CASE("a temporary cursor frees the mouse while held, keeps the lock and onl
     CHECK(h.engine.cameraLocked());
     CHECK(h.recorder.peeks == std::vector<bool>{true, false, true, false});
 }
+
+TEST_CASE("2026-11-14: a touch rate the user picks replaces twice the refresh rate, takes effect at once and stays "
+          "within 60 to 1000 a second")
+{
+    CHECK(pacingTickFor(120.0) == Microseconds{4'166});
+    CHECK(pacingTickFor(120.0, 0) == Microseconds{4'166});
+    CHECK(pacingTickFor(120.0, 480) == Microseconds{2'083});
+    CHECK(pacingTickFor(60.0, 30) == Microseconds{16'666});
+    CHECK(pacingTickFor(60.0, 5'000) == Microseconds{1'000});
+
+    Recorder recorder;
+    MappingEngine engine(Harness::load(R"("controls":[])"),
+                         EngineConfig{.screen = {.width = 2400, .height = 1080}, .refreshHz = 120.0}, recorder,
+                         recorder);
+    engine.cursor(CursorPhase::Down, {0.5, 0.5}, Microseconds{0});
+    const std::size_t down = recorder.frames.size();
+    REQUIRE(down == 1);
+    engine.cursor(CursorPhase::Move, {0.51, 0.5}, Microseconds{5'000});
+    engine.cursor(CursorPhase::Move, {0.52, 0.5}, Microseconds{7'000});
+    CHECK(recorder.frames.size() == down + 1);
+
+    engine.setTouchRateHz(1'000);
+    engine.cursor(CursorPhase::Move, {0.53, 0.5}, Microseconds{7'500});
+    CHECK(recorder.frames.size() == down + 2);
+    CHECK(recorder.frames.back().points.back().x == fixedCoordinate(0.53));
+    engine.cursor(CursorPhase::Move, {0.54, 0.5}, Microseconds{8'600});
+    CHECK(recorder.frames.size() == down + 3);
+
+    engine.setTouchRateHz(0);
+    engine.cursor(CursorPhase::Move, {0.55, 0.5}, Microseconds{10'000});
+    CHECK(recorder.frames.size() == down + 3);
+    engine.cursor(CursorPhase::Up, {0.55, 0.5}, Microseconds{11'000});
+    CHECK(recorder.lastAction() == TouchAction::Up);
+}

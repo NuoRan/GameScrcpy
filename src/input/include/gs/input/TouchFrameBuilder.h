@@ -10,7 +10,10 @@
 
 namespace gs::input {
 
-[[nodiscard]] Microseconds pacingTickFor(double refreshHz) noexcept;
+inline constexpr int kMinTouchRateHz = 60;
+inline constexpr int kMaxTouchRateHz = 1000;
+
+[[nodiscard]] Microseconds pacingTickFor(double refreshHz, int touchRateHz = 0) noexcept;
 
 class TouchFrameSink
 {

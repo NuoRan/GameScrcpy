@@ -666,6 +666,7 @@ private:
     [[nodiscard]] QVariantMap companionQrOf(const Row& row) const;
     void aimAt(const QString& serial);
     [[nodiscard]] static std::shared_ptr<ControlChannel> channelOf(const Row& row);
+    void syncTouchRate(const Row& row);
     void updateStatsTimer();
     [[nodiscard]] static QString linkName(const Row& row);
     [[nodiscard]] static std::shared_ptr<render::FrameSlot> framesOf(const Row& row);

@@ -42,9 +42,11 @@ bool merge(TouchPoint& existing, const TouchPoint& next) noexcept
 
 }
 
-Microseconds pacingTickFor(double refreshHz) noexcept
+Microseconds pacingTickFor(double refreshHz, int touchRateHz) noexcept
 {
-    const double hz = std::clamp(2.0 * refreshHz, 120.0, 480.0);
+    const double hz = touchRateHz > 0 ? std::clamp(static_cast<double>(touchRateHz), static_cast<double>(kMinTouchRateHz),
+                                                   static_cast<double>(kMaxTouchRateHz))
+                                      : std::clamp(2.0 * refreshHz, 120.0, 480.0);
     return Microseconds{static_cast<long long>(1'000'000.0 / hz)};
 }
 

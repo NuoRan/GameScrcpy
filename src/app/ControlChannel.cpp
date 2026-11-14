@@ -188,15 +188,37 @@ void ControlChannel::setRefreshHz(double hz)
     m_pacing.fetch_add(1, std::memory_order_acq_rel);
 }
 
+void ControlChannel::setTouchRateHz(int hz)
+{
+    const int rate = std::max(hz, 0);
+    {
+        const std::scoped_lock lock(m_mutex);
+        if (rate == m_touchRateHz) {
+            return;
+        }
+        m_touchRateHz = rate;
+        if (m_sink != nullptr) {
+            m_sink->setTouchWaitLimit(touchWaitLimit());
+        }
+    }
+    m_pacing.fetch_add(1, std::memory_order_acq_rel);
+}
+
 std::chrono::microseconds ControlChannel::touchWaitLimit() const noexcept
 {
-    return std::max(input::pacingTickFor(m_refreshHz), kTouchWaitFloor);
+    return std::max(input::pacingTickFor(m_refreshHz, m_touchRateHz), kTouchWaitFloor);
 }
 
 double ControlChannel::refreshHz() const
 {
     const std::scoped_lock lock(m_mutex);
     return m_refreshHz;
+}
+
+int ControlChannel::touchRateHz() const
+{
+    const std::scoped_lock lock(m_mutex);
+    return m_touchRateHz;
 }
 
 std::optional<InputScreen> ControlChannel::screen() const

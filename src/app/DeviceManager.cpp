@@ -2326,7 +2326,7 @@ DeviceManager::Measures DeviceManager::measure(Row& row)
         metrics.touchWait(wait.sumUs, wait.frames, wait.maxUs);
         measures.sample = metrics.sample(elapsed);
         measures.audio = row.controller->audioStats();
-        const Microseconds tick = input::pacingTickFor(link->refreshHz());
+        const Microseconds tick = input::pacingTickFor(link->refreshHz(), link->touchRateHz());
         measures.mergeTickMs = static_cast<double>(tick.count()) / 1000.0;
     } else if (row.demo != nullptr) {
         measures.sample.framesPerSecond = row.demo->framesPerSecond();
@@ -3405,6 +3405,7 @@ bool DeviceManager::aimAtGrid(const QString& serial)
     }
     const Row& row = m_rows[static_cast<std::size_t>(index)];
     m_input->setPictureArea(serial, m_grid->pictureShare(serial));
+    syncTouchRate(row);
     m_input->setTarget(serial, channelOf(row), static_cast<std::uintptr_t>(m_grid->winId()));
     syncInputProfile();
     m_input->setFocused(!row.prompting);
@@ -3725,6 +3726,7 @@ void DeviceManager::aimAt(const QString& serial)
         window = static_cast<std::uintptr_t>(m_grid->winId());
         m_input->setPictureArea(serial, m_grid->pictureShare(serial));
     }
+    syncTouchRate(row);
     m_input->setTarget(serial, channelOf(row), window);
     syncInputProfile();
     m_input->setFocused(platform::isInFront(window));
@@ -7487,11 +7489,19 @@ std::shared_ptr<render::FrameSlot> DeviceManager::framesOf(const Row& row)
     return nullptr;
 }
 
+void DeviceManager::syncTouchRate(const Row& row)
+{
+    if (const std::shared_ptr<ControlChannel> channel = channelOf(row)) {
+        channel->setTouchRateHz(m_settings.effective(row.deviceId.toStdString()).touch.rateHz);
+    }
+}
+
 void DeviceManager::applyLiveSettings()
 {
     m_keyHints = m_settings.effective({}).keymap.hints;
     for (std::size_t i = 0; i < m_rows.size(); ++i) {
         Row& row = m_rows[i];
+        syncTouchRate(row);
         if (row.mirror != nullptr) {
             const settings::Settings effective = m_settings.effective(row.deviceId.toStdString());
             row.mirror->setSharpness(effective.display.sharpness / 100.0);

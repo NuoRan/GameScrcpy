@@ -536,6 +536,26 @@ TEST_CASE("a device takes its own value only for a per-device setting in range, 
     CHECK(device == DeviceSettings{});
 }
 
+TEST_CASE("2026-11-14: the touch send rate is automatic by default, live, set per phone and kept within 0 to 1000")
+{
+    const Entry* rate = findSetting("touch.rateHz");
+    REQUIRE(rate != nullptr);
+    CHECK(rate->page == Page::Input);
+    CHECK(rate->kind == Kind::Integer);
+    CHECK(rate->facets.scope == Scope::Device);
+    CHECK(rate->facets.live);
+    CHECK(rate->defaultValue == Value(std::int64_t{0}));
+    CHECK(Settings{}.touch.rateHz == 0);
+    CHECK(save(Settings{}).find("\"touch\"") == std::string::npos);
+
+    DeviceSettings device;
+    CHECK(setOverride(device, "touch.rateHz", Value(std::int64_t{480})));
+    CHECK_FALSE(setOverride(device, "touch.rateHz", Value(std::int64_t{1001})));
+    CHECK_FALSE(setOverride(device, "touch.rateHz", Value(std::int64_t{-1})));
+    CHECK(effectiveSettings(Settings{}, device).touch.rateHz == 480);
+    CHECK(effectiveSettings(Settings{}, DeviceSettings{}).touch.rateHz == 0);
+}
+
 TEST_CASE("the touch method is normal by default, set on the input page and per phone, and the test option wins (HID-005)")
 {
     const Entry* method = findSetting("touch.method");

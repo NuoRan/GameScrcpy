@@ -418,6 +418,7 @@ struct Touch {
     TouchMethod method = TouchMethod::Inject;
     std::string extension;
     std::string device;
+    std::int32_t rateHz = 0;
 
     template <typename V, typename Self>
     static void visit(V& v, Self& m)
@@ -451,6 +452,17 @@ struct Touch {
                                                              "the phone connects."),
                 .keywords = GS_TRANSLATE_NOOP("Settings", "touch device serial usb hid bluetooth box port"),
                 .scope = Scope::Device});
+        v.integer("rateHz", m.rateHz, 0, 1000,
+                  {.title = GS_TRANSLATE_NOOP("Settings", "Touch send rate"),
+                   .description = GS_TRANSLATE_NOOP("Settings", "How many times a second finger moves go to the "
+                                                                "phone. Automatic sends twice as often as the phone's "
+                                                                "screen refreshes, 240 times at 120 Hz. A higher rate "
+                                                                "gets each move there a little sooner but makes the "
+                                                                "phone work harder."),
+                   .keywords = GS_TRANSLATE_NOOP("Settings", "touch send rate frequency hz moves latency aim camera "
+                                                             "smooth polling"),
+                   .scope = Scope::Device,
+                   .live = true});
     }
 
     friend bool operator==(const Touch&, const Touch&) = default;
