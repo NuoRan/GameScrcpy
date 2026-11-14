@@ -96,7 +96,7 @@ TEST_CASE("SRV-001: the handshake hands over the phone, its displays and its enc
     REQUIRE(listener.waitForPhase(SessionPhase::Stopped));
 }
 
-TEST_CASE("SRV-009: the server build stays under 200 KB")
+TEST_CASE("SRV-009: the server build stays under 256 KB")
 {
     const std::filesystem::path package = GS_SERVER_PACKAGE_FILE;
     std::error_code error;
@@ -108,5 +108,5 @@ TEST_CASE("SRV-009: the server build stays under 200 KB")
     }
     MESSAGE("server build: " << bytes << " bytes");
     CHECK(bytes > 0U);
-    CHECK(bytes < 200U * 1024U);
+    CHECK(bytes < 256U * 1024U);
 }

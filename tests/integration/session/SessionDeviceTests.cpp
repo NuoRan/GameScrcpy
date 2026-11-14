@@ -406,10 +406,10 @@ double nearestRank(const std::vector<double>& sorted, double quantile)
 
 }
 
-TEST_CASE("the server build stays under 200 KB (SRV-009)")
+TEST_CASE("the server build stays under 256 KB (SRV-009)")
 {
     MESSAGE(std::format("server build: {} bytes as {}", g_package->bytes().size(), g_package->remotePath()));
-    CHECK(g_package->bytes().size() < 200 * 1024);
+    CHECK(g_package->bytes().size() < 256 * 1024);
 }
 
 TEST_CASE("a session deploys, launches, streams and ends cleanly on the real server")

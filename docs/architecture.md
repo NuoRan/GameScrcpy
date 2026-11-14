@@ -73,7 +73,7 @@ ESP32 触控盒（固件、刷写与板子的协议）在 2.1 改为社区扩展
 | 模块 | 说明 |
 |:--|:--|
 | `protocol` | 协议的 Java 实现，测试读取与 C++ 相同的金标准向量 |
-| `server` | 服务端，纯 Java（不带 Kotlin 标准库）；发布版 APK 不到 200 KB |
+| `server` | 服务端，纯 Java（不带 Kotlin 标准库）；发布版 APK 不到 256 KB |
 | `companion` | 伴侣应用，Kotlin |
 
 ## 几条贯穿全局的设计
