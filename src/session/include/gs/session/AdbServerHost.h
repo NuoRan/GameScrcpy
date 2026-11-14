@@ -47,6 +47,8 @@ struct DirectRoute {
     std::optional<platform::UdpEndpoint> endpoint;
 };
 
+[[nodiscard]] TransportChoice resolvedTransport(TransportChoice choice, std::string_view serial) noexcept;
+
 class AdbServerHost final : public ServerHost
 {
 public:

@@ -13,7 +13,6 @@ add_library(gs_session STATIC
     src/DirectHandshake.h
     src/DirectTransport.cpp
     src/DirectTransport.h
-    src/FallbackTransport.h
     src/Handshake.cpp
     src/Handshake.h
     src/KeyFrameGate.h

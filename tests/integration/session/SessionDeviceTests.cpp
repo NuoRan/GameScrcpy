@@ -785,7 +785,8 @@ TEST_CASE("WiFi direct chosen for a serial without an address takes the address 
     CHECK(serverGone(g_serial));
 }
 
-TEST_CASE("WiFi direct without an answer fails in 1.5 s, and auto then streams over the adb tunnel (ADR-0055, SES-005)")
+TEST_CASE("WiFi direct without an answer fails in 1.5 s, and automatic never falls back to the adb tunnel "
+          "(ADR-0119, SES-005)")
 {
     auto silent = platform::UdpSocket::bind(platform::UdpEndpoint::loopback(0));
     REQUIRE(silent.has_value());
@@ -810,11 +811,19 @@ TEST_CASE("WiFi direct without an answer fails in 1.5 s, and auto then streams o
     auto session = std::make_unique<Session>(
         std::make_unique<AdbServerHost>(g_adb, g_serial, g_package, TransportChoice::Auto, route), options(false),
         automatic);
-    const auto start = Clock::now();
     session->start();
+    if (resolvedTransport(TransportChoice::Auto, g_serial) == TransportChoice::WifiDirect) {
+        REQUIRE(automatic.waitForEnd(30s));
+        const auto stopped = automatic.failure();
+        REQUIRE(stopped.has_value());
+        CHECK(stopped->kind == FailureKind::DirectUnreachable);
+        CHECK(automatic.transports().empty());
+        session.reset();
+        shell(g_serial, "pkill -f 'gamescrcpy.server.Ma[i]n'");
+        CHECK(serverGone(g_serial));
+        return;
+    }
     REQUIRE(automatic.waitForPhase(SessionPhase::Streaming, 1, 30s));
-    MESSAGE(std::format("streaming over the adb tunnel {:.0f} ms after start, WiFi direct given up on the way",
-                        millisecondsSince(start)));
     CHECK(automatic.transports() == std::vector{TransportKind::AdbTunnel});
     CHECK(automatic.waitForHeartbeats(2, 10s));
     session->stop();
@@ -878,16 +887,23 @@ TEST_CASE("the server's UDP port is open while the session lives and closed as s
     REQUIRE(silent.has_value());
     const DirectRoute route{.devicePort = kDirectPort,
                             .endpoint = platform::UdpEndpoint::loopback(silent->localPort())};
-    RecordingListener listener;
-    auto session = std::make_unique<Session>(
-        std::make_unique<AdbServerHost>(g_adb, g_serial, g_package, TransportChoice::Auto, route), options(false),
-        listener);
-    session->start();
-    REQUIRE(listener.waitForPhase(SessionPhase::Streaming, 1, 30s));
+    AdbServerHost host(g_adb, g_serial, g_package, TransportChoice::WifiDirect, route);
+    LaunchParams params;
+    platform::randomBytes(params.token);
+    std::array<std::uint8_t, 8> name{};
+    platform::randomBytes(name);
+    params.socketName = "gamescrcpy_" + platform::toHex(name);
+    QuietHostEvents events;
+    REQUIRE(host.start(params, events, {}));
+    auto link = host.ServerHost::transport(5s)->establish(params.token, "device-test", {});
+    REQUIRE(link.has_value());
+    CHECK((*link)->kind() == TransportKind::AdbTunnel);
     CHECK(udpPortOpen(g_serial, kDirectPort));
     const auto stopped = Clock::now();
-    session->stop();
-    REQUIRE(listener.waitForPhase(SessionPhase::Stopped, 1, 10s));
+    FrameChannel& control = (*link)->control();
+    REQUIRE(control.send(frameOf(protocol::Goodbye{})));
+    control.drain(Clock::now() + 2s);
+    host.stop(2s);
     const auto closed = closedAfter(g_serial, kDirectPort, stopped, stopped + 5s);
     REQUIRE(closed.has_value());
     MESSAGE(std::format("UDP port {} seen closed {:.0f} ms after the stop request", kDirectPort, *closed));
@@ -900,7 +916,7 @@ TEST_CASE("after a lost connection the UDP port stays open while the server keep
     REQUIRE(silent.has_value());
     const DirectRoute route{.devicePort = kDirectPort,
                             .endpoint = platform::UdpEndpoint::loopback(silent->localPort())};
-    AdbServerHost host(g_adb, g_serial, g_package, TransportChoice::Auto, route);
+    AdbServerHost host(g_adb, g_serial, g_package, TransportChoice::WifiDirect, route);
     LaunchParams params;
     platform::randomBytes(params.token);
     std::array<std::uint8_t, 8> name{};
@@ -910,7 +926,7 @@ TEST_CASE("after a lost connection the UDP port stays open while the server keep
     QuietHostEvents events;
     REQUIRE(host.start(params, events, {}));
     {
-        auto link = host.transport(5s)->establish(params.token, "device-test", {});
+        auto link = host.ServerHost::transport(5s)->establish(params.token, "device-test", {});
         REQUIRE(link.has_value());
         CHECK((*link)->kind() == TransportKind::AdbTunnel);
     }

@@ -1,5 +1,4 @@
 #include "DirectTransport.h"
-#include "FallbackTransport.h"
 #include "Handshake.h"
 #include "ReliableStream.h"
 #include "fakes/VideoShards.h"
@@ -516,95 +515,6 @@ TEST_CASE("without a server the direct transport gives up after 1.5 s, and a sto
     took = SteadyClock::now() - before;
     REQUIRE_FALSE(link.has_value());
     CHECK(took < 1000ms);
-}
-
-namespace {
-
-class ScriptedTransport final : public Transport
-{
-public:
-    explicit ScriptedTransport(bool succeeds) : m_succeeds(succeeds) {}
-
-    Expected<std::unique_ptr<Link>, SessionFailure> establish(const Token&, const std::string&, std::stop_token) override
-    {
-        ++m_calls;
-        if (!m_succeeds) {
-            SessionFailure failure;
-            failure.kind = FailureKind::DirectUnreachable;
-            failure.detail = "no answer";
-            return makeUnexpected(std::move(failure));
-        }
-        return std::unique_ptr<Link>(std::make_unique<IdleLink>());
-    }
-
-    [[nodiscard]] int calls() const { return m_calls; }
-
-private:
-    class IdleChannel final : public FrameChannel
-    {
-    public:
-        Expected<std::span<const std::uint8_t>, ChannelFailure> receive() override
-        {
-            return makeUnexpected(ChannelFailure{ChannelError::Closed});
-        }
-        bool send(std::span<const std::uint8_t>) override { return true; }
-        void setSendTimeout(std::chrono::milliseconds) override {}
-        void drain(std::chrono::steady_clock::time_point) override {}
-        void interrupt() noexcept override {}
-    };
-
-    class IdleLink final : public Link
-    {
-    public:
-        TransportKind kind() const noexcept override { return TransportKind::WifiDirect; }
-        const protocol::Welcome& welcome() const override { return m_welcome; }
-        FrameChannel& control() override { return m_control; }
-        Expected<std::unique_ptr<MediaChannel>, SessionFailure> openMedia(protocol::MediaChannel, std::stop_token) override
-        {
-            return makeUnexpected(SessionFailure{});
-        }
-
-    private:
-        protocol::Welcome m_welcome;
-        IdleChannel m_control;
-    };
-
-    bool m_succeeds;
-    int m_calls = 0;
-};
-
-}
-
-TEST_CASE("auto, when chosen, goes over the adb tunnel only when WiFi direct fails, and tries direct every time")
-{
-    auto direct = std::make_unique<ScriptedTransport>(true);
-    auto tunnel = std::make_unique<ScriptedTransport>(true);
-    const ScriptedTransport& directSeen = *direct;
-    const ScriptedTransport& tunnelSeen = *tunnel;
-    detail::FallbackTransport working(std::move(direct), std::move(tunnel), "test");
-    CHECK(working.establish(token, "test", {}).has_value());
-    CHECK(working.establish(token, "test", {}).has_value());
-    CHECK(directSeen.calls() == 2);
-    CHECK(tunnelSeen.calls() == 0);
-
-    auto failing = std::make_unique<ScriptedTransport>(false);
-    auto rescue = std::make_unique<ScriptedTransport>(true);
-    const ScriptedTransport& failingSeen = *failing;
-    const ScriptedTransport& rescueSeen = *rescue;
-    detail::FallbackTransport falling(std::move(failing), std::move(rescue), "test");
-    CHECK(falling.establish(token, "test", {}).has_value());
-    CHECK(falling.establish(token, "test", {}).has_value());
-    CHECK(failingSeen.calls() == 2);
-    CHECK(rescueSeen.calls() == 2);
-
-    std::stop_source stopped;
-    stopped.request_stop();
-    auto cut = std::make_unique<ScriptedTransport>(false);
-    auto unused = std::make_unique<ScriptedTransport>(true);
-    const ScriptedTransport& unusedSeen = *unused;
-    detail::FallbackTransport stopping(std::move(cut), std::move(unused), "test");
-    CHECK_FALSE(stopping.establish(token, "test", stopped.get_token()).has_value());
-    CHECK(unusedSeen.calls() == 0);
 }
 
 TEST_CASE("under 10% loss both ways the control stream keeps every frame and their order (WIF-004)")

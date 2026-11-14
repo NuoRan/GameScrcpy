@@ -1,7 +1,6 @@
 #include "gs/session/AdbServerHost.h"
 
 #include "DirectTransport.h"
-#include "FallbackTransport.h"
 
 #include "gs/adb/DeviceTracker.h"
 #include "gs/adb/ShellProtocol.h"
@@ -708,8 +707,20 @@ private:
 
 AdbServerHost::AdbServerHost(adb::AdbClient client, std::string serial, std::shared_ptr<const ServerPackage> package,
                              TransportChoice choice, DirectRoute direct)
-    : m_impl(std::make_unique<Impl>(client, std::move(serial), std::move(package), choice, std::move(direct)))
+    : m_impl(std::make_unique<Impl>(client, serial, std::move(package), resolvedTransport(choice, serial),
+                                    std::move(direct)))
 {
+}
+
+TransportChoice resolvedTransport(TransportChoice choice, std::string_view serial) noexcept
+{
+    if (choice != TransportChoice::Auto) {
+        return choice;
+    }
+    const bool wireless = !serial.starts_with("emulator-")
+                          && (serial.find(':') != std::string_view::npos
+                              || serial.find("._adb-tls-connect._tcp") != std::string_view::npos);
+    return wireless ? TransportChoice::WifiDirect : TransportChoice::AdbTunnel;
 }
 
 std::unique_ptr<Transport> AdbServerHost::transport(std::chrono::milliseconds handshakeTimeout)
@@ -718,18 +729,10 @@ std::unique_ptr<Transport> AdbServerHost::transport(std::chrono::milliseconds ha
         return ServerHost::transport(handshakeTimeout);
     }
     auto endpoint = m_impl->directEndpoint();
-    if (m_impl->choice() == TransportChoice::WifiDirect) {
-        if (!endpoint) {
-            return std::make_unique<UnreachableTransport>(std::move(endpoint.error()));
-        }
-        return std::make_unique<detail::DirectTransport>(*endpoint);
-    }
     if (!endpoint) {
-        log::info(kLog, "[{}] {}; using the adb tunnel", m_impl->id(), endpoint.error().detail);
-        return ServerHost::transport(handshakeTimeout);
+        return std::make_unique<UnreachableTransport>(std::move(endpoint.error()));
     }
-    return std::make_unique<detail::FallbackTransport>(std::make_unique<detail::DirectTransport>(*endpoint),
-                                                       ServerHost::transport(handshakeTimeout), m_impl->id());
+    return std::make_unique<detail::DirectTransport>(*endpoint);
 }
 
 AdbServerHost::~AdbServerHost() = default;

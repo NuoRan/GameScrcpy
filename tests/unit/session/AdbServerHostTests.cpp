@@ -126,6 +126,16 @@ TEST_CASE("ADR-0114 GS_TOUCH_LEAD_MS puts a touch lead of 0 to 8 ms on the serve
     }
 }
 
+TEST_CASE("ADR-0119 automatic picks WiFi direct for wireless adb and the adb tunnel for USB, and nothing falls back")
+{
+    CHECK(resolvedTransport(TransportChoice::Auto, "192.168.31.137:44245") == TransportChoice::WifiDirect);
+    CHECK(resolvedTransport(TransportChoice::Auto, "adb-ca411890-UMAkS0._adb-tls-connect._tcp")
+          == TransportChoice::WifiDirect);
+    CHECK(resolvedTransport(TransportChoice::Auto, "8ac3f9d2") == TransportChoice::AdbTunnel);
+    CHECK(resolvedTransport(TransportChoice::Auto, "emulator-5556") == TransportChoice::AdbTunnel);
+    CHECK(resolvedTransport(TransportChoice::AdbTunnel, "192.168.31.137:44245") == TransportChoice::AdbTunnel);
+    CHECK(resolvedTransport(TransportChoice::WifiDirect, "8ac3f9d2") == TransportChoice::WifiDirect);
+}
 TEST_CASE("a device that has not allowed USB debugging fails while deploying")
 {
     FakeAdbServer adb(device("emulator-5556          unauthorized transport_id:4"));
