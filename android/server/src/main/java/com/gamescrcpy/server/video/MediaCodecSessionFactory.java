@@ -14,6 +14,7 @@ import android.os.HandlerThread;
 import android.view.Surface;
 import com.gamescrcpy.server.Log;
 import com.gamescrcpy.server.MediaClock;
+import com.gamescrcpy.server.Options;
 import com.gamescrcpy.server.ThreadPriority;
 import com.gamescrcpy.server.device.DisplaySnapshot;
 import com.gamescrcpy.server.device.EncoderCatalog;
@@ -29,9 +30,9 @@ public final class MediaCodecSessionFactory implements EncodingSession.Factory {
 
     static final int KEY_FRAME_INTERVAL_SECONDS = 3600;
     static final int FALLBACK_KEY_FRAME_INTERVAL_SECONDS = 10;
-    static final int BLOCK_MODEL_INPUT_SLOTS = 3;
-    static final int BLOCK_MODEL_IMAGE_COUNT = BLOCK_MODEL_INPUT_SLOTS + 2;
-    static final int BLOCK_MODEL_OUTPUT_CAPACITY = 4;
+    static final int BLOCK_MODEL_MAX_IN_FLIGHT = 4;
+    static final int BLOCK_MODEL_IMAGE_COUNT = BLOCK_MODEL_MAX_IN_FLIGHT + 3;
+    static final int INPUT_SURFACE_FPS_LIMIT = 100;
     static final int MAX_BLOCK_MODEL_FAILURES = 16;
     private static final long REPEAT_FRAME_AFTER_US = 100_000;
     private static final String KEY_MAX_FPS_TO_ENCODER = "max-fps-to-encoder";
@@ -66,9 +67,9 @@ public final class MediaCodecSessionFactory implements EncodingSession.Factory {
     }
 
     private final NewDisplays independent;
-    private final boolean blockInput;
+    private final int blockInput;
 
-    public MediaCodecSessionFactory(NewDisplays independent, boolean blockInput) {
+    public MediaCodecSessionFactory(NewDisplays independent, int blockInput) {
         this.independent = independent;
         this.blockInput = blockInput;
     }
@@ -89,8 +90,20 @@ public final class MediaCodecSessionFactory implements EncodingSession.Factory {
         blockModelFailures.clear();
     }
 
-    static boolean blockModelWanted(String encoder, boolean enabled, int sdkInt, boolean failedBefore) {
-        return enabled && sdkInt >= Build.VERSION_CODES.R && encoder.startsWith("c2.") && !failedBefore;
+    static boolean blockModelWanted(String encoder, int choice, int sdkInt, boolean failedBefore, int peakFps) {
+        if (choice == Options.BLOCK_INPUT_OFF || sdkInt < Build.VERSION_CODES.R || !encoder.startsWith("c2.")
+                || failedBefore) {
+            return false;
+        }
+        return choice == Options.BLOCK_INPUT_ON || peakFps > INPUT_SURFACE_FPS_LIMIT;
+    }
+
+    static int peakFrameRate(DisplaySnapshot display, VideoSettings settings) {
+        if (settings.maxFps() > 0) {
+            return settings.maxFps();
+        }
+        final long hz = Math.round(Math.max(display.refreshMilliHz(), display.peakRefreshMilliHz()) / 1000.0);
+        return hz > 0 ? (int) Math.min(hz, MAX_FPS) : NOMINAL_FPS;
     }
 
     @Override
@@ -98,7 +111,7 @@ public final class MediaCodecSessionFactory implements EncodingSession.Factory {
                                 boolean keyFramesOnRequest) throws EncoderException {
         final int intervalSeconds = keyFrameIntervalSeconds(keyFramesOnRequest);
         if (blockModelWanted(attempt.encoder(), blockInput, Build.VERSION.SDK_INT,
-                blockModelFailed(attempt.encoder()))) {
+                blockModelFailed(attempt.encoder()), peakFrameRate(display, settings))) {
             final EncodingSession block = openBlockModel(attempt, display, settings, keyFramesOnRequest,
                     intervalSeconds);
             if (block != null) {
@@ -136,20 +149,26 @@ public final class MediaCodecSessionFactory implements EncodingSession.Factory {
         }
         MediaCodec codec = null;
         ImageReader reader = null;
-        HandlerThread thread = null;
+        HandlerThread inputThread = null;
+        HandlerThread codecThread = null;
         BlockModelSession session = null;
         Runnable projection = null;
         try {
             codec = MediaCodec.createByCodecName(attempt.encoder());
-            thread = new HandlerThread("gs-block-input");
-            thread.start();
-            final Handler handler = new Handler(thread.getLooper());
-            handler.post(() -> ThreadPriority.raise(ThreadPriority.VIDEO));
+            inputThread = new HandlerThread("gs-block-input");
+            inputThread.start();
+            final Handler inputHandler = new Handler(inputThread.getLooper());
+            inputHandler.post(() -> ThreadPriority.raise(ThreadPriority.VIDEO));
+            codecThread = new HandlerThread("gs-block-codec");
+            codecThread.start();
+            final Handler codecHandler = new Handler(codecThread.getLooper());
+            codecHandler.post(() -> ThreadPriority.raise(ThreadPriority.VIDEO));
             reader = ImageReader.newInstance(attempt.size().width(), attempt.size().height(), ImageFormat.PRIVATE,
                     BLOCK_MODEL_IMAGE_COUNT, BLOCK_MODEL_USAGE);
-            session = new BlockModelSession(attempt.encoder(), codec, reader, thread, handler, intervalSeconds,
-                    settings.maxFps(), BLOCK_MODEL_INPUT_SLOTS, BLOCK_MODEL_OUTPUT_CAPACITY);
-            configureBlockModel(codec, attempt, display, settings, keyFramesOnRequest, session.callback(), handler);
+            session = new BlockModelSession(attempt.encoder(), codec, reader, inputThread, inputHandler, codecThread,
+                    intervalSeconds, settings.maxFps(), BLOCK_MODEL_MAX_IN_FLIGHT);
+            configureBlockModel(codec, attempt, display, settings, keyFramesOnRequest, session.callback(),
+                    codecHandler);
             session.start();
             projection = project(display, attempt, reader.getSurface());
             session.attach(projection);
@@ -167,8 +186,11 @@ public final class MediaCodecSessionFactory implements EncodingSession.Factory {
                 } catch (RuntimeException ignored) {
                 }
             } else {
-                if (thread != null) {
-                    thread.quitSafely();
+                if (inputThread != null) {
+                    inputThread.quitSafely();
+                }
+                if (codecThread != null) {
+                    codecThread.quitSafely();
                 }
                 if (reader != null) {
                     reader.close();

@@ -54,10 +54,10 @@ class OptionsTest {
     }
 
     @Test
-    void adr0117TheBlockInputIsOnUnlessTheLaunchArgumentsTurnItOff() {
-        assertTrue(Options.parse("1", "socket=s").blockInput);
-        assertTrue(Options.parse("1", "socket=s", "blockInput=1").blockInput);
-        assertFalse(Options.parse("1", "socket=s", "blockInput=0").blockInput);
+    void adr0118TheBlockInputIsChosenAutomaticallyUnlessTheLaunchArgumentsSayOtherwise() {
+        assertEquals(Options.BLOCK_INPUT_AUTOMATIC, Options.parse("1", "socket=s").blockInput);
+        assertEquals(Options.BLOCK_INPUT_ON, Options.parse("1", "socket=s", "blockInput=1").blockInput);
+        assertEquals(Options.BLOCK_INPUT_OFF, Options.parse("1", "socket=s", "blockInput=0").blockInput);
         assertThrows(IllegalArgumentException.class, () -> Options.parse("1", "socket=s", "blockInput=2"));
         assertThrows(IllegalArgumentException.class, () -> Options.parse("1", "socket=s", "blockInput=on"));
     }

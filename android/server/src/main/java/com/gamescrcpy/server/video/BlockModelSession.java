@@ -22,25 +22,28 @@ final class BlockModelSession implements EncodingSession {
     private final String encoder;
     private final MediaCodec codec;
     private final ImageReader reader;
-    private final HandlerThread thread;
-    private final Handler handler;
+    private final HandlerThread inputThread;
+    private final Handler inputHandler;
+    private final HandlerThread codecThread;
     private final int keyFrameIntervalSeconds;
     private final BlockModelPump pump;
     private final Callback callback = new Callback();
     private Runnable projection = () -> {
     };
 
-    BlockModelSession(String encoder, MediaCodec codec, ImageReader reader, HandlerThread thread, Handler handler,
-                      int keyFrameIntervalSeconds, int maxFps, int slots, int outputCapacity) {
+    BlockModelSession(String encoder, MediaCodec codec, ImageReader reader, HandlerThread inputThread,
+                      Handler inputHandler, HandlerThread codecThread, int keyFrameIntervalSeconds, int maxFps,
+                      int maxInFlight) {
         this.encoder = encoder;
         this.codec = codec;
         this.reader = reader;
-        this.thread = thread;
-        this.handler = handler;
+        this.inputThread = inputThread;
+        this.inputHandler = inputHandler;
+        this.codecThread = codecThread;
         this.keyFrameIntervalSeconds = keyFrameIntervalSeconds;
-        this.pump = new BlockModelPump(this::queueFrame, new HandlerTimer(handler), System::nanoTime, slots, maxFps,
-                outputCapacity);
-        reader.setOnImageAvailableListener(this::imageAvailable, handler);
+        this.pump = new BlockModelPump(this::queueFrame, inputHandler::post, new HandlerTimer(inputHandler),
+                System::nanoTime, maxInFlight, maxFps);
+        reader.setOnImageAvailableListener(this::imageAvailable, inputHandler);
     }
 
     MediaCodec.Callback callback() {
@@ -137,15 +140,17 @@ final class BlockModelSession implements EncodingSession {
             leftover.payload = null;
             leftover.index = -1;
         }
-        handler.removeCallbacksAndMessages(null);
-        thread.quitSafely();
+        inputHandler.removeCallbacksAndMessages(null);
+        inputThread.quitSafely();
+        codecThread.quitSafely();
         try {
-            thread.join(JOIN_MILLIS);
+            inputThread.join(JOIN_MILLIS);
+            codecThread.join(JOIN_MILLIS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        if (thread.isAlive()) {
-            Log.w("the block model thread did not stop within " + JOIN_MILLIS + " ms");
+        if (inputThread.isAlive() || codecThread.isAlive()) {
+            Log.w("the block model threads did not stop within " + JOIN_MILLIS + " ms");
         }
         reader.close();
         try {
@@ -235,8 +240,19 @@ final class BlockModelSession implements EncodingSession {
             }
             return;
         }
-        pump.output(config ? Kind.CONFIG : Kind.FRAME, data, bufferInfo.presentationTimeUs, MediaClock.nowUs(),
-                (bufferInfo.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0, index, payload, last);
+        if (!pump.output(config ? Kind.CONFIG : Kind.FRAME, data, bufferInfo.presentationTimeUs, MediaClock.nowUs(),
+                (bufferInfo.flags & MediaCodec.BUFFER_FLAG_KEY_FRAME) != 0, index, payload, last)) {
+            if (payload instanceof MediaCodec.LinearBlock block) {
+                try {
+                    block.recycle();
+                } catch (IllegalStateException ignored) {
+                }
+            }
+            try {
+                codec.releaseOutputBuffer(index, false);
+            } catch (IllegalStateException ignored) {
+            }
+        }
     }
 
     private static final class HandlerTimer implements BlockModelPump.Timer {

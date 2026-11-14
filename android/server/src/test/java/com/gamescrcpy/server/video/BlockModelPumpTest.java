@@ -79,10 +79,11 @@ class BlockModelPumpTest {
     private final FakeClock clock = new FakeClock();
     private final List<Integer> slots = new ArrayList<>();
     private final List<Long> stamps = new ArrayList<>();
+    private final List<Runnable> posted = new ArrayList<>();
     private boolean refuse;
 
-    private BlockModelPump pump(int maxFps) {
-        final BlockModelPump.Sink sink = (slot, image, ptsUs) -> {
+    private BlockModelPump.Sink sink() {
+        return (slot, image, ptsUs) -> {
             if (refuse) {
                 return false;
             }
@@ -90,7 +91,14 @@ class BlockModelPumpTest {
             stamps.add(ptsUs);
             return true;
         };
-        return new BlockModelPump(sink, timer, clock, 3, maxFps, 4);
+    }
+
+    private BlockModelPump pump(int maxFps) {
+        return new BlockModelPump(sink(), Runnable::run, timer, clock, 3, maxFps);
+    }
+
+    private BlockModelPump pumpWithPostedDrains() {
+        return new BlockModelPump(sink(), posted::add, timer, clock, 3, 0);
     }
 
     @Test
@@ -268,5 +276,89 @@ class BlockModelPumpTest {
         assertEquals("block", leftovers.get(0).payload);
         assertTrue(image.closed());
         assertEquals(EncodingSession.Kind.END, pump.next(EncodingSession.NO_DEADLINE).kind);
+    }
+
+    @Test
+    void adr0118FramesWithinTwoMillisecondsOfTheRateLimitAreKept() {
+        final BlockModelPump pump = pump(120);
+        pump.slotAvailable(0);
+        final long[] offsetsUs = {0, 8_300, 16_700, 24_950, 33_400, 41_600};
+        for (long offsetUs : offsetsUs) {
+            pump.frame(new FakeImage(FRAME_NANOS + offsetUs * 1000));
+            pump.slotAvailable(0);
+        }
+        assertEquals(offsetsUs.length, slots.size());
+        assertEquals(0, pump.droppedFrames());
+    }
+
+    @Test
+    void adr0118ARateLimitBelowTheScreenRateKeepsEveryOtherFrame() {
+        final BlockModelPump pump = pump(60);
+        pump.slotAvailable(0);
+        for (int i = 0; i < 8; ++i) {
+            pump.frame(new FakeImage(FRAME_NANOS + i * 8_333_333L));
+            pump.slotAvailable(0);
+        }
+        assertEquals(4, slots.size());
+        assertEquals(4, pump.droppedFrames());
+    }
+
+    @Test
+    void adr0118AnySlotTheEncoderOffersIsUsed() {
+        final BlockModelPump pump = pump(0);
+        pump.slotAvailable(5);
+        pump.frame(new FakeImage(FRAME_NANOS));
+        assertEquals(List.of(5), slots);
+    }
+
+    @Test
+    void adr0118NoMoreThanTheLimitOfFramesIsInTheEncoderAtOnce() {
+        final BlockModelPump pump = pump(0);
+        for (int slot = 0; slot < 5; ++slot) {
+            pump.slotAvailable(slot);
+        }
+        for (int i = 0; i < 4; ++i) {
+            pump.frame(new FakeImage(FRAME_NANOS + i * 8_000_000L));
+        }
+        assertEquals(List.of(0, 1, 2), slots);
+
+        pump.slotAvailable(1);
+        assertEquals(List.of(0, 1, 2, 1), slots);
+        assertEquals(1_024_000L, stamps.get(3).longValue());
+    }
+
+    @Test
+    void adr0118ASlotThatComesBackLetsTheInputThreadHandOverTheWaitingFrame() {
+        final BlockModelPump pump = pumpWithPostedDrains();
+        pump.frame(new FakeImage(FRAME_NANOS));
+        assertEquals(List.of(), slots);
+
+        pump.slotAvailable(0);
+        pump.slotAvailable(1);
+        assertEquals(List.of(), slots);
+        assertEquals(1, posted.size());
+
+        posted.remove(0).run();
+        assertEquals(List.of(0), slots);
+    }
+
+    @Test
+    void adr0118OutputsNeverWaitForTheReader() throws EncoderException {
+        final BlockModelPump pump = pump(0);
+        for (int i = 0; i < 12; ++i) {
+            assertTrue(pump.output(EncodingSession.Kind.FRAME, ByteBuffer.allocate(4), i, i, false, i, null, false));
+        }
+        for (int i = 0; i < 12; ++i) {
+            final EncodingSession.Output output = pump.next(EncodingSession.NO_DEADLINE);
+            assertEquals(i, output.index);
+            pump.release(output);
+        }
+    }
+
+    @Test
+    void adr0118AnOutputAfterTheSessionStoppedIsRefused() {
+        final BlockModelPump pump = pump(0);
+        pump.interrupt();
+        assertFalse(pump.output(EncodingSession.Kind.FRAME, ByteBuffer.allocate(4), 1, 1, false, 3, null, false));
     }
 }

@@ -8,6 +8,8 @@ import java.util.List;
 final class BlockModelPump {
 
     static final long REPEAT_NANOS = 100_000_000L;
+    static final long MAX_JITTER_US = 2_000;
+    static final int MAX_SLOTS = 64;
 
     interface Image {
         long timestampNanos();
@@ -17,6 +19,10 @@ final class BlockModelPump {
 
     interface Sink {
         boolean queue(int slot, Image image, long ptsUs);
+    }
+
+    interface Runner {
+        void run(Runnable task);
     }
 
     interface Timer {
@@ -51,80 +57,78 @@ final class BlockModelPump {
 
     private final Object lock = new Object();
     private final Sink sink;
+    private final Runner input;
     private final Timer timer;
     private final Clock clock;
-    private final Held[] slotImages;
-    private final boolean[] slotKnown;
-    private final int maxFps;
+    private final Held[] slotImages = new Held[MAX_SLOTS];
+    private final boolean[] slotKnown = new boolean[MAX_SLOTS];
+    private final int maxInFlight;
+    private final long minIntervalUs;
     private final ArrayDeque<EncodingSession.Output> ready = new ArrayDeque<>();
     private final ArrayDeque<EncodingSession.Output> spare = new ArrayDeque<>();
     private final EncodingSession.Output end = new EncodingSession.Output();
 
     private Held pending;
     private Held last;
+    private int inFlight;
     private long lastQueuedNanos;
-    private long lastPtsUs = -1;
+    private long desiredMinUs = -1;
     private boolean paused;
     private boolean closed;
     private boolean stopped;
     private boolean ended;
     private boolean repeatScheduled;
+    private boolean drainScheduled;
+    private boolean queueing;
     private boolean frameAfterRequest;
     private EncoderException failure;
     private EncodingSession.Output inUse;
     private long dropped;
 
-    BlockModelPump(Sink sink, Timer timer, Clock clock, int slots, int maxFps, int outputCapacity) {
+    BlockModelPump(Sink sink, Runner input, Timer timer, Clock clock, int maxInFlight, int maxFps) {
         this.sink = sink;
+        this.input = input;
         this.timer = timer;
         this.clock = clock;
-        this.slotImages = new Held[slots];
-        this.slotKnown = new boolean[slots];
-        this.maxFps = maxFps;
-        for (int i = 0; i < outputCapacity; ++i) {
-            spare.add(new EncodingSession.Output());
-        }
+        this.maxInFlight = Math.max(1, maxInFlight);
+        this.minIntervalUs = maxFps > 0 ? 1_000_000L / maxFps : 0;
     }
 
     void frame(Image image) {
         synchronized (lock) {
-            if (closed || stopped || failure != null) {
-                image.close();
-                return;
-            }
-            if (paused) {
+            if (closed || stopped || failure != null || paused) {
                 image.close();
                 return;
             }
             final long timestamp = image.timestampNanos();
             final long ptsUs = timestamp > 0 ? timestamp / 1000 : clock.nowNanos() / 1000;
-            if (maxFps > 0 && lastPtsUs >= 0 && ptsUs - lastPtsUs < 1_000_000L / maxFps) {
+            if (tooSoonLocked(ptsUs)) {
                 ++dropped;
                 image.close();
                 return;
             }
-            final Held held = new Held(image, ptsUs);
             if (pending != null) {
                 ++dropped;
                 pending.release();
             }
-            pending = held;
-            pumpLocked();
+            pending = new Held(image, ptsUs);
         }
+        drain();
     }
 
     void slotAvailable(int slot) {
         synchronized (lock) {
-            if (closed || stopped || slot < 0 || slot >= slotImages.length) {
+            if (closed || stopped || slot < 0 || slot >= MAX_SLOTS) {
                 return;
             }
             slotKnown[slot] = true;
             final Held previous = slotImages[slot];
             if (previous != null) {
                 slotImages[slot] = null;
+                --inFlight;
                 previous.release();
             }
-            pumpLocked();
+            scheduleDrainLocked();
         }
     }
 
@@ -137,7 +141,7 @@ final class BlockModelPump {
                 pending = null;
             }
             if (!newPaused) {
-                pumpLocked();
+                scheduleDrainLocked();
             }
         }
     }
@@ -145,7 +149,7 @@ final class BlockModelPump {
     void requestKeyFrame() {
         synchronized (lock) {
             frameAfterRequest = true;
-            pumpLocked();
+            scheduleDrainLocked();
         }
     }
 
@@ -165,21 +169,16 @@ final class BlockModelPump {
         }
     }
 
-    boolean output(EncodingSession.Kind kind, ByteBuffer data, long ptsUs, long readyUs, boolean keyFrame,
-                   int index, Object payload, boolean lastOutput) {
+    boolean output(EncodingSession.Kind kind, ByteBuffer data, long ptsUs, long readyUs, boolean keyFrame, int index,
+                   Object payload, boolean lastOutput) {
         synchronized (lock) {
-            while (!closed && !stopped && failure == null && spare.isEmpty()) {
-                try {
-                    lock.wait();
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return false;
-                }
-            }
             if (closed || stopped || failure != null) {
                 return false;
             }
-            final EncodingSession.Output out = spare.poll();
+            EncodingSession.Output out = spare.poll();
+            if (out == null) {
+                out = new EncodingSession.Output();
+            }
             out.kind = kind;
             out.data = data;
             out.ptsUs = ptsUs;
@@ -242,19 +241,27 @@ final class BlockModelPump {
             output.data = null;
             output.payload = null;
             spare.add(output);
-            wakeLocked();
         }
     }
 
     List<EncodingSession.Output> close() {
         synchronized (lock) {
             closed = true;
+            while (queueing) {
+                try {
+                    lock.wait();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
             for (int i = 0; i < slotImages.length; ++i) {
                 if (slotImages[i] != null) {
                     slotImages[i].release();
                     slotImages[i] = null;
                 }
             }
+            inFlight = 0;
             if (pending != null) {
                 pending.release();
                 pending = null;
@@ -280,50 +287,93 @@ final class BlockModelPump {
         }
     }
 
-    private void pumpLocked() {
-        if (closed || stopped || paused || failure != null) {
-            return;
+    private boolean tooSoonLocked(long ptsUs) {
+        if (minIntervalUs <= 0) {
+            return false;
         }
-        if (pending != null) {
-            final int slot = freeSlotLocked();
-            if (slot >= 0) {
-                queueLocked(slot, pending);
-            }
-            return;
+        if (desiredMinUs < 0) {
+            desiredMinUs = ptsUs + minIntervalUs;
+            return false;
         }
-        if (last != null && (frameAfterRequest || repeatDueLocked())) {
-            final int slot = freeSlotLocked();
-            if (slot >= 0) {
-                queueLocked(slot, last);
-            }
+        if (ptsUs < desiredMinUs - MAX_JITTER_US) {
+            return true;
         }
+        if (ptsUs >= desiredMinUs + minIntervalUs) {
+            desiredMinUs = ptsUs + minIntervalUs;
+        } else {
+            desiredMinUs += minIntervalUs;
+        }
+        return false;
     }
 
-    private void queueLocked(int slot, Held held) {
-        if (!sink.queue(slot, held.image, held.ptsUs)) {
-            failure = new EncoderException("the encoder refused a frame", null);
-            wakeLocked();
+    private void scheduleDrainLocked() {
+        if (drainScheduled || closed || stopped || paused || failure != null) {
             return;
         }
-        slotImages[slot] = held.retain();
-        if (held == pending) {
-            pending.release();
-            pending = null;
+        if (pending == null && !(last != null && frameAfterRequest)) {
+            return;
         }
-        if (last != held) {
-            final Held previous = last;
-            last = held.retain();
-            if (previous != null) {
-                previous.release();
+        drainScheduled = true;
+        input.run(this::drain);
+    }
+
+    private void drain() {
+        while (true) {
+            final int slot;
+            final Held held;
+            synchronized (lock) {
+                drainScheduled = false;
+                if (closed || stopped || paused || failure != null) {
+                    return;
+                }
+                final Held candidate = pending != null ? pending
+                        : last != null && (frameAfterRequest || repeatDueLocked()) ? last : null;
+                if (candidate == null) {
+                    return;
+                }
+                slot = freeSlotLocked();
+                if (slot < 0) {
+                    return;
+                }
+                held = candidate;
+                slotImages[slot] = held.retain();
+                ++inFlight;
+                if (held == pending) {
+                    pending = null;
+                    if (last != null) {
+                        last.release();
+                    }
+                    last = held;
+                }
+                lastQueuedNanos = clock.nowNanos();
+                frameAfterRequest = false;
+                queueing = true;
+            }
+            final boolean accepted = sink.queue(slot, held.image, held.ptsUs);
+            synchronized (lock) {
+                queueing = false;
+                if (!accepted) {
+                    if (slotImages[slot] == held) {
+                        slotImages[slot] = null;
+                        --inFlight;
+                        held.release();
+                    }
+                    if (failure == null && !closed && !stopped) {
+                        failure = new EncoderException("the encoder refused a frame", null);
+                    }
+                    wakeLocked();
+                    return;
+                }
+                scheduleRepeatLocked();
+                wakeLocked();
             }
         }
-        lastPtsUs = held.ptsUs;
-        lastQueuedNanos = clock.nowNanos();
-        frameAfterRequest = false;
-        scheduleRepeatLocked();
     }
 
     private int freeSlotLocked() {
+        if (inFlight >= maxInFlight) {
+            return -1;
+        }
         for (int i = 0; i < slotImages.length; ++i) {
             if (slotKnown[i] && slotImages[i] == null) {
                 return i;
@@ -337,7 +387,7 @@ final class BlockModelPump {
     }
 
     private long repeatIntervalNanos() {
-        return maxFps > 0 ? Math.max(REPEAT_NANOS, 1_000_000_000L / maxFps) : REPEAT_NANOS;
+        return minIntervalUs > 0 ? Math.max(REPEAT_NANOS, minIntervalUs * 1000) : REPEAT_NANOS;
     }
 
     private void scheduleRepeatLocked() {
@@ -360,7 +410,9 @@ final class BlockModelPump {
                 timer.after(remaining, this::repeatTick);
                 return;
             }
-            pumpLocked();
+        }
+        drain();
+        synchronized (lock) {
             scheduleRepeatLocked();
         }
     }
