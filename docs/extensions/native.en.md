@@ -343,7 +343,7 @@ An AI provider adds a model service to Settings › AI: the assistant and `ai.as
 "jobs": [ { "name": "chat", "title": "Answer", "params": [ { "name": "request", "type": "json" } ], "returns": "json" } ]
 ```
 
-- The `models` node takes no parameters and returns a JSON array of models (up to 256), each `{ id, name, traits }`: `id` is required (at most 256 characters), `name` defaults to `id`, and `traits` tells what it can do: `think` (it can think before answering), `alwaysThinks`, `efforts` (thinking efforts, some of `minimal`, `low`, `medium` and `high`), `thinkingEffort` (the effort matters only with thinking on) and `longContext`.
+- The `models` node takes no parameters and returns a JSON array of models (up to 256), each `{ id, name, traits }`: `id` is required (at most 256 characters), `name` defaults to `id`, and `traits` tells what it can do: `think` (it can think before answering), `alwaysThinks`, `efforts` (thinking efforts, some of `minimal`, `low`, `medium`, `high`, `xhigh` and `max`), `thinkingEffort` (the effort matters only with thinking on), `topEffortsThink` (`xhigh` and `max` can be chosen only with thinking on), `longContext` (a million-token context can be turned on) and `millionContext` (the context is a million tokens anyway).
 - The `chat` job starts once for each question, and its parameter `request` is:
 
   ```json

@@ -343,7 +343,7 @@ AI 服务提供者让设置 › AI 的“模型服务”里多一项：小助手
 "jobs": [ { "name": "chat", "title": "Answer", "params": [ { "name": "request", "type": "json" } ], "returns": "json" } ]
 ```
 
-- `models` 节点没有参数，返回模型的 JSON 数组（最多 256 个）：每个 `{ id, name, traits }`，`id` 必填（最多 256 个字符），`name` 省掉时用 `id`；`traits` 说它能做什么：`think`（能深度思考）、`alwaysThinks`、`efforts`（思考强度，`minimal`、`low`、`medium`、`high` 里的几种）、`thinkingEffort`（强度只在开了深度思考时有用）、`longContext`。
+- `models` 节点没有参数，返回模型的 JSON 数组（最多 256 个）：每个 `{ id, name, traits }`，`id` 必填（最多 256 个字符），`name` 省掉时用 `id`；`traits` 说它能做什么：`think`（能深度思考）、`alwaysThinks`、`efforts`（思考强度，`minimal`、`low`、`medium`、`high`、`xhigh`、`max` 里的几种）、`thinkingEffort`（强度只在开了深度思考时有用）、`topEffortsThink`（`xhigh` 与 `max` 只在开了深度思考时能选）、`longContext`（能另开百万上下文）、`millionContext`（本来就是百万上下文，不用开）。
 - `chat` 任务每次提问启动一次，参数 `request` 是：
 
   ```json

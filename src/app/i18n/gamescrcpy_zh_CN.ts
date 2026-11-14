@@ -761,6 +761,14 @@
         <translation>高</translation>
     </message>
     <message>
+        <source>Extra high</source>
+        <translation>超高</translation>
+    </message>
+    <message>
+        <source>Max</source>
+        <translation>最高</translation>
+    </message>
+    <message>
         <source>Thinking</source>
         <translation>思考</translation>
     </message>
@@ -807,6 +815,10 @@
     <message>
         <source>1M tokens, costs more</source>
         <translation>100 万 token，费用更高</translation>
+    </message>
+    <message>
+        <source>1M tokens, always on</source>
+        <translation>100 万 token，一直开着</translation>
     </message>
     <message>
         <source>This model has no thinking options.</source>
@@ -1207,6 +1219,14 @@
         <translation>这个模型总会先思考，没法关掉；小助手会把思考过程显示在回答上方。</translation>
     </message>
     <message>
+        <source>Long context</source>
+        <translation>长上下文</translation>
+    </message>
+    <message>
+        <source>This model always reads up to a million tokens of the conversation, so there is nothing to turn on.</source>
+        <translation>这个模型本来就能读入对话里最多 100 万 token，不用另外开。</translation>
+    </message>
+    <message>
         <source>Test connection</source>
         <translation>测试连接</translation>
     </message>
@@ -1273,6 +1293,14 @@
     <message>
         <source>High</source>
         <translation>高</translation>
+    </message>
+    <message>
+        <source>Extra high</source>
+        <translation>超高</translation>
+    </message>
+    <message>
+        <source>Max</source>
+        <translation>最高</translation>
     </message>
     <message>
         <source>None yet</source>
@@ -18745,10 +18773,6 @@
         <translation>新对话里模型思考的强度，只对支持强度的模型生效；“自动”交给服务决定。越高越慢，也越费额度。</translation>
     </message>
     <message>
-        <source>ai assistant reasoning effort strength minimal low medium high think gpt claude</source>
-        <translation>AI 小助手 助手 思考强度 推理 强度 最低 低 中 高 思考 gpt claude</translation>
-    </message>
-    <message>
         <source>Long context</source>
         <translation>长上下文</translation>
     </message>
@@ -18843,6 +18867,10 @@
     <message>
         <source>touch extension dll native box board method</source>
         <translation>触控 扩展 原生 触控盒 开发板 方式</translation>
+    </message>
+    <message>
+        <source>ai assistant reasoning effort strength minimal low medium high xhigh max think gpt claude deepseek</source>
+        <translation>AI 小助手 助手 思考强度 推理 强度 最低 低 中 高 超高 最高 思考 gpt claude deepseek</translation>
     </message>
     <message>
         <source>Compatible with OpenAI covers OpenAI, DeepSeek, Qwen, Kimi, a local Ollama and many more through the Chat Completions protocol; OpenAI Responses is OpenAI&apos;s newer protocol; Anthropic is Claude. Each keeps its own address, model and API key. Extensions can add more services, which bring their own models.</source>

@@ -870,7 +870,8 @@ TEST_CASE("ADR-0099 2026-11-10: each service keeps its own thinking options, and
     const Entry* effort = findSetting("assistant.anthropic.effort");
     REQUIRE(effort != nullptr);
     CHECK(effort->kind == Kind::Choice);
-    CHECK(effort->choices == std::vector<std::string_view>{"auto", "minimal", "low", "medium", "high"});
+    CHECK(effort->choices ==
+          std::vector<std::string_view>{"auto", "minimal", "low", "medium", "high", "xhigh", "max"});
     CHECK(findSetting("assistant.openai.thinking") != nullptr);
     CHECK(findSetting("assistant.openaiResponses.longContext") != nullptr);
     CHECK(findSetting("assistant.deepThinking") == nullptr);

@@ -974,3 +974,216 @@ TEST_CASE("ADR-0099 2026-11-10: options the model does not take are dropped, and
     CHECK(gs::app::aiChoiceOf(QVariantMap{{u"model"_s, u"   "_s}, {u"think"_s, true}}) == AiChoice{});
     CHECK(gs::app::aiChoiceOf(QVariantMap{{u"model"_s, QString(300, u'x')}}).model.size() == 256);
 }
+
+TEST_CASE("2026-11-14: Claude 4.6 and later offer effort up to max and a built-in million-token context, and say "
+          "whether thinking can be switched")
+{
+    using gs::app::aiModelTraits;
+    using gs::app::AiModelTraits;
+    const QStringList four{u"low"_s, u"medium"_s, u"high"_s, u"max"_s};
+    const QStringList five{u"low"_s, u"medium"_s, u"high"_s, u"xhigh"_s, u"max"_s};
+
+    const AiModelTraits opus46 = aiModelTraits(AiKind::Anthropic, u"claude-opus-4-6"_s);
+    CHECK(opus46.think);
+    CHECK_FALSE(opus46.alwaysThinks);
+    CHECK(opus46.efforts == four);
+    CHECK_FALSE(opus46.thinkingEffort);
+    CHECK_FALSE(opus46.topEffortsThink);
+    CHECK(opus46.millionContext);
+    CHECK_FALSE(opus46.longContext);
+    CHECK(aiModelTraits(AiKind::Anthropic, u"claude-sonnet-4-6"_s).efforts == four);
+    CHECK(aiModelTraits(AiKind::Anthropic, u"claude-opus-4-7"_s).efforts == five);
+    CHECK(aiModelTraits(AiKind::Anthropic, u"claude-opus-4.8"_s).efforts == five);
+
+    const AiModelTraits opus5 = aiModelTraits(AiKind::Anthropic, u"claude-opus-5"_s);
+    CHECK(opus5.think);
+    CHECK(opus5.efforts == five);
+    CHECK(opus5.topEffortsThink);
+    CHECK(opus5.millionContext);
+    CHECK(aiModelTraits(AiKind::Anthropic, u"claude-haiku-5-5"_s).topEffortsThink);
+    CHECK(aiModelTraits(AiKind::Anthropic, u"claude-sonnet-5-5"_s).topEffortsThink);
+    CHECK_FALSE(aiModelTraits(AiKind::Anthropic, u"claude-sonnet-5"_s).topEffortsThink);
+    CHECK(aiModelTraits(AiKind::Anthropic, u"claude-sonnet-5"_s).think);
+
+    for (const QString& always : {u"claude-opus-5-5"_s, u"claude-fable-5-2"_s, u"claude-mythos-5-1"_s}) {
+        const AiModelTraits traits = aiModelTraits(AiKind::Anthropic, always);
+        CHECK(traits.alwaysThinks);
+        CHECK_FALSE(traits.think);
+        CHECK(traits.efforts == five);
+        CHECK(traits.millionContext);
+    }
+    CHECK(aiModelTraits(AiKind::Anthropic, u"claude-mythos-preview"_s).efforts == four);
+
+    const AiModelTraits opus45 = aiModelTraits(AiKind::Anthropic, u"claude-opus-4-5-20251101"_s);
+    CHECK(opus45.thinkingEffort);
+    CHECK(opus45.efforts == QStringList{u"low"_s, u"medium"_s, u"high"_s});
+    CHECK_FALSE(opus45.millionContext);
+    CHECK(aiModelTraits(AiKind::Anthropic, u"claude-sonnet-4-20250514"_s).longContext);
+    CHECK_FALSE(aiModelTraits(AiKind::Anthropic, u"claude-sonnet-4-6"_s).longContext);
+}
+
+TEST_CASE("2026-11-14: Claude 4.6 and later think adaptively, take the effort in output_config and leave room for "
+          "the thinking; older Claude keeps the thinking budget")
+{
+    const auto ask = [](const QString& model, bool think, const QString& effort) {
+        const AiRequest request{.model = model,
+                                .turns = {AiTurn{.role = AiTurn::Role::User, .text = u"Hi"_s}},
+                                .think = think,
+                                .effort = effort};
+        return gs::app::aiRequestJson(AiKind::Anthropic, request);
+    };
+    const auto thinkingType = [](const QJsonObject& body) {
+        return body.value(u"thinking"_s).toObject().value(u"type"_s).toString();
+    };
+    const auto effortOf = [](const QJsonObject& body) {
+        return body.value(u"output_config"_s).toObject().value(u"effort"_s).toString();
+    };
+
+    const QJsonObject opus47 = ask(u"claude-opus-4-7"_s, true, u"xhigh"_s);
+    CHECK(thinkingType(opus47) == u"adaptive");
+    CHECK_FALSE(opus47.value(u"thinking"_s).toObject().contains(u"budget_tokens"_s));
+    CHECK(effortOf(opus47) == u"xhigh");
+    CHECK(opus47.value(u"max_tokens"_s).toInt() > AiRequest::kAnthropicMaxTokens + 32768);
+    CHECK(opus47.value(u"max_tokens"_s).toInt() <= 64000);
+
+    const QJsonObject quiet = ask(u"claude-sonnet-4-6"_s, false, u"low"_s);
+    CHECK_FALSE(quiet.contains(u"thinking"_s));
+    CHECK(effortOf(quiet) == u"low");
+    CHECK(quiet.value(u"max_tokens"_s).toInt() == AiRequest::kAnthropicMaxTokens);
+
+    CHECK(thinkingType(ask(u"claude-opus-5"_s, false, u"medium"_s)) == u"disabled");
+    const QJsonObject topEffort = ask(u"claude-opus-5"_s, false, u"max"_s);
+    CHECK_FALSE(topEffort.contains(u"thinking"_s));
+    CHECK(effortOf(topEffort) == u"max");
+    CHECK_FALSE(ask(u"claude-opus-5"_s, true, {}).contains(u"thinking"_s));
+    CHECK(thinkingType(ask(u"claude-sonnet-5-5"_s, false, u"high"_s)) == u"between_tools");
+    CHECK(thinkingType(ask(u"claude-sonnet-5"_s, false, {})) == u"disabled");
+
+    const QJsonObject always = ask(u"claude-opus-5-5"_s, false, u"medium"_s);
+    CHECK_FALSE(always.contains(u"thinking"_s));
+    CHECK(effortOf(always) == u"medium");
+    CHECK(always.value(u"max_tokens"_s).toInt() > AiRequest::kAnthropicMaxTokens);
+    CHECK_FALSE(ask(u"claude-opus-5-5"_s, false, {}).contains(u"output_config"_s));
+
+    const QJsonObject budget = ask(u"claude-sonnet-4-5"_s, true, u"high"_s);
+    CHECK(thinkingType(budget) == u"enabled");
+    CHECK(budget.value(u"thinking"_s).toObject().value(u"budget_tokens"_s).toInt() ==
+          gs::app::aiThinkingBudget(u"high"_s));
+    CHECK_FALSE(budget.contains(u"output_config"_s));
+
+    AiRequest tools = sampleRequest();
+    tools.model = u"claude-opus-5-5"_s;
+    tools.turns[1].thinkingBlocks =
+        QJsonArray{QJsonObject{{u"type"_s, u"thinking"_s}, {u"thinking"_s, u"Look."_s}, {u"signature"_s, u"s1"_s}}};
+    const QJsonArray replayed = gs::app::aiRequestJson(AiKind::Anthropic, tools)
+                                    .value(u"messages"_s)
+                                    .toArray()
+                                    .at(1)
+                                    .toObject()
+                                    .value(u"content"_s)
+                                    .toArray();
+    CHECK(replayed.at(0).toObject().value(u"signature"_s).toString() == u"s1");
+
+    AiRequest unstreamed{.model = u"claude-opus-5-5"_s,
+                         .turns = {AiTurn{.role = AiTurn::Role::User, .text = u"Hi"_s}},
+                         .stream = false,
+                         .effort = u"max"_s};
+    CHECK(gs::app::aiRequestJson(AiKind::Anthropic, unstreamed).value(u"max_tokens"_s).toInt() <= 21333);
+}
+
+TEST_CASE("2026-11-14: GPT effort levels follow the model's version")
+{
+    using gs::app::aiModelTraits;
+    const QStringList three{u"low"_s, u"medium"_s, u"high"_s};
+    CHECK(aiModelTraits(AiKind::OpenAi, u"gpt-5.1"_s).efforts == three);
+    CHECK(aiModelTraits(AiKind::OpenAi, u"gpt-5.1-codex-max"_s).efforts ==
+          QStringList{u"low"_s, u"medium"_s, u"high"_s, u"xhigh"_s});
+    CHECK(aiModelTraits(AiKind::OpenAi, u"gpt-5.2"_s).efforts ==
+          QStringList{u"low"_s, u"medium"_s, u"high"_s, u"xhigh"_s});
+    CHECK(aiModelTraits(AiKind::OpenAi, u"gpt-5.2-pro"_s).efforts ==
+          QStringList{u"medium"_s, u"high"_s, u"xhigh"_s});
+    CHECK(aiModelTraits(AiKind::OpenAi, u"gpt-5-pro"_s).efforts == QStringList{u"high"_s});
+    CHECK(aiModelTraits(AiKind::OpenAi, u"gpt-5-codex"_s).efforts == three);
+    CHECK(aiModelTraits(AiKind::OpenAiResponses, u"gpt-5.6"_s).efforts ==
+          QStringList{u"low"_s, u"medium"_s, u"high"_s, u"xhigh"_s, u"max"_s});
+    CHECK(aiModelTraits(AiKind::OpenAi, u"openai/gpt-6-sol"_s).efforts.contains(u"max"_s));
+    CHECK(aiModelTraits(AiKind::OpenAi, u"gpt-5.2-chat-latest"_s).efforts.isEmpty());
+    CHECK(aiModelTraits(AiKind::OpenAi, u"gpt-4o"_s).efforts.isEmpty());
+    CHECK(aiModelTraits(AiKind::OpenAi, u"claude-opus-4-7"_s).efforts == three);
+    CHECK(aiModelTraits(AiKind::OpenAi, u"gemini-3-pro"_s).efforts == three);
+}
+
+TEST_CASE("2026-11-14: DeepSeek V4 switches thinking with its own field, takes low, high or max, and gets its "
+          "reasoning back")
+{
+    using gs::app::aiModelTraits;
+    using gs::app::AiModelTraits;
+    const AiModelTraits pro = aiModelTraits(AiKind::OpenAi, u"deepseek-v4-pro"_s);
+    CHECK(pro.think);
+    CHECK(pro.efforts == QStringList{u"low"_s, u"high"_s, u"max"_s});
+    CHECK(pro.thinkingEffort);
+    CHECK(pro.millionContext);
+    CHECK(aiModelTraits(AiKind::OpenAi, u"deepseek-flash"_s).think);
+    CHECK(aiModelTraits(AiKind::OpenAi, u"deepseek-ai/DeepSeek-V4-Flash"_s).think);
+    CHECK_FALSE(aiModelTraits(AiKind::OpenAi, u"deepseek-chat"_s).think);
+    CHECK_FALSE(aiModelTraits(AiKind::OpenAi, u"deepseek-v3.2"_s).think);
+
+    AiRequest request = sampleRequest();
+    request.model = u"deepseek-v4-pro"_s;
+    request.turns[1].reasoning = u"Find the button first."_s;
+    request.think = true;
+    request.effort = u"max"_s;
+    const QJsonObject thinking = gs::app::aiRequestJson(AiKind::OpenAi, request);
+    CHECK(thinking.value(u"thinking"_s).toObject().value(u"type"_s).toString() == u"enabled");
+    CHECK(thinking.value(u"reasoning_effort"_s).toString() == u"max");
+    CHECK_FALSE(thinking.contains(u"enable_thinking"_s));
+    const QJsonArray messages = thinking.value(u"messages"_s).toArray();
+    QString replayed;
+    for (const QJsonValue& value : messages) {
+        if (value.toObject().value(u"role"_s).toString() == u"assistant") {
+            replayed = value.toObject().value(u"reasoning_content"_s).toString();
+        }
+    }
+    CHECK(replayed == u"Find the button first.");
+
+    request.think = false;
+    const QJsonObject plain = gs::app::aiRequestJson(AiKind::OpenAi, request);
+    CHECK(plain.value(u"thinking"_s).toObject().value(u"type"_s).toString() == u"disabled");
+    CHECK_FALSE(plain.contains(u"reasoning_effort"_s));
+    for (const QJsonValue& value : plain.value(u"messages"_s).toArray()) {
+        CHECK_FALSE(value.toObject().contains(u"reasoning_content"_s));
+    }
+
+    request.model = u"gpt-5.2"_s;
+    request.think = true;
+    for (const QJsonValue& value : gs::app::aiRequestJson(AiKind::OpenAi, request).value(u"messages"_s).toArray()) {
+        CHECK_FALSE(value.toObject().contains(u"reasoning_content"_s));
+    }
+}
+
+TEST_CASE("2026-11-14: the top efforts need thinking where the model asks for it, and the new levels read back")
+{
+    using gs::app::AiChoice;
+    CHECK(gs::app::aiFitted(AiKind::Anthropic, AiChoice{.model = u"claude-opus-5"_s, .effort = u"max"_s}) ==
+          AiChoice{.model = u"claude-opus-5"_s});
+    const AiChoice thinking{.model = u"claude-opus-5"_s, .think = true, .effort = u"max"_s};
+    CHECK(gs::app::aiFitted(AiKind::Anthropic, thinking) == thinking);
+    const AiChoice always{.model = u"claude-opus-5-5"_s, .effort = u"xhigh"_s};
+    CHECK(gs::app::aiFitted(AiKind::Anthropic, always) == always);
+    const AiChoice opus46{.model = u"claude-opus-4-6"_s, .effort = u"max"_s};
+    CHECK(gs::app::aiFitted(AiKind::Anthropic, opus46) == opus46);
+    CHECK(gs::app::aiFitted(AiKind::Anthropic, AiChoice{.model = u"claude-opus-4-6"_s, .effort = u"xhigh"_s}) ==
+          AiChoice{.model = u"claude-opus-4-6"_s});
+    CHECK(gs::app::aiFitted(AiKind::OpenAi, AiChoice{.model = u"deepseek-v4-pro"_s, .effort = u"high"_s}) ==
+          AiChoice{.model = u"deepseek-v4-pro"_s});
+
+    CHECK(gs::app::aiChoiceOf(gs::app::aiChoiceMap(thinking)) == thinking);
+    CHECK(gs::app::aiChoiceOf(gs::app::aiChoiceMap(always)) == always);
+    const gs::app::AiModelTraits read = gs::app::aiTraitsOf(QJsonObject{
+        {u"efforts"_s, QJsonArray{u"max"_s, u"low"_s, u"xhigh"_s, u"ultra"_s}},
+        {u"topEffortsThink"_s, true},
+        {u"millionContext"_s, true}});
+    CHECK(read.efforts == QStringList{u"low"_s, u"xhigh"_s, u"max"_s});
+    CHECK(read.topEffortsThink);
+    CHECK(read.millionContext);
+}

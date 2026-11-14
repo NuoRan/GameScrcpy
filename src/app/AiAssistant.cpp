@@ -596,7 +596,9 @@ QVariantMap AiAssistant::traits(const QString& model) const
             {u"alwaysThinks"_s, found.alwaysThinks},
             {u"efforts"_s, found.efforts},
             {u"thinkingEffort"_s, found.thinkingEffort},
-            {u"longContext"_s, found.longContext}};
+            {u"longContext"_s, found.longContext},
+            {u"topEffortsThink"_s, found.topEffortsThink},
+            {u"millionContext"_s, found.millionContext}};
 }
 
 void AiAssistant::makeDefault(const QVariantMap& choice)

@@ -14,9 +14,17 @@ SettingCard {
     readonly property bool external: card.service === "extension"
     readonly property string modelName: String(AppSettings.values["assistant." + service + ".model"] ?? "").trim()
     readonly property var traits: AiAssistant.service !== "" ? AiAssistant.traits(card.modelName) : ({})
-    readonly property var efforts: card.traits.thinkingEffort === true
-                                   && AppSettings.values["assistant." + service + ".thinking"] !== true
-                                   ? [] : card.traits.efforts ?? []
+    readonly property bool thinking: card.traits.alwaysThinks === true
+                                     || (card.traits.think === true
+                                         && AppSettings.values["assistant." + service + ".thinking"] === true)
+    readonly property var efforts: {
+        const all = card.traits.efforts ?? []
+        if (card.traits.thinkingEffort === true && AppSettings.values["assistant." + service + ".thinking"] !== true)
+            return []
+        if (card.traits.topEffortsThink === true && !card.thinking)
+            return all.filter(level => level !== "xhigh" && level !== "max")
+        return all
+    }
 
     function saveKey() {
         if (AiAssistant.saveKey(keyField.text))
@@ -180,6 +188,16 @@ SettingCard {
         nested: true
         divider: false
         visible: matched && card.traits.longContext === true
+    }
+
+    SettingsRow {
+        objectName: "aiMillionContext"
+        width: parent ? parent.width : implicitWidth
+        visible: modelRow.matched && card.traits.millionContext === true
+        nested: true
+        title: qsTr("Long context")
+        description: qsTr("This model always reads up to a million tokens of the conversation, so there is nothing "
+                          + "to turn on.")
     }
 
     SettingsRow {
@@ -455,7 +473,8 @@ SettingCard {
 
         readonly property var options: ["auto"].concat(card.efforts)
         readonly property var labels: ({ auto: qsTr("Automatic"), minimal: qsTr("Minimal"), low: qsTr("Low"),
-                                         medium: qsTr("Medium"), high: qsTr("High") })
+                                         medium: qsTr("Medium"), high: qsTr("High"), xhigh: qsTr("Extra high"),
+                                         max: qsTr("Max") })
 
         globalText: effortRow.labels[globalValue] ?? String(globalValue)
 

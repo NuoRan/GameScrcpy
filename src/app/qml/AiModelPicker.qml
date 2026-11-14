@@ -20,19 +20,28 @@ T.AbstractButton {
     readonly property var current: picker.following ? AiAssistant.defaultChoice : picker.chosen
     readonly property string model: picker.current.model ?? ""
     readonly property var traits: AiAssistant.service !== "" ? AiAssistant.traits(picker.model) : ({})
-    readonly property var efforts: picker.traits.thinkingEffort === true && picker.current.think !== true
-                                   ? [] : picker.traits.efforts ?? []
     readonly property bool thinking: picker.traits.alwaysThinks === true
                                      || (picker.traits.think === true && picker.current.think === true)
+    readonly property var efforts: {
+        const all = picker.traits.efforts ?? []
+        if (picker.traits.thinkingEffort === true && picker.current.think !== true)
+            return []
+        if (picker.traits.topEffortsThink === true && !picker.thinking)
+            return all.filter(level => level !== "xhigh" && level !== "max")
+        return all
+    }
     readonly property string effort: picker.efforts.indexOf(picker.current.effort ?? "") >= 0
                                      ? picker.current.effort : ""
-    readonly property bool longContext: picker.traits.longContext === true && picker.current.longContext === true
+    readonly property bool longContext: picker.traits.millionContext === true
+                                        || (picker.traits.longContext === true && picker.current.longContext === true)
     readonly property bool hasOptions: picker.traits.think === true || picker.traits.alwaysThinks === true
                                        || picker.efforts.length > 0 || picker.traits.longContext === true
+                                       || picker.traits.millionContext === true
     readonly property bool differs: !picker.following && JSON.stringify(picker.plain(picker.chosen))
                                                          !== JSON.stringify(picker.plain(AiAssistant.defaultChoice))
     readonly property var labels: ({ auto: qsTr("Automatic"), minimal: qsTr("Minimal"), low: qsTr("Low"),
-                                     medium: qsTr("Medium"), high: qsTr("High") })
+                                     medium: qsTr("Medium"), high: qsTr("High"), xhigh: qsTr("Extra high"),
+                                     max: qsTr("Max") })
     readonly property string summary: [picker.traits.think === true && picker.current.think === true
                                        ? qsTr("Thinking") : "",
                                        picker.effort !== "" ? picker.labels[picker.effort] : "",
@@ -351,6 +360,13 @@ T.AbstractButton {
                     Accessible.name: qsTr("Long context")
                     onToggled: picker.choose({ longContext: checked })
                 }
+            }
+
+            OptionRow {
+                objectName: "aiPickMillionContext"
+                visible: picker.traits.millionContext === true
+                title: qsTr("Long context")
+                detail: qsTr("1M tokens, always on")
             }
 
             Text {

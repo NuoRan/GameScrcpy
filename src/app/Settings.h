@@ -708,8 +708,9 @@ inline constexpr std::array<std::string_view, 4> kAiServiceNames{"openai", "anth
 inline constexpr std::string_view kOpenAiAddress = "https://api.openai.com/v1";
 inline constexpr std::string_view kAnthropicAddress = "https://api.anthropic.com";
 
-enum class AiEffort : std::uint8_t { Automatic, Minimal, Low, Medium, High };
-inline constexpr std::array<std::string_view, 5> kAiEffortNames{"auto", "minimal", "low", "medium", "high"};
+enum class AiEffort : std::uint8_t { Automatic, Minimal, Low, Medium, High, ExtraHigh, Max };
+inline constexpr std::array<std::string_view, 7> kAiEffortNames{"auto", "minimal", "low", "medium", "high",
+                                                                "xhigh", "max"};
 
 struct AiEndpoint {
     static constexpr std::size_t kMaxAddressLength = 2048;
@@ -757,7 +758,8 @@ struct AiEndpoint {
                                                                "the service. Higher is slower and uses more of your "
                                                                "quota."),
                   .keywords = GS_TRANSLATE_NOOP("Settings", "ai assistant reasoning effort strength minimal low "
-                                                            "medium high think gpt claude"),
+                                                            "medium high xhigh max think gpt claude "
+                                                            "deepseek"),
                   .live = true});
         v.boolean("longContext", m.longContext,
                   {.title = GS_TRANSLATE_NOOP("Settings", "Long context"),
@@ -817,7 +819,8 @@ struct AiExtensionService {
                                                                "the service. Higher is slower and uses more of your "
                                                                "quota."),
                   .keywords = GS_TRANSLATE_NOOP("Settings", "ai assistant reasoning effort strength minimal low "
-                                                            "medium high think gpt claude"),
+                                                            "medium high xhigh max think gpt claude "
+                                                            "deepseek"),
                   .live = true});
         v.boolean("longContext", m.longContext,
                   {.title = GS_TRANSLATE_NOOP("Settings", "Long context"),

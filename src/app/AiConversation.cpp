@@ -932,7 +932,8 @@ void AiConversation::answered(AiReply reply)
     m_history.push_back(AiTurn{.role = AiTurn::Role::Assistant,
                                .text = reply.text,
                                .calls = reply.calls,
-                               .thinkingBlocks = reply.thinkingBlocks});
+                               .thinkingBlocks = reply.thinkingBlocks,
+                               .reasoning = reply.thinking});
     if (reply.stop == u"length" || reply.stop == u"max_tokens") {
         append(Item{.kind = Item::Kind::Notice,
                     .text = QCoreApplication::translate("AiConversation",

@@ -39,6 +39,138 @@ QString bareModel(const QString& model)
     return name;
 }
 
+enum class ClaudeThinking : std::uint8_t { None, Budget, OptIn, OptOut, BetweenTools, Always };
+
+struct ClaudeModel {
+    ClaudeThinking thinking = ClaudeThinking::None;
+    QStringList efforts;
+    bool longContext = false;
+    bool million = false;
+    bool topEffortsThink = false;
+};
+
+ClaudeModel claudeModel(const QString& name)
+{
+    static const QRegularExpression current(u"^claude-(opus|sonnet|haiku|fable|mythos)-(\\d+)(?:-(\\d{1,2}))?(?=-|$)"_s);
+    static const QRegularExpression older(u"^claude-(\\d+)(?:-(\\d))?-(opus|sonnet|haiku)"_s);
+    const QStringList three{u"low"_s, u"medium"_s, u"high"_s};
+    const QStringList four{u"low"_s, u"medium"_s, u"high"_s, u"max"_s};
+    const QStringList five{u"low"_s, u"medium"_s, u"high"_s, u"xhigh"_s, u"max"_s};
+    QString family;
+    int version = 0;
+    if (const QRegularExpressionMatch match = current.match(name); match.hasMatch()) {
+        family = match.captured(1);
+        version = match.captured(2).toInt() * 10 + match.captured(3).toInt();
+    } else if (const QRegularExpressionMatch legacy = older.match(name); legacy.hasMatch()) {
+        family = legacy.captured(3);
+        version = legacy.captured(1).toInt() * 10 + legacy.captured(2).toInt();
+    } else if (name.startsWith(u"claude-mythos")) {
+        return {.thinking = ClaudeThinking::Always, .efforts = four, .million = true};
+    }
+    if (family == u"fable" || family == u"mythos" || (family == u"opus" && version >= 55)) {
+        return {.thinking = ClaudeThinking::Always, .efforts = five, .million = true};
+    }
+    if (version >= 50) {
+        if (family == u"sonnet") {
+            return version >= 55 ? ClaudeModel{.thinking = ClaudeThinking::BetweenTools,
+                                               .efforts = five,
+                                               .million = true,
+                                               .topEffortsThink = true}
+                                 : ClaudeModel{.thinking = ClaudeThinking::OptOut, .efforts = five, .million = true};
+        }
+        return {.thinking = ClaudeThinking::OptOut, .efforts = five, .million = true, .topEffortsThink = true};
+    }
+    if (version >= 46) {
+        return {.thinking = ClaudeThinking::OptIn, .efforts = version == 46 ? four : five, .million = true};
+    }
+    if (version >= 40 || (version == 37 && family == u"sonnet")) {
+        return {.thinking = ClaudeThinking::Budget,
+                .efforts = three,
+                .longContext = family == u"sonnet" && (version == 40 || version == 45)};
+    }
+    return {};
+}
+
+bool claudeTopEffort(const QString& effort)
+{
+    return effort == u"xhigh" || effort == u"max";
+}
+
+bool claudeThinks(ClaudeThinking thinking, const AiRequest& request)
+{
+    switch (thinking) {
+    case ClaudeThinking::Always:
+        return true;
+    case ClaudeThinking::OptOut:
+    case ClaudeThinking::BetweenTools:
+        return request.think || claudeTopEffort(request.effort);
+    case ClaudeThinking::OptIn:
+        return request.think;
+    case ClaudeThinking::None:
+    case ClaudeThinking::Budget:
+        break;
+    }
+    return false;
+}
+
+int claudeThinkingRoom(const QString& effort, bool stream)
+{
+    int room = 32768;
+    if (effort == u"low") {
+        room = 8192;
+    } else if (effort == u"medium") {
+        room = 16384;
+    } else if (claudeTopEffort(effort)) {
+        room = 49152;
+    }
+    return stream ? room : std::min(room, 12288);
+}
+
+QStringList gptEfforts(const QString& name)
+{
+    static const QRegularExpression gpt(u"^gpt-(\\d+)(?:-(\\d{1,2}))?(?=-|$)"_s);
+    const QRegularExpressionMatch match = gpt.match(name);
+    if (!match.hasMatch()) {
+        return {};
+    }
+    const int version = match.captured(1).toInt() * 10 + match.captured(2).toInt();
+    if (version < 50) {
+        return {};
+    }
+    for (const QStringView plain : {u"-chat", u"search", u"audio", u"realtime", u"image", u"transcribe", u"tts"}) {
+        if (name.contains(plain)) {
+            return {};
+        }
+    }
+    const bool pro = name.contains(u"-pro");
+    if (version == 50) {
+        if (pro) {
+            return {u"high"_s};
+        }
+        return name.contains(u"codex") ? QStringList{u"low"_s, u"medium"_s, u"high"_s}
+                                       : QStringList{u"minimal"_s, u"low"_s, u"medium"_s, u"high"_s};
+    }
+    if (version == 51) {
+        if (pro) {
+            return {u"high"_s};
+        }
+        return name.contains(u"codex-max") ? QStringList{u"low"_s, u"medium"_s, u"high"_s, u"xhigh"_s}
+                                           : QStringList{u"low"_s, u"medium"_s, u"high"_s};
+    }
+    QStringList levels = pro ? QStringList{u"medium"_s, u"high"_s, u"xhigh"_s}
+                             : QStringList{u"low"_s, u"medium"_s, u"high"_s, u"xhigh"_s};
+    if (version >= 56) {
+        levels.append(u"max"_s);
+    }
+    return levels;
+}
+
+bool deepSeekThinks(const QString& name)
+{
+    static const QRegularExpression current(u"^deepseek-(?:flash|pro|v(?:[4-9]|\\d{2,}))"_s);
+    return current.match(name).hasMatch();
+}
+
 QString compact(const QJsonObject& object)
 {
     return QString::fromUtf8(QJsonDocument(object).toJson(QJsonDocument::Compact));
@@ -217,6 +349,7 @@ QJsonArray anthropicUser(const AiTurn& turn, PictureBudget& pictures)
 
 QJsonObject openAiRequest(const AiRequest& request)
 {
+    const bool deepSeek = deepSeekThinks(bareModel(request.model));
     QJsonArray messages;
     if (!request.system.isEmpty()) {
         messages.append(QJsonObject{{u"role"_s, u"system"_s}, {u"content"_s, request.system}});
@@ -233,6 +366,9 @@ QJsonObject openAiRequest(const AiRequest& request)
             }
             const QJsonValue content = turn.text.isEmpty() ? QJsonValue(QJsonValue::Null) : QJsonValue(turn.text);
             QJsonObject message{{u"role"_s, u"assistant"_s}, {u"content"_s, content}};
+            if (deepSeek && request.think) {
+                message.insert(u"reasoning_content"_s, turn.reasoning);
+            }
             if (!turn.calls.empty()) {
                 QJsonArray calls;
                 for (const AiToolCall& call : turn.calls) {
@@ -263,11 +399,18 @@ QJsonObject openAiRequest(const AiRequest& request)
     if (request.stream) {
         body.insert(u"stream_options"_s, QJsonObject{{u"include_usage"_s, true}});
     }
-    if (!request.effort.isEmpty()) {
-        body.insert(u"reasoning_effort"_s, request.effort);
-    }
-    if (aiModelTraits(AiKind::OpenAi, request.model).think) {
-        body.insert(u"enable_thinking"_s, request.think);
+    if (deepSeek) {
+        body.insert(u"thinking"_s, QJsonObject{{u"type"_s, request.think ? u"enabled"_s : u"disabled"_s}});
+        if (request.think && !request.effort.isEmpty()) {
+            body.insert(u"reasoning_effort"_s, request.effort);
+        }
+    } else {
+        if (!request.effort.isEmpty()) {
+            body.insert(u"reasoning_effort"_s, request.effort);
+        }
+        if (aiModelTraits(AiKind::OpenAi, request.model).think) {
+            body.insert(u"enable_thinking"_s, request.think);
+        }
     }
     if (!request.tools.isEmpty()) {
         body.insert(u"tools"_s, openAiTools(request.tools));
@@ -357,7 +500,9 @@ bool anthropicThinks(const AiRequest& request)
 
 QJsonObject anthropicRequest(const AiRequest& request)
 {
-    const bool thinks = anthropicThinks(request);
+    const ClaudeModel claude = claudeModel(bareModel(request.model));
+    const bool budgeted = claude.thinking == ClaudeThinking::None || claude.thinking == ClaudeThinking::Budget;
+    const bool thinks = budgeted ? anthropicThinks(request) : claudeThinks(claude.thinking, request);
     AnthropicMessages messages;
     PictureBudget pictures(request);
     for (const AiTurn& turn : request.turns) {
@@ -398,14 +543,29 @@ QJsonObject anthropicRequest(const AiRequest& request)
         }
     }
     const int answerTokens = request.maxTokens > 0 ? request.maxTokens : AiRequest::kAnthropicMaxTokens;
-    const int budget = aiThinkingBudget(request.effort);
-    QJsonObject body{{u"model"_s, request.model},
-                     {u"max_tokens"_s, thinks ? answerTokens + budget : answerTokens},
-                     {u"messages"_s, messages.finish()},
-                     {u"stream"_s, request.stream}};
-    if (thinks) {
-        body.insert(u"thinking"_s, QJsonObject{{u"type"_s, u"enabled"_s}, {u"budget_tokens"_s, budget}});
+    int room = 0;
+    QJsonObject body{{u"model"_s, request.model}, {u"messages"_s, messages.finish()}, {u"stream"_s, request.stream}};
+    if (budgeted) {
+        if (thinks) {
+            room = aiThinkingBudget(request.effort);
+            body.insert(u"thinking"_s, QJsonObject{{u"type"_s, u"enabled"_s}, {u"budget_tokens"_s, room}});
+        }
+    } else {
+        if (thinks) {
+            room = claudeThinkingRoom(request.effort, request.stream);
+            if (claude.thinking == ClaudeThinking::OptIn) {
+                body.insert(u"thinking"_s, QJsonObject{{u"type"_s, u"adaptive"_s}});
+            }
+        } else if (claude.thinking == ClaudeThinking::OptOut) {
+            body.insert(u"thinking"_s, QJsonObject{{u"type"_s, u"disabled"_s}});
+        } else if (claude.thinking == ClaudeThinking::BetweenTools) {
+            body.insert(u"thinking"_s, QJsonObject{{u"type"_s, u"between_tools"_s}});
+        }
+        if (claude.efforts.contains(request.effort)) {
+            body.insert(u"output_config"_s, QJsonObject{{u"effort"_s, request.effort}});
+        }
     }
+    body.insert(u"max_tokens"_s, answerTokens + room);
     if (!request.system.isEmpty()) {
         body.insert(u"system"_s, request.system);
     }
@@ -869,28 +1029,54 @@ AiModelTraits aiModelTraits(AiKind kind, const QString& model)
     }
     const QStringList levels{u"low"_s, u"medium"_s, u"high"_s};
     if (kind == AiKind::Anthropic) {
-        static const QRegularExpression fourth(u"^claude-(?:(?:opus|sonnet|haiku)-4|4-)"_s);
-        if (name.startsWith(u"claude-3-7-sonnet") || fourth.match(name).hasMatch()) {
+        const ClaudeModel claude = claudeModel(name);
+        traits.efforts = claude.efforts;
+        traits.longContext = claude.longContext;
+        traits.millionContext = claude.million;
+        switch (claude.thinking) {
+        case ClaudeThinking::None:
+            break;
+        case ClaudeThinking::Budget:
             traits.think = true;
-            traits.efforts = levels;
             traits.thinkingEffort = true;
+            break;
+        case ClaudeThinking::Always:
+            traits.alwaysThinks = true;
+            break;
+        case ClaudeThinking::OptIn:
+        case ClaudeThinking::OptOut:
+        case ClaudeThinking::BetweenTools:
+            traits.think = true;
+            traits.topEffortsThink = claude.topEffortsThink;
+            break;
         }
-        traits.longContext = name.startsWith(u"claude-sonnet-4");
         return traits;
     }
-    const bool gpt5 = name.startsWith(u"gpt-5") && !name.contains(u"-chat");
+    const QStringList gpt = gptEfforts(name);
     const bool oSeries = name.size() > 1 && name.at(0) == u'o' && name.at(1).isDigit();
-    if (gpt5 || oSeries || name.contains(u"codex")) {
-        traits.efforts = gpt5 ? QStringList{u"minimal"_s, u"low"_s, u"medium"_s, u"high"_s} : levels;
+    if (!gpt.isEmpty() || oSeries || name.contains(u"codex")) {
+        traits.efforts = gpt.isEmpty() ? levels : gpt;
         traits.think = kind == AiKind::OpenAiResponses;
         return traits;
     }
     if (kind != AiKind::OpenAi) {
         return traits;
     }
+    if (deepSeekThinks(name)) {
+        traits.think = true;
+        traits.efforts = {u"low"_s, u"high"_s, u"max"_s};
+        traits.thinkingEffort = true;
+        traits.millionContext = true;
+        return traits;
+    }
     if (name.contains(u"thinking") || name.startsWith(u"qwq") || name.contains(u"reasoner") || name.contains(u"-r1")
         || name.startsWith(u"r1")) {
         traits.alwaysThinks = true;
+        return traits;
+    }
+    if (claudeModel(name).thinking != ClaudeThinking::None || name.startsWith(u"gemini-2-5")
+        || name.startsWith(u"gemini-3") || name.startsWith(u"gemini-4")) {
+        traits.efforts = levels;
         return traits;
     }
     if (name.contains(u"instruct") || name.contains(u"coder")) {
@@ -907,12 +1093,14 @@ AiModelTraits aiTraitsOf(const QJsonObject& traits)
                        .alwaysThinks = traits.value(u"alwaysThinks"_s).toBool(),
                        .efforts = {},
                        .thinkingEffort = traits.value(u"thinkingEffort"_s).toBool(),
-                       .longContext = traits.value(u"longContext"_s).toBool()};
+                       .longContext = traits.value(u"longContext"_s).toBool(),
+                       .topEffortsThink = traits.value(u"topEffortsThink"_s).toBool(),
+                       .millionContext = traits.value(u"millionContext"_s).toBool()};
     QStringList listed;
     for (const QJsonValue& value : traits.value(u"efforts"_s).toArray()) {
         listed.append(value.toString());
     }
-    for (const QString& level : {u"minimal"_s, u"low"_s, u"medium"_s, u"high"_s}) {
+    for (const QString& level : {u"minimal"_s, u"low"_s, u"medium"_s, u"high"_s, u"xhigh"_s, u"max"_s}) {
         if (listed.contains(level)) {
             read.efforts.append(level);
         }
@@ -929,7 +1117,10 @@ AiChoice aiFitted(AiKind kind, AiChoice choice)
 AiChoice aiFitted(const AiModelTraits& traits, AiChoice choice)
 {
     choice.think = choice.think && traits.think;
-    if (!traits.efforts.contains(choice.effort) || (traits.thinkingEffort && !choice.think)) {
+    const bool thinking = choice.think || traits.alwaysThinks;
+    const bool top = choice.effort == u"xhigh" || choice.effort == u"max";
+    if (!traits.efforts.contains(choice.effort) || (traits.thinkingEffort && !choice.think)
+        || (traits.topEffortsThink && top && !thinking)) {
         choice.effort.clear();
     }
     choice.longContext = choice.longContext && traits.longContext;
@@ -962,7 +1153,7 @@ AiChoice aiChoiceOf(const QVariantMap& map)
     if (model.isEmpty()) {
         return {};
     }
-    static const QStringList efforts{u"minimal"_s, u"low"_s, u"medium"_s, u"high"_s};
+    static const QStringList efforts{u"minimal"_s, u"low"_s, u"medium"_s, u"high"_s, u"xhigh"_s, u"max"_s};
     QStringList services;
     for (const std::string_view name : settings::kAiServiceNames) {
         services.append(toQString(name));

@@ -45,6 +45,7 @@ struct AiTurn {
     std::vector<AiToolResult> results;
     QJsonArray pictures;
     QJsonArray thinkingBlocks;
+    QString reasoning;
 };
 
 struct AiRequest {
@@ -70,6 +71,8 @@ struct AiModelTraits {
     QStringList efforts;
     bool thinkingEffort = false;
     bool longContext = false;
+    bool topEffortsThink = false;
+    bool millionContext = false;
 
     friend bool operator==(const AiModelTraits&, const AiModelTraits&) = default;
 };
