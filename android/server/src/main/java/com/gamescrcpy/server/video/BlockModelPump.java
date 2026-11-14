@@ -274,12 +274,6 @@ final class BlockModelPump {
         }
     }
 
-    boolean isClosed() {
-        synchronized (lock) {
-            return closed;
-        }
-    }
-
     long droppedFrames() {
         synchronized (lock) {
             return dropped;
