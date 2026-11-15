@@ -455,23 +455,29 @@ T.AbstractButton {
             anchors.rightMargin: Theme.space.sm
             anchors.verticalCenter: parent.verticalCenter
 
-            Text {
+            Row {
                 width: parent.width
-                textFormat: Text.PlainText
-                text: option.title
-                elide: Text.ElideRight
-                color: Theme.colors.textPrimary
-                font.pixelSize: Theme.type.label.size
-            }
+                spacing: Theme.space.xs
 
-            Text {
-                width: parent.width
-                visible: option.detail !== ""
-                textFormat: Text.PlainText
-                text: option.detail
-                elide: Text.ElideRight
-                color: Theme.colors.textTertiary
-                font.pixelSize: Theme.type.caption.size
+                Text {
+                    width: Math.min(implicitWidth, parent.width - (optionInfo.visible
+                                                                    ? optionInfo.width + parent.spacing : 0))
+                    anchors.verticalCenter: parent.verticalCenter
+                    textFormat: Text.PlainText
+                    text: option.title
+                    elide: Text.ElideRight
+                    color: Theme.colors.textPrimary
+                    font.pixelSize: Theme.type.label.size
+                }
+
+                InfoButton {
+                    id: optionInfo
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: option.detail !== ""
+                    title: option.title
+                    info: option.detail
+                }
             }
         }
 

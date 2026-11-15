@@ -157,6 +157,7 @@ Item {
 
             Text {
                 width: parent.width
+                visible: remember.checked
                 textFormat: Text.PlainText
                 text: qsTr("Remembered clients are listed in Settings, under AI connection, where you can remove them.")
                 color: Theme.colors.textTertiary
@@ -408,14 +409,11 @@ Item {
                         }
                     }
 
-                    Text {
+                    InfoButton {
                         anchors.verticalCenter: parent.verticalCenter
-                        width: Math.max(0, parent.width - parent.spacing - previewButton.width)
-                        textFormat: Text.PlainText
-                        wrapMode: Text.Wrap
-                        text: qsTr("Shows the draft in the key mapping editor, marked up, where you can apply it too. The draft is kept.")
-                        color: Theme.colors.textSecondary
-                        font.pixelSize: Theme.type.caption.size
+                        title: previewButton.text
+                        info: qsTr("Shows the draft in the key mapping editor, marked up, where you can apply it too. "
+                                   + "The draft is kept.")
                     }
                 }
 
@@ -433,7 +431,7 @@ Item {
                     width: parent.width
                     visible: confirm.applying
                     textFormat: Text.PlainText
-                    text: qsTr("If you do not apply it now, the draft is kept and nothing you use changes.")
+                    text: qsTr("If you do not apply it now, the draft is kept.")
                     color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.caption.size
                     wrapMode: Text.Wrap
@@ -514,8 +512,7 @@ Item {
                     width: parent.width
                     visible: confirm.running
                     textFormat: Text.PlainText
-                    text: qsTr("It stops after %n second(s) at the latest, and its fingers are lifted when it ends.", "",
-                               confirm.shown.seconds ?? 60)
+                    text: qsTr("It stops after %n second(s) at the latest.", "", confirm.shown.seconds ?? 60)
                     color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.caption.size
                     wrapMode: Text.Wrap
@@ -538,15 +535,6 @@ Item {
                     visible: (confirm.running || confirm.tooling) && confirm.shown.quiet === true
                     text: confirm.tooling ? qsTr("Don't ask again for this tool until GameScrcpy closes")
                                           : qsTr("Don't ask again for this phone until GameScrcpy closes")
-                }
-
-                Text {
-                    width: parent.width
-                    textFormat: Text.PlainText
-                    text: qsTr("If you do not answer within two minutes, it is refused.")
-                    color: Theme.colors.textTertiary
-                    font.pixelSize: Theme.type.caption.size
-                    wrapMode: Text.Wrap
                 }
             }
         }

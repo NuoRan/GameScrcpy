@@ -148,8 +148,7 @@ Rectangle {
             horizontalAlignment: Text.AlignHCenter
             textFormat: Text.PlainText
             wrapMode: Text.Wrap
-            text: AiAssistant.providerMissing ? AiAssistant.missing
-                                              : qsTr("It uses the model you set up in Settings > AI.")
+            text: AiAssistant.missing
             color: Theme.colors.textSecondary
             font.pixelSize: Theme.type.body.size
         }
@@ -165,6 +164,8 @@ Rectangle {
     }
 
     Column {
+        id: welcome
+
         objectName: "aiWelcome"
         anchors.left: parent.left
         anchors.right: parent.right
@@ -180,28 +181,42 @@ Rectangle {
             color: Theme.colors.accentText
         }
 
-        Text {
+        Item {
             width: parent.width
-            horizontalAlignment: Text.AlignHCenter
-            textFormat: Text.PlainText
-            wrapMode: Text.Wrap
-            text: panel.profileName !== "" ? qsTr("Ask about %1").arg(panel.profileName) : qsTr("Ask the assistant")
-            color: Theme.colors.textPrimary
-            font.pixelSize: Theme.type.subtitle.size
-            font.weight: Theme.type.subtitle.weight
-        }
+            height: welcomeTitle.implicitHeight
 
-        Text {
-            width: parent.width
-            horizontalAlignment: Text.AlignHCenter
-            textFormat: Text.PlainText
-            wrapMode: Text.Wrap
-            text: qsTr("It knows the help, the blocks, the settings, the shortcuts and what you have open here, and "
-                       + "reads the connection log when a phone won't connect. It can place keys, write and test logic "
-                       + "and blueprints, and make tasks and components. Its changes wait in a draft until you apply "
-                       + "them.")
-            color: Theme.colors.textSecondary
-            font.pixelSize: Theme.type.body.size
+            Row {
+                id: welcomeTitle
+
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Theme.space.xs
+
+                Text {
+                    id: welcomeHeading
+
+                    width: Math.min(implicitWidth, welcome.width - welcomeInfo.width - welcomeTitle.spacing)
+                    anchors.verticalCenter: parent.verticalCenter
+                    textFormat: Text.PlainText
+                    wrapMode: Text.Wrap
+                    horizontalAlignment: Text.AlignHCenter
+                    text: panel.profileName !== "" ? qsTr("Ask about %1").arg(panel.profileName)
+                                                   : qsTr("Ask the assistant")
+                    color: Theme.colors.textPrimary
+                    font.pixelSize: Theme.type.subtitle.size
+                    font.weight: Theme.type.subtitle.weight
+                }
+
+                InfoButton {
+                    id: welcomeInfo
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    title: welcomeHeading.text
+                    info: qsTr("It knows the help, the blocks, the settings, the shortcuts and what you have open here, "
+                               + "and reads the connection log when a phone won't connect. It can place keys, write and "
+                               + "test logic and blueprints, and make tasks and components. Its changes wait in a draft "
+                               + "until you apply them.")
+                }
+            }
         }
     }
 
@@ -1101,6 +1116,7 @@ Rectangle {
                         selectedTextColor: Theme.colors.textPrimary
                         font.pixelSize: Theme.type.label.size
                         Accessible.name: qsTr("Message to the AI assistant")
+                        Accessible.description: qsTr("Enter sends, Shift+Enter starts a new line")
                         Keys.onPressed: event => {
                             const enter = event.key === Qt.Key_Return || event.key === Qt.Key_Enter
                             if (!enter || (event.modifiers & Qt.ShiftModifier) || prompt.preeditText !== "")
@@ -1124,7 +1140,7 @@ Rectangle {
 
                 Item {
                     width: parent.width
-                    height: Math.max(hint.implicitHeight, modelPicker.implicitHeight, sendButton.implicitHeight)
+                    height: Math.max(modelPicker.implicitHeight, sendButton.implicitHeight)
 
                     AiModelPicker {
                         id: modelPicker
@@ -1135,21 +1151,6 @@ Rectangle {
                         anchors.verticalCenter: parent.verticalCenter
                         conversation: panel.conversation
                         widest: parent.width - sendButton.width
-                    }
-
-                    Text {
-                        id: hint
-
-                        anchors.left: parent.left
-                        anchors.right: sendButton.left
-                        anchors.rightMargin: Theme.space.sm
-                        anchors.verticalCenter: parent.verticalCenter
-                        visible: panel.conversation.count === 0 && !modelPicker.visible
-                        textFormat: Text.PlainText
-                        text: qsTr("Enter sends, Shift+Enter starts a new line")
-                        elide: Text.ElideRight
-                        color: Theme.colors.textTertiary
-                        font.pixelSize: Theme.type.caption.size
                     }
 
                     Button {
