@@ -442,11 +442,11 @@ TEST_CASE("R9: the phone's pointer is put back under the computer's pointer when
     CHECK(s.recenters[0] == QPoint(50, 75));
 
     s.item->setRelativeMouse(true, QSizeF(300, 200), 1);
-    QTest::mouseMove(&s.window, QPoint(170, 75));
+    QTest::mouseMove(&s.window, QPoint(160, 75));
     REQUIRE(s.recenters.size() == 2);
-    CHECK(s.recenters[1] == QPoint(105, 50));
+    CHECK(s.recenters[1] == QPoint(90, 50));
     CHECK(s.moves.size() == 1);
-    QTest::mouseMove(&s.window, QPoint(180, 75));
+    QTest::mouseMove(&s.window, QPoint(170, 75));
     REQUIRE(s.moves.size() == 2);
     CHECK(s.moves[1] == QPoint(15, 0));
 }

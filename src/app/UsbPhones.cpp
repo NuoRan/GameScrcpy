@@ -116,7 +116,10 @@ CompanionTurn companionTurn(int rotation, int width, int height, int currentTurn
     }
     const ControlTurn turn = turnOfRotation(rotation);
     const int wanted = static_cast<int>(turn);
-    return CompanionTurn{.apply = wanted != currentTurn, .turn = wanted};
+    if (wanted == currentTurn) {
+        return {};
+    }
+    return CompanionTurn{.apply = true, .turn = wanted};
 }
 
 QSize naturalScreenOf(QSize shown, int rotation)
