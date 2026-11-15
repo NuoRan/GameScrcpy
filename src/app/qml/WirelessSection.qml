@@ -145,6 +145,17 @@ Column {
                         elide: Text.ElideRight
                     }
 
+                    InfoButton {
+                        objectName: "pairInfo"
+                        title: WirelessController.qrText === "" ? qsTr("Pair with a pairing code")
+                                                               : qsTr("Pair with a QR code")
+                        info: WirelessController.qrText === ""
+                              ? qsTr("On the phone: Developer options > Wireless debugging > Pair device with "
+                                     + "pairing code.")
+                              : qsTr("On the phone: Developer options > Wireless debugging > Pair device with "
+                                     + "QR code.")
+                    }
+
                     Button {
                         visible: WirelessController.qrText === ""
                         small: true
@@ -159,8 +170,7 @@ Column {
                     Layout.fillWidth: true
                     visible: WirelessController.qrText === ""
                     textFormat: Text.PlainText
-                    text: qsTr("On the phone: Developer options > Wireless debugging > Pair device with pairing "
-                               + "code. Then type the six digits it shows.")
+                    text: qsTr("Type the six digits the phone shows.")
                     color: Theme.colors.textTertiary
                     font.pixelSize: Theme.type.caption.size
                     wrapMode: Text.Wrap
@@ -256,8 +266,7 @@ Column {
                         Text {
                             Layout.fillWidth: true
                             textFormat: Text.PlainText
-                            text: qsTr("On the phone: Developer options > Wireless debugging > Pair device with QR "
-                                       + "code, then scan this code. Pairing starts once the phone has scanned it.")
+                            text: qsTr("Scan this code with the phone.")
                             color: Theme.colors.textSecondary
                             font.pixelSize: Theme.type.caption.size
                             wrapMode: Text.Wrap
@@ -323,9 +332,8 @@ Column {
                     Text {
                         Layout.fillWidth: true
                         textFormat: Text.PlainText
-                        text: qsTr("The phone usually connects by itself and appears in the list above. If it does "
-                                   + "not, connect to the IP address and port on its Wireless debugging screen, next "
-                                   + "to this.")
+                        text: qsTr("If it does not connect by itself, enter the address and port from its Wireless "
+                                   + "debugging screen under Recent connections.")
                         color: Theme.colors.textSecondary
                         font.pixelSize: Theme.type.caption.size
                         wrapMode: Text.Wrap
@@ -345,6 +353,16 @@ Column {
                         font.pixelSize: Theme.type.label.size
                         font.weight: Theme.type.label.weight
                         wrapMode: Text.Wrap
+
+                        HoverHandler {
+                            id: pairProblemHover
+                        }
+
+                        Tooltip {
+                            text: WirelessController.pairProblem
+                            detail: qsTr("adb: %1").arg(WirelessController.pairDetail)
+                            visible: pairProblemHover.hovered && WirelessController.pairDetail !== ""
+                        }
                     }
 
                     Text {
@@ -352,15 +370,6 @@ Column {
                         textFormat: Text.PlainText
                         text: WirelessController.pairAction
                         color: Theme.colors.textSecondary
-                        font.pixelSize: Theme.type.caption.size
-                        wrapMode: Text.Wrap
-                    }
-
-                    Text {
-                        Layout.fillWidth: true
-                        textFormat: Text.PlainText
-                        text: qsTr("adb: %1").arg(WirelessController.pairDetail)
-                        color: Theme.colors.textTertiary
                         font.pixelSize: Theme.type.caption.size
                         wrapMode: Text.Wrap
                     }
@@ -396,16 +405,6 @@ Column {
                         font.pixelSize: Theme.type.body.size
                         font.weight: Font.DemiBold
                     }
-                }
-
-                Text {
-                    Layout.fillWidth: true
-                    visible: AppSettings.recentConnections.length === 0
-                    textFormat: Text.PlainText
-                    text: qsTr("Phones you connect to over wireless debugging are listed here.")
-                    color: Theme.colors.textTertiary
-                    font.pixelSize: Theme.type.caption.size
-                    wrapMode: Text.Wrap
                 }
 
                 Repeater {
@@ -529,7 +528,7 @@ Column {
                     visible: WirelessController.pendingAddress === ""
                              && DeviceManager.onlineSerials.indexOf(WirelessController.connectedAddress) >= 0
                     textFormat: Text.PlainText
-                    text: qsTr("Connected to %1; it is in the list above.").arg(WirelessController.connectedAddress)
+                    text: qsTr("Connected to %1.").arg(WirelessController.connectedAddress)
                     color: Theme.colors.successText
                     font.pixelSize: Theme.type.caption.size
                     wrapMode: Text.Wrap
@@ -548,6 +547,16 @@ Column {
                         font.pixelSize: Theme.type.label.size
                         font.weight: Theme.type.label.weight
                         wrapMode: Text.Wrap
+
+                        HoverHandler {
+                            id: connectProblemHover
+                        }
+
+                        Tooltip {
+                            text: WirelessController.problem
+                            detail: qsTr("adb: %1").arg(WirelessController.detail)
+                            visible: connectProblemHover.hovered && WirelessController.detail !== ""
+                        }
                     }
 
                     Text {
@@ -555,15 +564,6 @@ Column {
                         textFormat: Text.PlainText
                         text: WirelessController.action
                         color: Theme.colors.textSecondary
-                        font.pixelSize: Theme.type.caption.size
-                        wrapMode: Text.Wrap
-                    }
-
-                    Text {
-                        Layout.fillWidth: true
-                        textFormat: Text.PlainText
-                        text: qsTr("adb: %1").arg(WirelessController.detail)
-                        color: Theme.colors.textTertiary
                         font.pixelSize: Theme.type.caption.size
                         wrapMode: Text.Wrap
                     }
@@ -595,32 +595,32 @@ Column {
                             case "enabling":
                                 return qsTr("Turning on network debugging on %1…").arg(networkBox.phoneName)
                             case "searching":
-                                return qsTr("%1 takes adb connections on port 5555 until it restarts. Unplug the USB "
-                                            + "cable and connect the phone to the same network as this computer, by "
-                                            + "cable or Wi-Fi; GameScrcpy finds it and connects.")
+                                return qsTr("%1 takes adb connections on port 5555 until it restarts. Unplug the cable "
+                                            + "and put the phone on the same network as this computer; GameScrcpy "
+                                            + "finds it.")
                                        .arg(networkBox.phoneName)
                             case "connected":
-                                return qsTr("Connected to %1 at %2; it is in the list above.")
+                                return qsTr("Connected to %1 at %2.")
                                        .arg(networkBox.phoneName).arg(WirelessController.networkAddress)
                             case "unavailable":
                                 return qsTr("Network debugging could not be turned on for %1.").arg(networkBox.phoneName)
                             case "notFound":
-                                return qsTr("%1 was not found on the network within 5 minutes. Make sure it is on the "
-                                            + "same network as this computer, then connect it with USB and choose "
-                                            + "Connect over the network again.").arg(networkBox.phoneName)
+                                return qsTr("%1 was not found on the network within 5 minutes. Check that it is on "
+                                            + "the same network as this computer, then connect it with USB and "
+                                            + "choose Connect over the network again.").arg(networkBox.phoneName)
                             }
                             return ""
                         }
-                    }
 
-                    Text {
-                        Layout.fillWidth: true
-                        visible: WirelessController.networkDetail !== ""
-                        textFormat: Text.PlainText
-                        text: qsTr("adb: %1").arg(WirelessController.networkDetail)
-                        color: Theme.colors.textTertiary
-                        font.pixelSize: Theme.type.caption.size
-                        wrapMode: Text.Wrap
+                        HoverHandler {
+                            id: networkHover
+                        }
+
+                        Tooltip {
+                            text: networkBox.phoneName
+                            detail: qsTr("adb: %1").arg(WirelessController.networkDetail)
+                            visible: networkHover.hovered && WirelessController.networkDetail !== ""
+                        }
                     }
 
                     Button {

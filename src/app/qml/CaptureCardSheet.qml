@@ -83,7 +83,7 @@ SettingsSheet {
     objectName: "captureSheet"
     iconName: "monitor-play"
     title: sheet.device !== null ? sheet.device.name : ""
-    subtitle: qsTr("Capture card · changes apply at once")
+    subtitle: qsTr("Capture card")
     statusText: sheet.device !== null ? sheet.device.pill : ""
     statusTone: sheet.device !== null ? sheet.device.tone : "idle"
     alternativeText: qsTr("About capture cards")
@@ -134,7 +134,8 @@ SettingsSheet {
             width: parent.width
             divider: true
             visible: sheet.assigned
-            title: qsTr("Touch is chosen in this phone's settings.")
+            title: qsTr("Touch")
+            description: qsTr("Touch is chosen in the settings of the phone this card shows.")
 
             Button {
                 objectName: "capturePhoneSettings"

@@ -92,17 +92,21 @@ Item {
                         font.weight: Font.DemiBold
                     }
 
+                    InfoButton {
+                        objectName: "otherVideoInfo"
+                        title: qsTr("Other video devices")
+                        info: footer.others.every(other => other.hidden === true)
+                              ? qsTr("You hid these because they are not capture cards. Choose Treat as capture card "
+                                     + "to bring one back.")
+                              : qsTr("Their names do not look like a capture card, so virtual cameras and webcams "
+                                     + "start out here. Choose Treat as capture card to bring one back.")
+                    }
+
                     Text {
                         objectName: "otherVideoNames"
                         Layout.fillWidth: true
                         textFormat: Text.PlainText
-                        text: {
-                            const count = footer.others.length
-                            const names = footer.others.map(other => other.name).join(qsTr(", ", "list separator"))
-                            return footer.others.every(other => other.hidden === true)
-                                   ? qsTr("%1 · hidden by you").arg(names)
-                                   : qsTr("%1 · don't look like capture cards", "", count).arg(names)
-                        }
+                        text: qsTr("%n device(s)", "", footer.others.length)
                         color: Theme.colors.textTertiary
                         font.pixelSize: Theme.type.caption.size
                         elide: Text.ElideRight

@@ -627,7 +627,7 @@ Item {
         horizontalAlignment: Text.AlignHCenter
         textFormat: Text.PlainText
         text: PhoneFiles.loading ? qsTr("Reading the folder…")
-                                 : qsTr("This folder is empty. Drop files here to upload them.")
+                                 : qsTr("This folder is empty.")
         color: Theme.colors.textSecondary
         font.pixelSize: Theme.type.body.size
         wrapMode: Text.Wrap

@@ -47,8 +47,7 @@ Dialog {
             width: parent.width
             textFormat: Text.PlainText
             wrapMode: Text.Wrap
-            text: qsTr("The phones you tick follow this one: the keys and taps you give it reach them too, and "
-                       + "each acts by its own profile.")
+            text: qsTr("The phones you tick get the same keys and taps; each acts by its own profile.")
             color: Theme.colors.textSecondary
             font.pixelSize: Theme.type.body.size
         }

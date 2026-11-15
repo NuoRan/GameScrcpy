@@ -153,8 +153,7 @@ Dialog {
                 width: parent.width
                 textFormat: Text.PlainText
                 wrapMode: Text.Wrap
-                text: qsTr("The phone's picture appears on this capture card; touch can then go through USB debugging "
-                           + "(also wireless), AOA or a touch box from an extension.")
+                text: qsTr("This card then shows the phone's picture; touch keeps going to the phone.")
                 color: Theme.colors.textSecondary
                 font.pixelSize: Theme.type.caption.size
             }
@@ -214,8 +213,7 @@ Dialog {
                 visible: dialog.phones.length === 0
                 textFormat: Text.PlainText
                 wrapMode: Text.Wrap
-                text: qsTr("No phone is connected. Connect the phone with USB debugging or wireless debugging first, "
-                           + "or use the capture card on its own.")
+                text: qsTr("No phone is connected with USB or wireless debugging.")
                 color: Theme.colors.textSecondary
                 font.pixelSize: Theme.type.body.size
             }
