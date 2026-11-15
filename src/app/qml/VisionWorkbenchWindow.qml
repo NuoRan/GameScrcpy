@@ -903,7 +903,7 @@ Window {
             visible: (root.bench.pick.kind ?? "") !== ""
             tone: "info"
             title: root.bench.pick.prompt ?? ""
-            detail: qsTr("What you pick is kept as a resource with a new name. Press Esc to stop picking")
+            detail: qsTr("What you pick is kept as a resource with a new name.")
             actionText: qsTr("Stop picking")
             onActionTriggered: root.bench.cancelPick()
         }
@@ -1249,7 +1249,7 @@ Window {
                     visible: resourceList.count === 0
                     wrapMode: Text.Wrap
                     textFormat: Text.PlainText
-                    text: qsTr("No resources yet. Freeze the picture, then use the tools below it to cut a template, draw a region, a point or a path, or pick a color.")
+                    text: qsTr("No resources yet. Freeze the picture, then use the tools below it to add one.")
                     color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.label.size
                 }
@@ -1543,7 +1543,7 @@ Window {
                             wrapMode: Text.Wrap
                             textFormat: Text.PlainText
                             text: (properties.item.sourceWidth ?? 0) > 0
-                                  ? qsTr("%1 × %2 pixels, cut from a %3 × %4 picture; it is scaled when the picture size differs")
+                                  ? qsTr("%1 × %2 pixels, cut from a %3 × %4 picture")
                                     .arg(properties.item.width ?? 0).arg(properties.item.height ?? 0)
                                     .arg(properties.item.sourceWidth).arg(properties.item.sourceHeight)
                                   : qsTr("%1 × %2 pixels").arg(properties.item.width ?? 0).arg(properties.item.height ?? 0)

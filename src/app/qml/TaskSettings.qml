@@ -46,13 +46,34 @@ Item {
             settings.notify(qsTr("A weekly task runs on at least one day"), "warn")
     }
 
-    component SectionTitle: Text {
+    component SectionTitle: Item {
+        id: sectionTitle
+
+        property string text
+        property string info
+
         width: parent.width
-        topPadding: Theme.space.sm
-        textFormat: Text.PlainText
-        color: Theme.colors.textPrimary
-        font.pixelSize: Theme.type.label.size
-        font.weight: Font.Medium
+        height: titleLabel.implicitHeight + Theme.space.sm
+
+        Text {
+            id: titleLabel
+
+            y: Theme.space.sm
+            textFormat: Text.PlainText
+            text: sectionTitle.text
+            color: Theme.colors.textPrimary
+            font.pixelSize: Theme.type.label.size
+            font.weight: Font.Medium
+        }
+
+        InfoButton {
+            anchors.left: titleLabel.right
+            anchors.leftMargin: Theme.space.xs
+            anchors.verticalCenter: titleLabel.verticalCenter
+            visible: sectionTitle.info !== ""
+            title: sectionTitle.text
+            info: sectionTitle.info
+        }
     }
 
     component Note: Text {
@@ -159,7 +180,7 @@ Item {
             Note {
                 objectName: "readOnlyTaskNote"
                 visible: settings.readOnly
-                text: qsTr("This task comes with the extension %1. You can run it, and it runs in the extension's sandbox; copy it to your tasks to change it.")
+                text: qsTr("This task comes with the extension %1. Copy it to your tasks to change it.")
                       .arg(settings.task !== null ? (settings.task.extension ?? "") : "")
             }
 
@@ -171,10 +192,7 @@ Item {
 
             SectionTitle {
                 text: qsTr("Phones to run on")
-            }
-
-            Note {
-                text: qsTr("Each ticked phone runs its own copy and looks at its own picture.")
+                info: qsTr("Each ticked phone runs its own copy and looks at its own picture.")
             }
 
             Repeater {
@@ -219,6 +237,8 @@ Item {
 
             SectionTitle {
                 text: qsTr("How it starts")
+                info: qsTr("At that time GameScrcpy connects the ticked phones, turns their screens on and starts "
+                           + "the task, and tells you when it is done or fails.")
             }
 
             SegmentedControl {
@@ -292,13 +312,12 @@ Item {
 
             Note {
                 visible: settings.task !== null && settings.task.schedule !== "manual"
-                text: qsTr("At that time GameScrcpy connects the ticked phones, turns their screens on and starts "
-                           + "the task, and tells you when it is done or fails. GameScrcpy has to be running, in the "
-                           + "tray is enough; a start missed while the computer sleeps is not made up.")
+                text: qsTr("GameScrcpy has to be running; a start missed while the computer sleeps is not made up.")
             }
 
             SectionTitle {
                 text: qsTr("Settings")
+                visible: settings.task !== null && settings.task.params.length > 0
             }
 
             Repeater {
@@ -355,11 +374,6 @@ Item {
                         onToggled: on => TaskLibrary.setValue(settings.task.id, param.modelData.name, on)
                     }
                 }
-            }
-
-            Note {
-                visible: settings.task !== null && settings.task.params.length === 0
-                text: qsTr("Settings the task declares in static params of task.ts show up here.")
             }
 
             SectionTitle {

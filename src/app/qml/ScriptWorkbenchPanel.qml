@@ -183,7 +183,7 @@ Item {
         textFormat: Text.PlainText
         wrapMode: Text.Wrap
         text: panel.bench.phone === "" ? qsTr("Mirror a phone to see the logic's log here")
-                                       : qsTr("Log lines and errors of the logic on this phone appear here")
+                                       : qsTr("No log lines yet")
         color: Theme.colors.textTertiary
         font.pixelSize: Theme.type.label.size
     }

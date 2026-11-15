@@ -319,18 +319,6 @@ Item {
                 }
             }
 
-            Text {
-                objectName: "liveNote"
-                width: parent.width
-                visible: sidebar.bench.liveComponents.length === 0 && sidebar.bench.liveVars.length === 0
-                topPadding: Theme.space.sm
-                textFormat: Text.PlainText
-                wrapMode: Text.Wrap
-                text: qsTr("While the logic runs on this phone, its components and variables show here as they change.")
-                color: Theme.colors.textTertiary
-                font.pixelSize: Theme.type.caption.size
-            }
-
             Item {
                 width: parent.width
                 height: componentsTitle.implicitHeight

@@ -55,7 +55,7 @@ Dialog {
         Text {
             width: dialog.availableWidth
             textFormat: Text.PlainText
-            text: qsTr("Pick one to copy it to your tasks, where you can change it like any task of yours.")
+            text: qsTr("Pick one to copy it to your tasks.")
             color: Theme.colors.textSecondary
             font.pixelSize: Theme.type.caption.size
             wrapMode: Text.Wrap

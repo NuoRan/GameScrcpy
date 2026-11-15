@@ -129,7 +129,6 @@ Item {
 
         x: Theme.size.panelPaddingH
         y: Theme.size.panelPaddingV
-        spacing: Theme.space.lg
 
         Text {
             id: title
@@ -139,14 +138,6 @@ Item {
             color: Theme.colors.textPrimary
             font.pixelSize: Theme.type.display.size
             font.weight: Theme.type.display.weight
-        }
-
-        Text {
-            anchors.baseline: title.baseline
-            textFormat: Text.PlainText
-            text: qsTr("Logic that runs on its own · it keeps going when you change games")
-            color: Theme.colors.textTertiary
-            font.pixelSize: Theme.type.body.size
         }
     }
 
@@ -222,7 +213,7 @@ Item {
             horizontalAlignment: Text.AlignHCenter
             textFormat: Text.PlainText
             wrapMode: Text.Wrap
-            text: qsTr("A task is logic that runs on a phone by itself, such as daily check-ins or farming. Your keys keep working while it runs, and it can start at a set time.")
+            text: qsTr("A task is logic that runs on a phone by itself.")
             color: Theme.colors.textSecondary
             font.pixelSize: Theme.type.body.size
         }
