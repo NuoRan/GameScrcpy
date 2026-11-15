@@ -3285,6 +3285,21 @@ void ProfileEditor::markSavedAs(const QString& name)
     markSaved();
 }
 
+void ProfileEditor::renameProfile(const QString& name)
+{
+    const std::string title = name.toStdString();
+    if (title.empty() || profile().meta.name == title) {
+        return;
+    }
+    endGesture();
+    for (Step& step : m_history) {
+        step.profile.meta.name = title;
+    }
+    m_saved.meta.name = title;
+    ++m_revision;
+    emit changed();
+}
+
 void ProfileEditor::replaceSaved(input::Profile profile)
 {
     endGesture();

@@ -270,6 +270,12 @@ std::string templateText(const std::string& text)
     return known ? limitedName(QCoreApplication::translate(kTemplateContext, text.c_str())).toStdString() : text;
 }
 
+bool fitsName(const QString& name)
+{
+    return !name.contains(u'\n') && !name.contains(u'\r') &&
+           name.toStdU32String().size() <= static_cast<std::size_t>(kMostNameChars);
+}
+
 std::optional<input::Profile> templateProfile(std::string_view id)
 {
     QFile file(QStringLiteral(":/templates/%1.json").arg(toQString(id)));
@@ -784,6 +790,26 @@ bool ProfileLibrary::setApp(const QString& id, const QString& package)
     linked.meta.app = package.toStdString();
     const std::string saved = input::saveProfile(linked);
     if (!write(entry->path, saved)) {
+        return false;
+    }
+    reload();
+    return true;
+}
+
+bool ProfileLibrary::rename(const QString& id, const QString& name)
+{
+    m_busy = false;
+    const ProfileEntry* entry = find(id);
+    const QString title = name.trimmed();
+    if (entry == nullptr || entry->readOnly() || entry->profile == nullptr || title.isEmpty() || !fitsName(title)) {
+        return false;
+    }
+    if (toQString(entry->profile->meta.name) == title) {
+        return true;
+    }
+    input::Profile renamed = *entry->profile;
+    renamed.meta.name = title.toStdString();
+    if (!write(entry->path, input::saveProfile(renamed))) {
         return false;
     }
     reload();

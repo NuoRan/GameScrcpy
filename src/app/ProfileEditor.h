@@ -251,6 +251,7 @@ private:
 
 public:
     void markSavedAs(const QString& name);
+    void renameProfile(const QString& name);
     void retranslate();
     void replaceSaved(input::Profile profile);
 

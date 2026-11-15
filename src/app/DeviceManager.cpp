@@ -6644,10 +6644,13 @@ void DeviceManager::refreshProfiles(const QString& changed)
             }
         }
         if (ProfileEditor* editor = row.mirror != nullptr ? row.mirror->editor() : nullptr;
-            editor != nullptr && !changed.isEmpty() && row.editingId == changed && m_library != nullptr &&
-            !editor->dirty()) {
+            editor != nullptr && !changed.isEmpty() && row.editingId == changed && m_library != nullptr) {
             if (const std::shared_ptr<const input::Profile> latest = m_library->profile(changed); latest != nullptr) {
-                editor->replaceSaved(*latest);
+                if (editor->dirty()) {
+                    editor->renameProfile(QString::fromStdString(latest->meta.name));
+                } else {
+                    editor->replaceSaved(*latest);
+                }
             }
         }
         if (row.mirror != nullptr) {

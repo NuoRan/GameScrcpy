@@ -304,6 +304,97 @@ TEST_CASE("saving writes the edited profile over its file and announces the chan
     CHECK_FALSE(library.save(QStringLiteral("missing"), edited));
 }
 
+TEST_CASE("R9: a profile is renamed in its own file and keeps its id and file name")
+{
+    const Application app;
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    write(dir.filePath(QStringLiteral("shooter.json")), kShooter);
+    makeDemo(QDir(dir.path()), QStringLiteral("logic-demo"));
+    QStringList discarded;
+    ProfileLibrary library(dir.path().toStdWString(), deleting(discarded));
+    int announced = 0;
+    QStringList changed;
+    QObject::connect(&library, &ProfileLibrary::entriesChanged, [&announced] { ++announced; });
+    QObject::connect(&library, &ProfileLibrary::profileChanged, [&changed](const QString& id) { changed.append(id); });
+
+    CHECK(library.rename(QStringLiteral("shooter"), QStringLiteral("  Aim trainer  ")));
+    const auto* renamed = library.find(QStringLiteral("shooter"));
+    REQUIRE(renamed != nullptr);
+    CHECK(renamed->name == QStringLiteral("Aim trainer"));
+    CHECK(library.find(QStringLiteral("Aim trainer")) == nullptr);
+    CHECK(QFile::exists(dir.filePath(QStringLiteral("shooter.json"))));
+    CHECK_FALSE(QFile::exists(dir.filePath(QStringLiteral("Aim trainer.json"))));
+    CHECK(changed.contains(QStringLiteral("shooter")));
+    CHECK(announced > 0);
+    REQUIRE(library.profile(QStringLiteral("shooter")) != nullptr);
+    CHECK(library.profile(QStringLiteral("shooter"))->meta.name == "Aim trainer");
+    CHECK(library.profile(QStringLiteral("shooter"))->meta.app == "com.example.shooter");
+    CHECK(library.profile(QStringLiteral("shooter"))->controls.size() == 2);
+    CHECK(library.entries().at(0).toMap().value(QStringLiteral("name")).toString() == QStringLiteral("Aim trainer"));
+
+    QFile file(dir.filePath(QStringLiteral("shooter.json")));
+    REQUIRE(file.open(QIODevice::ReadOnly));
+    const QByteArray bytes = file.readAll();
+    file.close();
+    const std::string text(bytes.constData(), static_cast<std::size_t>(bytes.size()));
+    const gs::input::LoadResult reread = gs::input::loadProfile(text);
+    REQUIRE(reread.ok());
+    CHECK(reread.profile.meta.name == "Aim trainer");
+    CHECK(reread.profile.controls.size() == 2);
+
+    const int before = announced;
+    CHECK(library.rename(QStringLiteral("shooter"), QStringLiteral("Aim trainer")));
+    CHECK(announced == before);
+
+    CHECK_FALSE(library.rename(QStringLiteral("shooter"), QString()));
+    CHECK_FALSE(library.rename(QStringLiteral("shooter"), QStringLiteral("   ")));
+    CHECK_FALSE(library.rename(QStringLiteral("shooter"), QStringLiteral("Two\nlines")));
+    CHECK_FALSE(library.rename(QStringLiteral("shooter"), QStringLiteral("Carriage\rreturn")));
+    CHECK_FALSE(library.rename(QStringLiteral("shooter"), QString(65, QLatin1Char('x'))));
+    CHECK_FALSE(library.rename(QStringLiteral("missing"), QStringLiteral("Anything")));
+    REQUIRE(library.find(QStringLiteral("shooter")) != nullptr);
+    CHECK(library.find(QStringLiteral("shooter"))->name == QStringLiteral("Aim trainer"));
+
+    const QString longest(64, QLatin1Char('x'));
+    CHECK(library.rename(QStringLiteral("shooter"), longest));
+    REQUIRE(library.find(QStringLiteral("shooter")) != nullptr);
+    CHECK(library.find(QStringLiteral("shooter"))->name == longest);
+    const QString faces = QString::fromUcs4(U"\U0001F600").repeated(64);
+    CHECK(library.rename(QStringLiteral("shooter"), faces));
+    REQUIRE(library.find(QStringLiteral("shooter")) != nullptr);
+    CHECK(library.find(QStringLiteral("shooter"))->name == faces);
+    CHECK_FALSE(library.rename(QStringLiteral("shooter"), faces + QStringLiteral("x")));
+
+    CHECK(library.rename(QStringLiteral("logic-demo"), QStringLiteral("Logic two")));
+    REQUIRE(library.find(QStringLiteral("logic-demo")) != nullptr);
+    CHECK(library.find(QStringLiteral("logic-demo"))->name == QStringLiteral("Logic two"));
+    CHECK(library.find(QStringLiteral("logic-demo"))->logic);
+    CHECK(QFileInfo(dir.filePath(QStringLiteral("logic-demo"))).isDir());
+    QFile inner(dir.filePath(QStringLiteral("logic-demo/profile.json")));
+    REQUIRE(inner.open(QIODevice::ReadOnly));
+    const QByteArray innerBytes = inner.readAll();
+    inner.close();
+    const std::string innerText(innerBytes.constData(), static_cast<std::size_t>(innerBytes.size()));
+    const gs::input::LoadResult stored = gs::input::loadProfile(innerText);
+    REQUIRE(stored.ok());
+    CHECK(stored.profile.meta.name == "Logic two");
+
+    const QString contributed = QStringLiteral("alice.pack/standard");
+    gs::app::ExtensionProfile pack{.id = contributed,
+                                   .extensionId = QStringLiteral("alice.pack"),
+                                   .extensionName = QStringLiteral("Alice pack"),
+                                   .version = QStringLiteral("1.0.0"),
+                                   .json = QByteArray(kDriving),
+                                   .patchedBy = {},
+                                   .conflicts = {}};
+    library.setExtensionProfiles({pack});
+    CHECK_FALSE(library.rename(contributed, QStringLiteral("Mine")));
+    REQUIRE(library.find(contributed) != nullptr);
+    CHECK(library.find(contributed)->name == QStringLiteral("Driving"));
+    CHECK(discarded.isEmpty());
+}
+
 TEST_CASE("profiles from extensions come after your own, stay read-only and are copied as they are (PRF-006)")
 {
     const Application app;

@@ -102,6 +102,7 @@ qt_add_qml_module(GameScrcpy
         qml/QrCodeView.qml
         qml/RecordingDialog.qml
         qml/RecordingsDialog.qml
+        qml/RenameProfileDialog.qml
         qml/RestoreDialog.qml
         qml/SaveAsDialog.qml
         qml/ScriptDrawings.qml

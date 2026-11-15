@@ -1981,3 +1981,44 @@ TEST_CASE("profile editor: deleting a component the logic uses asks first, and b
     CHECK(readAll(folder, QStringLiteral("controls/hold.ts")) == own);
     CHECK(readAll(folder, QStringLiteral("controls/hold.blueprint.json")) == QByteArray("{}\n"));
 }
+
+TEST_CASE("R9: a profile renamed while its editor is open shows the new name and saves it, dirty or not")
+{
+    ProfileEditor editor(loaded(R"({"format":"gamescrcpy.profile","version":3,
+        "meta":{"name":"Shooter"},"controls":[]})"),
+                         kScreen);
+    int announced = 0;
+    QObject::connect(&editor, &ProfileEditor::changed, [&announced] { ++announced; });
+
+    editor.addControl(QStringLiteral("hold"), 0.5, 0.5);
+    editor.markSaved();
+    REQUIRE_FALSE(editor.dirty());
+
+    editor.renameProfile(QStringLiteral("Aim trainer"));
+    CHECK(editor.profileName() == QStringLiteral("Aim trainer"));
+    CHECK(editor.profile().meta.name == "Aim trainer");
+    CHECK_FALSE(editor.dirty());
+    CHECK(announced > 0);
+
+    const int quiet = announced;
+    editor.renameProfile(QStringLiteral("Aim trainer"));
+    CHECK(announced == quiet);
+
+    editor.addControl(QStringLiteral("tap"), 0.7, 0.5);
+    REQUIRE(editor.dirty());
+    editor.renameProfile(QStringLiteral("Aim trainer 2"));
+    CHECK(editor.profileName() == QStringLiteral("Aim trainer 2"));
+    CHECK(editor.dirty());
+    CHECK(editor.profile().controls.size() == 2);
+    const LoadResult saved = loadProfile(saveProfile(editor.profile()));
+    REQUIRE(saved.ok());
+    CHECK(saved.profile.meta.name == "Aim trainer 2");
+    CHECK(saved.profile.controls.size() == 2);
+
+    editor.undo();
+    CHECK(editor.profile().meta.name == "Aim trainer 2");
+    CHECK(editor.profile().controls.size() == 1);
+
+    editor.renameProfile(QString());
+    CHECK(editor.profileName() == QStringLiteral("Aim trainer 2"));
+}

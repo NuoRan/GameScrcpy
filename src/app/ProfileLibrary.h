@@ -91,6 +91,7 @@ public:
     Q_INVOKABLE QString duplicate(const QString& id);
     Q_INVOKABLE QString ensureFolder(const QString& id);
     Q_INVOKABLE bool setApp(const QString& id, const QString& package);
+    Q_INVOKABLE bool rename(const QString& id, const QString& name);
     bool save(const QString& id, const input::Profile& profile);
     Q_INVOKABLE bool restore(const QString& id);
     Q_INVOKABLE bool remove(const QString& id);

@@ -147,6 +147,11 @@ Item {
             page.notify(qsTr("%1 will be used whenever %2 is open").arg(entry.name).arg(app), "ok")
     }
 
+    function startRename(entry: var) {
+        page.failure = ""
+        renameDialog.start(entry.id, entry.name)
+    }
+
     function changedText(when: var): string {
         if (!(when instanceof Date) || isNaN(when.getTime()))
             return ""
@@ -433,17 +438,6 @@ Item {
                 font.weight: Theme.type.subtitle.weight
             }
 
-            Text {
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: Math.min(implicitWidth, empty.width)
-                textFormat: Text.PlainText
-                text: qsTr("Start from a template for your kind of game, import a profile file, or drop one into this window.")
-                color: Theme.colors.textSecondary
-                font.pixelSize: Theme.type.body.size
-                horizontalAlignment: Text.AlignHCenter
-                wrapMode: Text.Wrap
-            }
-
             Row {
                 anchors.horizontalCenter: parent.horizontalCenter
                 spacing: Theme.space.sm
@@ -664,6 +658,11 @@ Item {
                                                 font.pixelSize: Theme.type.body.size
                                                 font.weight: Font.DemiBold
                                                 elide: Text.ElideRight
+
+                                                TapHandler {
+                                                    enabled: card.usable && !card.readOnly
+                                                    onDoubleTapped: page.startRename(card.modelData)
+                                                }
                                             }
 
                                             Text {
@@ -910,6 +909,15 @@ Item {
                                                     }
 
                                                     MenuItem {
+                                                        objectName: "renameProfile"
+                                                        visible: !card.readOnly
+                                                        height: visible ? implicitHeight : 0
+                                                        iconName: "pencil"
+                                                        text: qsTr("Rename…")
+                                                        onTriggered: page.startRename(card.modelData)
+                                                    }
+
+                                                    MenuItem {
                                                         objectName: "visionResources"
                                                         iconName: "target"
                                                         text: qsTr("Vision resources…")
@@ -1138,6 +1146,12 @@ Item {
         importable: true
         onImportRequested: page.openImport()
         onCreated: (id, editing) => page.showCreated(id, editing)
+    }
+
+    RenameProfileDialog {
+        id: renameDialog
+
+        objectName: "renameProfileDialog"
     }
 
     Dialog {

@@ -1510,6 +1510,15 @@ Item {
                         }
 
                         MenuItem {
+                            objectName: "renameProfile"
+                            visible: moreButton.entry !== null && !moreButton.entry.readOnly
+                            height: visible ? implicitHeight : 0
+                            iconName: "pencil"
+                            text: qsTr("Rename…")
+                            onTriggered: renameDialog.start(moreButton.entry.id, moreButton.entry.name)
+                        }
+
+                        MenuItem {
                             objectName: "restoreOriginal"
                             visible: moreButton.patched
                             height: visible ? implicitHeight : 0
@@ -1563,6 +1572,10 @@ Item {
                         id: saveAsDialog
 
                         serial: keymapEditor.serial
+                    }
+
+                    RenameProfileDialog {
+                        id: renameDialog
                     }
 
                     RestoreDialog {

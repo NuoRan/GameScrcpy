@@ -114,15 +114,6 @@ Dialog {
             font.weight: Font.DemiBold
             elide: Text.ElideRight
         }
-
-        Text {
-            width: dialog.availableWidth
-            textFormat: Text.PlainText
-            text: qsTr("Pick the closest kind of game, then drag the keys onto the game's buttons in the editor.")
-            color: Theme.colors.textSecondary
-            font.pixelSize: Theme.type.caption.size
-            wrapMode: Text.Wrap
-        }
     }
 
     footer: Item {
@@ -395,7 +386,7 @@ Dialog {
                         width: parent.width
                         textFormat: Text.PlainText
                         text: dialog.current === null ? ""
-                              : dialog.current.controls === 0 ? qsTr("No keys yet. Add them in the editor.")
+                              : dialog.current.controls === 0 ? qsTr("No keys yet")
                                                               : dialog.current.includes.join(" · ")
                         color: Theme.colors.textSecondary
                         font.pixelSize: Theme.type.caption.size
