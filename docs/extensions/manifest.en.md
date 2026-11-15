@@ -94,7 +94,7 @@ Files and folders whose names start with a dot (such as `.build` or `.git`) are 
 
 ### `requires` and version ranges
 
-The keys of `requires` are extension points (`theme`, `filter`, `profile`, `component`, `task`, `script`, `panel`, `native`, `help`, `tour`, `locale`, and `command` and `preset`, which 2.1.0 does not offer yet); the values are version ranges, written as:
+The keys of `requires` are extension points (`theme`, `filter`, `profile`, `component`, `task`, `script`, `panel`, `native`, `help`, `tour`, `locale`, and `command` and `preset`, which 2.2.0 does not offer yet); the values are version ranges, written as:
 
 | Range | Meaning |
 |:--|:--|
@@ -116,20 +116,20 @@ A version has a major and a minor part:
 
 Write the version you built against: when you use something a minor version added, write that minor version; `^1.0` is still accepted by 1.1, so write `^1.0` when you use nothing new.
 
-| Extension point | 2.0.0 offers | 2.1.0 offers | What 2.1.0 added |
-|:--|:--|:--|:--|
-| `filter` | 1.0 | 1.0 | — |
-| `theme` | 1.0 | 1.0 | — |
-| `profile` | 1.0 | 1.0 | — |
-| `script` | 1.0 | 1.1 | New script interfaces `net`, `files`, `speech`, `events` and `media`, `ext.provide` and `ext.call`, converters, new places of `ui.*` |
-| `panel` | 1.0 | 1.1 | New places `device`, `settings`, `extension`, `toolbar`, `contextMenu` and `tray`, and `on` |
-| `component` | 1.0 | 1.1 | Component scripts can use the new script interfaces |
-| `task` | 1.0 | 1.1 | Task scripts can use the new script interfaces |
-| `native` | 1.0 | 2.0 | Interface 2: `gs_ext_main`, jobs, events, settings, device providers, speech engines, input sources, transports, media, frame taps, vision engines, AI providers, the restricted sandbox |
-| `help` | — | 1.0 | New in 2.1 |
-| `tour` | — | 1.0 | New in 2.1 |
-| `locale` | — | 1.0 | New in 2.1 |
-| `command`, `preset` | — | — | Not offered yet |
+| Extension point | 2.0.0 offers | 2.1.0 offers | 2.2.0 offers | What was added |
+|:--|:--|:--|:--|:--|
+| `filter` | 1.0 | 1.0 | 1.0 | — |
+| `theme` | 1.0 | 1.0 | 1.0 | — |
+| `profile` | 1.0 | 1.0 | 1.0 | — |
+| `script` | 1.0 | 1.1 | 1.1 | 2.1.0: new script interfaces `net`, `files`, `speech`, `events` and `media`, `ext.provide` and `ext.call`, converters, new places of `ui.*` |
+| `panel` | 1.0 | 1.1 | 1.1 | 2.1.0: new places `device`, `settings`, `extension`, `toolbar`, `contextMenu` and `tray`, and `on` |
+| `component` | 1.0 | 1.1 | 1.1 | 2.1.0: component scripts can use the new script interfaces |
+| `task` | 1.0 | 1.1 | 1.1 | 2.1.0: task scripts can use the new script interfaces |
+| `native` | 1.0 | 2.0 | 2.1 | 2.1.0: interface 2: `gs_ext_main`, jobs, events, settings, device providers, speech engines, input sources, transports, media, frame taps, vision engines, AI providers, the restricted sandbox; 2.2.0: the model traits of AI providers gained the efforts `xhigh` and `max` and `topEffortsThink` and `millionContext` (see [Native extensions](native.en.md)) |
+| `help` | — | 1.0 | 1.0 | New in 2.1 |
+| `tour` | — | 1.0 | 1.0 | New in 2.1 |
+| `locale` | — | 1.0 | 1.0 | New in 2.1 |
+| `command`, `preset` | — | — | — | Not offered yet |
 
 #### The three results of the check
 
@@ -153,7 +153,7 @@ The manifest can say which GameScrcpy version its author wrote it against:
 
 Write `major.minor` or `major.minor.patch`, without a prerelease tag; `2`, `2.x` or `2.1.0-beta` is `version-invalid`. The field only says which version it was written for; it does not decide whether the extension works: its card, its details, the install dialog and the prompt after an update say "Made for GameScrcpy 2.1", and one that does not fit this GameScrcpy adds the reason, such as "Made for GameScrcpy 2.0; does not work with 2.1" or "Made for GameScrcpy 2.2; needs a newer GameScrcpy". Compatibility always comes from `requires`: an extension written for an older version that `requires` accepts opens as usual and shows no prompt.
 
-When the field is missing, GameScrcpy works the version out from `requires`: it takes the earliest version whose table of extension point versions (the eight extension points of 2.0.0 are all 1.0; 2.1.0 is the table above) satisfies every entry, and when even 2.0.0 does not (a `command` requirement, say) it shows no version and only whether the extension fits this GameScrcpy.
+When the field is missing, GameScrcpy works the version out from `requires`: it takes the earliest version whose table of extension point versions (the eight extension points of 2.0.0 are all 1.0; 2.1.0 and 2.2.0 are in the table above) satisfies every entry, and when even 2.0.0 does not (a `command` requirement, say) it shows no version and only whether the extension fits this GameScrcpy.
 
 `gs ext init` and "Export as extension" write the major.minor of the current version. `gs validate` and `gs pack` warn with `gamescrcpy-missing` when the field is missing and say how to add it; loading an extension in GameScrcpy does not.
 
@@ -410,7 +410,7 @@ The `params` of attachments and behaviors are what the user sets in the key mapp
 
 ### `commands` and `presets`
 
-Kept in the format; 2.1.0 does not offer these extension points.
+Kept in the format; 2.2.0 does not offer these extension points.
 
 ## `settings`
 

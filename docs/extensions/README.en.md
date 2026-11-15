@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · English
 
-A GameScrcpy extension is a folder with a `manifest.json`, packed into one `.gsext` file. An extension can carry only data (themes, picture filters, profiles, help articles), logic written in TypeScript (it runs in a low-privilege child process, and GameScrcpy draws its interface from the description the extension gives), or a native DLL written against a C interface. These pages cover what extensions can do in 2.1.0, how to build each kind, and how to test and publish them.
+A GameScrcpy extension is a folder with a `manifest.json`, packed into one `.gsext` file. An extension can carry only data (themes, picture filters, profiles, help articles), logic written in TypeScript (it runs in a low-privilege child process, and GameScrcpy draws its interface from the description the extension gives), or a native DLL written against a C interface. These pages cover what extensions can do in 2.2.0, how to build each kind, and how to test and publish them.
 
 | Page | Contents |
 |:--|:--|
@@ -82,7 +82,7 @@ A DLL can also keep a store, show notifications, send events to its own logic, r
 
 `requires` in the manifest lists every extension point the extension uses with the version it was written against, such as `"requires": { "script": "^1.1", "panel": "^1.0" }`. A version is a major and a minor: when GameScrcpy adds to an extension point (new manifest fields, contributions, script interfaces, native host functions, events) the minor version grows and extensions written for the old one keep working; when it changes or removes something the major version grows and the program offers only the new major. Write the minor version whose features you use; `^1.0` is still accepted by 1.1.
 
-The versions GameScrcpy 2.1.0 offers:
+The versions GameScrcpy 2.2.0 offers:
 
 | Extension point | Version | For |
 |:--|:--|:--|
@@ -93,7 +93,7 @@ The versions GameScrcpy 2.1.0 offers:
 | `task` | 1.1 | `contributes.tasks` |
 | `script` | 1.1 | `contributes.scripts`, `contributes.converters`, and the panels and services that use scripts |
 | `panel` | 1.1 | `contributes.panels` (with `script`) |
-| `native` | 2.0 | `contributes.native` |
+| `native` | 2.1 | `contributes.native` |
 | `help` | 1.0 | `contributes.help` |
 | `tour` | 1.0 | `contributes.tours` |
 | `locale` | 1.0 | `contributes.locales` |
@@ -102,7 +102,7 @@ When it loads an extension, GameScrcpy checks `requires` against this table: an 
 
 The manifest can also say with `gamescrcpy` which GameScrcpy version its author wrote it against: the card, its details, the install dialog and the prompt after an update say "Made for GameScrcpy 2.1", a missing field is worked out from `requires`, and compatibility still comes from `requires` (see [Manifest reference](manifest.en.md#which-version-it-was-written-for)).
 
-The manifest format also keeps the extension points `command` and `preset`; 2.1.0 does not offer them yet, so an extension that asks for them installs but is never turned on. A contribution whose extension point is missing from `requires` makes `gs validate` report `contribution-undeclared`; an extension point or version the program does not offer keeps the extension off, with the reason on the Extensions page. Later versions only add extension points and add to existing ones; published fields and functions keep their meaning.
+The manifest format also keeps the extension points `command` and `preset`; 2.2.0 does not offer them yet, so an extension that asks for them installs but is never turned on. A contribution whose extension point is missing from `requires` makes `gs validate` report `contribution-undeclared`; an extension point or version the program does not offer keeps the extension off, with the reason on the Extensions page. Later versions only add extension points and add to existing ones; published fields and functions keep their meaning.
 
 ## Permissions
 

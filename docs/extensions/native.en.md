@@ -66,7 +66,7 @@ Logic calls it as `ext.alice.hello.greet("world")` (each part of the extension i
 - The DLL exports `gs_ext_main`. GameScrcpy calls it once after loading the DLL, with the host function table `gs_ext_host`; the DLL hands back a pointer to its own description, `gs_ext_plugin`. The DLL keeps that description and everything it points to valid until `unload` is called; GameScrcpy never writes to it.
 - A DLL that only exports the old entry `gs_ext_entry` (interface version 1) is not loaded: interface 1 belongs to `native` 1.0, and 2.1 offers only 2.0. Build such a DLL again with the current SDK and write `"native": "^2.0"` in its manifest.
 - Every struct that a DLL fills in, or that holds arrays, starts with `uint32_t size`, set to its `sizeof`. Each side reads only the fields both know and takes the others as 0, so later versions only add fields at the end of structs, and new DLLs work with older programs as old DLLs do with newer ones. The structs that are elements of arrays (`gs_ext_value`, `gs_ext_contact` and the like) are marked as never changing and have no `size`.
-- Before using a host function that a later version added, ask `supports("<feature>")`. The features 2.1.0 knows: `jobs`, `events`, `settings`, `claims`, `job-output`, `app-events`, `input-sources`, `services`, `transports`, `media`, `frame-taps`, `vision-engines`, `devices`.
+- Before using a host function that a later version added, ask `supports("<feature>")`. The features 2.1.0 and 2.2.0 know: `jobs`, `events`, `settings`, `claims`, `job-output`, `app-events`, `input-sources`, `services`, `transports`, `media`, `frame-taps`, `vision-engines`, `devices`.
 
 ## The contribution table
 

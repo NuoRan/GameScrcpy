@@ -167,7 +167,7 @@ const HostApi& currentHostApi()
         offered.versions[ExtensionPoint::Theme] = {Version{1, 0, 0}};
         offered.versions[ExtensionPoint::Filter] = {Version{1, 0, 0}};
         offered.versions[ExtensionPoint::Script] = {Version{1, 1, 0}};
-        offered.versions[ExtensionPoint::Native] = {Version{2, 0, 0}};
+        offered.versions[ExtensionPoint::Native] = {Version{2, 1, 0}};
         offered.versions[ExtensionPoint::Component] = {Version{1, 1, 0}};
         offered.versions[ExtensionPoint::Task] = {Version{1, 1, 0}};
         offered.versions[ExtensionPoint::Panel] = {Version{1, 1, 0}};
@@ -198,8 +198,11 @@ const std::vector<Release>& releaseHistory()
         twenty.versions[ExtensionPoint::Task] = {Version{1, 0, 0}};
         twenty.versions[ExtensionPoint::Script] = {Version{1, 0, 0}};
         twenty.versions[ExtensionPoint::Panel] = {Version{1, 0, 0}};
+        HostApi twentyOne = currentHostApi();
+        twentyOne.versions[ExtensionPoint::Native] = {Version{2, 0, 0}};
         std::vector<Release> releases{{Version{2, 0, 0}, std::move(twenty)}};
-        releases.push_back({Version{2, 1, 0}, currentHostApi()});
+        releases.push_back({Version{2, 1, 0}, std::move(twentyOne)});
+        releases.push_back({Version{2, 2, 0}, currentHostApi()});
         return releases;
     }();
     return history;

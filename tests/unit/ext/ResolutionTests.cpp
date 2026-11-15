@@ -199,7 +199,7 @@ TEST_CASE("ADR-0113: the versions GameScrcpy offers")
     CHECK(offered(ExtensionPoint::Component) == "1.1.0");
     CHECK(offered(ExtensionPoint::Task) == "1.1.0");
     CHECK(offered(ExtensionPoint::Panel) == "1.1.0");
-    CHECK(offered(ExtensionPoint::Native) == "2.0.0");
+    CHECK(offered(ExtensionPoint::Native) == "2.1.0");
     CHECK(offered(ExtensionPoint::Help) == "1.0.0");
     CHECK(offered(ExtensionPoint::Tour) == "1.0.0");
     CHECK(offered(ExtensionPoint::Locale) == "1.0.0");
@@ -213,7 +213,7 @@ TEST_CASE("ADR-0113: the versions GameScrcpy offers")
     const std::vector<Diagnostic> problems = checkCompatibility(native, host);
     REQUIRE(problems.size() == 1);
     CHECK(problems.front().code == Code::HostApiOutdated);
-    CHECK(problems.front().detail == "^1.0 wanted, offered 2.0.0");
+    CHECK(problems.front().detail == "^1.0 wanted, offered 2.1.0");
 
     native.requirements.insert_or_assign(ExtensionPoint::Native, *VersionRange::parse("^2.0"));
     CHECK(checkCompatibility(native, host).empty());
@@ -223,8 +223,9 @@ TEST_CASE("ADR-0113: an author tool writes the version this GameScrcpy offers as
 {
     const std::optional<VersionRange> native = requirementFor(ExtensionPoint::Native);
     REQUIRE(native.has_value());
-    CHECK(native->text() == "^2.0");
-    CHECK(native->contains(*Version::parse("2.0.0")));
+    CHECK(native->text() == "^2.1");
+    CHECK(native->contains(*Version::parse("2.1.0")));
+    CHECK_FALSE(native->contains(*Version::parse("2.0.0")));
     CHECK_FALSE(native->contains(*Version::parse("3.0.0")));
 
     const std::optional<VersionRange> script = requirementFor(ExtensionPoint::Script);
@@ -255,6 +256,10 @@ TEST_CASE("ADR-0113: writtenFor names the version the author wrote against, or t
     manifest.requirements.insert_or_assign(ExtensionPoint::Native, *VersionRange::parse("^2.0"));
     REQUIRE(writtenFor(manifest).has_value());
     CHECK(writtenFor(manifest)->text() == "2.1.0");
+
+    manifest.requirements.insert_or_assign(ExtensionPoint::Native, *VersionRange::parse("^2.1"));
+    REQUIRE(writtenFor(manifest).has_value());
+    CHECK(writtenFor(manifest)->text() == "2.2.0");
 
     manifest.requirements.clear();
     manifest.requirements.insert_or_assign(ExtensionPoint::Script, *VersionRange::parse("^1.2"));

@@ -94,7 +94,7 @@
 
 ### `requires` 与版本范围
 
-`requires` 的键是扩展点（`theme`、`filter`、`profile`、`component`、`task`、`script`、`panel`、`native`、`help`、`tour`、`locale`，以及 2.1.0 还不提供的 `command`、`preset`），值是版本范围。版本范围可以写成：
+`requires` 的键是扩展点（`theme`、`filter`、`profile`、`component`、`task`、`script`、`panel`、`native`、`help`、`tour`、`locale`，以及 2.2.0 还不提供的 `command`、`preset`），值是版本范围。版本范围可以写成：
 
 | 写法 | 意思 |
 |:--|:--|
@@ -116,20 +116,20 @@
 
 写 `requires` 时写你照着写的那个版本：用到某个次版本才有的东西，就写那个次版本；`^1.0` 也照常被 1.1 接受，不打算用新东西时写 `^1.0` 就好。
 
-| 扩展点 | 2.0.0 提供 | 2.1.0 提供 | 2.1.0 加了什么 |
-|:--|:--|:--|:--|
-| `filter` | 1.0 | 1.0 | — |
-| `theme` | 1.0 | 1.0 | — |
-| `profile` | 1.0 | 1.0 | — |
-| `script` | 1.0 | 1.1 | `net`、`files`、`speech`、`events`、`media` 等新的脚本接口，`ext.provide` 与 `ext.call`，转换器，`ui.*` 的新位置 |
-| `panel` | 1.0 | 1.1 | 新的位置 `device`、`settings`、`extension`、`toolbar`、`contextMenu`、`tray`，以及 `on` |
-| `component` | 1.0 | 1.1 | 组件脚本能用上面新的脚本接口 |
-| `task` | 1.0 | 1.1 | 任务脚本能用上面新的脚本接口 |
-| `native` | 1.0 | 2.0 | 接口第 2 版：`gs_ext_main`、长任务、事件、设置、设备提供者、语音引擎、输入设备、连接方式、媒体、取帧、识别引擎、AI 服务、受限模式 |
-| `help` | — | 1.0 | 2.1 新加 |
-| `tour` | — | 1.0 | 2.1 新加 |
-| `locale` | — | 1.0 | 2.1 新加 |
-| `command`、`preset` | — | — | 还不提供 |
+| 扩展点 | 2.0.0 提供 | 2.1.0 提供 | 2.2.0 提供 | 加了什么 |
+|:--|:--|:--|:--|:--|
+| `filter` | 1.0 | 1.0 | 1.0 | — |
+| `theme` | 1.0 | 1.0 | 1.0 | — |
+| `profile` | 1.0 | 1.0 | 1.0 | — |
+| `script` | 1.0 | 1.1 | 1.1 | 2.1.0：`net`、`files`、`speech`、`events`、`media` 等新的脚本接口，`ext.provide` 与 `ext.call`，转换器，`ui.*` 的新位置 |
+| `panel` | 1.0 | 1.1 | 1.1 | 2.1.0：新的位置 `device`、`settings`、`extension`、`toolbar`、`contextMenu`、`tray`，以及 `on` |
+| `component` | 1.0 | 1.1 | 1.1 | 2.1.0：组件脚本能用上面新的脚本接口 |
+| `task` | 1.0 | 1.1 | 1.1 | 2.1.0：任务脚本能用上面新的脚本接口 |
+| `native` | 1.0 | 2.0 | 2.1 | 2.1.0：接口第 2 版：`gs_ext_main`、长任务、事件、设置、设备提供者、语音引擎、输入设备、连接方式、媒体、取帧、识别引擎、AI 服务、受限模式；2.2.0：AI 服务的模型能力多了 `xhigh`、`max` 两档强度与 `topEffortsThink`、`millionContext`（见[原生扩展](native.md)） |
+| `help` | — | 1.0 | 1.0 | 2.1 新加 |
+| `tour` | — | 1.0 | 1.0 | 2.1 新加 |
+| `locale` | — | 1.0 | 1.0 | 2.1 新加 |
+| `command`、`preset` | — | — | — | 还不提供 |
 
 #### 三种检查结果
 
@@ -153,7 +153,7 @@ GameScrcpy 载入扩展时对照上表检查 `requires`：不满足的扩展不�
 
 写 `主.次` 或 `主.次.修订`，不带预发布标签；写成 `2`、`2.x`、`2.1.0-beta` 报 `version-invalid`。这一项只说明“为哪个版本编写”，不决定能不能用：扩展卡片、详情、安装框与升级后的提示写“为 GameScrcpy 2.1 编写”，与这个 GameScrcpy 不兼容的还写明原因，如“为 GameScrcpy 2.0 编写，与 2.1 不兼容”“为 GameScrcpy 2.2 编写，需要更新版的 GameScrcpy”。兼容始终由 `requires` 判断，写着旧版本但 `requires` 满足的扩展照常打开，不弹提示。
 
-没写这一项时，GameScrcpy 按 `requires` 推算：在各版本提供的扩展点版本表（2.0.0 的八个扩展点都是 1.0，2.1.0 见上表）里取最早一个能满足 `requires` 的版本；连 2.0.0 都满足不了（例如要 `command`）就不写版本，只说明它与这个 GameScrcpy 兼不兼容。
+没写这一项时，GameScrcpy 按 `requires` 推算：在各版本提供的扩展点版本表（2.0.0 的八个扩展点都是 1.0，2.1.0 与 2.2.0 见上表）里取最早一个能满足 `requires` 的版本；连 2.0.0 都满足不了（例如要 `command`）就不写版本，只说明它与这个 GameScrcpy 兼不兼容。
 
 `gs ext init` 与“导出为扩展”会写上当前版本的主.次。`gs validate` 与 `gs pack` 对没写这一项的清单给 `gamescrcpy-missing` 警告，并说明怎么补；GameScrcpy 载入扩展时不提示。
 
@@ -410,7 +410,7 @@ GameScrcpy 载入扩展时对照上表检查 `requires`：不满足的扩展不�
 
 ### `commands` 与 `presets`
 
-格式里留着，2.1.0 不提供这两个扩展点。
+格式里留着，2.2.0 不提供这两个扩展点。
 
 ## `settings`
 

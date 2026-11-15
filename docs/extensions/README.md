@@ -2,7 +2,7 @@
 
 简体中文 · [English](README.en.md)
 
-GameScrcpy 的扩展是一个带 `manifest.json` 的文件夹，打包后是一个 `.gsext` 文件。扩展可以只带数据（主题、画面滤镜、方案、帮助文章），可以带 TypeScript 写的逻辑（在低权限的子进程里运行，界面由 GameScrcpy 照扩展给的描述来画），也可以带一个用 C 接口写的原生 DLL。这一组文档讲 2.1.0 里扩展能做什么、每一种怎么做、怎么测试和发布。
+GameScrcpy 的扩展是一个带 `manifest.json` 的文件夹，打包后是一个 `.gsext` 文件。扩展可以只带数据（主题、画面滤镜、方案、帮助文章），可以带 TypeScript 写的逻辑（在低权限的子进程里运行，界面由 GameScrcpy 照扩展给的描述来画），也可以带一个用 C 接口写的原生 DLL。这一组文档讲 2.2.0 里扩展能做什么、每一种怎么做、怎么测试和发布。
 
 | 文档 | 内容 |
 |:--|:--|
@@ -82,7 +82,7 @@ DLL 还能读写自己的存储、发通知、给自己的逻辑发事件、读�
 
 清单的 `requires` 写出扩展用到的每个扩展点和它照着写的版本，例如 `"requires": { "script": "^1.1", "panel": "^1.0" }`。版本是"主.次"：GameScrcpy 给一个扩展点加东西（新的清单字段、贡献、脚本接口、原生宿主函数、事件）时升次版本，按旧版本写的扩展照常能用；改掉或去掉已有的东西时升主版本，程序只提供新的主版本。用到某个次版本才有的东西就写那个次版本；`^1.0` 也照常被 1.1 接受。
 
-GameScrcpy 2.1.0 提供的版本：
+GameScrcpy 2.2.0 提供的版本：
 
 | 扩展点 | 版本 | 用于 |
 |:--|:--|:--|
@@ -93,7 +93,7 @@ GameScrcpy 2.1.0 提供的版本：
 | `task` | 1.1 | `contributes.tasks` |
 | `script` | 1.1 | `contributes.scripts`、`contributes.converters`，以及用到脚本的面板和服务 |
 | `panel` | 1.1 | `contributes.panels`（还要 `script`） |
-| `native` | 2.0 | `contributes.native` |
+| `native` | 2.1 | `contributes.native` |
 | `help` | 1.0 | `contributes.help` |
 | `tour` | 1.0 | `contributes.tours` |
 | `locale` | 1.0 | `contributes.locales` |
@@ -102,7 +102,7 @@ GameScrcpy 2.1.0 提供的版本：
 
 清单还可以用 `gamescrcpy` 写明作者照着写的 GameScrcpy 版本：扩展卡片、详情、安装框与升级后的提示写“为 GameScrcpy 2.1 编写”，没写的按 `requires` 推算，兼容仍由 `requires` 判断（见[清单参考](manifest.md#为哪个版本编写)）。
 
-清单格式里还留着 `command` 与 `preset` 两个扩展点，2.1.0 还不提供，写了的扩展装得上但不会被打开。贡献了东西却没在 `requires` 里声明扩展点，`gs validate` 会报 `contribution-undeclared`；声明了程序不提供的扩展点或版本，扩展页会写明原因、不打开它。以后的版本只加扩展点、只在原有扩展点上加东西，已经发布的字段与函数不改含义。
+清单格式里还留着 `command` 与 `preset` 两个扩展点，2.2.0 还不提供，写了的扩展装得上但不会被打开。贡献了东西却没在 `requires` 里声明扩展点，`gs validate` 会报 `contribution-undeclared`；声明了程序不提供的扩展点或版本，扩展页会写明原因、不打开它。以后的版本只加扩展点、只在原有扩展点上加东西，已经发布的字段与函数不改含义。
 
 ## 权限
 
