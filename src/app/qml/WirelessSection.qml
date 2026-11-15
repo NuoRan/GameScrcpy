@@ -137,6 +137,7 @@ Column {
 
                     Text {
                         Layout.fillWidth: true
+                        Layout.maximumWidth: Math.ceil(implicitWidth)
                         textFormat: Text.PlainText
                         text: WirelessController.qrText === "" ? qsTr("Pair with a pairing code") : qsTr("Pair with a QR code")
                         color: Theme.colors.textPrimary
@@ -154,6 +155,10 @@ Column {
                                      + "pairing code.")
                               : qsTr("On the phone: Developer options > Wireless debugging > Pair device with "
                                      + "QR code.")
+                    }
+
+                    Item {
+                        Layout.fillWidth: true
                     }
 
                     Button {
