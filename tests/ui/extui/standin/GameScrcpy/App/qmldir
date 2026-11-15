@@ -1,0 +1,3 @@
+module GameScrcpy.App
+QrCodeView 1.0 QrCodeView.qml
+singleton ExtensionPanels 1.0 ExtensionPanels.qml

@@ -20,6 +20,51 @@ Item {
     readonly property bool usable: root.node?.enabled !== false
     readonly property var blocks: ["column", "row", "group", "list", "table", "chart", "separator", "deviceItem", "steps",
                                    "keyValue"]
+    readonly property bool shows: root.showsTree(root.node)
+
+    function showsTree(subject: var): bool {
+        if (subject === null || typeof subject !== "object")
+            return false
+        const children = subject.children ?? []
+        switch (subject.type ?? "") {
+        case "column":
+        case "row":
+            return children.some(each => root.showsTree(each))
+        case "group":
+            return (subject.title ?? "") !== "" || children.some(each => root.showsTree(each))
+        case "text": {
+            const said = subject.text ?? ""
+            const drawn = (subject.format ?? "plain") === "markdown" ? UiMarkdown.styled(said, "") : said
+            return drawn !== ""
+        }
+        case "list":
+            return (subject.items ?? []).length > 0
+        case "steps":
+            return (subject.steps ?? []).length > 0
+        case "keyValue":
+            return (subject.rows ?? []).length > 0
+        case "image":
+            return (subject.source ?? "") !== ""
+        case "table":
+            return (subject.columns ?? []).length > 0
+        case "canvas":
+            return (subject.shapes ?? []).length > 0 || (subject.title ?? "") !== ""
+        case "button":
+        case "field":
+        case "number":
+        case "toggle":
+        case "choice":
+        case "slider":
+        case "chart":
+        case "progress":
+        case "separator":
+        case "deviceItem":
+        case "qr":
+            return true
+        default:
+            return false
+        }
+    }
 
     function send(kind: string, value: var) {
         if (root.host !== null)
@@ -63,8 +108,9 @@ Item {
         return Math.min(4, most)
     }
 
-    implicitWidth: content.implicitWidth
-    implicitHeight: content.implicitHeight
+    implicitWidth: root.shows ? content.implicitWidth : 0
+    implicitHeight: root.shows ? content.implicitHeight : 0
+    visible: root.shows
 
     component Child: Loader {
         id: child
@@ -402,8 +448,9 @@ Item {
         id: togglePart
 
         Item {
-            implicitWidth: Theme.size.switchWidth + Theme.space.md + toggleLabel.implicitWidth
-            implicitHeight: Math.max(Theme.size.switchHeight, toggleLabel.implicitHeight)
+            implicitWidth: Theme.size.switchWidth
+                           + (toggleLabel.visible ? Theme.space.md + toggleLabel.implicitWidth : 0)
+            implicitHeight: Math.max(Theme.size.switchHeight, toggleLabel.visible ? toggleLabel.implicitHeight : 0)
 
             Switch {
                 id: toggle
@@ -422,6 +469,7 @@ Item {
                 x: toggle.width + Theme.space.md
                 y: (parent.height - toggleLabel.height) / 2
                 width: parent.width - toggleLabel.x
+                visible: text !== ""
                 textFormat: Text.PlainText
                 text: root.title
                 color: root.usable ? Theme.colors.textPrimary : Theme.colors.textDisabled
@@ -736,12 +784,11 @@ Item {
         id: separatorPart
 
         Item {
-            implicitHeight: Theme.size.stroke + 2 * Theme.space.xs
+            implicitHeight: Theme.size.stroke
 
             Accessible.role: Accessible.Separator
 
             Rectangle {
-                y: Theme.space.xs
                 width: parent.width
                 height: Theme.size.stroke
                 color: Theme.colors.strokeSubtle

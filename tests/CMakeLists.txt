@@ -907,6 +907,22 @@ if(GS_BUILD_APP)
         COMMAND gs_tour_tests -platform offscreen -import "${QT6_INSTALL_PREFIX}/${QT6_INSTALL_QML}")
     set_tests_properties(gs_tour_tests PROPERTIES ENVIRONMENT_MODIFICATION "${GS_QT_TEST_ENVIRONMENT}")
 
+    add_executable(gs_extui_tests ui/extui/ExtuiTests.cpp ui/extui/tst_extui.qml)
+    target_link_libraries(gs_extui_tests PRIVATE
+        Qt6::QuickTest
+        gs_ui_themeplugin
+        gs_ui_iconsplugin
+        gs_ui_controlsplugin
+    )
+    target_compile_definitions(gs_extui_tests PRIVATE
+        QUICK_TEST_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/ui/extui"
+    )
+    gs_apply_compiler_policy(gs_extui_tests)
+    add_test(NAME gs_extui_tests
+        COMMAND gs_extui_tests -platform offscreen -import "${QT6_INSTALL_PREFIX}/${QT6_INSTALL_QML}"
+                -import "${CMAKE_CURRENT_SOURCE_DIR}/ui/extui/standin")
+    set_tests_properties(gs_extui_tests PROPERTIES ENVIRONMENT_MODIFICATION "${GS_QT_TEST_ENVIRONMENT}")
+
     find_package(Qt6 6.10 REQUIRED COMPONENTS Test)
     add_executable(gs_shortcut_tests
         unit/app/ShortcutDispatcherTests.cpp
