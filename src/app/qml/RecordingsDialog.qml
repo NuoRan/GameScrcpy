@@ -94,7 +94,7 @@ Dialog {
                 textFormat: Text.PlainText
                 wrapMode: Text.Wrap
                 text: dialog.loading ? qsTr("Reading the recordings…")
-                                     : qsTr("No recordings of this phone yet. Start one with Record on the toolbar.")
+                                     : qsTr("No recordings of this phone yet — start one with Record on the toolbar.")
                 color: Theme.colors.textSecondary
                 font.pixelSize: Theme.type.body.size
             }
@@ -155,8 +155,7 @@ Dialog {
             width: trashConfirm.availableWidth
             textFormat: Text.PlainText
             wrapMode: Text.Wrap
-            text: qsTr("%1 · %2. You can restore it from the Recycle Bin.")
-                  .arg(dialog.trashing.when ?? "").arg(dialog.trashing.size ?? "")
+            text: qsTr("%1 · %2").arg(dialog.trashing.when ?? "").arg(dialog.trashing.size ?? "")
             color: Theme.colors.textSecondary
             font.pixelSize: Theme.type.body.size
         }

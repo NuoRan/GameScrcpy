@@ -64,9 +64,8 @@ Item {
     property real recordingNow: 0
     readonly property string recordingText: qsTr("Recording %1").arg(overlay.clockText(overlay.recordingNow
                                                                                        - (recording.startedMs ?? 0)))
-    readonly property string recordingNote: [recording.sound === true ? qsTr("Picture · Sound · Operations")
-                                                                      : qsTr("Picture · Operations"),
-                                             qsTr("Typing: length only")].join(" / ")
+    readonly property string recordingNote: recording.sound === true ? qsTr("Picture · Sound · Operations")
+                                                                     : qsTr("Picture · Operations")
     property ProfileEditor editor: null
     readonly property bool editing: editor !== null
     readonly property bool trying: editor !== null && editor.trying
@@ -487,6 +486,8 @@ Item {
         border.color: Theme.colors.strokeSubtle
 
         Column {
+            id: noPictureBody
+
             anchors.centerIn: parent
             width: parent.width - 2 * Theme.space.xl
             spacing: Theme.space.sm
@@ -499,28 +500,31 @@ Item {
                 color: Theme.colors.textTertiary
             }
 
-            Text {
-                objectName: "noPictureTitle"
-                width: parent.width
-                horizontalAlignment: Text.AlignHCenter
-                textFormat: Text.PlainText
-                text: qsTr("No picture · Watch the phone")
-                color: Theme.colors.textSecondary
-                font.pixelSize: Theme.type.subtitle.size
-                font.weight: Font.DemiBold
-                wrapMode: Text.Wrap
-            }
+            Row {
+                anchors.horizontalCenter: parent.horizontalCenter
+                spacing: Theme.space.xs
 
-            Text {
-                objectName: "noPictureLimits"
-                width: parent.width
-                horizontalAlignment: Text.AlignHCenter
-                textFormat: Text.PlainText
-                text: qsTr("Not available without a picture: %1")
-                      .arg(DeviceManager.noPictureLimits(overlay.serial).join(qsTr(", ")))
-                color: Theme.colors.textTertiary
-                font.pixelSize: Theme.type.caption.size
-                wrapMode: Text.Wrap
+                Text {
+                    objectName: "noPictureTitle"
+                    width: Math.min(implicitWidth, noPictureBody.width - noPictureInfo.width - Theme.space.xs)
+                    horizontalAlignment: Text.AlignHCenter
+                    textFormat: Text.PlainText
+                    text: qsTr("No picture · Watch the phone")
+                    color: Theme.colors.textSecondary
+                    font.pixelSize: Theme.type.subtitle.size
+                    font.weight: Font.DemiBold
+                    wrapMode: Text.Wrap
+                }
+
+                InfoButton {
+                    id: noPictureInfo
+
+                    objectName: "noPictureInfo"
+                    anchors.verticalCenter: parent.verticalCenter
+                    title: qsTr("No picture · Watch the phone")
+                    info: qsTr("Not available without a picture: %1")
+                          .arg(DeviceManager.noPictureLimits(overlay.serial).join(qsTr(", ")))
+                }
             }
 
             Item {
@@ -1984,7 +1988,7 @@ Item {
                 id: rememberClose
 
                 objectName: "rememberClose"
-                text: qsTr("Remember my choice (you can change it in Settings > Mirroring & quality > Display)")
+                text: qsTr("Remember my choice")
             }
         }
 

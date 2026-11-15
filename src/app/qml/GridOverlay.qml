@@ -178,9 +178,6 @@ Item {
 
         readonly property real leftPadding: Theme.space.md + Theme.space.xxs
         readonly property real rightPadding: Theme.space.sm + Theme.space.xxs
-        readonly property bool hintShown: width >= leftPadding + who.implicitWidth + Theme.space.md + actions.fixedWidth
-                                                   + 2 * actions.spacing + hintSeparator.implicitWidth
-                                                   + hint.implicitWidth + rightPadding
 
         objectName: "gridToolbar"
         anchors.left: parent.left
@@ -295,9 +292,6 @@ Item {
         Row {
             id: actions
 
-            readonly property real fixedWidth: (syncCapsule.visible ? syncCapsule.implicitWidth + spacing : 0)
-                                               + syncButton.implicitWidth + spacing + openButton.implicitWidth
-
             anchors.right: parent.right
             anchors.rightMargin: toolbar.rightPadding
             anchors.verticalCenter: parent.verticalCenter
@@ -398,25 +392,6 @@ Item {
                 enabled: overlay.chosen !== null
                 focusPolicy: Qt.TabFocus
                 onClicked: DeviceManager.showWindow(overlay.chosen?.serial ?? "")
-            }
-
-            ToolbarSeparator {
-                id: hintSeparator
-
-                anchors.verticalCenter: parent.verticalCenter
-                visible: toolbar.hintShown
-            }
-
-            Text {
-                id: hint
-
-                objectName: "gridHint"
-                anchors.verticalCenter: parent.verticalCenter
-                visible: toolbar.hintShown
-                textFormat: Text.PlainText
-                text: qsTr("Click a cell to give it the keys and mouse · double-click to open it in its own window")
-                color: Theme.colors.textTertiary
-                font.pixelSize: Theme.type.caption.size
             }
         }
     }
@@ -568,21 +543,11 @@ Item {
                     width: parent.width
                     horizontalAlignment: Text.AlignHCenter
                     textFormat: Text.PlainText
-                    text: qsTr("In its own window")
+                    text: qsTr("In its own window · double-click to bring it back")
                     wrapMode: Text.Wrap
                     color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.label.size
                     font.weight: Font.Medium
-                }
-
-                Text {
-                    width: parent.width
-                    horizontalAlignment: Text.AlignHCenter
-                    textFormat: Text.PlainText
-                    text: qsTr("Double-click to bring it back here")
-                    wrapMode: Text.Wrap
-                    color: Theme.colors.textTertiary
-                    font.pixelSize: Theme.type.caption.size
                 }
             }
         }

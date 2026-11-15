@@ -3,7 +3,6 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Templates as T
 import GameScrcpy.Theme
-import GameScrcpy.Icons
 import GameScrcpy.Controls
 import GameScrcpy.App
 
@@ -330,7 +329,7 @@ FocusScope {
                 glyph: "sparkles"
                 tone: "azure"
                 text: qsTr("AI draft")
-                detail: qsTr("Drafts the keys from the picture; nothing applies until you confirm")
+                detail: qsTr("Drafts the keys from the picture")
                 note: AiAssistant.ready ? "" : qsTr("Set up a model in Settings > AI first")
                 onClicked: panel.startDraft()
             }
@@ -355,28 +354,6 @@ FocusScope {
             color: Theme.colors.dangerText
             font.pixelSize: Theme.type.caption.size
             wrapMode: Text.Wrap
-        }
-
-        Row {
-            visible: panel.offered
-            spacing: Theme.space.sm
-
-            Icon {
-                anchors.verticalCenter: parent.verticalCenter
-                name: "info"
-                size: Theme.size.iconSmall
-                color: Theme.colors.textTertiary
-            }
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                width: Math.min(implicitWidth, layout.width - Theme.size.iconSmall - parent.spacing)
-                textFormat: Text.PlainText
-                text: qsTr("Once closed it won't come back by itself for this game. New profile… in the key mapping options on the toolbar opens it again.")
-                color: Theme.colors.textTertiary
-                font.pixelSize: Theme.type.caption.size
-                wrapMode: Text.Wrap
-            }
         }
     }
 }

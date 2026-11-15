@@ -265,8 +265,7 @@ Dialog {
             iconName: "monitor-play"
             tone: "orange"
             title: qsTr("Export video")
-            description: qsTr("An MP4 made straight from the recorded stream, without encoding it again; it takes "
-                              + "seconds.")
+            description: qsTr("An MP4 made straight from the recorded stream, without encoding it again.")
             onClicked: {
                 dialog.close()
                 dialog.exportVideo()
@@ -371,9 +370,7 @@ Dialog {
             Text {
                 width: testPicker.availableWidth
                 textFormat: Text.PlainText
-                text: qsTr("Pick the profile whose logic runs on this recording. What it does now is kept as the "
-                           + "expected result, so after you change the logic, Run tests in the logic view shows what "
-                           + "changed.")
+                text: qsTr("Pick the profile whose logic runs on this recording.")
                 color: Theme.colors.textSecondary
                 font.pixelSize: Theme.type.caption.size
                 wrapMode: Text.Wrap
@@ -426,8 +423,7 @@ Dialog {
                     visible: dialog.testProfiles.length === 0
                     textFormat: Text.PlainText
                     wrapMode: Text.Wrap
-                    text: qsTr("No profile has logic yet. Add logic to a profile with Edit logic… on the Profiles "
-                               + "page, then save the test.")
+                    text: qsTr("No profile has logic yet — add logic to one with Edit logic… on the Profiles page.")
                     color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.body.size
                 }
