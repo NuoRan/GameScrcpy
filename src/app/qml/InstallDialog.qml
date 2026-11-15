@@ -116,24 +116,15 @@ Dialog {
                 spacing: Theme.space.xxs
 
                 Text {
-                    width: parent.width
-                    visible: text !== ""
-                    textFormat: Text.PlainText
-                    text: [dialog.version !== "" ? qsTr("Version %1").arg(dialog.version) : "",
-                           dialog.authors.length > 0 ? qsTr("By %1").arg(dialog.authors.join(qsTr(", ", "list separator"))) : ""]
-                          .filter(part => part !== "").join(" · ")
-                    color: Theme.colors.textSecondary
-                    font.pixelSize: Theme.type.caption.size
-                    wrapMode: Text.Wrap
-                }
-
-                Text {
                     objectName: "installMadeFor"
                     width: parent.width
                     visible: text !== ""
                     textFormat: Text.PlainText
-                    text: dialog.writtenFor !== "" ? qsTr("Made for GameScrcpy %1").arg(dialog.writtenFor) : ""
-                    color: Theme.colors.textTertiary
+                    text: [dialog.version !== "" ? qsTr("Version %1").arg(dialog.version) : "",
+                           dialog.authors.length > 0 ? qsTr("By %1").arg(dialog.authors.join(qsTr(", ", "list separator"))) : "",
+                           dialog.writtenFor !== "" ? qsTr("Made for GameScrcpy %1").arg(dialog.writtenFor) : ""]
+                          .filter(part => part !== "").join(" · ")
+                    color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.caption.size
                     wrapMode: Text.Wrap
                 }
@@ -168,8 +159,8 @@ Dialog {
                     visible: dialog.source !== ""
                     textFormat: Text.PlainText
                     text: dialog.origin === "update"
-                          ? qsTr("Downloaded from %1; its size and SHA-256 match the update list").arg(dialog.source)
-                          : qsTr("Downloaded from %1; its SHA-256 matches the link").arg(dialog.source)
+                          ? qsTr("Downloaded from %1 · size and SHA-256 match the update list").arg(dialog.source)
+                          : qsTr("Downloaded from %1 · SHA-256 matches the link").arg(dialog.source)
                     color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.caption.size
                     wrapMode: Text.Wrap
@@ -183,10 +174,9 @@ Dialog {
                 tone: dialog.restricted ? "info" : "warn"
                 title: qsTr("Unsigned native code")
                 detail: dialog.restricted
-                        ? qsTr("The package is not signed, so there is no way to tell who made it. Its code runs "
-                               + "restricted, so it can only do what the extension declares.")
+                        ? qsTr("The package is not signed, so there is no way to tell who made it.")
                         : qsTr("Its DLL runs with full rights on this computer, and without a signature nobody can tell "
-                               + "who made it or whether it was changed. Install it only if you trust where it came from.")
+                               + "who made it or whether it was changed.")
             }
 
             Text {
@@ -224,8 +214,28 @@ Dialog {
                 visible: dialog.changes !== null
                 spacing: Theme.space.sm
 
-                Heading {
-                    text: qsTr("What changes from version %1").arg(dialog.changes?.from ?? "")
+                Row {
+                    width: parent.width
+                    spacing: Theme.space.sm
+
+                    Heading {
+                        width: Math.min(implicitWidth, parent.width - (changesInfo.visible ? changesInfo.width + parent.spacing : 0))
+                        text: qsTr("What changes from version %1").arg(dialog.changes?.from ?? "")
+                    }
+
+                    InfoButton {
+                        id: changesInfo
+
+                        objectName: "installInterfaces"
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: dialog.interfaces.length > 0
+                        title: qsTr("What changes from version %1").arg(dialog.changes?.from ?? "")
+                        info: qsTr("Interface versions: %1").arg(dialog.interfaces.map(
+                            item => item.before === "" ? qsTr("%1 %2 (new)").arg(item.point).arg(item.after)
+                                  : item.after === "" ? qsTr("%1 (no longer used)").arg(item.point)
+                                  : qsTr("%1 %2 → %3").arg(item.point).arg(item.before).arg(item.after))
+                            .join(qsTr(", ", "list separator")))
+                    }
                 }
 
                 InlineAlert {
@@ -234,7 +244,7 @@ Dialog {
                     visible: dialog.changes?.needsConsent === true
                     tone: "warn"
                     title: qsTr("It asks for more than before")
-                    detail: qsTr("After installing, it stays off until you turn it on again in Extensions to allow what's new.")
+                    detail: qsTr("It stays off after installing until you turn it on again in Extensions.")
                 }
 
                 Text {
@@ -258,7 +268,8 @@ Dialog {
                         iconName: "plus"
                         tint: Theme.colors.warningText
                         title: qsTr("New: %1").arg(modelData.title ?? "")
-                        detail: [modelData.reason ?? "", modelData.scope ?? ""].filter(part => part !== "").join(" · ")
+                        info: modelData.reason ?? ""
+                        detail: modelData.scope ?? ""
                     }
                 }
 
@@ -298,21 +309,6 @@ Dialog {
                         title: qsTr("No longer needs %1").arg(modelData)
                     }
                 }
-
-                Text {
-                    objectName: "installInterfaces"
-                    width: parent.width
-                    visible: dialog.interfaces.length > 0
-                    textFormat: Text.PlainText
-                    text: qsTr("Interface versions: %1").arg(dialog.interfaces.map(
-                        item => item.before === "" ? qsTr("%1 %2 (new)").arg(item.point).arg(item.after)
-                              : item.after === "" ? qsTr("%1 (no longer used)").arg(item.point)
-                              : qsTr("%1 %2 → %3").arg(item.point).arg(item.before).arg(item.after))
-                        .join(qsTr(", ", "list separator")))
-                    color: Theme.colors.textTertiary
-                    font.pixelSize: Theme.type.caption.size
-                    wrapMode: Text.Wrap
-                }
             }
 
             Column {
@@ -321,16 +317,30 @@ Dialog {
                 visible: dialog.nativeCode
                 spacing: Theme.space.sm
 
-                Heading {
-                    text: dialog.restricted ? qsTr("Restricted native code") : qsTr("Native code")
+                Row {
+                    width: parent.width
+                    spacing: Theme.space.sm
+
+                    Heading {
+                        width: Math.min(implicitWidth, parent.width - (nativeInfo.visible ? nativeInfo.width + parent.spacing : 0))
+                        text: dialog.restricted ? qsTr("Restricted native code") : qsTr("Native code")
+                    }
+
+                    InfoButton {
+                        id: nativeInfo
+
+                        anchors.verticalCenter: parent.verticalCenter
+                        title: dialog.restricted ? qsTr("Restricted native code") : qsTr("Native code")
+                        info: dialog.restricted
+                              ? qsTr("It runs its own Windows code in a separate process without rights of its own.")
+                              : qsTr("It runs its own Windows code in a separate process.")
+                    }
                 }
 
                 Text {
                     width: parent.width
                     textFormat: Text.PlainText
-                    text: dialog.restricted
-                          ? qsTr("It runs its own Windows code in a separate process without rights of its own. GameScrcpy checked that code before installing:")
-                          : qsTr("It runs its own Windows code in a separate process. GameScrcpy checked that code before installing:")
+                    text: qsTr("GameScrcpy checked this code before installing:")
                     color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.caption.size
                     wrapMode: Text.Wrap
@@ -342,7 +352,7 @@ Dialog {
                     visible: dialog.restricted && !dialog.refused
                     tone: "info"
                     title: qsTr("Restricted: it can only do what it declares")
-                    detail: qsTr("Its code cannot open your files, use the network or start other programs. It reaches only the devices you allow it, through GameScrcpy, and only with the permissions listed below.")
+                    detail: qsTr("Its code cannot open your files, use the network or start other programs.")
                 }
 
                 InlineAlert {
@@ -363,7 +373,6 @@ Dialog {
                              && (dialog.publisher.state === "verified" || dialog.publisher.state === "signed")
                     tone: "info"
                     title: qsTr("Signed by its author")
-                    detail: qsTr("Key %1. Updates have to be signed with the same key.").arg(dialog.security.keyId ?? "")
                 }
 
                 Row {
@@ -402,7 +411,7 @@ Dialog {
                     width: parent.width
                     visible: dialog.restricted && dialog.capabilities.length > 0
                     textFormat: Text.PlainText
-                    text: qsTr("Its code calls these system functions, which its sandbox does not let through:")
+                    text: qsTr("Its code calls these system functions; the sandbox blocks them:")
                     color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.caption.size
                     wrapMode: Text.Wrap
@@ -518,24 +527,28 @@ Dialog {
                         width: parent ? parent.width : implicitWidth
                         spacing: Theme.space.xxs
 
-                        Text {
+                        Row {
                             width: parent.width
-                            textFormat: Text.PlainText
-                            text: permission.modelData.title ?? ""
-                            color: Theme.colors.textPrimary
-                            font.pixelSize: Theme.type.label.size
-                            font.weight: Theme.type.label.weight
-                            wrapMode: Text.Wrap
-                        }
+                            spacing: Theme.space.sm
 
-                        Text {
-                            width: parent.width
-                            visible: text !== ""
-                            textFormat: Text.PlainText
-                            text: permission.modelData.reason ?? ""
-                            color: Theme.colors.textSecondary
-                            font.pixelSize: Theme.type.caption.size
-                            wrapMode: Text.Wrap
+                            Text {
+                                width: Math.min(implicitWidth, parent.width - (permissionInfo.visible ? permissionInfo.width + parent.spacing : 0))
+                                textFormat: Text.PlainText
+                                text: permission.modelData.title ?? ""
+                                color: Theme.colors.textPrimary
+                                font.pixelSize: Theme.type.label.size
+                                font.weight: Theme.type.label.weight
+                                wrapMode: Text.Wrap
+                            }
+
+                            InfoButton {
+                                id: permissionInfo
+
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: (permission.modelData.reason ?? "") !== ""
+                                title: permission.modelData.title ?? ""
+                                info: permission.modelData.reason ?? ""
+                            }
                         }
 
                         Text {
@@ -636,6 +649,7 @@ Dialog {
 
         property string iconName
         property string title
+        property string info
         property string detail
         property color tint: Theme.colors.textSecondary
 
@@ -653,14 +667,28 @@ Dialog {
             width: line.width - Theme.size.iconSmall - line.spacing
             spacing: Theme.space.xxs
 
-            Text {
+            Row {
                 width: parent.width
-                textFormat: Text.PlainText
-                text: line.title
-                color: Theme.colors.textPrimary
-                font.pixelSize: Theme.type.label.size
-                font.weight: Theme.type.label.weight
-                wrapMode: Text.Wrap
+                spacing: Theme.space.sm
+
+                Text {
+                    width: Math.min(implicitWidth, parent.width - (lineInfo.visible ? lineInfo.width + parent.spacing : 0))
+                    textFormat: Text.PlainText
+                    text: line.title
+                    color: Theme.colors.textPrimary
+                    font.pixelSize: Theme.type.label.size
+                    font.weight: Theme.type.label.weight
+                    wrapMode: Text.Wrap
+                }
+
+                InfoButton {
+                    id: lineInfo
+
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: line.info !== ""
+                    title: line.title
+                    info: line.info
+                }
             }
 
             Text {

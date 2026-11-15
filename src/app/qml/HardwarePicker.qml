@@ -160,8 +160,8 @@ Item {
                     width: parent.width
                     textFormat: Text.PlainText
                     text: dialog.own
-                          ? qsTr("Your logic can only open the devices you tick. You can take them back in Settings > General.")
-                          : qsTr("It can only open the devices you tick. You can take them back on its card on the Extensions page.")
+                          ? qsTr("Your logic can only open the devices you tick.")
+                          : qsTr("It can only open the devices you tick.")
                     color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.body.size
                     wrapMode: Text.Wrap
@@ -317,8 +317,8 @@ Item {
                         horizontalAlignment: Text.AlignHCenter
                         textFormat: Text.PlainText
                         text: dialog.kind === "ble"
-                              ? qsTr("Turn the device on and put it in pairing mode, and check that Bluetooth is on in Windows. Devices show up here as they are found.")
-                              : qsTr("Plug the device in and it shows up here. If it still does not, try another cable or USB port, or install its driver.")
+                              ? qsTr("Turn the device on and put it in pairing mode; check that Bluetooth is on in Windows.")
+                              : qsTr("Plug the device in; if it does not show up, try another cable or USB port.")
                         color: Theme.colors.textSecondary
                         font.pixelSize: Theme.type.caption.size
                         wrapMode: Text.Wrap
