@@ -16,7 +16,7 @@ Where the things extensions add show up: [What extensions add](help:extension-fe
 
 An author can put a `gamescrcpy://` link on a web page; choosing it hands the link to GameScrcpy, or to the copy already running.
 
-- :import: **Install links**: GameScrcpy first downloads the package; the bottom of the main window shows "Downloading an extension from …" with the progress, and **Cancel** stops it. Only when the package's SHA-256 matches the link does the usual install dialog open, saying "Downloaded from …; its SHA-256 matches the link", and from there it is just like installing from a file; when it does not match, nothing is installed. Downloads use https only, and a package can be at most 200 MiB.
+- :import: **Install links**: GameScrcpy first downloads the package; the bottom of the main window shows "Downloading an extension from …" with the progress, and **Cancel** stops it. Only when the package's SHA-256 matches the link does the usual install dialog open, saying "Downloaded from … · SHA-256 matches the link", and from there it is just like installing from a file; when it does not match, nothing is installed. Downloads use https only, and a package can be at most 200 MiB.
 - :link: **Extension links**: `gamescrcpy://extension/` followed by an extension's id opens the **Extensions** page at that extension's card.
 
 The installed version takes `gamescrcpy://` links by itself. A portable copy needs **Register gamescrcpy:// links** under **Settings > General > Extension links**. When that card says "Another copy of GameScrcpy opens these links now.", the links go to another copy on this computer; choose **Register gamescrcpy:// links** again to have this copy open them. To stop, choose **Remove gamescrcpy:// links**.
@@ -63,7 +63,7 @@ When an author names an update list in the extension, GameScrcpy can look for ne
 
 - :refresh-cw: **Check by itself**: turn on **Check extensions for updates** under **Settings > General > Updates** to check at most once a day at startup. It is off by default; a check only reads the lists the extensions name and sends nothing about what you have installed.
 - :search: **Check now**: choose **Check for updates** on the **Extensions** page at any time.
-- :circle-check: **Update**: when there is a new version, the card says "Update available: …"; choose **Update** to download it, with the progress shown and **Cancel** at hand. The usual install dialog then opens, saying "Downloaded from …; its size and SHA-256 match the update list", together with "What changes from version …".
+- :circle-check: **Update**: when there is a new version, the card says "Update available: …"; choose **Update** to download it, with the progress shown and **Cancel** at hand. The usual install dialog then opens, saying "Downloaded from … · size and SHA-256 match the update list", together with "What changes from version …".
 - :x: **Skip**: to pass on this version, choose **Skip this version** in the extension's **Details**; a still newer version is offered again.
 
 When the new version asks for more permissions or dependencies than before, the install dialog says "It asks for more than before", and after installing the extension stays off, with "Turn it on again to allow what's new" on its card; turning on the switch allows what's new. Updates of a signed extension have to be signed with the same key.
