@@ -194,6 +194,17 @@ Item {
             drop(chart)
         }
 
+        function settledGaps(node, count) {
+            const all = cells(node)
+            if (all.length !== count)
+                return false
+            for (let at = 1; at < all.length; ++at) {
+                if (all[at].y - (all[at - 1].y + all[at - 1].height) !== Theme.space.md)
+                    return false
+            }
+            return true
+        }
+
         function test_r9_aTextThatGetsWordsShowsAgain() {
             const node = settle(make({ type: "column", children: [{ type: "text", text: "Above" },
                                                                   { type: "text", text: "" },
@@ -202,14 +213,11 @@ Item {
             node.host.tree = { type: "column", children: [{ type: "text", text: "Above" },
                                                           { type: "text", text: "Middle" },
                                                           { type: "text", text: "Below" }] }
-            tryVerify(() => cells(node).length === 3, 2000)
-            compare(gapDown(node, 0, 1), Theme.space.md)
-            compare(gapDown(node, 1, 2), Theme.space.md)
+            tryVerify(() => settledGaps(node, 3), 2000)
             node.host.tree = { type: "column", children: [{ type: "text", text: "Above" },
                                                           { type: "text", text: "" },
                                                           { type: "text", text: "Below" }] }
-            tryVerify(() => cells(node).length === 2, 2000)
-            compare(gapDown(node, 0, 1), Theme.space.md)
+            tryVerify(() => settledGaps(node, 2), 2000)
             drop(node)
         }
 
