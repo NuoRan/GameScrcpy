@@ -821,6 +821,9 @@ Expected<std::unique_ptr<CompanionChannel>, CompanionNotice> CompanionLink::admi
     CompanionNotice connected = noticeOf(CompanionEvent::Connected);
     connected.overlay = granted;
     connected.version = m_version;
+    connected.width = welcome->width;
+    connected.height = welcome->height;
+    connected.rotation = welcome->rotation;
     notify(connected);
     if (!granted) {
         openPermissionPage();
@@ -1000,6 +1003,9 @@ void CompanionLink::listen(CompanionChannel& channel)
         if (const auto* changed = std::get_if<protocol::OverlayChanged>(&*message)) {
             CompanionNotice overlay = noticeOf(CompanionEvent::OverlayChanged);
             overlay.overlay = changed->overlay == protocol::OverlayStatus::Granted;
+            overlay.width = changed->width;
+            overlay.height = changed->height;
+            overlay.rotation = changed->rotation;
             notify(overlay);
             if (!overlay.overlay) {
                 {

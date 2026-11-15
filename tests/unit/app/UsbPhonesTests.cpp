@@ -90,6 +90,26 @@ TEST_CASE("the control window takes the phone's screen in the picked orientation
     CHECK(naturalScreenOf(QSize(1080, 2400), 2) == QSize(1080, 2400));
 }
 
+TEST_CASE("R9: the rotation the companion reports turns the control window the way a toolbar pick would")
+{
+    CHECK(turnOfRotation(0) == ControlTurn::Portrait);
+    CHECK(turnOfRotation(1) == ControlTurn::LandscapeLeft);
+    CHECK(turnOfRotation(2) == ControlTurn::Portrait);
+    CHECK(turnOfRotation(3) == ControlTurn::LandscapeRight);
+    CHECK(turnOfRotation(4) == ControlTurn::Portrait);
+
+    const int portrait = static_cast<int>(ControlTurn::Portrait);
+    const int left = static_cast<int>(ControlTurn::LandscapeLeft);
+    const int right = static_cast<int>(ControlTurn::LandscapeRight);
+    CHECK(companionTurn(1, 1080, 2400, portrait) == CompanionTurn{.apply = true, .turn = left});
+    CHECK(companionTurn(1, 0, 0, portrait) == CompanionTurn{});
+    CHECK(companionTurn(1, 1080, 0, portrait) == CompanionTurn{});
+    CHECK(companionTurn(0, 1080, 2400, portrait) == CompanionTurn{});
+    CHECK(companionTurn(2, 2400, 1080, left) == CompanionTurn{.apply = true, .turn = portrait});
+    CHECK(companionTurn(3, 2400, 1080, left) == CompanionTurn{.apply = true, .turn = right});
+    CHECK(companionTurn(1, 2400, 1080, left) == CompanionTurn{});
+}
+
 TEST_CASE("turned left puts the picture's left edge on the phone's top, turned right its right edge (HID-006)")
 {
     const auto top = [](const UhidPosition& at) { return at.y == 0; };

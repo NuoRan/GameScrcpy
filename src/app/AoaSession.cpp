@@ -2,9 +2,13 @@
 
 #include "HardwareClaims.h"
 
+#include <gs/input/TouchFrameBuilder.h>
+
 #include <QMetaObject>
 #include <QtLogging>
 
+#include <algorithm>
+#include <chrono>
 #include <format>
 #include <utility>
 
@@ -42,6 +46,7 @@ AoaSession::AoaSession(QString name, QObject* parent)
     : QObject(parent)
     , m_name(std::move(name))
 {
+    connect(&m_mouseTimer, &QTimer::timeout, this, [this] { flushMouse(); });
 }
 
 AoaSession::~AoaSession()
@@ -133,15 +138,76 @@ void AoaSession::pressKey(std::uint32_t keycode)
 
 void AoaSession::moveMouse(int dx, int dy)
 {
-    if (m_sink != nullptr) {
-        static_cast<void>(m_sink->moveMouse(dx, dy));
+    if (m_sink == nullptr) {
+        return;
     }
+    m_merge.addMotion(dx, dy);
+    flushMouse();
 }
 
 void AoaSession::setMouseButtons(int buttons)
 {
-    if (m_sink != nullptr) {
-        static_cast<void>(m_sink->setMouseButtons(static_cast<std::uint8_t>(buttons)));
+    if (m_sink == nullptr) {
+        return;
+    }
+    m_merge.setButtons(static_cast<std::uint32_t>(buttons));
+    flushMouse();
+}
+
+void AoaSession::recenterMouse(int x, int y)
+{
+    if (m_sink == nullptr) {
+        return;
+    }
+    m_merge.recenter(x, y);
+    flushMouse();
+}
+
+void AoaSession::parkMouse()
+{
+    if (m_sink == nullptr) {
+        return;
+    }
+    m_merge.park();
+    flushMouse();
+}
+
+Microseconds AoaSession::mouseTick() const
+{
+    return input::pacingTickFor(m_channel->refreshHz(), m_channel->touchRateHz());
+}
+
+void AoaSession::sendMouse(const MouseStep& step)
+{
+    if (m_sink == nullptr) {
+        return;
+    }
+    static_cast<void>(m_sink->moveMouse(step.dx, step.dy));
+    static_cast<void>(m_sink->setMouseButtons(static_cast<std::uint8_t>(step.buttons)));
+}
+
+void AoaSession::flushMouse()
+{
+    if (m_sink == nullptr) {
+        m_mouseTimer.stop();
+        m_merge.reset();
+        return;
+    }
+    const Microseconds tick = mouseTick();
+    m_merge.setTick(tick);
+    const auto interval = std::chrono::milliseconds{std::max<std::int64_t>(1, (tick.count() + 999) / 1000)};
+    if (m_mouseTimer.intervalAsDuration() != interval) {
+        m_mouseTimer.setInterval(interval);
+    }
+    while (const std::optional<MouseStep> step = m_merge.take()) {
+        sendMouse(*step);
+    }
+    if (m_merge.busy()) {
+        if (!m_mouseTimer.isActive()) {
+            m_mouseTimer.start();
+        }
+    } else {
+        m_mouseTimer.stop();
     }
 }
 
@@ -194,6 +260,8 @@ void AoaSession::enter(session::SessionPhase phase, std::optional<session::Sessi
 
 void AoaSession::release()
 {
+    m_mouseTimer.stop();
+    m_merge.reset();
     m_channel->detach();
     m_sink.reset();
     m_port.reset();

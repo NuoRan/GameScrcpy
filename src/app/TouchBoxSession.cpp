@@ -3,11 +3,14 @@
 #include "ExtensionTouchSink.h"
 
 #include <gs/exthost/Module.h>
+#include <gs/input/TouchFrameBuilder.h>
 
 #include <QMetaObject>
 #include <QtLogging>
 
+#include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <utility>
 
 namespace gs::app {
@@ -77,6 +80,7 @@ TouchBoxSession::TouchBoxSession(QString name, std::string method, QObject* pare
     , m_method(std::move(method))
     , m_quiet(std::make_unique<QuietSink>())
 {
+    connect(&m_mouseTimer, &QTimer::timeout, this, [this] { flushMouse(); });
 }
 
 TouchBoxSession::~TouchBoxSession()
@@ -159,9 +163,11 @@ void TouchBoxSession::pressKey(std::uint32_t keycode)
 
 void TouchBoxSession::moveMouse(int dx, int dy)
 {
-    if (m_sink != nullptr) {
-        static_cast<void>(m_sink->mouse(dx, dy, 0));
+    if (m_sink == nullptr) {
+        return;
     }
+    m_merge.addMotion(dx, dy);
+    flushMouse();
 }
 
 void TouchBoxSession::setMouseButtons(int buttons)
@@ -169,8 +175,65 @@ void TouchBoxSession::setMouseButtons(int buttons)
     if (m_sink == nullptr) {
         return;
     }
-    m_sink->setButtons(static_cast<std::uint32_t>(buttons) & kMouseButtons);
-    static_cast<void>(m_sink->mouse(0, 0, 0));
+    m_merge.setButtons(static_cast<std::uint32_t>(buttons) & kMouseButtons);
+    flushMouse();
+}
+
+void TouchBoxSession::recenterMouse(int x, int y)
+{
+    if (m_sink == nullptr) {
+        return;
+    }
+    m_merge.recenter(x, y);
+    flushMouse();
+}
+
+void TouchBoxSession::parkMouse()
+{
+    if (m_sink == nullptr) {
+        return;
+    }
+    m_merge.park();
+    flushMouse();
+}
+
+Microseconds TouchBoxSession::mouseTick() const
+{
+    return input::pacingTickFor(m_channel->refreshHz(), m_channel->touchRateHz());
+}
+
+void TouchBoxSession::sendMouse(const MouseStep& step)
+{
+    if (m_sink == nullptr) {
+        return;
+    }
+    m_sink->setButtons(step.buttons);
+    static_cast<void>(m_sink->mouse(step.dx, step.dy, step.wheel));
+}
+
+void TouchBoxSession::flushMouse()
+{
+    if (m_sink == nullptr) {
+        m_mouseTimer.stop();
+        m_merge.reset();
+        return;
+    }
+    const Microseconds tick = mouseTick();
+    m_merge.setTick(tick);
+    const auto interval = std::chrono::milliseconds{std::max<std::int64_t>(1, (tick.count() + 999) / 1000)};
+    if (m_mouseTimer.intervalAsDuration() != interval) {
+        m_mouseTimer.setInterval(interval);
+    }
+    while (const std::optional<MouseStep> step = m_merge.take()) {
+        sendMouse(*step);
+    }
+    if (m_merge.busy()) {
+        if (!m_mouseTimer.isActive()) {
+            m_mouseTimer.start();
+        }
+    } else {
+        m_mouseTimer.stop();
+    }
 }
 
 void TouchBoxSession::fellBack(std::uint32_t generation)
@@ -204,6 +267,8 @@ void TouchBoxSession::enter(session::SessionPhase phase, std::optional<session::
 
 void TouchBoxSession::release()
 {
+    m_mouseTimer.stop();
+    m_merge.reset();
     m_channel->detach();
     m_sink.reset();
     m_touch.reset();

@@ -13,6 +13,7 @@
 #include <QTest>
 #include <QWheelEvent>
 
+#include <cstddef>
 #include <utility>
 #include <vector>
 
@@ -50,6 +51,8 @@ struct Surface {
     std::vector<Wheel> wheels;
     std::vector<KeyRecord> keys;
     std::vector<QPoint> moves;
+    std::vector<QPoint> recenters;
+    std::vector<std::size_t> parks;
     std::vector<int> buttons;
     QStringList typed;
 
@@ -70,6 +73,8 @@ struct Surface {
         });
         QObject::connect(item, &MirrorInputItem::typed, [this](const QString& text) { typed.append(text); });
         QObject::connect(item, &MirrorInputItem::mouseMoved, [this](int dx, int dy) { moves.emplace_back(dx, dy); });
+        QObject::connect(item, &MirrorInputItem::mouseRecenter, [this](int x, int y) { recenters.emplace_back(x, y); });
+        QObject::connect(item, &MirrorInputItem::mouseParked, [this] { parks.push_back(buttons.size()); });
         QObject::connect(item, &MirrorInputItem::mouseButtonsChanged, [this](int held) { buttons.push_back(held); });
         window.show();
         window.requestActivate();
@@ -420,8 +425,67 @@ TEST_CASE("the phone's pointer catches up with the mouse after the camera lock e
     CHECK(s.moves.empty());
     s.item->setCapturing(false);
     QTest::mouseMove(&s.window, QPoint(200, 100));
+    CHECK(s.moves.empty());
+    REQUIRE(s.recenters.size() == 2);
+    CHECK(s.recenters.back() == QPoint(100, 100));
+}
+
+TEST_CASE("R9: the phone's pointer is put back under the computer's pointer when the picture turns or changes size")
+{
+    Surface s;
+    s.item->setRelativeMouse(true, QSizeF(200, 300));
+    QTest::mouseMove(&s.window, QPoint(150, 75));
+    QTest::mouseMove(&s.window, QPoint(170, 75));
     REQUIRE(s.moves.size() == 1);
-    CHECK(s.moves[0] == QPoint(50, 25));
+    CHECK(s.moves[0] == QPoint(20, 0));
+    REQUIRE(s.recenters.size() == 1);
+    CHECK(s.recenters[0] == QPoint(50, 75));
+
+    s.item->setRelativeMouse(true, QSizeF(300, 200), 1);
+    QTest::mouseMove(&s.window, QPoint(170, 75));
+    REQUIRE(s.recenters.size() == 2);
+    CHECK(s.recenters[1] == QPoint(105, 50));
+    CHECK(s.moves.size() == 1);
+    QTest::mouseMove(&s.window, QPoint(180, 75));
+    REQUIRE(s.moves.size() == 2);
+    CHECK(s.moves[1] == QPoint(15, 0));
+}
+
+TEST_CASE("R9: the item reports a button at once while the pointer is put back; the merger holds it for the phone")
+{
+    Surface s;
+    s.item->setRelativeMouse(true, QSizeF(200, 300));
+    QTest::mouseMove(&s.window, QPoint(150, 75));
+    REQUIRE(s.recenters.size() == 1);
+    QTest::mousePress(&s.window, Qt::LeftButton, {}, QPoint(150, 75));
+    CHECK(s.buttons == std::vector<int>{1});
+    QTest::mouseRelease(&s.window, Qt::LeftButton, {}, QPoint(150, 75));
+    CHECK(s.buttons == std::vector<int>{1, 0});
+    CHECK(s.recenters.size() == 1);
+}
+
+TEST_CASE("R9: when the camera locks in relative mode the item lets go of the buttons, then parks the phone's pointer "
+          "once")
+{
+    Surface s;
+    s.item->setCapturing(true);
+    s.item->setCapturing(false);
+    CHECK(s.parks.empty());
+
+    s.item->setRelativeMouse(true, QSizeF(200, 300));
+    QTest::mousePress(&s.window, Qt::LeftButton, {}, QPoint(150, 75));
+    REQUIRE(s.buttons == std::vector<int>{1});
+    s.item->setCapturing(true);
+    CHECK(s.buttons == std::vector<int>{1, 0});
+    CHECK(s.parks == std::vector<std::size_t>{2});
+    QTest::mouseRelease(&s.window, Qt::LeftButton, {}, QPoint(150, 75));
+    s.item->setCapturing(true);
+    CHECK(s.parks.size() == 1);
+    s.item->setCapturing(false);
+    CHECK(s.parks.size() == 1);
+    s.item->setCapturing(true);
+    CHECK(s.parks.size() == 2);
+    CHECK(s.buttons == std::vector<int>{1, 0});
 }
 
 int main(int argc, char** argv)

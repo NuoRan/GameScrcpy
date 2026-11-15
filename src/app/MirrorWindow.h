@@ -137,6 +137,8 @@ signals:
     void cursorKey(int keycode, int metaState, bool down, int repeat);
     void cursorTyped(const QString& text);
     void mouseMoved(int dx, int dy);
+    void mouseRecenter(int x, int y);
+    void mouseParked();
     void mouseButtonsChanged(int buttons);
     void textInputFinished();
     void playingChanged();

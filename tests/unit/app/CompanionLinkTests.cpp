@@ -353,6 +353,12 @@ public:
         m_overlay = overlay;
     }
 
+    void setRotation(std::uint8_t rotation)
+    {
+        const std::lock_guard lock(m_mutex);
+        m_rotation = rotation;
+    }
+
     void setRefusing(bool refusing)
     {
         const std::lock_guard lock(m_mutex);
@@ -482,6 +488,7 @@ private:
                 reply.overlay = m_overlay;
                 reply.width = 1080;
                 reply.height = 2400;
+                reply.rotation = m_rotation;
                 write(c, reply);
                 m_connection = &c;
             } else {
@@ -529,6 +536,7 @@ private:
     std::condition_variable m_changed;
     const FakePhone* m_phone = nullptr;
     protocol::OverlayStatus m_overlay = protocol::OverlayStatus::Granted;
+    std::uint8_t m_rotation = 0;
     bool m_refusing = false;
     bool m_silent = false;
     std::uint16_t m_speaks = protocol::kCompanionVersion;
@@ -762,6 +770,31 @@ TEST_CASE("companion link: when the overlay cannot be granted over adb, the phon
     const auto changed = rig.notices.waitFor(CompanionEvent::OverlayChanged);
     REQUIRE(changed);
     CHECK(changed->overlay);
+}
+
+TEST_CASE("R9: the rotation and the size the companion reports reach the listener, on connection and when they change")
+{
+    Rig rig;
+    rig.phone.reply(std::string(kListPackages), std::string(kCurrent));
+    rig.companion.setRotation(std::uint8_t{3});
+    auto link = rig.link(apkOf(2));
+    const auto connected = rig.notices.waitFor(CompanionEvent::Connected);
+    REQUIRE(connected);
+    CHECK(connected->width == 1080);
+    CHECK(connected->height == 2400);
+    CHECK(connected->rotation == 3);
+
+    protocol::OverlayChanged turned;
+    turned.width = 2400;
+    turned.height = 1080;
+    turned.rotation = 1;
+    rig.companion.send(turned);
+    const auto changed = rig.notices.waitFor(CompanionEvent::OverlayChanged);
+    REQUIRE(changed);
+    CHECK(changed->width == 2400);
+    CHECK(changed->height == 1080);
+    CHECK(changed->rotation == 1);
+    link->stop();
 }
 
 TEST_CASE("companion link: a refused installation and a missing package are reported and nothing starts")

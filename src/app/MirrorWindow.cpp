@@ -71,6 +71,8 @@ MirrorWindow::MirrorWindow(const render::GraphicsDevice& graphics, std::shared_p
     connect(m_pointer, &MirrorInputItem::androidKey, this, &MirrorWindow::cursorKey);
     connect(m_pointer, &MirrorInputItem::typed, this, &MirrorWindow::cursorTyped);
     connect(m_pointer, &MirrorInputItem::mouseMoved, this, &MirrorWindow::mouseMoved);
+    connect(m_pointer, &MirrorInputItem::mouseRecenter, this, &MirrorWindow::mouseRecenter);
+    connect(m_pointer, &MirrorInputItem::mouseParked, this, &MirrorWindow::mouseParked);
     connect(m_pointer, &MirrorInputItem::mouseButtonsChanged, this, &MirrorWindow::mouseButtonsChanged);
     if (lowLatency) {
         QSurfaceFormat unthrottled = requestedFormat();
@@ -322,7 +324,7 @@ void MirrorWindow::setNoPicture(QSize canvas, int turn)
     m_canvas = canvas;
     m_turn = turn;
     m_video->setPlaceholderSize(canvas);
-    m_pointer->setRelativeMouse(true, QSizeF(canvas));
+    m_pointer->setRelativeMouse(true, QSizeF(canvas), turn);
     if (m_overlay != nullptr) {
         m_overlay->setProperty("noPicture", true);
         m_overlay->setProperty("controlTurn", turn);

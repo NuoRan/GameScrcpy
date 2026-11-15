@@ -658,6 +658,7 @@ private:
     void syncLanService();
     void lanArrived(LanArrival arrival);
     void companionInputBox(Row& row, const protocol::InputBoxChanged& box);
+    void followCompanionTurn(Row& row, const CompanionNotice& notice);
     void dropInputBox(Row& row);
     void pushPhoneHints(Row& row);
     void pushCompanionSettings(Row& row);

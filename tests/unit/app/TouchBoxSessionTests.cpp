@@ -1,6 +1,7 @@
 #include "TouchBoxSession.h"
 
 #include "ExtensionTouchSink.h"
+#include "PointerMerge.h"
 
 #include <doctest/doctest.h>
 
@@ -217,6 +218,82 @@ TEST_CASE("without a picture the mouse, its buttons and the wheel go to the box'
 
     CHECK(control.channel()->type("ok"));
     CHECK(source.port->texts == std::vector<std::string>{"ok"});
+}
+
+TEST_CASE("R9: mouse moves reach the box once per pacing tick and summed, and the wheel keeps its own way")
+{
+    const auto app = ensureApp();
+    BoxSource source;
+    TouchBoxSession control(QStringLiteral("Touch box"), std::string(kBoxMethod));
+    control.start(&source, "box-1", 0, QSize(1080, 2400));
+    REQUIRE(control.phase() == session::SessionPhase::Streaming);
+    control.channel()->setTouchRateHz(60);
+    const std::vector<exthost::MouseEvent>& mice = source.port->mice;
+
+    control.moveMouse(5, -3);
+    REQUIRE(mice.size() == 1);
+    control.moveMouse(1, 0);
+    control.moveMouse(1, 0);
+    CHECK(mice.size() == 1);
+    REQUIRE(settle([&mice] { return mice.size() == 2; }));
+    CHECK(mice.back() == exthost::MouseEvent{.buttons = 0, .dx = 2, .dy = 0, .wheel = 0});
+
+    control.setMouseButtons(1);
+    REQUIRE(mice.size() == 3);
+    CHECK(mice.back() == exthost::MouseEvent{.buttons = 1, .dx = 0, .dy = 0, .wheel = 0});
+    control.setMouseButtons(1);
+    CHECK(mice.size() == 3);
+
+    CHECK(control.channel()->scroll({0.5, 0.5}, 0, 256));
+    REQUIRE(mice.size() == 4);
+    CHECK(mice.back() == exthost::MouseEvent{.buttons = 1, .dx = 0, .dy = 0, .wheel = 1});
+    control.stop();
+}
+
+TEST_CASE("R9: the box's pointer is put back under the computer's pointer from the corner after the pause")
+{
+    const auto app = ensureApp();
+    BoxSource source;
+    TouchBoxSession control(QStringLiteral("Touch box"), std::string(kBoxMethod));
+    control.start(&source, "box-1", 0, QSize(1080, 2400));
+    REQUIRE(control.phase() == session::SessionPhase::Streaming);
+    const std::vector<exthost::MouseEvent>& mice = source.port->mice;
+
+    control.recenterMouse(540, 1200);
+    REQUIRE(mice.size() == 1);
+    CHECK(mice.back().dx == -32767);
+    CHECK(mice.back().dy == -32767);
+    control.moveMouse(3, 0);
+    CHECK(mice.size() == 1);
+    REQUIRE(settle([&mice] { return mice.size() == 2; }, 3000ms));
+    CHECK(mice.back().dx == 543);
+    CHECK(mice.back().dy == 1200);
+    control.stop();
+}
+
+TEST_CASE("R9: parking sends the box's pointer to the corner at once, and a recenter after the pause sends only the step "
+          "back")
+{
+    const auto app = ensureApp();
+    BoxSource source;
+    TouchBoxSession control(QStringLiteral("Touch box"), std::string(kBoxMethod));
+    control.start(&source, "box-1", 0, QSize(1080, 2400));
+    REQUIRE(control.phase() == session::SessionPhase::Streaming);
+    const std::vector<exthost::MouseEvent>& mice = source.port->mice;
+
+    control.parkMouse();
+    REQUIRE(mice.size() == 1);
+    CHECK(mice.back() == exthost::MouseEvent{.buttons = 0, .dx = -32767, .dy = -32767, .wheel = 0});
+    control.moveMouse(4, 4);
+    CHECK(mice.size() == 1);
+    const auto rested = std::chrono::steady_clock::now() + gs::app::kRecenterPause + 50ms;
+    REQUIRE(settle([rested] { return std::chrono::steady_clock::now() >= rested; }));
+    CHECK(mice.size() == 1);
+
+    control.recenterMouse(540, 1200);
+    REQUIRE(mice.size() == 2);
+    CHECK(mice.back() == exthost::MouseEvent{.buttons = 0, .dx = 540, .dy = 1200, .wheel = 0});
+    control.stop();
 }
 
 TEST_CASE("how the phone is held decides the rotation the box's touches use (HID-008)")

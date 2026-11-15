@@ -83,6 +83,9 @@ struct CompanionNotice {
     std::optional<ShotFailure> shotFailure;
     std::optional<protocol::CompanionSettingChange> change;
     std::uint16_t version = 0;
+    std::uint16_t width = 0;
+    std::uint16_t height = 0;
+    std::uint8_t rotation = 0;
 };
 
 struct CompanionTiming {

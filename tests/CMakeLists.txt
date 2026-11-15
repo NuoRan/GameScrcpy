@@ -574,6 +574,8 @@ if(GS_BUILD_APP)
             "${PROJECT_SOURCE_DIR}/src/app/ComponentDefaults.h"
             "${PROJECT_SOURCE_DIR}/src/app/ControlChannel.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/ControlChannel.h"
+            "${PROJECT_SOURCE_DIR}/src/app/PointerMerge.cpp"
+            "${PROJECT_SOURCE_DIR}/src/app/PointerMerge.h"
             "${PROJECT_SOURCE_DIR}/src/app/CrashReport.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/Declarations.cpp"
             "${PROJECT_SOURCE_DIR}/src/app/CrashReport.h"
@@ -946,6 +948,7 @@ if(GS_BUILD_APP)
         unit/app/GridWindowTests.cpp
         unit/app/ItemOrderTests.cpp
         unit/app/MirrorInputItemTests.cpp
+        unit/app/PointerMergeTests.cpp
         unit/app/VideoFreezeTests.cpp
         unit/app/VideoPresentTests.cpp
         "${PROJECT_SOURCE_DIR}/src/app/DemoFeed.cpp"
@@ -962,6 +965,8 @@ if(GS_BUILD_APP)
         "${PROJECT_SOURCE_DIR}/src/app/KeyForwarding.h"
         "${PROJECT_SOURCE_DIR}/src/app/MirrorInputItem.cpp"
         "${PROJECT_SOURCE_DIR}/src/app/MirrorInputItem.h"
+        "${PROJECT_SOURCE_DIR}/src/app/PointerMerge.cpp"
+        "${PROJECT_SOURCE_DIR}/src/app/PointerMerge.h"
     )
     target_include_directories(gs_mirror_input_tests PRIVATE "${PROJECT_SOURCE_DIR}/src/app"
                                                              "${PROJECT_SOURCE_DIR}/src/render/src")

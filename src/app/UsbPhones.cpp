@@ -95,6 +95,30 @@ int rotationOf(ControlTurn turn) noexcept
     return 0;
 }
 
+ControlTurn turnOfRotation(int rotation) noexcept
+{
+    switch (rotation & 3) {
+    case 1:
+        return ControlTurn::LandscapeLeft;
+    case 3:
+        return ControlTurn::LandscapeRight;
+    case 0:
+    case 2:
+        break;
+    }
+    return ControlTurn::Portrait;
+}
+
+CompanionTurn companionTurn(int rotation, int width, int height, int currentTurn) noexcept
+{
+    if (width <= 0 || height <= 0) {
+        return {};
+    }
+    const ControlTurn turn = turnOfRotation(rotation);
+    const int wanted = static_cast<int>(turn);
+    return CompanionTurn{.apply = wanted != currentTurn, .turn = wanted};
+}
+
 QSize naturalScreenOf(QSize shown, int rotation)
 {
     return (rotation & 1) != 0 ? shown.transposed() : shown;

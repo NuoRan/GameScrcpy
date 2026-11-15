@@ -369,18 +369,6 @@ QImage thumbnailImage(const media::Thumbnail& made)
         .copy();
 }
 
-ControlTurn turnOfRotation(int rotation) noexcept
-{
-    switch (rotation & 3) {
-    case 1:
-        return ControlTurn::LandscapeLeft;
-    case 3:
-        return ControlTurn::LandscapeRight;
-    default:
-        return ControlTurn::Portrait;
-    }
-}
-
 static_assert(static_cast<int>(settings::Transport::AdbTunnel) ==
               static_cast<int>(session::TransportChoice::AdbTunnel));
 static_assert(static_cast<int>(settings::Transport::WifiDirect) ==
@@ -3015,6 +3003,18 @@ void DeviceManager::openMirror(Row& row)
                 m_rows[static_cast<std::size_t>(at)].aoa->setMouseButtons(buttons);
             }
         });
+        connect(row.mirror, &MirrorWindow::mouseRecenter, this, [this, serial](int x, int y) {
+            const int at = indexOf(serial);
+            if (at >= 0 && m_rows[static_cast<std::size_t>(at)].aoa != nullptr) {
+                m_rows[static_cast<std::size_t>(at)].aoa->recenterMouse(x, y);
+            }
+        });
+        connect(row.mirror, &MirrorWindow::mouseParked, this, [this, serial] {
+            const int at = indexOf(serial);
+            if (at >= 0 && m_rows[static_cast<std::size_t>(at)].aoa != nullptr) {
+                m_rows[static_cast<std::size_t>(at)].aoa->parkMouse();
+            }
+        });
     }
     if (row.touchBox != nullptr) {
         row.mirror->setNoPicture(row.touchBox->canvas(), controlTurnOf(row));
@@ -3028,6 +3028,18 @@ void DeviceManager::openMirror(Row& row)
             const int at = indexOf(serial);
             if (at >= 0 && m_rows[static_cast<std::size_t>(at)].touchBox != nullptr) {
                 m_rows[static_cast<std::size_t>(at)].touchBox->setMouseButtons(buttons);
+            }
+        });
+        connect(row.mirror, &MirrorWindow::mouseRecenter, this, [this, serial](int x, int y) {
+            const int at = indexOf(serial);
+            if (at >= 0 && m_rows[static_cast<std::size_t>(at)].touchBox != nullptr) {
+                m_rows[static_cast<std::size_t>(at)].touchBox->recenterMouse(x, y);
+            }
+        });
+        connect(row.mirror, &MirrorWindow::mouseParked, this, [this, serial] {
+            const int at = indexOf(serial);
+            if (at >= 0 && m_rows[static_cast<std::size_t>(at)].touchBox != nullptr) {
+                m_rows[static_cast<std::size_t>(at)].touchBox->parkMouse();
             }
         });
     }
@@ -7044,6 +7056,20 @@ void DeviceManager::dropInputBox(Row& row)
     static_cast<void>(row.inputBox.lost());
 }
 
+void DeviceManager::followCompanionTurn(Row& row, const CompanionNotice& notice)
+{
+    if (!noPictureOf(row) || (row.touchBox == nullptr && row.aoa == nullptr) || !active(row.session.phase)) {
+        return;
+    }
+    const CompanionTurn next = companionTurn(notice.rotation, notice.width, notice.height, controlTurnOf(row));
+    if (!next.apply) {
+        return;
+    }
+    qInfo("%s: the phone reports it is turned, so the control window follows it", qUtf8Printable(row.name()));
+    const QString serial = row.serial;
+    setControlOrientation(serial, next.turn);
+}
+
 void DeviceManager::pushPhoneHints(Row& row)
 {
     if (row.companion == nullptr || row.mirror == nullptr) {
@@ -7216,6 +7242,7 @@ void DeviceManager::companionNotice(const QString& serial, quint64 ticket, const
         row.shotTicket = ticket;
         row.shotPending = 0;
         bumpBackgrounds();
+        followCompanionTurn(row, notice);
         if (noPictureOf(row)) {
             const std::optional<LanPairing> paired = std::exchange(row.lanPairing, std::nullopt);
             row.lanToken.clear();
@@ -7247,6 +7274,7 @@ void DeviceManager::companionNotice(const QString& serial, quint64 ticket, const
             mirror->showToast(tr("The cursor now shows on the phone"), QStringLiteral("mouse-pointer-click"));
         }
         row.companionOverlay = notice.overlay;
+        followCompanionTurn(row, notice);
         return;
     case CompanionEvent::InstallFailed:
     case CompanionEvent::Failed:

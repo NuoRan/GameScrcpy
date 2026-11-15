@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ControlChannel.h"
+#include "PointerMerge.h"
 #include "TouchMethods.h"
 
 #include <gs/render/FrameSlot.h>
@@ -9,6 +10,7 @@
 #include <QObject>
 #include <QSize>
 #include <QString>
+#include <QTimer>
 
 #include <cstdint>
 #include <memory>
@@ -35,6 +37,8 @@ public:
     void pressKey(std::uint32_t keycode);
     void moveMouse(int dx, int dy);
     void setMouseButtons(int buttons);
+    void recenterMouse(int x, int y);
+    void parkMouse();
 
     [[nodiscard]] session::SessionPhase phase() const noexcept { return m_phase; }
     [[nodiscard]] bool active() const noexcept;
@@ -51,6 +55,9 @@ private:
     void fellBack(std::uint32_t generation);
     void enter(session::SessionPhase phase, std::optional<session::SessionFailure> failure = std::nullopt);
     void release();
+    void flushMouse();
+    void sendMouse(const MouseStep& step);
+    [[nodiscard]] Microseconds mouseTick() const;
 
     const QString m_name;
     const std::string m_method;
@@ -59,6 +66,8 @@ private:
     std::unique_ptr<ControlSink> m_quiet;
     std::unique_ptr<ExtensionTouch> m_touch;
     std::unique_ptr<TouchBoxSink> m_sink;
+    PointerMerge m_merge;
+    QTimer m_mouseTimer;
     session::SessionPhase m_phase = session::SessionPhase::Idle;
     std::uint32_t m_generation = 0;
     std::uint32_t m_padEpoch = 0;

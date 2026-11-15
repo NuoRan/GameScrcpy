@@ -2,6 +2,7 @@
 
 #include "AoaTouchSink.h"
 #include "ControlChannel.h"
+#include "PointerMerge.h"
 
 #include <gs/platform/Usb.h>
 #include <gs/render/FrameSlot.h>
@@ -10,6 +11,7 @@
 #include <QObject>
 #include <QSize>
 #include <QString>
+#include <QTimer>
 
 #include <cstdint>
 #include <memory>
@@ -32,6 +34,8 @@ public:
     void pressKey(std::uint32_t keycode);
     void moveMouse(int dx, int dy);
     void setMouseButtons(int buttons);
+    void recenterMouse(int x, int y);
+    void parkMouse();
 
     [[nodiscard]] session::SessionPhase phase() const noexcept { return m_phase; }
     [[nodiscard]] bool active() const noexcept;
@@ -49,6 +53,9 @@ private:
     void portChanged(AoaState state);
     void enter(session::SessionPhase phase, std::optional<session::SessionFailure> failure = std::nullopt);
     void release();
+    void flushMouse();
+    void sendMouse(const MouseStep& step);
+    [[nodiscard]] Microseconds mouseTick() const;
     std::uint32_t m_padEpoch = 0;
 
     const QString m_name;
@@ -56,6 +63,8 @@ private:
     const std::shared_ptr<render::FrameSlot> m_frames = std::make_shared<render::FrameSlot>();
     std::unique_ptr<AoaPort> m_port;
     std::unique_ptr<AoaTouchSink> m_sink;
+    PointerMerge m_merge;
+    QTimer m_mouseTimer;
     session::SessionPhase m_phase = session::SessionPhase::Idle;
     platform::UsbFailure m_failure = platform::UsbFailure::None;
     AoaState m_portState = AoaState::Starting;

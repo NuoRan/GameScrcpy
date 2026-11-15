@@ -44,7 +44,16 @@ struct UsbPlan {
 
 enum class ControlTurn : std::uint8_t { Portrait, LandscapeLeft, LandscapeRight };
 
+struct CompanionTurn {
+    bool apply = false;
+    int turn = 0;
+
+    friend bool operator==(const CompanionTurn&, const CompanionTurn&) = default;
+};
+
 [[nodiscard]] int rotationOf(ControlTurn turn) noexcept;
+[[nodiscard]] ControlTurn turnOfRotation(int rotation) noexcept;
+[[nodiscard]] CompanionTurn companionTurn(int rotation, int width, int height, int currentTurn) noexcept;
 [[nodiscard]] QSize controlCanvas(QSize naturalScreen, ControlTurn turn);
 [[nodiscard]] QSize naturalScreenOf(QSize shown, int rotation);
 [[nodiscard]] QStringList featuresWithoutPicture(bool adb = false);

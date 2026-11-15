@@ -83,14 +83,17 @@ int MirrorInputItem::mouseButtonBit(Qt::MouseButton button) noexcept
     }
 }
 
-void MirrorInputItem::setRelativeMouse(bool on, QSizeF target)
+void MirrorInputItem::setRelativeMouse(bool on, QSizeF target, int turn)
 {
+    const bool turned = (turn & 3) != m_turn;
     const bool resized = target != m_target;
     m_target = target;
+    m_turn = turn & 3;
     if (on == m_relative) {
-        if (resized) {
+        if (resized || turned) {
             m_pointerOnPhone.reset();
             m_rest = {};
+            m_pendingRecenter = true;
         }
         return;
     }
@@ -98,6 +101,7 @@ void MirrorInputItem::setRelativeMouse(bool on, QSizeF target)
     m_relative = on;
     m_pointerOnPhone.reset();
     m_rest = {};
+    m_pendingRecenter = on;
     setAcceptHoverEvents(on);
 }
 
@@ -112,6 +116,12 @@ void MirrorInputItem::follow(QPointF position)
     const double scaleY = m_target.height() > 0.0 ? m_target.height() / m_content.height() : 1.0;
     const QPointF onPhone(std::clamp(position.x() - m_content.left(), 0.0, m_content.width()) * scaleX,
                           std::clamp(position.y() - m_content.top(), 0.0, m_content.height()) * scaleY);
+    if (std::exchange(m_pendingRecenter, false)) {
+        m_rest = {};
+        m_pointerOnPhone = onPhone;
+        emit mouseRecenter(static_cast<int>(std::lround(onPhone.x())), static_cast<int>(std::lround(onPhone.y())));
+        return;
+    }
     if (!m_pointerOnPhone) {
         m_pointerOnPhone = onPhone;
         return;
@@ -215,6 +225,13 @@ void MirrorInputItem::setCapturing(bool on)
     if (on) {
         cancel();
         ungrabMouse();
+        if (m_relative) {
+            emit mouseParked();
+        }
+    } else if (m_relative) {
+        m_pointerOnPhone.reset();
+        m_rest = {};
+        m_pendingRecenter = true;
     }
     setAcceptedMouseButtons(on ? Qt::NoButton : Qt::AllButtons);
 }

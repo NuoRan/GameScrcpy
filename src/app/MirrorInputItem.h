@@ -33,7 +33,7 @@ public:
     [[nodiscard]] bool capturing() const noexcept { return m_capturing; }
     void setTyping(bool on);
     [[nodiscard]] bool typing() const noexcept { return m_typing; }
-    void setRelativeMouse(bool on, QSizeF target = {});
+    void setRelativeMouse(bool on, QSizeF target = {}, int turn = 0);
     [[nodiscard]] bool relativeMouse() const noexcept { return m_relative; }
 
     [[nodiscard]] static std::optional<input::Vec2> normalized(const QRectF& content, QPointF position, bool clamped);
@@ -55,6 +55,8 @@ signals:
     void androidKey(int keycode, int metaState, bool down, int repeat);
     void typed(const QString& text);
     void mouseMoved(int dx, int dy);
+    void mouseRecenter(int x, int y);
+    void mouseParked();
     void mouseButtonsChanged(int buttons);
 
 protected:
@@ -90,8 +92,10 @@ private:
     bool m_typing = false;
     bool m_touching = false;
     bool m_relative = false;
+    int m_turn = 0;
     QSizeF m_target;
     std::optional<QPointF> m_pointerOnPhone;
+    bool m_pendingRecenter = false;
     QPointF m_rest;
     int m_buttons = 0;
     Qt::MouseButtons m_keysHeld;

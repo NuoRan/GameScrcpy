@@ -381,6 +381,8 @@ qt_add_qml_module(GameScrcpy
         PictureTouch.h
         PictureZoom.cpp
         PictureZoom.h
+        PointerMerge.cpp
+        PointerMerge.h
         ProfileEditor.cpp
         ProfileEditor.h
         ProfileForm.cpp
