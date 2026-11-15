@@ -2,6 +2,43 @@
 
 本文件记录每个版本的主要变化，格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.2.0] - 2026-11-15
+
+2.2 让投屏更快、更稳：手机端在 120 帧时改用块模式给编码器送画面，整条链路的线程优先级、WiFi 直连与电脑端显示都重新调过；手机插网线时也能一键改走网络；可以自己设触控发送频率；AI 小助手按模型给出强度与上下文选项。手机上的服务端随之更新（2.2.0），伴侣 App 没有变化。
+
+### 投屏延迟与流畅
+
+- **手机端**：120 帧时改用 MediaCodec 的块模式把画面交给编码器（帧率上限或屏幕最快档高于 100 帧时自动使用），不再经安卓输入面每 10 毫秒成对送帧。Redmi K80 在和平精英里实测，采集到编码输出约 18 毫秒（原来约 22 毫秒），画面到达电脑也更均匀，游戏自己的帧率不受影响。编码、发送、接收与触控线程用视频优先级，声音用音频优先级，游戏忙时不会被挤到后面。所有编码器都要求低延迟，关键帧只在需要时才出（录像每 10 秒要一个）。
+- **触控**：触控时间提前 5 毫秒交给手机，配合安卓的触控重采样，手指位置更新得更早。
+- **WiFi 直连**：只唤醒有活要干的线程，触控在排队的那个线程上当场发出；大包先发完所有数据片、各组交错发送，校验数据用乘法表算；两端都把视频标成 CS5，电脑在投屏时让无线网卡保持媒体流模式并开启 HighQoS；丢包后按往返时间重新要关键帧（至少 100 毫秒，翻倍到 500 毫秒为止）。
+- **电脑端**：画面在渲染线程上取出就画，不经过界面线程；刷新率低于 100 Hz 的屏幕只排一帧；控制链路卡住时只合并手指移动，不再晚到地逐条重放；看不见的界面停掉计时器与动画；更多界面代码编译成 C++；启动时能晚做的事等主窗口第一帧之后再做。
+- **F4 诊断**：画面一行写明每秒收到、绘制、绘制前就被替换、被 Windows 丢掉的帧；新增每段输入延迟花在哪里、显卡画一帧要多久、等关键帧的停顿次数。
+
+### 连接
+
+- **通过网络连接**（实验性）：手机插着网线、没有 Wi‑Fi 时用不了无线调试。现在先用数据线连上，在手机卡片的“更多”里选“通过网络连接”，再拔掉数据线、让手机连上同一个网络（网线或 Wi‑Fi），GameScrcpy 会在这台电脑所在的网络里找到这台手机并连上，之后留在“最近连接”里。手机重启后要再用数据线点一次。Android 11 以前的手机也能这样用。
+- **“自动”连接方式**改为按手机怎么连着来选：无线调试或网络调试连着的走 WiFi 直连，数据线连着的走 adb 隧道。WiFi 直连不通时直接报错，不再悄悄改走隧道。
+
+### 输入
+
+- 新设置“触控发送频率”（设置 › 输入 › 触控，每台手机可以单独设）：默认自动，为手机屏幕刷新率的两倍（120 Hz 时每秒 240 次）；可以手动设为每秒 60～1000 次，改了立即生效。调高能让每次移动早一点到手机，但手机要多花些算力。
+
+### AI 小助手
+
+- 强度和上下文按模型给出：Claude 4.6 及以后（含 Claude 5 系列）的强度可以选到“超高”“最高”（按型号），用新的自适应思考与 `output_config.effort`（Claude 4.7 起服务端不再接受思考预算）；本来就有百万上下文的模型显示“长上下文：100 万 token，一直开着”。GPT 的强度按型号给出（5.2 起有“超高”，5.6 起有“最高”，GPT-5.1 起不再给“最低”）。DeepSeek V4（deepseek-flash、deepseek-v4-pro）有深度思考开关和低、高、最高三档强度，思考时调用工具不再报 400。经 OpenAI 兼容服务使用 Claude 或 Gemini 时可以选低、中、高。
+
+### 扩展
+
+- 扩展点 `native` 升到 2.1：AI 服务的模型能力多了 `xhigh`、`max` 两档强度与 `topEffortsThink`、`millionContext` 两项。按 2.0 写的扩展照常能用。
+
+### English summary
+
+- **Faster, steadier mirroring**: above 100 fps the phone hands frames to the encoder through MediaCodec's block model (capture to encoder output about 18 ms instead of 22 ms on a Redmi K80 in a game, with steadier arrival); the encoder, sending, receiving and touch threads run at video priority; every encoder is asked for low latency and key frames come on request; touches lead the clock by 5 ms. WiFi direct wakes only the thread with work, sends data shards first and interleaved, marks video CS5 and keeps the PC's WLAN in media streaming mode. The PC takes and draws frames on the render thread, queues one frame on screens below 100 Hz, merges touch moves when the control link stalls and stops hidden interface timers. F4 shows frames dropped by Windows, where each input millisecond goes, the GPU draw time and pauses for a key frame.
+- **Connections**: Connect over the network (experimental) turns on network debugging for a phone on USB and finds it again on the network after it is unplugged, for phones on a network cable without Wi-Fi. Automatic now picks WiFi direct for phones on wireless or network debugging and the adb tunnel for USB, and reports an error instead of falling back.
+- **Input**: a per-phone Touch send rate setting, automatic (twice the refresh rate) by default, 60 to 1000 a second.
+- **AI assistant**: effort and context options follow the model: Claude 4.6 and later up to extra high and max with adaptive thinking and `output_config.effort`; GPT levels by version; DeepSeek V4 with a thinking switch and low, high and max, and tool calls work while it thinks; Claude and Gemini through OpenAI-compatible services offer low, medium and high.
+- **Extensions**: the `native` extension point is 2.1; AI providers' model traits gained `xhigh`, `max`, `topEffortsThink` and `millionContext`. Extensions written for 2.0 keep working.
+
 ## [2.1.1] - 2026-11-13
 
 2.1.1 只修了一处：没有画面的“控制”窗口里手机光标会和鼠标错开。手机上的服务端和伴侣 App 没有变化。
@@ -147,5 +184,7 @@ GameScrcpy 2.0 is a complete rewrite of the PC app, the phone server, the protoc
 
 1.x 的更新记录见 [v1.3.4 标签里的 CHANGELOG](https://github.com/NuoRan/GameScrcpy/blob/v1.3.4/CHANGELOG.md)。
 
+[2.2.0]: https://github.com/NuoRan/GameScrcpy/releases/tag/v2.2.0
+[2.1.1]: https://github.com/NuoRan/GameScrcpy/releases/tag/v2.1.1
 [2.1.0]: https://github.com/NuoRan/GameScrcpy/releases/tag/v2.1.0
 [2.0.0]: https://github.com/NuoRan/GameScrcpy/releases/tag/v2.0.0

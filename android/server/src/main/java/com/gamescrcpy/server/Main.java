@@ -32,7 +32,7 @@ import java.util.List;
 
 public final class Main {
 
-    public static final String SERVER_VERSION = "2.1.0";
+    public static final String SERVER_VERSION = "2.2.0";
 
     private Main() {
     }
