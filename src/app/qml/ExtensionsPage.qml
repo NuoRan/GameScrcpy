@@ -589,7 +589,7 @@ Item {
 
             GridLayout {
                 objectName: "extensionGrid"
-                width: cards.width
+                width: Math.min(cards.width, implicitWidth)
                 visible: page.shown.length > 0
                 columns: page.columns
                 columnSpacing: page.gap
