@@ -51,7 +51,7 @@ SettingsSheet {
 
     objectName: "extensionSettingsSheet"
     title: sheet.entry !== null ? sheet.entry.name : ""
-    subtitle: qsTr("Extension · %1 · changes apply at once").arg(sheet.entry !== null ? sheet.entry.version : "")
+    subtitle: qsTr("Extension · %1").arg(sheet.entry !== null ? sheet.entry.version : "")
     iconName: ExtensionLook.icon(sheet.lead)
     tone: ExtensionLook.tone(sheet.lead)
     alternativeText: sheet.restorable ? qsTr("Restore defaults") : ""

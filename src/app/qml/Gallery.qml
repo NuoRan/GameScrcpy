@@ -1072,7 +1072,7 @@ Window {
 
         objectName: "gallerySheet"
         title: "Touch box"
-        subtitle: "Extension · 1.0.0 · changes apply at once"
+        subtitle: "Extension · 1.0.0"
         iconName: "usb"
         tone: "amber"
         statusText: "Connected"

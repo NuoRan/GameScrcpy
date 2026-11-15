@@ -243,12 +243,15 @@ Item {
         return kind === "verified" || kind === "signed" || kind === "unsigned" ? "shield" : "triangle-alert"
     }
 
+    function publisherIconOnly(kind: string): bool {
+        return kind === "unsigned" || kind === "signed"
+    }
+
     function publisherNote(kind: string): string {
         switch (kind) {
         case "verified":
         case "signed":
-            return qsTr("Updates have to be signed with the same key. To accept a new key, remove the extension and "
-                        + "install it again.")
+            return ""
         case "unsigned":
             return qsTr("Nothing tells who made it or whether it was changed.")
         case "changed":
@@ -301,6 +304,8 @@ Item {
             parts.push(qsTr("By %1").arg(entry.authors.join(qsTr(", ", "list separator"))))
         if (entry.license)
             parts.push(entry.license)
+        if ((entry.writtenFor ?? "") !== "")
+            parts.push(qsTr("Made for GameScrcpy %1").arg(entry.writtenFor))
         return parts.join(" · ")
     }
 
@@ -562,8 +567,7 @@ Item {
                     anchors.horizontalCenter: parent.horizontalCenter
                     width: Math.min(implicitWidth, empty.width)
                     textFormat: Text.PlainText
-                    text: qsTr("No extension yet. Extensions add touch boxes, panels, picture filters, themes and more; "
-                               + "install one from a .gsext package.")
+                    text: qsTr("No extension yet. Install one from a .gsext package.")
                     color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.body.size
                     horizontalAlignment: Text.AlignHCenter
@@ -590,7 +594,6 @@ Item {
                 columns: page.columns
                 columnSpacing: page.gap
                 rowSpacing: page.gap
-                uniformCellHeights: true
 
                 Repeater {
                     model: page.shown
@@ -616,6 +619,7 @@ Item {
                                                              ? qsTr("Turn it on again to allow what's new")
                                                              : card.healthText
                         readonly property var publisher: card.modelData.publisher ?? ({})
+                        readonly property string publisherState: card.publisher.state ?? ""
                         readonly property string offered: card.modelData.builtin
                                                           ? "" : ExtensionUpdates.states[card.modelData.id]?.version ?? ""
                         readonly property bool fetching: card.offered !== ""
@@ -705,38 +709,62 @@ Item {
                                         }
                                     }
 
-                                    Text {
+                                    RowLayout {
                                         Layout.fillWidth: true
-                                        visible: text !== ""
-                                        textFormat: Text.PlainText
-                                        text: page.byline(card.modelData)
-                                        color: Theme.colors.textTertiary
-                                        font.pixelSize: Theme.type.caption.size
-                                        elide: Text.ElideRight
-                                    }
+                                        visible: bylineText.text !== "" || signatureMark.visible
+                                        spacing: Theme.space.xs
 
-                                    Text {
-                                        objectName: "extensionMadeFor"
-                                        Layout.fillWidth: true
-                                        visible: text !== ""
-                                        textFormat: Text.PlainText
-                                        text: (card.modelData.writtenFor ?? "") !== ""
-                                              ? qsTr("Made for GameScrcpy %1").arg(card.modelData.writtenFor) : ""
-                                        color: Theme.colors.textTertiary
-                                        font.pixelSize: Theme.type.caption.size
-                                        elide: Text.ElideRight
+                                        Text {
+                                            id: bylineText
+
+                                            Layout.fillWidth: true
+                                            textFormat: Text.PlainText
+                                            text: page.byline(card.modelData)
+                                            color: Theme.colors.textTertiary
+                                            font.pixelSize: Theme.type.caption.size
+                                            elide: Text.ElideRight
+
+                                            HoverHandler {
+                                                id: bylineHover
+                                            }
+
+                                            Tooltip {
+                                                text: bylineText.text
+                                                visible: bylineText.truncated && bylineHover.hovered
+                                            }
+                                        }
+
+                                        Icon {
+                                            id: signatureMark
+
+                                            visible: page.publisherIconOnly(card.publisherState)
+                                            name: "shield"
+                                            size: Theme.size.infoIcon - Theme.space.xxs
+                                            color: page.publisherColor(card.publisherState)
+                                            Accessible.role: Accessible.StaticText
+                                            Accessible.name: card.publisher.text ?? ""
+
+                                            HoverHandler {
+                                                id: signatureHover
+                                            }
+
+                                            Tooltip {
+                                                text: card.publisher.text ?? ""
+                                                visible: signatureHover.hovered
+                                            }
+                                        }
                                     }
 
                                     RowLayout {
                                         objectName: "publisherLine"
                                         Layout.fillWidth: true
-                                        visible: (card.publisher.state ?? "") !== ""
+                                        visible: card.publisherState !== "" && !page.publisherIconOnly(card.publisherState)
                                         spacing: Theme.space.xs
 
                                         Icon {
-                                            name: page.publisherIcon(card.publisher.state ?? "")
+                                            name: page.publisherIcon(card.publisherState)
                                             size: Theme.size.infoIcon - Theme.space.xxs
-                                            color: page.publisherColor(card.publisher.state ?? "")
+                                            color: page.publisherColor(card.publisherState)
                                         }
 
                                         Text {
@@ -746,7 +774,7 @@ Item {
                                             Layout.fillWidth: true
                                             textFormat: Text.PlainText
                                             text: card.publisher.text ?? ""
-                                            color: page.publisherColor(card.publisher.state ?? "")
+                                            color: page.publisherColor(card.publisherState)
                                             font.pixelSize: Theme.type.caption.size
                                             elide: Text.ElideRight
 
@@ -781,10 +809,10 @@ Item {
                                 Layout.fillWidth: true
                                 Layout.leftMargin: Theme.space.lg
                                 Layout.rightMargin: Theme.space.lg
-                                Layout.preferredHeight: 2 * Theme.type.label.lineHeight
+                                visible: text !== ""
                                 textFormat: Text.PlainText
-                                text: card.modelData.description || (card.failing ? qsTr("Open Details to see what went wrong.") : "")
-                                color: card.modelData.description ? Theme.colors.textSecondary : Theme.colors.textTertiary
+                                text: card.modelData.description ?? ""
+                                color: Theme.colors.textSecondary
                                 font.pixelSize: Theme.type.label.size
                                 lineHeight: Theme.type.label.lineHeight
                                 lineHeightMode: Text.FixedHeight
@@ -996,18 +1024,6 @@ Item {
             }
 
             Text {
-                objectName: "detailsMadeFor"
-                Layout.fillWidth: true
-                visible: text !== ""
-                textFormat: Text.PlainText
-                text: (detailsDialog.entry.writtenFor ?? "") !== ""
-                      ? qsTr("Made for GameScrcpy %1").arg(detailsDialog.entry.writtenFor) : ""
-                color: Theme.colors.textTertiary
-                font.pixelSize: Theme.type.caption.size
-                wrapMode: Text.Wrap
-            }
-
-            Text {
                 Layout.fillWidth: true
                 visible: text !== ""
                 textFormat: Text.PlainText
@@ -1050,6 +1066,7 @@ Item {
 
                     Text {
                         Layout.fillWidth: true
+                        visible: text !== ""
                         textFormat: Text.PlainText
                         text: page.publisherNote(publisherDetails.kind)
                         color: Theme.colors.textSecondary
