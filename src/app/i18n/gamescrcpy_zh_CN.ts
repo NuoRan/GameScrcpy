@@ -856,10 +856,6 @@
         <translation>配置 AI 助手</translation>
     </message>
     <message>
-        <source>It uses the model you set up in Settings &gt; AI.</source>
-        <translation>它用的是你在“设置 &gt; AI”里填写的模型。</translation>
-    </message>
-    <message>
         <source>Open settings</source>
         <translation>打开设置</translation>
     </message>
@@ -4681,8 +4677,8 @@
         <translation>指定</translation>
     </message>
     <message>
-        <source>The phone&apos;s picture appears on this capture card; touch can then go through USB debugging (also wireless), AOA or a touch box from an extension.</source>
-        <translation>这张采集卡上是手机的画面；触控可以走 USB 调试（无线调试也行）、AOA 或扩展提供的触控盒。</translation>
+        <source>No phone is connected with USB or wireless debugging.</source>
+        <translation>没有经 USB 调试或无线调试连着的手机。</translation>
     </message>
     <message>
         <source>Touch it with AOA or a touch box from an extension, or just watch the picture.</source>
@@ -4693,12 +4689,12 @@
         <translation>正在比对画面…</translation>
     </message>
     <message>
-        <source>Could not tell from the picture; choose the phone yourself.</source>
-        <translation>从画面上认不出是哪台，请自己选。</translation>
+        <source>This card then shows the phone&apos;s picture; touch keeps going to the phone.</source>
+        <translation>之后这张采集卡显示手机的画面，触控照常发给手机。</translation>
     </message>
     <message>
-        <source>No phone is connected. Connect the phone with USB debugging or wireless debugging first, or use the capture card on its own.</source>
-        <translation>没有连着的手机。先用 USB 调试或无线调试连上手机，或者单独使用这张采集卡。</translation>
+        <source>Could not tell from the picture; choose the phone yourself.</source>
+        <translation>从画面上认不出是哪台，请自己选。</translation>
     </message>
     <message>
         <source>Offline</source>
@@ -4732,10 +4728,6 @@
         <translation>%1 × %2 · %3 fps · %4</translation>
     </message>
     <message>
-        <source>Capture card · changes apply at once</source>
-        <translation>采集卡 · 改了立即生效</translation>
-    </message>
-    <message>
         <source>About capture cards</source>
         <translation>关于采集卡</translation>
     </message>
@@ -4764,16 +4756,20 @@
         <translation>改为单独使用</translation>
     </message>
     <message>
-        <source>Touch is chosen in this phone&apos;s settings.</source>
-        <translation>触控在这台手机的设置里选。</translation>
-    </message>
-    <message>
         <source>Phone settings…</source>
         <translation>手机设置…</translation>
     </message>
     <message>
         <source>Touch</source>
         <translation>触控</translation>
+    </message>
+    <message>
+        <source>Capture card</source>
+        <translation>采集卡</translation>
+    </message>
+    <message>
+        <source>Touch is chosen in the settings of the phone this card shows.</source>
+        <translation>触控方式在这张卡显示的那台手机的设置里选。</translation>
     </message>
     <message>
         <source>Touch method</source>
@@ -5540,12 +5536,12 @@
         <translation>示例组件 · 只读</translation>
     </message>
     <message>
-        <source>Custom component · made with logic</source>
-        <translation>自定义组件 · 用蓝图做的</translation>
+        <source>Custom component</source>
+        <translation>自定义组件</translation>
     </message>
     <message>
-        <source>You can look at an example but not change it. Copy it to your components to change your own copy.</source>
-        <translation>示例只能看、不能改。复制到我的组件，改的是你自己的那一份。</translation>
+        <source>Copy it to your components to change your own copy.</source>
+        <translation>复制到我的组件，改的是你自己的那一份。</translation>
     </message>
     <message>
         <source>Copy to my components</source>
@@ -5971,21 +5967,6 @@
         <translation>其他视频设备</translation>
     </message>
     <message>
-        <source>, </source>
-        <comment>list separator</comment>
-        <translation>、</translation>
-    </message>
-    <message>
-        <source>%1 · hidden by you</source>
-        <translation>%1 · 你隐藏的</translation>
-    </message>
-    <message numerus="yes">
-        <source>%1 · don&apos;t look like capture cards</source>
-        <translation>
-            <numerusform>%1 · 看起来不是采集卡</numerusform>
-        </translation>
-    </message>
-    <message>
         <source>Hide</source>
         <translation>收起</translation>
     </message>
@@ -6006,6 +5987,14 @@
         <translation>
             <numerusform>%n 台</numerusform>
         </translation>
+    </message>
+    <message>
+        <source>You hid these because they are not capture cards. Choose Treat as capture card to bring one back.</source>
+        <translation>这些是你因为不是采集卡而隐藏的。选“当作采集卡”可以把某一个找回来。</translation>
+    </message>
+    <message>
+        <source>Their names do not look like a capture card, so virtual cameras and webcams start out here. Choose Treat as capture card to bring one back.</source>
+        <translation>它们的名称看起来不像采集卡，所以虚拟摄像头和网络摄像头先放在这里。选“当作采集卡”可以把某一个找回来。</translation>
     </message>
     <message numerus="yes">
         <source>%n mirroring</source>
@@ -6226,8 +6215,8 @@
 <context>
     <name>ExtensionSettingsSheet</name>
     <message>
-        <source>Extension · %1 · changes apply at once</source>
-        <translation>扩展 · %1 · 改了立即生效</translation>
+        <source>Extension · %1</source>
+        <translation>扩展 · %1</translation>
     </message>
     <message>
         <source>Restore defaults</source>
@@ -6490,10 +6479,6 @@
         <translation>它的语言文件不是编译好的译文</translation>
     </message>
     <message>
-        <source>Updates have to be signed with the same key. To accept a new key, remove the extension and install it again.</source>
-        <translation>以后的更新必须用同一个公钥签名。要接受新的公钥，请先删除这个扩展，再重新安装。</translation>
-    </message>
-    <message>
         <source>Nothing tells who made it or whether it was changed.</source>
         <translation>无法确认是谁做的、有没有被改过。</translation>
     </message>
@@ -6606,6 +6591,10 @@
     <message>
         <source>Not used</source>
         <translation>未使用</translation>
+    </message>
+    <message>
+        <source>No extension yet. Install one from a .gsext package.</source>
+        <translation>还没有扩展。可从 .gsext 扩展包安装。</translation>
     </message>
     <message>
         <source>Off</source>
@@ -6884,10 +6873,6 @@
         <translation>全部</translation>
     </message>
     <message>
-        <source>No extension yet. Extensions add touch boxes, panels, picture filters, themes and more; install one from a .gsext package.</source>
-        <translation>还没有扩展。扩展可以添加触控盒、面板、画面滤镜、主题等，可从 .gsext 扩展包安装。</translation>
-    </message>
-    <message>
         <source>No extension matches “%1”.</source>
         <translation>没有扩展符合“%1”。</translation>
     </message>
@@ -6918,10 +6903,6 @@
     <message>
         <source>The last run ended while extensions were loaded. They load again at the next start; if it happens again, turn off the extension you installed last.</source>
         <translation>上次运行时已加载扩展，但程序没有正常退出。下次启动会重新加载扩展；如果再次发生，请关闭最近安装的扩展。</translation>
-    </message>
-    <message>
-        <source>Open Details to see what went wrong.</source>
-        <translation>打开“详情”查看原因。</translation>
     </message>
     <message>
         <source>Needs a newer GameScrcpy</source>
@@ -7445,8 +7426,8 @@
         <translation>正在读取文件夹…</translation>
     </message>
     <message>
-        <source>This folder is empty. Drop files here to upload them.</source>
-        <translation>这个文件夹是空的。把文件拖到这里即可上传。</translation>
+        <source>This folder is empty.</source>
+        <translation>这个文件夹是空的。</translation>
     </message>
     <message>
         <source>Drop to upload to %1</source>
@@ -7604,8 +7585,8 @@
         <translation>在单独窗口打开</translation>
     </message>
     <message>
-        <source>Click a cell to give it the keys and mouse · double-click to open it in its own window</source>
-        <translation>点一格把键鼠交给它 · 双击在单独窗口打开</translation>
+        <source>In its own window · double-click to bring it back</source>
+        <translation>在单独窗口中 · 双击回到这里</translation>
     </message>
     <message>
         <source>%1 fps</source>
@@ -7614,14 +7595,6 @@
     <message>
         <source>More</source>
         <translation>更多</translation>
-    </message>
-    <message>
-        <source>In its own window</source>
-        <translation>在单独窗口中</translation>
-    </message>
-    <message>
-        <source>Double-click to bring it back here</source>
-        <translation>双击回到这里</translation>
     </message>
     <message>
         <source>Following %1</source>
@@ -7894,12 +7867,20 @@
         <translation>允许</translation>
     </message>
     <message>
-        <source>Your logic can only open the devices you tick. You can take them back in Settings &gt; General.</source>
-        <translation>你的逻辑只能打开你勾选的设备，之后可以在“设置 &gt; 通用”里收回。</translation>
+        <source>Your logic can only open the devices you tick.</source>
+        <translation>你的逻辑只能打开你勾选的设备。</translation>
     </message>
     <message>
-        <source>It can only open the devices you tick. You can take them back on its card on the Extensions page.</source>
-        <translation>它只能打开你勾选的设备，之后可以在“扩展”页它的卡片上收回。</translation>
+        <source>It can only open the devices you tick.</source>
+        <translation>它只能打开你勾选的设备。</translation>
+    </message>
+    <message>
+        <source>Turn the device on and put it in pairing mode; check that Bluetooth is on in Windows.</source>
+        <translation>请打开设备并让它进入配对状态，并确认 Windows 的蓝牙已打开。</translation>
+    </message>
+    <message>
+        <source>Plug the device in; if it does not show up, try another cable or USB port.</source>
+        <translation>插上设备；没有出现的话，换一根线或换个 USB 口。</translation>
     </message>
     <message>
         <source>Looking for Bluetooth devices nearby…</source>
@@ -7916,14 +7897,6 @@
     <message>
         <source>No matching device is connected</source>
         <translation>没有连接符合条件的设备</translation>
-    </message>
-    <message>
-        <source>Turn the device on and put it in pairing mode, and check that Bluetooth is on in Windows. Devices show up here as they are found.</source>
-        <translation>请打开设备并让它进入配对状态，并确认 Windows 的蓝牙已打开。找到的设备会出现在这里。</translation>
-    </message>
-    <message>
-        <source>Plug the device in and it shows up here. If it still does not, try another cable or USB port, or install its driver.</source>
-        <translation>插上设备，它就会出现在这里。如果还是没有，请换一根线或换个 USB 口，或者安装它的驱动。</translation>
     </message>
 </context>
 <context>
@@ -8500,24 +8473,28 @@
         <translation>将替换已安装的版本 %1</translation>
     </message>
     <message>
-        <source>Downloaded from %1; its size and SHA-256 match the update list</source>
-        <translation>从 %1 下载；大小和 SHA-256 与更新列表一致</translation>
+        <source>It runs its own Windows code in a separate process without rights of its own.</source>
+        <translation>它会在单独的进程里运行自带的 Windows 代码，这个进程自身没有任何权限。</translation>
     </message>
     <message>
-        <source>Downloaded from %1; its SHA-256 matches the link</source>
-        <translation>从 %1 下载；SHA-256 与链接一致</translation>
+        <source>It runs its own Windows code in a separate process.</source>
+        <translation>它会在单独的进程里运行自己的 Windows 代码。</translation>
+    </message>
+    <message>
+        <source>GameScrcpy checked this code before installing:</source>
+        <translation>GameScrcpy 在安装前检查了这些代码：</translation>
+    </message>
+    <message>
+        <source>Its code cannot open your files, use the network or start other programs.</source>
+        <translation>它的代码不能打开你的文件、不能联网，也不能启动其他程序。</translation>
+    </message>
+    <message>
+        <source>Its code calls these system functions; the sandbox blocks them:</source>
+        <translation>它的代码调用了下面这些系统功能，沙箱会拦住它们：</translation>
     </message>
     <message>
         <source>Unsigned native code</source>
         <translation>没有签名的原生代码</translation>
-    </message>
-    <message>
-        <source>The package is not signed, so there is no way to tell who made it. Its code runs restricted, so it can only do what the extension declares.</source>
-        <translation>这个包没有签名，无法确认是谁做的。它的代码以受限方式运行，只能做扩展声明的事。</translation>
-    </message>
-    <message>
-        <source>Its DLL runs with full rights on this computer, and without a signature nobody can tell who made it or whether it was changed. Install it only if you trust where it came from.</source>
-        <translation>它的 DLL 在这台电脑上有完全的权限，没有签名就无法确认是谁做的、有没有被改过。请只在信任它的来源时安装。</translation>
     </message>
     <message>
         <source>This package can&apos;t be installed.</source>
@@ -8534,10 +8511,6 @@
     <message>
         <source>It asks for more than before</source>
         <translation>它要的比以前多</translation>
-    </message>
-    <message>
-        <source>After installing, it stays off until you turn it on again in Extensions to allow what&apos;s new.</source>
-        <translation>安装后它会保持关闭，直到你在“扩展”里重新打开它、允许新增的内容。</translation>
     </message>
     <message>
         <source>Its permissions and dependencies stay the same</source>
@@ -8564,6 +8537,22 @@
         <translation>接口版本：%1</translation>
     </message>
     <message>
+        <source>Downloaded from %1 · size and SHA-256 match the update list</source>
+        <translation>从 %1 下载 · 大小和 SHA-256 与更新列表一致</translation>
+    </message>
+    <message>
+        <source>Downloaded from %1 · SHA-256 matches the link</source>
+        <translation>从 %1 下载 · SHA-256 与链接一致</translation>
+    </message>
+    <message>
+        <source>The package is not signed, so there is no way to tell who made it.</source>
+        <translation>这个包没有签名，无法确认是谁做的。</translation>
+    </message>
+    <message>
+        <source>Its DLL runs with full rights on this computer, and without a signature nobody can tell who made it or whether it was changed.</source>
+        <translation>它的 DLL 在这台电脑上有完全的权限，没有签名就无法确认是谁做的、有没有被改过。</translation>
+    </message>
+    <message>
         <source>%1 %2 (new)</source>
         <translation>%1 %2（新增）</translation>
     </message>
@@ -8576,6 +8565,10 @@
         <translation>%1 %2 → %3</translation>
     </message>
     <message>
+        <source>It stays off after installing until you turn it on again in Extensions.</source>
+        <translation>安装后它会保持关闭，直到你在“扩展”里重新打开它。</translation>
+    </message>
+    <message>
         <source>Native code</source>
         <translation>原生代码</translation>
     </message>
@@ -8584,20 +8577,8 @@
         <translation>受限的原生代码</translation>
     </message>
     <message>
-        <source>It runs its own Windows code in a separate process without rights of its own. GameScrcpy checked that code before installing:</source>
-        <translation>它会在单独的进程里运行自带的 Windows 代码，这个进程自身没有任何权限。GameScrcpy 在安装前检查了这些代码：</translation>
-    </message>
-    <message>
-        <source>It runs its own Windows code in a separate process. GameScrcpy checked that code before installing:</source>
-        <translation>它会在单独的进程里运行自己的 Windows 代码。安装前已检查这些代码：</translation>
-    </message>
-    <message>
         <source>Restricted: it can only do what it declares</source>
         <translation>受限：只能做它声明的事</translation>
-    </message>
-    <message>
-        <source>Its code cannot open your files, use the network or start other programs. It reaches only the devices you allow it, through GameScrcpy, and only with the permissions listed below.</source>
-        <translation>它的代码不能打开你的文件、不能联网，也不能启动其他程序。它只能经由 GameScrcpy 使用你允许的设备，并且只有下面列出的权限。</translation>
     </message>
     <message>
         <source>Not installed, for your safety</source>
@@ -8608,20 +8589,12 @@
         <translation>已由作者签名</translation>
     </message>
     <message>
-        <source>Key %1. Updates have to be signed with the same key.</source>
-        <translation>公钥 %1。以后的更新必须用同一个公钥签名。</translation>
-    </message>
-    <message>
         <source>Windows Security found no threat</source>
         <translation>Windows 安全中心未发现威胁</translation>
     </message>
     <message>
         <source>Its code uses none of the system functions that are checked: network, files, keyboard and mouse, other programs.</source>
         <translation>它的代码没有用到受检查的系统功能：联网、文件、键盘和鼠标、其他程序。</translation>
-    </message>
-    <message>
-        <source>Its code calls these system functions, which its sandbox does not let through:</source>
-        <translation>它的代码调用了下面这些系统功能，它的沙箱不会放行：</translation>
     </message>
     <message>
         <source>Permissions</source>
@@ -9481,20 +9454,12 @@
         <translation>示例组件</translation>
     </message>
     <message>
-        <source>Made with logic, double-click to look</source>
-        <translation>用蓝图做的，双击可看</translation>
-    </message>
-    <message>
         <source>My components</source>
         <translation>我的组件</translation>
     </message>
     <message>
         <source>Extensions</source>
         <translation>扩展</translation>
-    </message>
-    <message>
-        <source>From turned-on extensions</source>
-        <translation>来自已打开的扩展</translation>
     </message>
     <message>
         <source>A component from %1. Drag it onto the picture, then press the key for it.</source>
@@ -9667,6 +9632,10 @@
     <message>
         <source>Save as…</source>
         <translation>另存为…</translation>
+    </message>
+    <message>
+        <source>Rename…</source>
+        <translation>重命名…</translation>
     </message>
     <message>
         <source>Restore original…</source>
@@ -10153,10 +10122,6 @@
     <message>
         <source>This profile has no logic yet</source>
         <translation>这个方案还没有逻辑</translation>
-    </message>
-    <message>
-        <source>Logic is TypeScript that reacts to the keys and to the phone. It runs on every phone that uses this profile.</source>
-        <translation>逻辑是用 TypeScript 写的小程序，响应按键和手机画面，在每台用这个方案的手机上运行。</translation>
     </message>
     <message>
         <source>Add logic</source>
@@ -10862,8 +10827,12 @@
         <translation>方案会变成文件夹，以便放下这些文件。</translation>
     </message>
     <message>
-        <source>If you do not apply it now, the draft is kept and nothing you use changes.</source>
-        <translation>现在不采用的话，草稿会留着，你正在用的内容不会变。</translation>
+        <source>If you do not apply it now, the draft is kept.</source>
+        <translation>现在不采用的话，草稿会留着。</translation>
+    </message>
+    <message numerus="yes">
+        <source>It stops after %n second(s) at the latest.</source>
+        <translation><numerusform>最多运行 %n 秒。</numerusform></translation>
     </message>
     <message>
         <source>It records like the record button of the mirror window. %1 can stop it and try its logic on the recording.</source>
@@ -10886,12 +10855,6 @@
         <translation>它的逻辑在扩展的沙箱里运行，可能会操作你的手机。%1 传给它的是：</translation>
     </message>
     <message numerus="yes">
-        <source>It stops after %n second(s) at the latest, and its fingers are lifted when it ends.</source>
-        <translation>
-            <numerusform>最多运行 %n 秒，结束时抬起它按下的手指。</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
         <source>If it gives no answer within %n second(s), it is stopped.</source>
         <translation>
             <numerusform>%n 秒内没有给出结果就会被停止。</numerusform>
@@ -10904,10 +10867,6 @@
     <message>
         <source>Don&apos;t ask again for this phone until GameScrcpy closes</source>
         <translation>关掉 GameScrcpy 之前，在这台手机上运行不再询问</translation>
-    </message>
-    <message>
-        <source>If you do not answer within two minutes, it is refused.</source>
-        <translation>两分钟内不回答就按拒绝处理。</translation>
     </message>
 </context>
 <context>
@@ -10934,8 +10893,8 @@
         <translation>你允许并让 GameScrcpy 记住的客户端。它们再连接时不再询问；移除后立即断开它的连接。</translation>
     </message>
     <message>
-        <source>None yet. A client is listed here when you allow it with Remember this client ticked.</source>
-        <translation>还没有。允许客户端时勾选“记住这个客户端”，它就会列在这里。</translation>
+        <source>None yet.</source>
+        <translation>还没有。</translation>
     </message>
     <message>
         <source>Remove</source>
@@ -11039,10 +10998,6 @@
     <message>
         <source>Picture · Operations</source>
         <translation>画面 · 操作</translation>
-    </message>
-    <message>
-        <source>Typing: length only</source>
-        <translation>打字只记长度</translation>
     </message>
     <message>
         <source>Task: %1</source>
@@ -11309,8 +11264,8 @@
         <translation>退出编辑会像点“完成”一样保存改动，投屏窗口不关。</translation>
     </message>
     <message>
-        <source>Remember my choice (you can change it in Settings &gt; Mirroring &amp; quality &gt; Display)</source>
-        <translation>记住我的选择（之后可以在“设置 &gt; 投屏与画质 &gt; 显示”里改）</translation>
+        <source>Remember my choice</source>
+        <translation>记住我的选择</translation>
     </message>
     <message>
         <source>Restore</source>
@@ -11525,10 +11480,6 @@
         <translation>新建方案</translation>
     </message>
     <message>
-        <source>Pick the closest kind of game, then drag the keys onto the game&apos;s buttons in the editor.</source>
-        <translation>选一个最接近的游戏类型；之后在编辑器里拖动键位对准就能用。</translation>
-    </message>
-    <message>
         <source>Import from file…</source>
         <translation>从文件导入…</translation>
     </message>
@@ -11587,8 +11538,8 @@
         <translation>模板包含</translation>
     </message>
     <message>
-        <source>No keys yet. Add them in the editor.</source>
-        <translation>还没有键位，到编辑器里添加。</translation>
+        <source>No keys yet</source>
+        <translation>还没有键位</translation>
     </message>
 </context>
 <context>
@@ -12532,10 +12483,6 @@
         <source>New profile…</source>
         <translation>新建方案…</translation>
     </message>
-    <message>
-        <source>Start from a template for your kind of game, import a profile file, or drop one into this window.</source>
-        <translation>从适合你游戏类型的模板开始，导入方案文件，或把文件拖进这个窗口。</translation>
-    </message>
     <message numerus="yes">
         <source>You changed %n item(s)</source>
         <translation>
@@ -12553,6 +12500,10 @@
     <message>
         <source>Delete…</source>
         <translation>删除…</translation>
+    </message>
+    <message>
+        <source>Rename…</source>
+        <translation>重命名…</translation>
     </message>
     <message>
         <source>Vision resources…</source>
@@ -12931,8 +12882,16 @@
         <translation>录制提前停止了：%1</translation>
     </message>
     <message>
-        <source>An MP4 made straight from the recorded stream, without encoding it again; it takes seconds.</source>
-        <translation>直接用录下的码流做成 MP4，不重新编码，几秒就好。</translation>
+        <source>An MP4 made straight from the recorded stream, without encoding it again.</source>
+        <translation>直接用录下的码流做成 MP4，不重新编码。</translation>
+    </message>
+    <message>
+        <source>Pick the profile whose logic runs on this recording.</source>
+        <translation>选一个方案，在这段录像上运行它的逻辑。</translation>
+    </message>
+    <message>
+        <source>No profile has logic yet — add logic to one with Edit logic… on the Profiles page.</source>
+        <translation>还没有带逻辑的方案——先在方案页用“编辑逻辑…”给方案加上逻辑。</translation>
     </message>
     <message>
         <source>Use to test logic</source>
@@ -12963,16 +12922,8 @@
         <translation>存为测试</translation>
     </message>
     <message>
-        <source>Pick the profile whose logic runs on this recording. What it does now is kept as the expected result, so after you change the logic, Run tests in the logic view shows what changed.</source>
-        <translation>选一个方案，在这段录像上运行它的逻辑。这次的结果会存为预期结果；以后改了逻辑，在逻辑视图里点“运行测试”就能看到哪里变了。</translation>
-    </message>
-    <message>
         <source>Cancel</source>
         <translation>取消</translation>
-    </message>
-    <message>
-        <source>No profile has logic yet. Add logic to a profile with Edit logic… on the Profiles page, then save the test.</source>
-        <translation>还没有带逻辑的方案。先在方案页用“编辑逻辑…”给方案加上逻辑，再保存测试。</translation>
     </message>
     <message>
         <source>In use while recording</source>
@@ -13002,10 +12953,6 @@
         <translation>正在读取录像…</translation>
     </message>
     <message>
-        <source>No recordings of this phone yet. Start one with Record on the toolbar.</source>
-        <translation>这台手机还没有录像。点工具栏上的“录制”就能录一段。</translation>
-    </message>
-    <message>
         <source>Export the recording as %1</source>
         <translation>把录像导出为 %1</translation>
     </message>
@@ -13026,8 +12973,12 @@
         <translation>移到回收站</translation>
     </message>
     <message>
-        <source>%1 · %2. You can restore it from the Recycle Bin.</source>
-        <translation>%1 · %2。之后可以从回收站恢复。</translation>
+        <source>No recordings of this phone yet — start one with Record on the toolbar.</source>
+        <translation>这台手机还没有录像——点工具栏上的“录制”就能录一段。</translation>
+    </message>
+    <message>
+        <source>%1 · %2</source>
+        <translation>%1 · %2</translation>
     </message>
     <message>
         <source>This recording cannot be read: %1</source>
@@ -13058,6 +13009,33 @@
     <message>
         <source>Move to the Recycle Bin…</source>
         <translation>移到回收站…</translation>
+    </message>
+</context>
+<context>
+    <name>RenameProfileDialog</name>
+    <message>
+        <source>Not saved: another program is using the file</source>
+        <translation>没保存上：文件被别的程序占用</translation>
+    </message>
+    <message>
+        <source>Could not rename %1.</source>
+        <translation>没能重命名 %1。</translation>
+    </message>
+    <message>
+        <source>Rename profile</source>
+        <translation>重命名方案</translation>
+    </message>
+    <message>
+        <source>Cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <source>Rename</source>
+        <translation>重命名</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>名称</translation>
     </message>
 </context>
 <context>
@@ -18007,8 +17985,8 @@
         <translation>投屏一台手机，这里就会显示逻辑的日志</translation>
     </message>
     <message>
-        <source>Log lines and errors of the logic on this phone appear here</source>
-        <translation>这台手机上逻辑写的日志和出的错会显示在这里</translation>
+        <source>No log lines yet</source>
+        <translation>还没有日志</translation>
     </message>
     <message>
         <source>Add logic to check it</source>
@@ -18156,10 +18134,6 @@
     <message>
         <source>Look back at a part kept while debugging: the picture, each step and its values</source>
         <translation>回看调试时存下的一段：当时的画面、每一步和它的值</translation>
-    </message>
-    <message>
-        <source>While the logic runs on this phone, its components and variables show here as they change.</source>
-        <translation>逻辑在这台手机上运行时，这里实时显示组件和变量的状态。</translation>
     </message>
     <message>
         <source>Components</source>
@@ -19717,8 +19691,8 @@
         <translation>AI 起草</translation>
     </message>
     <message>
-        <source>Drafts the keys from the picture; nothing applies until you confirm</source>
-        <translation>看画面起草键位，确认前不生效</translation>
+        <source>Drafts the keys from the picture</source>
+        <translation>看画面起草键位</translation>
     </message>
     <message>
         <source>Set up a model in Settings &gt; AI first</source>
@@ -19731,10 +19705,6 @@
     <message>
         <source>Start from nothing and place every key yourself</source>
         <translation>从零开始，每个键自己放</translation>
-    </message>
-    <message>
-        <source>Once closed it won&apos;t come back by itself for this game. New profile… in the key mapping options on the toolbar opens it again.</source>
-        <translation>关掉后这个游戏不再自动出现；可以在工具栏的键位菜单里点“新建方案…”再打开。</translation>
     </message>
 </context>
 <context>
@@ -19793,8 +19763,8 @@
         <translation>停止同步</translation>
     </message>
     <message>
-        <source>The phones you tick follow this one: the keys and taps you give it reach them too, and each acts by its own profile.</source>
-        <translation>勾选的手机跟随这台：你在这台上的按键和点击也会传给它们，各按自己的方案执行。</translation>
+        <source>The phones you tick get the same keys and taps; each acts by its own profile.</source>
+        <translation>勾选的手机会收到同样的按键和点击，各按自己的方案执行。</translation>
     </message>
     <message>
         <source>No other phone is mirroring now.</source>
@@ -19812,8 +19782,8 @@
         <translation>从示例新建任务</translation>
     </message>
     <message>
-        <source>Pick one to copy it to your tasks, where you can change it like any task of yours.</source>
-        <translation>选一个，它会复制到你的任务里，在那里可以像你自己的任务一样修改。</translation>
+        <source>Pick one to copy it to your tasks.</source>
+        <translation>选一个复制到你的任务里。</translation>
     </message>
     <message>
         <source>Cancel</source>
@@ -19928,6 +19898,10 @@
         <translation>没在运行</translation>
     </message>
     <message>
+        <source>This task comes with the extension %1. Copy it to your tasks to change it.</source>
+        <translation>这个任务来自扩展 %1。要修改请先复制到你的任务。</translation>
+    </message>
+    <message>
         <source>Phones to run on</source>
         <translation>在哪些手机上跑</translation>
     </message>
@@ -19954,6 +19928,10 @@
     <message>
         <source>How it starts</source>
         <translation>怎么开始</translation>
+    </message>
+    <message>
+        <source>At that time GameScrcpy connects the ticked phones, turns their screens on and starts the task, and tells you when it is done or fails.</source>
+        <translation>到点时 GameScrcpy 会连上勾选的手机、点亮屏幕并开始任务，完成或出错时通知你。</translation>
     </message>
     <message>
         <source>By hand</source>
@@ -19984,24 +19962,16 @@
         <translation>每周的任务至少要选一天</translation>
     </message>
     <message>
-        <source>This task comes with the extension %1. You can run it, and it runs in the extension&apos;s sandbox; copy it to your tasks to change it.</source>
-        <translation>这个任务来自扩展 %1。可以直接运行，它在扩展的沙箱里运行；要修改请先复制到你的任务。</translation>
-    </message>
-    <message>
         <source>Every week</source>
         <translation>每周</translation>
-    </message>
-    <message>
-        <source>At that time GameScrcpy connects the ticked phones, turns their screens on and starts the task, and tells you when it is done or fails. GameScrcpy has to be running, in the tray is enough; a start missed while the computer sleeps is not made up.</source>
-        <translation>到点时 GameScrcpy 会连上勾选的手机、点亮屏幕并开始任务，完成或出错时通知你。GameScrcpy 要开着，缩在托盘里也行；电脑睡眠时错过的不补跑。</translation>
     </message>
     <message>
         <source>Settings</source>
         <translation>设置</translation>
     </message>
     <message>
-        <source>Settings the task declares in static params of task.ts show up here.</source>
-        <translation>在 task.ts 的 static params 里声明的设置会出现在这里。</translation>
+        <source>GameScrcpy has to be running; a start missed while the computer sleeps is not made up.</source>
+        <translation>GameScrcpy 要开着；电脑睡眠时错过的不补跑。</translation>
     </message>
     <message>
         <source>When it fails</source>
@@ -20187,8 +20157,8 @@
         <translation>任务</translation>
     </message>
     <message>
-        <source>Logic that runs on its own · it keeps going when you change games</source>
-        <translation>独立运行的逻辑 · 换游戏也照样跑</translation>
+        <source>A task is logic that runs on a phone by itself.</source>
+        <translation>任务是在手机上独立运行的逻辑。</translation>
     </message>
     <message>
         <source>New task</source>
@@ -20213,10 +20183,6 @@
     <message>
         <source>No tasks yet</source>
         <translation>还没有任务</translation>
-    </message>
-    <message>
-        <source>A task is logic that runs on a phone by itself, such as daily check-ins or farming. Your keys keep working while it runs, and it can start at a set time.</source>
-        <translation>任务是在手机上独立运行的逻辑，比如每日签到、挂机刷本。它跑着时键位照常可用，也可以定时开始。</translation>
     </message>
     <message>
         <source>Not running</source>
@@ -20610,10 +20576,6 @@
         <translation>在属性面板里可改</translation>
     </message>
     <message>
-        <source>Placed components of this class can change it</source>
-        <translation>放好的这类组件各自可以改它</translation>
-    </message>
-    <message>
         <source>This type cannot be changed in the property panel</source>
         <translation>这种类型不能在属性面板里改</translation>
     </message>
@@ -20729,8 +20691,8 @@
         <translation>正在等手机的画面…</translation>
     </message>
     <message>
-        <source>What you pick is kept as a resource with a new name. Press Esc to stop picking</source>
-        <translation>取到的会存成素材并自动起名。按 Esc 停止取值</translation>
+        <source>%1 × %2 pixels, cut from a %3 × %4 picture</source>
+        <translation>%1 × %2 像素，截自 %3 × %4 的画面</translation>
     </message>
     <message>
         <source>Stop picking</source>
@@ -20821,10 +20783,6 @@
         <translation>放大</translation>
     </message>
     <message>
-        <source>No resources yet. Freeze the picture, then use the tools below it to cut a template, draw a region, a point or a path, or pick a color.</source>
-        <translation>还没有资源。先冻结画面，再用画面下方的工具截模板、画区域、点位或路径，或者取色。</translation>
-    </message>
-    <message>
         <source>These places use %1</source>
         <translation>这些地方用到了 %1</translation>
     </message>
@@ -20882,6 +20840,14 @@
         <translation>颜色</translation>
     </message>
     <message>
+        <source>What you pick is kept as a resource with a new name.</source>
+        <translation>取到的会存成素材并自动起名。</translation>
+    </message>
+    <message>
+        <source>No resources yet. Freeze the picture, then use the tools below it to add one.</source>
+        <translation>还没有资源。先冻结画面，再用画面下方的工具添加。</translation>
+    </message>
+    <message>
         <source>All resources</source>
         <translation>全部资源</translation>
     </message>
@@ -20930,10 +20896,6 @@
     <message>
         <source>Whole picture</source>
         <translation>整个画面</translation>
-    </message>
-    <message>
-        <source>%1 × %2 pixels, cut from a %3 × %4 picture; it is scaled when the picture size differs</source>
-        <translation>%1 × %2 像素，截自 %3 × %4 的画面；画面大小不同时会缩放</translation>
     </message>
     <message>
         <source>%1 × %2 pixels</source>
@@ -21062,8 +21024,16 @@
         <translation>二维码配对</translation>
     </message>
     <message>
-        <source>On the phone: Developer options &gt; Wireless debugging &gt; Pair device with pairing code. Then type the six digits it shows.</source>
-        <translation>手机：开发者选项 → 无线调试 → 使用配对码配对设备。在下面输入手机上显示的 6 位配对码。</translation>
+        <source>%1 takes adb connections on port 5555 until it restarts. Unplug the cable and put the phone on the same network as this computer; GameScrcpy finds it.</source>
+        <translation>%1 已在 5555 端口接受 adb 连接，直到手机重启。拔掉数据线，让手机和这台电脑连上同一个网络，GameScrcpy 会自己找到它。</translation>
+    </message>
+    <message>
+        <source>Connected to %1 at %2.</source>
+        <translation>已通过 %2 连上 %1。</translation>
+    </message>
+    <message>
+        <source>%1 was not found on the network within 5 minutes. Check that it is on the same network as this computer, then connect it with USB and choose Connect over the network again.</source>
+        <translation>5 分钟内没在网络上找到 %1。请确认它和这台电脑在同一个网络里，然后用 USB 连上，再选一次“通过网络连接”。</translation>
     </message>
     <message>
         <source>Looking for a phone that shows its pairing dialog…</source>
@@ -21090,24 +21060,24 @@
         <translation>配对码</translation>
     </message>
     <message>
+        <source>Scan this code with the phone.</source>
+        <translation>用手机扫描这个二维码。</translation>
+    </message>
+    <message>
+        <source>If it does not connect by itself, enter the address and port from its Wireless debugging screen under Recent connections.</source>
+        <translation>没有自动连上时，把手机“无线调试”页面上的 IP 地址和端口填到“最近连接”里。</translation>
+    </message>
+    <message>
+        <source>Connected to %1.</source>
+        <translation>已连上 %1。</translation>
+    </message>
+    <message>
         <source>Turning on network debugging on %1…</source>
         <translation>正在为 %1 开启网络调试…</translation>
     </message>
     <message>
-        <source>%1 takes adb connections on port 5555 until it restarts. Unplug the USB cable and connect the phone to the same network as this computer, by cable or Wi-Fi; GameScrcpy finds it and connects.</source>
-        <translation>%1 已在 5555 端口接受 adb 连接，直到手机重启。拔掉 USB 线，让手机和这台电脑连上同一个网络（网线或 Wi-Fi 都行），GameScrcpy 会自己找到它并连上。</translation>
-    </message>
-    <message>
-        <source>Connected to %1 at %2; it is in the list above.</source>
-        <translation>已通过 %2 连上 %1，它已出现在上方的列表中。</translation>
-    </message>
-    <message>
         <source>Network debugging could not be turned on for %1.</source>
         <translation>没能为 %1 开启网络调试。</translation>
-    </message>
-    <message>
-        <source>%1 was not found on the network within 5 minutes. Make sure it is on the same network as this computer, then connect it with USB and choose Connect over the network again.</source>
-        <translation>5 分钟内没在网络上找到 %1。请确认它和这台电脑在同一个网络里，然后用 USB 连上，再选一次&quot;通过网络连接&quot;。</translation>
     </message>
     <message>
         <source>Stop looking</source>
@@ -21120,10 +21090,6 @@
     <message>
         <source>Use a QR code</source>
         <translation>改用二维码</translation>
-    </message>
-    <message>
-        <source>On the phone: Developer options &gt; Wireless debugging &gt; Pair device with QR code, then scan this code. Pairing starts once the phone has scanned it.</source>
-        <translation>手机：开发者选项 → 无线调试 → 使用二维码配对设备，扫描这个二维码。扫码后自动开始配对。</translation>
     </message>
     <message>
         <source>Waiting for the phone to scan the code…</source>
@@ -21142,16 +21108,8 @@
         <translation>已与 %1 配对。</translation>
     </message>
     <message>
-        <source>The phone usually connects by itself and appears in the list above. If it does not, connect to the IP address and port on its Wireless debugging screen, next to this.</source>
-        <translation>手机通常会自动连上并出现在上方的列表中；没有出现时，在手机“无线调试”页面查看 IP 地址和端口，在右侧连接。</translation>
-    </message>
-    <message>
         <source>Recent connections</source>
         <translation>最近连接</translation>
-    </message>
-    <message>
-        <source>Phones you connect to over wireless debugging are listed here.</source>
-        <translation>通过无线调试连接过的手机会列在这里。</translation>
     </message>
     <message>
         <source>Wireless device</source>
@@ -21178,12 +21136,20 @@
         <translation>取消</translation>
     </message>
     <message>
-        <source>Connecting to %1…</source>
-        <translation>正在连接 %1…</translation>
+        <source>On the phone: Developer options &gt; Wireless debugging &gt; Pair device with pairing code.</source>
+        <translation>手机：开发者选项 → 无线调试 → 使用配对码配对设备。</translation>
     </message>
     <message>
-        <source>Connected to %1; it is in the list above.</source>
-        <translation>已连接 %1，它已出现在上方的列表中。</translation>
+        <source>On the phone: Developer options &gt; Wireless debugging &gt; Pair device with QR code.</source>
+        <translation>手机：开发者选项 → 无线调试 → 使用二维码配对设备。</translation>
+    </message>
+    <message>
+        <source>Type the six digits the phone shows.</source>
+        <translation>输入手机上显示的六位配对码。</translation>
+    </message>
+    <message>
+        <source>Connecting to %1…</source>
+        <translation>正在连接 %1…</translation>
     </message>
     <message>
         <source>adb: %1</source>

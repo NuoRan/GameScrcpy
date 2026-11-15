@@ -178,13 +178,6 @@
 <context>
     <name>DevicesPage</name>
     <message numerus="yes">
-        <source>%1 · don&apos;t look like capture cards</source>
-        <translation>
-            <numerusform>%1 · doesn&apos;t look like a capture card</numerusform>
-            <numerusform>%1 · don&apos;t look like capture cards</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
         <source>%n device(s)</source>
         <translation>
             <numerusform>%n device</numerusform>
@@ -452,10 +445,10 @@
         </translation>
     </message>
     <message numerus="yes">
-        <source>It stops after %n second(s) at the latest, and its fingers are lifted when it ends.</source>
-        <translation>
-            <numerusform>It stops after %n second at the latest, and its fingers are lifted when it ends.</numerusform>
-            <numerusform>It stops after %n seconds at the latest, and its fingers are lifted when it ends.</numerusform>
+        <source>It stops after %n second(s) at the latest.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
         </translation>
     </message>
     <message numerus="yes">
