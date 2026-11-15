@@ -53,13 +53,25 @@ Column {
                     id: paramTitle
 
                     anchors.verticalCenter: parent.verticalCenter
-                    width: parent.width - (toggle.visible ? toggle.width + Theme.space.md : 0)
+                    width: Math.min(implicitWidth, parent.width - (toggle.visible ? toggle.width + Theme.space.md : 0)
+                                                   - (paramInfo.visible ? paramInfo.width + Theme.space.xs : 0))
                     elide: Text.ElideRight
                     textFormat: Text.PlainText
                     text: entry.modelData.title ?? ""
                     color: Theme.colors.textPrimary
                     font.pixelSize: Theme.type.label.size
                     font.weight: Theme.type.label.weight
+                }
+
+                InfoButton {
+                    id: paramInfo
+
+                    objectName: "paramInfo"
+                    x: paramTitle.width + Theme.space.xs
+                    anchors.verticalCenter: paramTitle.verticalCenter
+                    visible: (entry.modelData.description ?? "") !== ""
+                    title: entry.modelData.title ?? ""
+                    info: entry.modelData.description ?? ""
                 }
 
                 Switch {
@@ -76,16 +88,6 @@ Column {
                         toggle.checked = Qt.binding(() => entry.value === true)
                     }
                 }
-            }
-
-            Text {
-                width: parent.width
-                visible: text !== ""
-                wrapMode: Text.Wrap
-                textFormat: Text.PlainText
-                text: entry.modelData.description ?? ""
-                color: Theme.colors.textTertiary
-                font.pixelSize: Theme.type.caption.size
             }
 
             Loader {

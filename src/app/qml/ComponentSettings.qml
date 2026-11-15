@@ -76,7 +76,7 @@ Flickable {
                 Text {
                     width: parent.width
                     textFormat: Text.PlainText
-                    text: settings.locked ? qsTr("Example component · read only") : qsTr("Custom component · made with logic")
+                    text: settings.locked ? qsTr("Example component · read only") : qsTr("Custom component")
                     elide: Text.ElideRight
                     color: Theme.colors.textTertiary
                     font.pixelSize: Theme.type.caption.size
@@ -93,7 +93,7 @@ Flickable {
                 width: parent.width
                 textFormat: Text.PlainText
                 wrapMode: Text.Wrap
-                text: qsTr("You can look at an example but not change it. Copy it to your components to change your own copy.")
+                text: qsTr("Copy it to your components to change your own copy.")
                 color: Theme.colors.textSecondary
                 font.pixelSize: Theme.type.label.size
             }
@@ -142,11 +142,12 @@ Flickable {
 
             Item {
                 width: parent.width
-                height: descriptionLabel.implicitHeight
+                height: Math.max(descriptionLabel.implicitHeight, descriptionInfo.implicitHeight)
 
                 Text {
                     id: descriptionLabel
 
+                    width: Math.min(implicitWidth, parent.width - descriptionInfo.width - Theme.space.xs)
                     textFormat: Text.PlainText
                     text: qsTr("One-line description")
                     color: Theme.colors.textPrimary
@@ -154,13 +155,14 @@ Flickable {
                     font.weight: Theme.type.label.weight
                 }
 
-                Text {
-                    anchors.right: parent.right
+                InfoButton {
+                    id: descriptionInfo
+
+                    objectName: "descriptionInfo"
+                    x: descriptionLabel.width + Theme.space.xs
                     anchors.verticalCenter: descriptionLabel.verticalCenter
-                    textFormat: Text.PlainText
-                    text: qsTr("Shown in the library")
-                    color: Theme.colors.textTertiary
-                    font.pixelSize: Theme.type.caption.size
+                    title: qsTr("One-line description")
+                    info: qsTr("Shown in the library")
                 }
             }
 
@@ -238,11 +240,12 @@ Flickable {
 
             Item {
                 width: parent.width
-                height: usersLabel.implicitHeight
+                height: Math.max(usersLabel.implicitHeight, usersInfo.implicitHeight)
 
                 Text {
                     id: usersLabel
 
+                    width: Math.min(implicitWidth, parent.width - usersInfo.width - Theme.space.xs)
                     textFormat: Text.PlainText
                     text: qsTr("Profiles that use it")
                     color: Theme.colors.textPrimary
@@ -250,13 +253,14 @@ Flickable {
                     font.weight: Theme.type.label.weight
                 }
 
-                Text {
-                    anchors.right: parent.right
+                InfoButton {
+                    id: usersInfo
+
+                    objectName: "usersInfo"
+                    x: usersLabel.width + Theme.space.xs
                     anchors.verticalCenter: usersLabel.verticalCenter
-                    textFormat: Text.PlainText
-                    text: qsTr("They change with it")
-                    color: Theme.colors.textTertiary
-                    font.pixelSize: Theme.type.caption.size
+                    title: qsTr("Profiles that use it")
+                    info: qsTr("They change with it")
                 }
             }
 

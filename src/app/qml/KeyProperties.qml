@@ -136,6 +136,7 @@ Item {
 
         property string title
         property string caption
+        property string info
         default property alias content: body.data
 
         width: parent !== null ? parent.width : 0
@@ -153,12 +154,12 @@ Item {
             x: Theme.space.lg
             y: Theme.space.lg
             width: parent.width - 2 * Theme.space.lg
-            height: titleText.implicitHeight
+            height: Math.max(titleText.implicitHeight, groupInfo.visible ? groupInfo.implicitHeight : 0)
 
             Text {
                 id: titleText
 
-                width: Math.min(implicitWidth, parent.width)
+                width: Math.min(implicitWidth, parent.width - (groupInfo.visible ? groupInfo.width + Theme.space.xs : 0))
                 elide: Text.ElideRight
                 textFormat: Text.PlainText
                 text: group.title
@@ -167,10 +168,22 @@ Item {
                 font.weight: Theme.type.label.weight
             }
 
+            InfoButton {
+                id: groupInfo
+
+                objectName: "groupInfo"
+                x: titleText.width + Theme.space.xs
+                anchors.verticalCenter: titleText.verticalCenter
+                visible: group.info !== ""
+                title: group.title
+                info: group.info
+            }
+
             Text {
                 anchors.right: parent.right
                 anchors.baseline: titleText.baseline
-                width: Math.max(0, parent.width - titleText.width - Theme.space.sm)
+                width: Math.max(0, parent.width - titleText.width - Theme.space.sm
+                                - (groupInfo.visible ? groupInfo.width + Theme.space.xs : 0))
                 horizontalAlignment: Text.AlignRight
                 elide: Text.ElideRight
                 textFormat: Text.PlainText
@@ -426,13 +439,30 @@ Item {
                     width: parent.width - 2 * Theme.space.lg
                     spacing: Theme.space.xs
 
-                    Text {
+                    Row {
                         width: parent.width
-                        textFormat: Text.PlainText
-                        text: qsTr("Code name")
-                        color: Theme.colors.textPrimary
-                        font.pixelSize: Theme.type.label.size
-                        font.weight: Theme.type.label.weight
+                        spacing: Theme.space.xs
+
+                        Text {
+                            id: codeNameTitle
+
+                            width: Math.min(implicitWidth, parent.width - codeNameInfo.width - parent.spacing)
+                            anchors.verticalCenter: parent.verticalCenter
+                            textFormat: Text.PlainText
+                            text: qsTr("Code name")
+                            color: Theme.colors.textPrimary
+                            font.pixelSize: Theme.type.label.size
+                            font.weight: Theme.type.label.weight
+                        }
+
+                        InfoButton {
+                            id: codeNameInfo
+
+                            objectName: "codeNameInfo"
+                            anchors.verticalCenter: parent.verticalCenter
+                            title: qsTr("Code name")
+                            info: qsTr("Shown in the logic as controls.%1. It follows the key until you change it here.").arg(panel.keyId)
+                        }
                     }
 
                     TextField {
@@ -463,15 +493,6 @@ Item {
                                 codeNameField.errorText = ""
                             }
                         }
-                    }
-
-                    Text {
-                        width: parent.width
-                        textFormat: Text.PlainText
-                        wrapMode: Text.Wrap
-                        text: qsTr("Shown in the logic as controls.%1. It follows the key until you change it here.").arg(panel.keyId)
-                        color: Theme.colors.textTertiary
-                        font.pixelSize: Theme.type.caption.size
                     }
                 }
             }
@@ -706,6 +727,8 @@ Item {
 
                 objectName: "addOns"
                 title: qsTr("Add-ons")
+                info: qsTr("Add-ons from extensions change what this component gets from the keys or how it "
+                           + "touches the screen.")
                 caption: attached.length > 1 ? qsTr("Applied from top to bottom") : ""
 
                 Column {
@@ -715,12 +738,11 @@ Item {
                     Text {
                         objectName: "addOnsEmpty"
                         width: parent.width
-                        visible: addOns.attached.length === 0
+                        visible: addOns.attached.length === 0 && addOns.offers.length === 0
                         wrapMode: Text.Wrap
                         textFormat: Text.PlainText
-                        text: addOns.offers.length > 0
-                              ? qsTr("Add-ons from extensions change what this component gets from the keys or how it touches the screen.")
-                              : qsTr("No turned-on extension offers add-ons for this kind of component. Turn one on on the Extensions page.")
+                        text: qsTr("No turned-on extension offers add-ons for this kind of component. "
+                                   + "Turn one on on the Extensions page.")
                         color: Theme.colors.textTertiary
                         font.pixelSize: Theme.type.caption.size
                     }

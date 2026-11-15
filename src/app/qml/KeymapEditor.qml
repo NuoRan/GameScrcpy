@@ -148,13 +148,11 @@ Item {
         const fresh = { kind: "new", icon: "plus", text: qsTr("New component…"), hint: "",
                         tip: qsTr("Make your own component. It starts with one key that taps where you place it."),
                         badge: "" }
-        return [{ title: qsTr("Example components"), note: qsTr("Made with logic, double-click to look"),
-                  items: ComponentLibrary.examples.map(tileOf) },
-                { title: qsTr("My components"), note: "", items: ComponentLibrary.mine.map(tileOf).concat([fresh]) }]
+        return [{ title: qsTr("Example components"), items: ComponentLibrary.examples.map(tileOf) },
+                { title: qsTr("My components"), items: ComponentLibrary.mine.map(tileOf).concat([fresh]) }]
     }
     readonly property var extensionLibrary: [{
         title: qsTr("Extensions"),
-        note: qsTr("From turned-on extensions"),
         items: ExtensionHost.nativeBehaviors.map(entry => ({
             kind: "behavior:" + entry.module, icon: "puzzle", text: entry.title,
             hint: entry.description !== "" ? entry.description : entry.extension,
@@ -168,7 +166,6 @@ Item {
             return all
         return all.map(group => ({
                                      title: group.title,
-                                     note: group.note ?? "",
                                      items: group.items.filter(item => item.kind !== "new"
                                                                && (item.text.toLowerCase().indexOf(query) >= 0
                                                                    || item.hint.toLowerCase().indexOf(query) >= 0
@@ -1934,34 +1931,13 @@ Item {
                                 width: componentList.width
                                 spacing: keymapEditor.tileGap
 
-                                Item {
-                                    width: parent.width
-                                    height: groupTitle.implicitHeight
-
-                                    Text {
-                                        id: groupTitle
-
-                                        topPadding: Theme.space.sm
-                                        textFormat: Text.PlainText
-                                        text: group.modelData.title
-                                        color: Theme.colors.textTertiary
-                                        font.pixelSize: Theme.type.micro.size
-                                        font.weight: Theme.type.micro.weight
-                                    }
-
-                                    Text {
-                                        objectName: "groupNote"
-                                        anchors.right: parent.right
-                                        anchors.baseline: groupTitle.baseline
-                                        width: Math.max(0, parent.width - groupTitle.implicitWidth - Theme.space.sm)
-                                        visible: (group.modelData.note ?? "") !== ""
-                                        horizontalAlignment: Text.AlignRight
-                                        textFormat: Text.PlainText
-                                        text: group.modelData.note ?? ""
-                                        elide: Text.ElideRight
-                                        color: Theme.colors.textTertiary
-                                        font.pixelSize: Theme.type.micro.size
-                                    }
+                                Text {
+                                    topPadding: Theme.space.sm
+                                    textFormat: Text.PlainText
+                                    text: group.modelData.title
+                                    color: Theme.colors.textTertiary
+                                    font.pixelSize: Theme.type.micro.size
+                                    font.weight: Theme.type.micro.weight
                                 }
 
                                 Grid {
