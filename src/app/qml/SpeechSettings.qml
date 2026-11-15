@@ -36,7 +36,7 @@ SettingCard {
     title: qsTr("Reading aloud and voice commands")
     iconName: "audio-lines"
     tone: "rose"
-    note: qsTr("Used by speech.say and speech.listen in logic")
+    info: qsTr("Used by speech.say and speech.listen in logic")
 
     Component.onCompleted: SpeechEngines.loadVoices(card.speaker)
     onSpeakerChanged: SpeechEngines.loadVoices(card.speaker)

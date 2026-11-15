@@ -83,9 +83,9 @@ Column {
         SettingsRow {
             width: parent ? parent.width : implicitWidth
             title: qsTr("Diagnostics")
-            note: qsTr("Saves the logs, the settings, the device list and the newest crash report in one zip file "
-                       + "to attach to a problem report. Serial numbers, addresses, user names, Wi-Fi names and "
-                       + "clipboard text are taken out.")
+            description: qsTr("Saves the logs, the settings, the device list and the newest crash report in one zip file "
+                              + "to attach to a problem report. Serial numbers, addresses, user names, Wi-Fi names and "
+                              + "clipboard text are taken out.")
 
             Button {
                 objectName: "exportDiagnostics"

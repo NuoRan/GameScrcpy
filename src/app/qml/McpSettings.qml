@@ -33,8 +33,7 @@ SettingCard {
         title: qsTr("Approved clients")
         description: qsTr("The clients you allowed and asked GameScrcpy to remember. They connect without asking again; "
                           + "removing one disconnects it at once.")
-        note: McpServer.clients.length === 0
-              ? qsTr("None yet. A client is listed here when you allow it with Remember this client ticked.") : ""
+        note: McpServer.clients.length === 0 ? qsTr("None yet.") : ""
         below: Repeater {
             model: McpServer.clients
 

@@ -385,7 +385,8 @@ Item {
                     title: qsTr("Video")
                     iconName: "monitor"
                     tone: "orange"
-                    note: qsTr("Changes take effect from the next connection.")
+                    note: DeviceManager.mirroringCount > 0
+                          ? qsTr("Changes take effect from the next connection.") : ""
 
                     SliderSetting {
                         path: "video.maxSize"
@@ -502,7 +503,8 @@ Item {
                     title: qsTr("Sound")
                     iconName: "volume-2"
                     tone: "teal"
-                    note: qsTr("Changes take effect from the next connection.")
+                    note: DeviceManager.mirroringCount > 0
+                          ? qsTr("Changes take effect from the next connection.") : ""
 
                     SwitchSetting {
                         id: sound
@@ -649,16 +651,10 @@ Item {
                         id: touchMethod
 
                         property string pending
-                        readonly property string explanation: {
-                            if (touchMethod.methodMissing)
-                                return qsTr("The extension that adds this touch method is off, so touches go the "
-                                            + "normal way.")
+                        readonly property string baseDescription: touchMethod.entry?.description ?? ""
+                        readonly property string methodInfo: {
                             if (touchMethod.method !== null)
-                                return touchMethod.method.description !== ""
-                                       ? qsTr("%1 From %2; when it fails, touches go the normal way.")
-                                         .arg(touchMethod.method.description).arg(touchMethod.method.extension)
-                                       : qsTr("From %1; when it fails, touches go the normal way.")
-                                         .arg(touchMethod.method.extension)
+                                return ""
                             if (touchMethod.current === "uhid")
                                 return qsTr("Up to 16 fingers. On an independent display touches still go the normal way.")
                             if (touchMethod.current === "aoa")
@@ -670,13 +666,27 @@ Item {
                                 return qsTr("Only shows the picture; taps, swipes and key mapping do not reach the phone.")
                             return ""
                         }
+                        readonly property string stateText: {
+                            if (touchMethod.methodMissing)
+                                return qsTr("The extension that adds this touch method is off, so touches go the "
+                                            + "normal way.")
+                            if (touchMethod.method !== null)
+                                return touchMethod.method.description !== ""
+                                       ? qsTr("%1 From %2; when it fails, touches go the normal way.")
+                                         .arg(touchMethod.method.description).arg(touchMethod.method.extension)
+                                       : qsTr("From %1; when it fails, touches go the normal way.")
+                                         .arg(touchMethod.method.extension)
+                            return ""
+                        }
 
                         objectName: "touchMethod"
                         path: "touch.method"
                         labels: ({ inject: qsTr("Normal"), uhid: qsTr("UHID touch screen"), aoa: qsTr("AOA"),
                                    none: qsTr("No touch") })
+                        description: [touchMethod.baseDescription, touchMethod.methodInfo]
+                                     .filter(text => text !== "").join("\n\n")
                         confirmFirst: ["aoa"]
-                        fact: [touchMethod.explanation, touchMethod.blockedText].filter(text => text !== "").join("\n")
+                        fact: [touchMethod.stateText, touchMethod.blockedText].filter(text => text !== "").join("\n")
                         onConfirmationWanted: option => touchMethod.pending = String(option)
                         onCurrentChanged: touchMethod.pending = ""
                     }
@@ -1118,7 +1128,7 @@ Item {
                 AiSettings {
                     objectName: "aiSettings"
                     title: qsTr("AI model")
-                    note: qsTr("Used by the AI assistant and by ai.ask in logic")
+                    info: qsTr("Used by the AI assistant and by ai.ask in logic")
                 }
 
                 McpSettings {

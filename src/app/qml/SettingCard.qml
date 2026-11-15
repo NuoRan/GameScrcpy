@@ -8,6 +8,7 @@ Card {
 
     property string title
     property string note
+    property string info
     property string iconName
     property string iconPath
     property string tone
@@ -72,10 +73,21 @@ Card {
                 font.weight: Font.DemiBold
             }
 
+            InfoButton {
+                id: headingInfo
+
+                anchors.left: heading.right
+                anchors.leftMargin: Theme.space.xs
+                anchors.verticalCenter: tile.verticalCenter
+                visible: card.info !== ""
+                title: card.title
+                info: card.info
+            }
+
             Text {
                 objectName: "note"
-                anchors.left: heading.right
-                anchors.leftMargin: Theme.space.lg
+                anchors.left: headingInfo.visible ? headingInfo.right : heading.right
+                anchors.leftMargin: headingInfo.visible ? Theme.space.md : Theme.space.lg
                 anchors.right: card.restorable ? restore.left : parent.right
                 anchors.rightMargin: card.restorable ? Theme.space.md : card.inset
                 anchors.verticalCenter: tile.verticalCenter
