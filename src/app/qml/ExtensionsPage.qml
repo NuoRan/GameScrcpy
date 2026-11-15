@@ -300,12 +300,12 @@ Item {
 
     function byline(entry: var): string {
         const parts = []
+        if ((entry.writtenFor ?? "") !== "")
+            parts.push(qsTr("Made for GameScrcpy %1").arg(entry.writtenFor))
         if (entry.authors.length > 0)
             parts.push(qsTr("By %1").arg(entry.authors.join(qsTr(", ", "list separator"))))
         if (entry.license)
             parts.push(entry.license)
-        if ((entry.writtenFor ?? "") !== "")
-            parts.push(qsTr("Made for GameScrcpy %1").arg(entry.writtenFor))
         return parts.join(" · ")
     }
 
