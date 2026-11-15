@@ -566,7 +566,7 @@ TEST_CASE("the help home lists the guides with their look, the popular questions
     CHECK(connecting.value(QStringLiteral("tile")).toString() == QStringLiteral("azure"));
     CHECK(connecting.value(QStringLiteral("layout")).toString() == QStringLiteral("guide"));
     CHECK_FALSE(connecting.value(QStringLiteral("summary")).toString().isEmpty());
-    CHECK(connecting.value(QStringLiteral("count")).toInt() == 7);
+    CHECK(connecting.value(QStringLiteral("count")).toInt() == 8);
     CHECK(connecting.value(QStringLiteral("minutes")).toInt() >= 2);
     const QVariantMap faq = guides.back().toMap();
     CHECK(faq.value(QStringLiteral("layout")).toString() == QStringLiteral("faq"));
@@ -604,7 +604,7 @@ TEST_CASE("an article gives its layout, blocks, sections, neighbours and link ca
           QStringLiteral("aoa-driver"));
     CHECK(connecting.value(QStringLiteral("meta")).toList().size() == 1);
     const QVariantList sections = connecting.value(QStringLiteral("sections")).toList();
-    REQUIRE(sections.size() == 7);
+    REQUIRE(sections.size() == 8);
     CHECK(sections.front().toMap().value(QStringLiteral("title")).toString() == QStringLiteral("Prepare the phone"));
     const QVariantList blocks = connecting.value(QStringLiteral("blocks")).toList();
     QStringList kinds;

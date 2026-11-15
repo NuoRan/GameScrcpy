@@ -47,15 +47,25 @@ The phone and this computer must be on the same network. On the **Devices** page
 After pairing, the phone usually connects by itself. If it does not, look at the main **Wireless debugging** screen on the phone, enter the IP address and port shown there (not the pairing port) under **Recent connections**, and select **Connect**. Phones you connected before stay under **Recent connections**; next time one click is enough.
 
 > [!WARNING]
-> **Phones before Android 11 cannot pair**: connect them over USB, run `adb tcpip 5555` once, then connect to the phone's IP address with port 5555.
+> **Phones before Android 11 cannot pair**: connect them over USB, then follow [Connect over the network](help:connecting#network) below.
+
+## Connect over the network {#network}
+
+A phone on a network cable without Wi‑Fi cannot use wireless debugging; network debugging on port 5555 works instead. It works over a cable or Wi‑Fi, and on phones before Android 11 too.
+
+1. **Plug the phone into this computer with a USB cable**.
+2. **On the phone's card, open More (…) and select Connect over the network**: the **Wireless debugging** section at the bottom of the page says what to do next.
+3. **Unplug the cable and connect the phone to the same network as this computer**, by network cable or Wi‑Fi. GameScrcpy finds the phone on this computer's network and connects; it then stays under **Recent connections**.
+
+Network debugging ends when the phone restarts; do it over USB again then.
 
 ## Choose how the picture travels
 
 Before you select **Mirror**, you can choose the connection on the phone's card:
 
-- :plug: **adb tunnel**: through the USB cable or wireless debugging. It works everywhere.
-- :wifi: **WiFi direct**: the picture goes straight over Wi‑Fi. The phone must be connected over wireless debugging, and the router must let its devices reach each other.
-- :sparkles: **Auto**: GameScrcpy chooses.
+- :plug: **adb tunnel**: through the USB cable, wireless debugging or network debugging. It works everywhere.
+- :wifi: **WiFi direct**: the picture goes straight over the network, Wi‑Fi or cable. The phone must be connected over wireless or network debugging, and the router must let its devices reach each other.
+- :sparkles: **Auto**: phones connected over wireless or network debugging use WiFi direct, phones on a USB cable use the adb tunnel. When WiFi direct cannot get through you get an error; it does not quietly switch to the tunnel.
 
 ## Several phones
 
@@ -67,4 +77,4 @@ The settings button on a phone's card opens **Device settings**. There the phone
 
 ## More on the phone's card
 
-The **More** button (…) on a mirrored phone's card has **Apps**, the phone's screen and orientation, its Back, Home and Recent apps keys and the diagnostics overlay. Phones on Wi‑Fi also have **End wireless debugging connection**.
+The **More** button (…) on a mirrored phone's card has **Apps**, the phone's screen and orientation, its Back, Home and Recent apps keys and the diagnostics overlay. Phones on Wi‑Fi also have **End wireless debugging connection**, and phones on a USB cable have **Connect over the network**.

@@ -29,7 +29,7 @@ The user interface is available in Simplified Chinese and English, and language 
 
 - **Low latency**: hardware decoding on the graphics card, with decoded pictures handed to the interface without a memory copy; H.264, H.265 and AV1.
 - **Audio**: plays the phone's sound on the PC (Android 11 and later).
-- **Connections**: USB cable; wireless debugging, paired with a code or a QR code; the picture can also travel over WiFi direct (UDP with error correction, resuming by itself after a dropout).
+- **Connections**: USB cable; wireless debugging, paired with a code or a QR code; for a phone on a network cable without Wi-Fi, one click over USB turns on network debugging and it connects by itself once unplugged; the picture can also travel over WiFi direct (UDP with error correction, resuming by itself after a dropout, also over a cable).
 - **Several phones**: one window each, or all of them in a grid; mirror input to all of them, or open an app, install an APK, send files or run a task on the selected ones.
 - **Recording**: records the picture, the sound and your input, exports MP4, and replays recordings to test logic.
 - **Phone tools**: files, apps, a status overlay, and apps launched on a separate virtual display; measures the real latency from a key press to the change on screen.
@@ -90,7 +90,7 @@ The user interface is available in Simplified Chinese and English, and language 
 |:--|:--|
 | PC | Windows 10 / 11, 64-bit; a graphics card with Direct3D 11 is recommended (without one, the processor decodes and draws, which may stutter) |
 | Phone | Android 9 or later; audio and wireless pairing need Android 11 or later |
-| Connection | A USB cable, or Wi-Fi on the same network as the PC |
+| Connection | A USB cable, or Wi-Fi or a network cable on the same network as the PC |
 
 ## Download and install
 
