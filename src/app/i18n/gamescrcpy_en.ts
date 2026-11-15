@@ -446,9 +446,9 @@
     </message>
     <message numerus="yes">
         <source>It stops after %n second(s) at the latest.</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>It stops after %n second at the latest.</numerusform>
+            <numerusform>It stops after %n seconds at the latest.</numerusform>
         </translation>
     </message>
     <message numerus="yes">
