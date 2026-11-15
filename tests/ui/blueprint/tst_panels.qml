@@ -227,6 +227,20 @@ Item {
             compare(jumps.count, 1)
         }
 
+        function test_fieldExplanationsWaitForTheQuestionMark() {
+            details.details = mock.details
+            const again = findChild(details, "bpFieldInfo_again")
+            verify(again !== null)
+            verify(again.visible)
+            compare(again.info, "还可以选：停掉上一次从头来 · 排在后面 · 同时做")
+            const enabled = findChild(details, "bpFieldInfo_enabled")
+            verify(enabled !== null)
+            compare(enabled.info, "关掉时这个事件先不响应。")
+            const whenInfo = findChild(details, "bpFieldInfo_when")
+            verify(whenInfo !== null)
+            verify(!whenInfo.visible)
+        }
+
         function test_unsetOptionsShowTheirDefault() {
             const field = (name, label, kind, value, unset, extra) => Object.assign({
                 name: name, label: label, kind: kind, value: value, caption: "", info: "", unit: "",
@@ -327,6 +341,30 @@ Item {
             verify(menu !== null)
             verify(menu.visible)
             menu.close()
+        }
+
+        function test_variableEditorKeepsItsExplanationsOnDemand() {
+            variableEditor.spec = {
+                key: "v2", name: "目标", kind: "class", container: "single", keyKind: "text", value: "",
+                category: "", description: "", keep: false, editable: false, constant: false,
+                scope: "class", pageTitle: "主页", canBeEditable: true,
+                types: [{ value: "integer", text: "整数" }, { value: "class", text: "类" }],
+                containers: [{ value: "single", text: "一个" }],
+                keyKinds: [{ value: "text", text: "文字" }]
+            }
+            const valueInfo = findChild(variableEditor, "bpVarValueInfo")
+            verify(valueInfo !== null)
+            verify(valueInfo.visible)
+            compare(valueInfo.info, "Written as code, such as 0, \"text\", [] or { x: 0.5, y: 0.5 }")
+            const keepInfo = findChild(variableEditor, "bpVarKeepInfo")
+            verify(keepInfo !== null)
+            verify(keepInfo.visible)
+            compare(keepInfo.info, "Saved with the program, so it starts where it ended last time")
+            const note = findChild(variableEditor, "bpVarEditableNote")
+            verify(note !== null)
+            verify(note.visible)
+            variableEditor.kind = "integer"
+            verify(!note.visible)
         }
 
         function test_variableEditorShowsTheSpecAndSavesIt() {

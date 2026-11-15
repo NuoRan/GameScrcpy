@@ -189,6 +189,13 @@ Item {
             fuzzyCompare(playhead.x + playhead.width / 2, timeline.xOf(12400), 0.5)
         }
 
+        function test_theTimelineExplainsItselfOnDemand() {
+            const info = findChild(timeline, "bpTimelineInfo")
+            verify(info !== null)
+            verify(info.visible)
+            compare(info.info, "Drag to look back at each step: the picture and what was found")
+        }
+
         function test_draggingThePlayheadSeeksOncePerFrame() {
             const playhead = findChild(timeline, "bpPlayhead")
             const y = playhead.y + playhead.height / 2

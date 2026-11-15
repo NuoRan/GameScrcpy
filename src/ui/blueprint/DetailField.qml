@@ -49,7 +49,7 @@ Column {
     Item {
         width: field.width
         height: Math.max(labelRow.implicitHeight, field.inline ? toggle.implicitHeight : 0)
-        visible: (field.spec.label ?? "") !== "" || field.inline
+        visible: (field.spec.label ?? "") !== "" || (field.spec.caption ?? "") !== "" || field.inline
 
         Row {
             id: labelRow
@@ -67,10 +67,11 @@ Column {
             }
 
             InfoButton {
+                objectName: "bpFieldInfo_" + field.name
                 anchors.verticalCenter: parent.verticalCenter
-                visible: (field.spec.info ?? "") !== ""
+                visible: (field.spec.info ?? "") !== "" || (field.spec.caption ?? "") !== ""
                 title: field.spec.label ?? ""
-                info: field.spec.info ?? ""
+                info: (field.spec.info ?? "") !== "" ? field.spec.info : (field.spec.caption ?? "")
             }
         }
 
@@ -113,18 +114,6 @@ Column {
                 return readonlyView
             }
         }
-    }
-
-    Text {
-        width: field.width
-        visible: (field.spec.caption ?? "") !== ""
-        textFormat: Text.PlainText
-        text: field.spec.caption ?? ""
-        wrapMode: Text.Wrap
-        color: Theme.colors.textTertiary
-        font.pixelSize: Theme.type.caption.size
-        lineHeight: Theme.type.caption.lineHeight
-        lineHeightMode: Text.FixedHeight
     }
 
     Component {

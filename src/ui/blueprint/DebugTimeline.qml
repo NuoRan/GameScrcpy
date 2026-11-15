@@ -94,6 +94,13 @@ Rectangle {
                 font.weight: Font.DemiBold
             }
 
+            InfoButton {
+                objectName: "bpTimelineInfo"
+                anchors.verticalCenter: parent.verticalCenter
+                title: qsTr("Timeline")
+                info: qsTr("Drag to look back at each step: the picture and what was found")
+            }
+
             Text {
                 objectName: "bpTimelineClock"
                 anchors.verticalCenter: parent.verticalCenter
@@ -111,14 +118,6 @@ Rectangle {
             anchors.rightMargin: Theme.space.md
             anchors.verticalCenter: parent.verticalCenter
             spacing: Theme.space.sm
-
-            Text {
-                anchors.verticalCenter: parent.verticalCenter
-                textFormat: Text.PlainText
-                text: qsTr("Drag to look back at each step: the picture and what was found")
-                color: Theme.colors.textTertiary
-                font.pixelSize: Theme.type.caption.size
-            }
 
             Button {
                 objectName: "bpLive"

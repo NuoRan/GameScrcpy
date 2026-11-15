@@ -229,11 +229,23 @@ Item {
 
             spacing: Theme.space.xs
 
-            Text {
-                textFormat: Text.PlainText
-                text: qsTr("Starting value")
-                color: Theme.colors.textSecondary
-                font.pixelSize: Theme.type.caption.size
+            Row {
+                spacing: Theme.space.xs
+
+                Text {
+                    anchors.verticalCenter: parent.verticalCenter
+                    textFormat: Text.PlainText
+                    text: qsTr("Starting value")
+                    color: Theme.colors.textSecondary
+                    font.pixelSize: Theme.type.caption.size
+                }
+
+                InfoButton {
+                    objectName: "bpVarValueInfo"
+                    anchors.verticalCenter: parent.verticalCenter
+                    title: qsTr("Starting value")
+                    info: qsTr("Written as code, such as 0, \"text\", [] or { x: 0.5, y: 0.5 }")
+                }
             }
 
             TextField {
@@ -245,15 +257,6 @@ Item {
                 text: editor.value
                 placeholderText: editor.many ? "[]" : ""
                 onTextEdited: editor.value = valueField.text
-            }
-
-            Text {
-                width: parent.width
-                textFormat: Text.PlainText
-                text: qsTr("Written as code, such as 0, \"text\", [] or { x: 0.5, y: 0.5 }")
-                color: Theme.colors.textTertiary
-                font.pixelSize: Theme.type.micro.size
-                wrapMode: Text.Wrap
             }
         }
 
@@ -303,27 +306,24 @@ Item {
             }
         }
 
-        Column {
-            width: parent.width
+        Row {
             spacing: Theme.space.xs
 
             Checkbox {
                 id: keepBox
 
                 objectName: "bpVarKeep"
+                anchors.verticalCenter: parent.verticalCenter
                 text: qsTr("Keep it for next time")
                 checked: editor.keep
                 onToggled: editor.keep = keepBox.checked
             }
 
-            Text {
-                x: Theme.size.checkbox + Theme.space.sm
-                width: parent.width - x
-                textFormat: Text.PlainText
-                text: qsTr("Saved with the program, so it starts where it ended last time")
-                color: Theme.colors.textTertiary
-                font.pixelSize: Theme.type.micro.size
-                wrapMode: Text.Wrap
+            InfoButton {
+                objectName: "bpVarKeepInfo"
+                anchors.verticalCenter: parent.verticalCenter
+                title: qsTr("Keep it for next time")
+                info: qsTr("Saved with the program, so it starts where it ended last time")
             }
         }
 
@@ -343,11 +343,12 @@ Item {
             }
 
             Text {
+                objectName: "bpVarEditableNote"
                 x: Theme.size.checkbox + Theme.space.sm
                 width: parent.width - x
+                visible: !editor.kindEditable
                 textFormat: Text.PlainText
-                text: editor.kindEditable ? qsTr("Placed components of this class can change it")
-                                          : qsTr("This type cannot be changed in the property panel")
+                text: qsTr("This type cannot be changed in the property panel")
                 color: Theme.colors.textTertiary
                 font.pixelSize: Theme.type.micro.size
                 wrapMode: Text.Wrap

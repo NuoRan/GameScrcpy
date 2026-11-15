@@ -772,16 +772,6 @@ Item {
                     font.weight: Theme.type.subtitle.weight
                 }
 
-                Text {
-                    width: parent.width
-                    horizontalAlignment: Text.AlignHCenter
-                    textFormat: Text.PlainText
-                    wrapMode: Text.Wrap
-                    text: qsTr("Logic is TypeScript that reacts to the keys and to the phone. It runs on every phone that uses this profile.")
-                    color: Theme.colors.textSecondary
-                    font.pixelSize: Theme.type.body.size
-                }
-
                 Button {
                     objectName: "addLogicButton"
                     anchors.horizontalCenter: parent.horizontalCenter
