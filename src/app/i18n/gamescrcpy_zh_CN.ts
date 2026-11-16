@@ -10832,7 +10832,9 @@
     </message>
     <message numerus="yes">
         <source>It stops after %n second(s) at the latest.</source>
-        <translation><numerusform>最多运行 %n 秒。</numerusform></translation>
+        <translation>
+            <numerusform>最多运行 %n 秒。</numerusform>
+        </translation>
     </message>
     <message>
         <source>It records like the record button of the mirror window. %1 can stop it and try its logic on the recording.</source>
