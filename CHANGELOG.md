@@ -2,6 +2,29 @@
 
 本文件记录每个版本的主要变化，格式参照 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.2.1] - 未发布
+
+2.2.1 修了一批问题：方案可以改名，扩展页卡片的间距恢复正常，录像的声音与画面对齐，触控盒与 AOA 的控制窗口键鼠和转屏更顺，界面上常驻的说明小字也精简了。手机上的服务端随之更新（2.2.1，声音采集），伴侣 App 没有变化。
+
+### 修复
+
+- **方案改名**：方案卡片的菜单里选“重命名”、双击方案名，或者在键位编辑器的菜单里改；开着的编辑器跟着显示新名字。
+- **扩展页**：两张卡片并排时中间不再空出一大块；每行卡片只按这一行里最高的那张排；卡片署名先写“为 GameScrcpy … 编写”。
+- **录像音画同步**：导出 MP4 时声音按一条连续的时钟排在画面上，中途没声音的地方补静音，声音晚开始时从开头补静音，完全重叠的声音包丢掉，中途重连后的第二段声音不再把声音截断；手机端先把每 20 毫秒的声音读出来再等编码器，编码器忙时不再丢声音。
+- **控制窗口**（没有画面，扩展提供的触控盒、AOA）：视角放开时按住 WASD 再动鼠标，按键不再失灵（鼠标移动按手机的触控频率合并后再发）；伴侣 App 报告手机转屏时窗口跟着转，竖屏转横屏不再卡住一块；视角锁定时手机光标停在角落，解锁后回到电脑鼠标所在的位置，回来之前的点击先排队。
+- **扩展面板**：在输入框里打完字直接点按钮，按钮收到的就是刚打的内容（以前要先按回车或点一下别处，否则 ESP32 触控盒改名会报“名称要有 1～32 个字节”，保存 Wi‑Fi 时密码是空的）；什么也不显示的部分不再占位置。
+
+### 界面
+
+- 删去一大批常驻的说明小字（安装对话框、设置、工作台、AI 小助手、设备页、蓝图、投屏窗口、键位编辑器）：细节放到旁边的 ⓘ 里，或者只在用得上时出现。
+
+### English summary
+
+- **Fixes**: profiles can be renamed from the card's menu, by double-clicking the name and in the key mapping editor. Two extension cards side by side no longer stand far apart, and each row is as tall as its own tallest card. Recordings keep sound and picture together: the MP4 sound track runs on one continuous clock, silence fills gaps and a late start, a second audio session no longer cuts the sound off, and the phone no longer drops sound while the encoder is busy. In the Control window of a touch box or AOA the keys keep working while the mouse moves with the camera released (mouse motion is merged at the phone's touch rate), the window turns with the rotation the companion reports, and the phone's pointer parks while the camera is locked and comes back under the computer's pointer, with clicks held until it is there. A click in an extension panel carries the text just typed into a field.
+- **Interface**: many standing explanations are gone; the details sit behind info buttons or appear only when they apply.
+
+The server on the phone is updated (2.2.1, sound capture); the companion app is unchanged.
+
 ## [2.2.0] - 2026-11-15
 
 2.2 让投屏更快、更稳：手机端在 120 帧时改用块模式给编码器送画面，整条链路的线程优先级、WiFi 直连与电脑端显示都重新调过；手机插网线时也能一键改走网络；可以自己设触控发送频率；AI 小助手按模型给出强度与上下文选项。手机上的服务端随之更新（2.2.0），伴侣 App 没有变化。
