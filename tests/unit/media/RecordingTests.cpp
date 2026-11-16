@@ -721,15 +721,17 @@ TEST_CASE("R9: MP4 export keeps the sound on one clock through a hole, so it can
     const std::vector<std::uint8_t> original = readBytes(media("emulator_h264.media"));
     const std::vector<MediaPacket> packets = packetsOf(original);
     std::int64_t first = -1;
+    std::int64_t lastFrame = -1;
     std::int64_t secondSession = -1;
     for (const MediaPacket& packet : packets) {
         if (packet.header.kind == MediaKind::Session) {
             if (first >= 0) {
-                secondSession = packet.header.ptsUs;
+                secondSession = lastFrame;
                 break;
             }
         } else if (packet.header.kind == MediaKind::Frame) {
             first = first < 0 ? packet.header.ptsUs : first;
+            lastFrame = packet.header.ptsUs;
         }
     }
     REQUIRE(first >= 0);
@@ -768,11 +770,11 @@ TEST_CASE("R9: MP4 export keeps the sound on one clock through a hole, so it can
     REQUIRE(sounds != movie.tracks.end());
     const std::uint32_t intro = static_cast<std::uint32_t>((start - first) * 48 / 1000);
     const std::uint32_t hole = static_cast<std::uint32_t>((holeTo - holeFrom) * 48 / 1000);
-    CHECK(sounds->samples == clips * 960 + intro + hole);
+    CHECK(sounds->samples == clips + intro / 960 + hole / 960);
     CHECK(sounds->edits == 1);
     REQUIRE(sounds->durations.size() == sounds->samples);
     CHECK(std::ranges::all_of(sounds->durations, [](std::uint32_t duration) { return duration == 960U; }));
-    CHECK(std::abs(sounds->seconds - static_cast<double>(sounds->samples) / 48'000.0) < 0.002);
+    CHECK(std::abs(sounds->seconds - static_cast<double>(sounds->samples) * 960.0 / 48'000.0) < 0.002);
 }
 
 TEST_CASE("R9: MP4 export keeps the sound after the audio session is opened again")
@@ -826,6 +828,7 @@ TEST_CASE("R9: the packet the export writes for a hole is twenty milliseconds of
     AVCodecContext* context = avcodec_alloc_context3(codec);
     REQUIRE(context != nullptr);
     const std::vector<std::uint8_t> head = opusHead();
+    const int preSkip = head[10] | (head[11] << 8);
     context->extradata = static_cast<std::uint8_t*>(av_mallocz(head.size() + AV_INPUT_BUFFER_PADDING_SIZE));
     REQUIRE(context->extradata != nullptr);
     std::memcpy(context->extradata, head.data(), head.size());
@@ -850,7 +853,7 @@ TEST_CASE("R9: the packet the export writes for a hole is twenty milliseconds of
         }
         REQUIRE(received >= 0);
         ++frames;
-        CHECK(frame->nb_samples == 960);
+        CHECK(frame->nb_samples + preSkip == 960);
         CHECK(frame->ch_layout.nb_channels == 2);
         for (int channel = 0; channel < frame->ch_layout.nb_channels; ++channel) {
             const auto* samples = reinterpret_cast<const float*>(frame->extended_data[channel]);
