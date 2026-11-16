@@ -139,6 +139,12 @@ int32_t crash(void*, const gs_ext_value*, uint32_t, gs_ext_result*)
     return GS_EXT_OK;
 }
 
+int32_t exitWith(void*, const gs_ext_value* args, uint32_t, gs_ext_result*)
+{
+    TerminateProcess(GetCurrentProcess(), static_cast<UINT>(static_cast<uint32_t>(args[0].number)));
+    return GS_EXT_OK;
+}
+
 int32_t slow(void*, const gs_ext_value* args, uint32_t, gs_ext_result* result)
 {
     Sleep(static_cast<DWORD>(args[0].number));
@@ -1306,6 +1312,7 @@ const gs_ext_node kNodes[] = {
     {sizeof(gs_ext_node), "logMany", kOneNumber, 1, GS_EXT_TYPE_NUMBER, nullptr, &logMany},
     {sizeof(gs_ext_node), "deviceCalls", nullptr, 0, GS_EXT_TYPE_NUMBER, nullptr, &deviceCalls},
     {sizeof(gs_ext_node), "forge", kForgeArgs, 3, GS_EXT_TYPE_NUMBER, nullptr, &forgeNode},
+    {sizeof(gs_ext_node), "exitWith", kOneNumber, 1, GS_EXT_TYPE_NONE, nullptr, &exitWith},
 };
 
 const gs_ext_transport kLoop = {sizeof(gs_ext_transport), "loop",    nullptr,   &loopDiscover,
@@ -2282,6 +2289,7 @@ const gs_ext_contribution kContributions[] = {
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "logMany", &kNodes[51]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "deviceCalls", &kNodes[52]},
     {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "forge", &kNodes[53]},
+    {sizeof(gs_ext_contribution), GS_EXT_KIND_NODE, "exitWith", &kNodes[54]},
 };
 
 const gs_ext_plugin kPlugin = {

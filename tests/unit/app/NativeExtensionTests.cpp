@@ -2907,6 +2907,47 @@ TEST_CASE("a touch method gets its options, typed text, the phone's mouse and a 
     }
 }
 
+TEST_CASE("R9: when Windows ends gs-exthost.exe as the session ends, it is not a crash: no restart and the extension "
+          "stays on; an ordinary exit still counts and restarts")
+{
+    for (const std::uint32_t code : {0xC000013AU, 0x40010004U, 0xC0000142U}) {
+        CAPTURE(code);
+        Scratch scratch;
+        std::atomic<int> restarts{0};
+        std::atomic<int> stops{0};
+        std::atomic<int> crashes{0};
+        exthost::HostedOptions options = hostedOptions(scratch);
+        options.restarted = [&restarts] { ++restarts; };
+        options.stopped = [&stops] { ++stops; };
+        options.crashed = [&crashes](std::uint32_t) { ++crashes; };
+        std::string problem;
+        std::unique_ptr<exthost::HostedModule> module = exthost::HostedModule::start(std::move(options), problem);
+        REQUIRE_MESSAGE(module != nullptr, problem);
+        CHECK(callNode(*module, "exitWith", {numberValue(static_cast<double>(code))}).status != exthost::CallStatus::Ok);
+        REQUIRE(eventually([&module] { return !module->working(); }));
+        CHECK_FALSE(module->waitReady(2s));
+        CHECK(module->crashes() == 0);
+        CHECK(crashes == 0);
+        CHECK(restarts == 0);
+        CHECK(stops == 0);
+        CHECK(callNode(*module, "add", {numberValue(1), numberValue(1)}).status == exthost::CallStatus::Unavailable);
+    }
+    Scratch scratch;
+    std::atomic<int> restarts{0};
+    std::atomic<int> crashes{0};
+    exthost::HostedOptions options = hostedOptions(scratch);
+    options.restarted = [&restarts] { ++restarts; };
+    options.crashed = [&crashes](std::uint32_t) { ++crashes; };
+    std::string problem;
+    std::unique_ptr<exthost::HostedModule> module = exthost::HostedModule::start(std::move(options), problem);
+    REQUIRE_MESSAGE(module != nullptr, problem);
+    CHECK(callNode(*module, "exitWith", {numberValue(3)}).status != exthost::CallStatus::Ok);
+    REQUIRE(eventually([&module] { return module->crashes() == 1; }));
+    REQUIRE(module->waitReady(20s));
+    CHECK(crashes == 1);
+    CHECK(restarts == 1);
+}
+
 TEST_CASE("gs-exthost.exe starts again after a crash, and three crashes within a minute stop the extension "
           "(ADR-0097)")
 {

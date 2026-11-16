@@ -35,6 +35,7 @@ constexpr DWORD kStopWaitMs = 2'000;
 constexpr std::chrono::milliseconds kClaimWantedWait{1'000};
 constexpr std::size_t kStreamWindow = 128 * 1024;
 constexpr UINT kStoppedExit = 9;
+constexpr std::array<DWORD, 3> kSessionEndExits{0xC000013AUL, 0x40010004UL, 0xC0000142UL};
 constexpr int kWarning = 1;
 constexpr std::size_t kMostContainedLines = 200;
 constexpr std::size_t kMostContainedNotices = 3;
@@ -1199,6 +1200,7 @@ struct HostedModule::Impl {
         bool restart = false;
         bool gaveUp = false;
         bool failedLate = false;
+        bool sessionEnded = false;
         std::string why;
         std::set<std::string> dropped;
         std::vector<std::function<void(std::vector<Shape>)>> cleared;
@@ -1252,6 +1254,10 @@ struct HostedModule::Impl {
                 }
                 failedLate = started;
                 why = problem;
+            } else if (std::ranges::find(kSessionEndExits, code) != kSessionEndExits.end()) {
+                state = State::Stopped;
+                problem = std::format("Windows ended the extension's process (exit {:#010x})", code);
+                sessionEnded = true;
             } else {
                 ++crashCount;
                 const Microseconds now = clock().now();
@@ -1272,7 +1278,7 @@ struct HostedModule::Impl {
         for (const auto& overlay : cleared) {
             overlay({});
         }
-        if (options.crashed) {
+        if (options.crashed && !sessionEnded) {
             options.crashed(static_cast<std::uint32_t>(code));
         }
         if (options.release) {
