@@ -329,6 +329,7 @@ public:
     [[nodiscard]] bool taskRunning(const QString& id, const QString& serial) const;
     Q_INVOKABLE QString startTask(const QString& id, const QString& serial);
     Q_INVOKABLE void stopTask(const QString& id, const QString& serial);
+    Q_INVOKABLE void clearTaskHistory();
     Q_INVOKABLE QString openTaskLogic(const QString& id);
     Q_INVOKABLE QString openComponent(const QString& ref);
     Q_INVOKABLE bool hideToTrayOnClose();

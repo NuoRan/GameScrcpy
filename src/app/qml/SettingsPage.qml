@@ -170,7 +170,7 @@ Item {
             return qsTr("A move every %1 ms").arg((1000 / Math.max(rate, 60)).toFixed(1))
         const hertz = phone.refreshHz ?? 0
         if (hertz <= 0)
-            return qsTr("Each phone uses twice its own refresh rate")
+            return ""
         const sent = Math.min(Math.max(2 * hertz, 120), 480)
         return qsTr("%1 times a second for the phone at %2 Hz now").arg(Math.round(sent)).arg(Math.round(hertz))
     }
@@ -404,7 +404,7 @@ Item {
                             text: qsTr("Original resolution"),
                             word: qsTr("Original"),
                             fallback: 1920,
-                            note: page.nativeSide > 0 ? page.sentSize(0) : qsTr("Sends the phone's own resolution")
+                            note: page.nativeSide > 0 ? page.sentSize(0) : ""
                         })
                     }
                     SliderSetting {
@@ -417,8 +417,7 @@ Item {
                             value: 0,
                             text: qsTr("Follow phone"),
                             fallback: 60,
-                            note: page.refreshText() !== "" ? page.refreshText()
-                                                             : qsTr("Each phone uses its own refresh rate")
+                            note: page.refreshText()
                         })
                     }
                     SelectSetting {

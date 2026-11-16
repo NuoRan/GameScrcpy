@@ -160,7 +160,6 @@ Item {
                 objectName: "newBlankTask"
                 iconName: "plus"
                 text: qsTr("Blank task")
-                description: qsTr("A small task to write your own logic in")
                 onTriggered: page.create()
             }
 
@@ -168,7 +167,6 @@ Item {
                 objectName: "newTaskFromExample"
                 iconName: "sparkles"
                 text: qsTr("From an example…")
-                description: qsTr("Copies a ready-made task that you can change")
                 enabled: TaskLibrary.examples.length > 0
                 onTriggered: exampleDialog.start()
             }
@@ -206,16 +204,6 @@ Item {
             color: Theme.colors.textPrimary
             font.pixelSize: Theme.type.subtitle.size
             font.weight: Theme.type.subtitle.weight
-        }
-
-        Text {
-            width: parent.width
-            horizontalAlignment: Text.AlignHCenter
-            textFormat: Text.PlainText
-            wrapMode: Text.Wrap
-            text: qsTr("A task is logic that runs on a phone by itself.")
-            color: Theme.colors.textSecondary
-            font.pixelSize: Theme.type.body.size
         }
 
         NewTaskButton {
@@ -296,15 +284,6 @@ Item {
                                 color: Theme.colors.textPrimary
                                 font.pixelSize: Theme.type.body.size
                                 font.weight: Font.DemiBold
-                            }
-
-                            Text {
-                                width: parent.width
-                                visible: card.running.length === 0
-                                textFormat: Text.PlainText
-                                text: qsTr("Not running")
-                                color: Theme.colors.textTertiary
-                                font.pixelSize: Theme.type.caption.size
                             }
 
                             Flow {
@@ -423,25 +402,43 @@ Item {
                 }
             }
 
-            Row {
+            Item {
+                width: listColumn.width
+                height: Theme.space.lg + clearHistory.height
                 visible: page.history.length > 0
-                topPadding: Theme.space.lg
-                spacing: Theme.space.sm
 
                 Icon {
-                    anchors.verticalCenter: parent.verticalCenter
+                    id: historyIcon
+
+                    anchors.left: parent.left
+                    anchors.verticalCenter: clearHistory.verticalCenter
                     name: "history"
                     size: Theme.size.iconSmall
                     color: Theme.colors.textSecondary
                 }
 
                 Text {
-                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.left: historyIcon.right
+                    anchors.leftMargin: Theme.space.sm
+                    anchors.verticalCenter: clearHistory.verticalCenter
                     textFormat: Text.PlainText
                     text: qsTr("Recent runs")
                     color: Theme.colors.textPrimary
                     font.pixelSize: Theme.type.body.size
                     font.weight: Font.DemiBold
+                }
+
+                Button {
+                    id: clearHistory
+
+                    objectName: "clearTaskHistory"
+                    anchors.right: parent.right
+                    anchors.bottom: parent.bottom
+                    small: true
+                    tone: "ghost"
+                    iconName: "trash-2"
+                    text: qsTr("Clear")
+                    onClicked: DeviceManager.clearTaskHistory()
                 }
             }
 

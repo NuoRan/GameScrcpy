@@ -903,7 +903,6 @@ Window {
             visible: (root.bench.pick.kind ?? "") !== ""
             tone: "info"
             title: root.bench.pick.prompt ?? ""
-            detail: qsTr("What you pick is kept as a resource with a new name.")
             actionText: qsTr("Stop picking")
             onActionTriggered: root.bench.cancelPick()
         }

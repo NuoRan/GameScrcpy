@@ -178,9 +178,9 @@ Item {
 
                     Text {
                         width: parent.width
+                        visible: settings.runs.length > 0
                         textFormat: Text.PlainText
-                        text: settings.runs.length > 0 ? qsTr("Running on %n phone(s)", "", settings.runs.length)
-                                                       : qsTr("Not running")
+                        text: qsTr("Running on %n phone(s)", "", settings.runs.length)
                         color: Theme.colors.textTertiary
                         font.pixelSize: Theme.type.caption.size
                     }
@@ -318,11 +318,6 @@ Item {
                             TaskLibrary.setSchedule(settings.task.id, settings.task.schedule, text)
                     }
                 }
-            }
-
-            Note {
-                visible: settings.task !== null && settings.task.schedule !== "manual"
-                text: qsTr("GameScrcpy has to be running; a start missed while the computer sleeps is not made up.")
             }
 
             SectionTitle {

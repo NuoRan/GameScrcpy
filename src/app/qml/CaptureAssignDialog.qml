@@ -148,16 +148,6 @@ Dialog {
             width: scroller.width
             spacing: Theme.space.md
 
-            Text {
-                objectName: "captureAssignCaption"
-                width: parent.width
-                textFormat: Text.PlainText
-                wrapMode: Text.Wrap
-                text: qsTr("This card then shows the phone's picture; touch keeps going to the phone.")
-                color: Theme.colors.textSecondary
-                font.pixelSize: Theme.type.caption.size
-            }
-
             Row {
                 objectName: "captureAssignComparing"
                 visible: dialog.comparing && dialog.phones.length > 0
@@ -244,7 +234,6 @@ Dialog {
                 choiceId: "standalone"
                 iconName: "monitor-play"
                 text: qsTr("No phone: use this capture card on its own")
-                detail: qsTr("Touch it with AOA or a touch box from an extension, or just watch the picture.")
             }
         }
     }

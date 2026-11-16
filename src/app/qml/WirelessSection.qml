@@ -171,16 +171,6 @@ Column {
                     }
                 }
 
-                Text {
-                    Layout.fillWidth: true
-                    visible: WirelessController.qrText === ""
-                    textFormat: Text.PlainText
-                    text: qsTr("Type the six digits the phone shows.")
-                    color: Theme.colors.textTertiary
-                    font.pixelSize: Theme.type.caption.size
-                    wrapMode: Text.Wrap
-                }
-
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.topMargin: Theme.space.sm
@@ -270,15 +260,6 @@ Column {
 
                         Text {
                             Layout.fillWidth: true
-                            textFormat: Text.PlainText
-                            text: qsTr("Scan this code with the phone.")
-                            color: Theme.colors.textSecondary
-                            font.pixelSize: Theme.type.caption.size
-                            wrapMode: Text.Wrap
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
                             visible: WirelessController.pairingAddress === "" && WirelessController.pairedAddress === ""
                                      && WirelessController.pairProblem === ""
                             textFormat: Text.PlainText
@@ -331,16 +312,6 @@ Column {
                         color: Theme.colors.successText
                         font.pixelSize: Theme.type.label.size
                         font.weight: Theme.type.label.weight
-                        wrapMode: Text.Wrap
-                    }
-
-                    Text {
-                        Layout.fillWidth: true
-                        textFormat: Text.PlainText
-                        text: qsTr("If it does not connect by itself, enter the address and port from its Wireless "
-                                   + "debugging screen under Recent connections.")
-                        color: Theme.colors.textSecondary
-                        font.pixelSize: Theme.type.caption.size
                         wrapMode: Text.Wrap
                     }
                 }

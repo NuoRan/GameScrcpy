@@ -51,15 +51,6 @@ Dialog {
             font.weight: Font.DemiBold
             elide: Text.ElideRight
         }
-
-        Text {
-            width: dialog.availableWidth
-            textFormat: Text.PlainText
-            text: qsTr("Pick one to copy it to your tasks.")
-            color: Theme.colors.textSecondary
-            font.pixelSize: Theme.type.caption.size
-            wrapMode: Text.Wrap
-        }
     }
 
     footer: Item {

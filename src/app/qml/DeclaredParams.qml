@@ -274,15 +274,6 @@ Column {
                             }
                         }
                     }
-
-                    Text {
-                        width: parent.width
-                        wrapMode: Text.Wrap
-                        textFormat: Text.PlainText
-                        text: qsTr("Drag its dot on the picture, or type an offset from the component in units of the picture's short side.")
-                        color: Theme.colors.textTertiary
-                        font.pixelSize: Theme.type.caption.size
-                    }
                 }
             }
 

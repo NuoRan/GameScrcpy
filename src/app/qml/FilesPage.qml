@@ -231,14 +231,12 @@ Item {
                         objectName: "uploadFiles"
                         iconName: "doc-page"
                         text: qsTr("Upload files…")
-                        description: qsTr("Copies them into this folder on the phone")
                         onTriggered: uploadPicker.open()
                     }
                     MenuItem {
                         objectName: "uploadFolder"
                         iconName: "folder-open"
                         text: qsTr("Upload a folder…")
-                        description: qsTr("Copies the folder with everything in it")
                         onTriggered: uploadFolderPicker.open()
                     }
                 }

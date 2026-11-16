@@ -209,7 +209,6 @@ Item {
                         objectName: "launchHere"
                         iconName: "play"
                         text: qsTr("Launch")
-                        description: qsTr("Opens on the phone's screen")
                         enabled: page.canLaunch
                         onTriggered: page.launch(false)
                     }
@@ -217,7 +216,6 @@ Item {
                         objectName: "launchIndependent"
                         iconName: "monitor-smartphone"
                         text: qsTr("Launch on an independent display")
-                        description: qsTr("Opens in its own window; the phone's screen is not affected")
                         enabled: page.canLaunch && AppCatalog.independentDisplays
                         onTriggered: page.launch(true)
                     }

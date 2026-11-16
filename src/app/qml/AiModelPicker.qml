@@ -384,20 +384,8 @@ T.AbstractButton {
                 font.pixelSize: Theme.type.caption.size
             }
 
-            Divider {}
-
-            Text {
-                width: parent.width
-                leftPadding: Theme.space.sm
-                rightPadding: Theme.space.sm
-                topPadding: Theme.space.xxs
-                bottomPadding: picker.following ? Theme.space.xxs : 0
-                textFormat: Text.PlainText
-                wrapMode: Text.Wrap
-                text: picker.following ? qsTr("Follows the default in Settings > AI.")
-                                       : qsTr("Only for this conversation; new ones start with the default.")
-                color: Theme.colors.textTertiary
-                font.pixelSize: Theme.type.caption.size
+            Divider {
+                visible: !picker.following
             }
 
             Row {

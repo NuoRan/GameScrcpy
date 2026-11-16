@@ -231,15 +231,6 @@ FocusScope {
                     maximumLineCount: 2
                     elide: Text.ElideRight
                 }
-
-                Text {
-                    width: parent.width
-                    textFormat: Text.PlainText
-                    text: qsTr("Pick a starting point, then drag the keys onto the game's buttons in the editor.")
-                    color: Theme.colors.textSecondary
-                    font.pixelSize: Theme.type.caption.size
-                    wrapMode: Text.Wrap
-                }
             }
 
             Button {
@@ -329,7 +320,6 @@ FocusScope {
                 glyph: "sparkles"
                 tone: "azure"
                 text: qsTr("AI draft")
-                detail: qsTr("Drafts the keys from the picture")
                 note: AiAssistant.ready ? "" : qsTr("Set up a model in Settings > AI first")
                 onClicked: panel.startDraft()
             }
@@ -340,7 +330,6 @@ FocusScope {
                 objectName: "startBlank"
                 glyph: "plus"
                 text: qsTr("Start blank")
-                detail: qsTr("Start from nothing and place every key yourself")
                 onClicked: panel.startBlank(false)
             }
         }

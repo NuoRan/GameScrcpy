@@ -163,6 +163,8 @@ TEST_CASE("ADR-0091: the recent task runs are kept beside the tasks folder for t
     CHECK(history[0].toMap().value(QStringLiteral("result")).toString() == QStringLiteral("done"));
     CHECK(history[0].toMap().value(QStringLiteral("durationMs")).toInt() == 4200);
     CHECK(again.tasks().isEmpty());
+    again.saveHistory({});
+    CHECK(TaskLibrary(tasks).history().isEmpty());
 }
 
 TEST_CASE("ADR-0091: a weekly task keeps its days in task.json, and a task set to run once goes back to by hand after it ran")

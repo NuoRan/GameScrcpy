@@ -184,11 +184,6 @@ Item {
         return null
     }
 
-    function firstSentence(text: string): string {
-        const cut = text.search(/[。.!?！？]/)
-        return cut > 0 ? text.slice(0, cut) : text
-    }
-
     function customOf(ref: string): var {
         return ComponentLibrary.examples.concat(ComponentLibrary.mine).find(entry => entry.ref === ref) ?? null
     }
@@ -212,7 +207,7 @@ Item {
                      hint: behavior.description !== "" ? behavior.description : behavior.extension }
         }
         const item = libraryItem(row.type)
-        return item !== null ? { icon: item.icon, text: item.text, hint: firstSentence(item.tip) }
+        return item !== null ? { icon: item.icon, text: item.text, hint: "" }
                              : { icon: "square", text: kindOfRow(row), hint: "" }
     }
 
@@ -766,8 +761,7 @@ Item {
                 visible: keymapEditor.backdropUrl === "" || backdropImage.status === Image.Error
                 horizontalAlignment: Text.AlignHCenter
                 textFormat: Text.PlainText
-                text: qsTr("No picture. Import a screenshot of the game, or take one on the phone, to place the keys "
-                           + "on it.")
+                text: qsTr("No picture")
                 color: Theme.colors.textTertiary
                 font.pixelSize: Theme.type.caption.size
                 wrapMode: Text.Wrap
@@ -2373,23 +2367,13 @@ Item {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     width: Math.min(implicitWidth, capture.width - Theme.space.md - Theme.space.xs - promptIcon.width
-                                    - promptHint.implicitWidth - promptSkip.implicitWidth - 3 * promptRow.spacing)
+                                    - promptSkip.implicitWidth - 2 * promptRow.spacing)
                     textFormat: Text.PlainText
                     text: capture.swapping ? qsTr("Press a key to replace “%1”").arg(capture.label)
                                            : qsTr("Press a key for “%1”").arg(capture.label)
                     elide: Text.ElideRight
                     color: Theme.colors.textPrimary
                     font.pixelSize: Theme.type.label.size
-                }
-
-                Text {
-                    id: promptHint
-
-                    anchors.verticalCenter: parent.verticalCenter
-                    textFormat: Text.PlainText
-                    text: qsTr("Mouse buttons and the wheel work too")
-                    color: Theme.colors.textTertiary
-                    font.pixelSize: Theme.type.caption.size
                 }
 
                 Button {

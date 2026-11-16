@@ -2,7 +2,6 @@ pragma ComponentBehavior: Bound
 
 import QtQuick
 import QtQml.Models
-import GameScrcpy.Theme
 import GameScrcpy.Controls
 import GameScrcpy.App
 import "ExtensionLook.js" as ExtensionLook
@@ -174,18 +173,6 @@ SettingsSheet {
         objectName: "extensionAddOns"
         title: qsTr("Add-ons for every profile")
         visible: sheet.addOns.length > 0
-
-        Text {
-            x: Theme.space.lg + Theme.space.xxs
-            width: parent.width - 2 * x
-            topPadding: Theme.space.md
-            bottomPadding: Theme.space.sm
-            wrapMode: Text.Wrap
-            textFormat: Text.PlainText
-            text: qsTr("Turned-on add-ons work on every fitting key in every profile. To leave one key out, turn it off in that key's Add-ons in the key mapping editor.")
-            color: Theme.colors.textTertiary
-            font.pixelSize: Theme.type.caption.size
-        }
 
         Repeater {
             model: sheet.addOns.length

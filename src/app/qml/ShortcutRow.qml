@@ -163,14 +163,6 @@ Item {
             }
         }
 
-        Text {
-            visible: row.shown.length === 0 && !row.capturing
-            textFormat: Text.PlainText
-            text: qsTr("Not set")
-            color: Theme.colors.textTertiary
-            font.pixelSize: Theme.type.caption.size
-        }
-
         Rectangle {
             objectName: "captureField"
             visible: row.capturing && row.pending === ""

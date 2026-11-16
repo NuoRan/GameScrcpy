@@ -265,7 +265,7 @@ Dialog {
             iconName: "monitor-play"
             tone: "orange"
             title: qsTr("Export video")
-            description: qsTr("An MP4 made straight from the recorded stream, without encoding it again.")
+            description: ""
             onClicked: {
                 dialog.close()
                 dialog.exportVideo()
@@ -365,15 +365,6 @@ Dialog {
                 font.pixelSize: Theme.type.subtitle.size
                 font.weight: Font.DemiBold
                 elide: Text.ElideRight
-            }
-
-            Text {
-                width: testPicker.availableWidth
-                textFormat: Text.PlainText
-                text: qsTr("Pick the profile whose logic runs on this recording.")
-                color: Theme.colors.textSecondary
-                font.pixelSize: Theme.type.caption.size
-                wrapMode: Text.Wrap
             }
         }
 
@@ -552,6 +543,7 @@ Dialog {
 
                 Text {
                     width: parent.width
+                    visible: text !== ""
                     textFormat: Text.PlainText
                     wrapMode: Text.Wrap
                     text: card.description

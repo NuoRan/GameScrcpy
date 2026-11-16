@@ -825,14 +825,6 @@
         <translation>这个模型没有思考相关的选项。</translation>
     </message>
     <message>
-        <source>Follows the default in Settings &gt; AI.</source>
-        <translation>跟随“设置 &gt; AI”里的默认值。</translation>
-    </message>
-    <message>
-        <source>Only for this conversation; new ones start with the default.</source>
-        <translation>只对这段对话生效；新对话从默认值开始。</translation>
-    </message>
-    <message>
         <source>Set as default</source>
         <translation>设为默认</translation>
     </message>
@@ -1469,16 +1461,8 @@
         <translation>更多操作</translation>
     </message>
     <message>
-        <source>Opens on the phone&apos;s screen</source>
-        <translation>在手机屏幕上打开</translation>
-    </message>
-    <message>
         <source>Launch on an independent display</source>
         <translation>在独立显示器上启动</translation>
-    </message>
-    <message>
-        <source>Opens in its own window; the phone&apos;s screen is not affected</source>
-        <translation>在单独的窗口里打开，手机屏幕不受影响</translation>
     </message>
     <message>
         <source>Force stop</source>
@@ -4681,16 +4665,8 @@
         <translation>没有经 USB 调试或无线调试连着的手机。</translation>
     </message>
     <message>
-        <source>Touch it with AOA or a touch box from an extension, or just watch the picture.</source>
-        <translation>用 AOA 或扩展提供的触控盒触控，或者只看画面。</translation>
-    </message>
-    <message>
         <source>Comparing the pictures…</source>
         <translation>正在比对画面…</translation>
-    </message>
-    <message>
-        <source>This card then shows the phone&apos;s picture; touch keeps going to the phone.</source>
-        <translation>之后这张采集卡显示手机的画面，触控照常发给手机。</translation>
     </message>
     <message>
         <source>Could not tell from the picture; choose the phone yourself.</source>
@@ -5763,10 +5739,6 @@
         <source>Height</source>
         <translation>高</translation>
     </message>
-    <message>
-        <source>Drag its dot on the picture, or type an offset from the component in units of the picture&apos;s short side.</source>
-        <translation>在画面上拖它的小点，或输入相对组件的偏移，单位是画面短边的长度。</translation>
-    </message>
 </context>
 <context>
     <name>DetailField</name>
@@ -6229,10 +6201,6 @@
     <message>
         <source>Add-ons for every profile</source>
         <translation>对所有方案生效的附加</translation>
-    </message>
-    <message>
-        <source>Turned-on add-ons work on every fitting key in every profile. To leave one key out, turn it off in that key&apos;s Add-ons in the key mapping editor.</source>
-        <translation>打开的附加对所有方案里合适的键位都生效。某个键位不想要，在编辑键位里选中它，把“附加”里对应的开关关掉。</translation>
     </message>
     <message>
         <source>Works on: %1</source>
@@ -7374,16 +7342,8 @@
         <translation>上传文件…</translation>
     </message>
     <message>
-        <source>Copies them into this folder on the phone</source>
-        <translation>复制到手机上的这个文件夹</translation>
-    </message>
-    <message>
         <source>Upload a folder…</source>
         <translation>上传文件夹…</translation>
-    </message>
-    <message>
-        <source>Copies the folder with everything in it</source>
-        <translation>连同里面的所有内容一起复制</translation>
     </message>
     <message>
         <source>Up one folder</source>
@@ -8910,6 +8870,10 @@
         <translation>取消</translation>
     </message>
     <message>
+        <source>Pressing %1 only runs the logic</source>
+        <translation>按 %1 只运行逻辑</translation>
+    </message>
+    <message>
         <source>When the key goes down</source>
         <translation>按键按下时</translation>
     </message>
@@ -9094,10 +9058,6 @@
         <translation>扩展里的附加可以改变这个组件从按键收到的输入，或它按屏幕的方式。</translation>
     </message>
     <message>
-        <source>No turned-on extension offers add-ons for this kind of component. Turn one on on the Extensions page.</source>
-        <translation>已打开的扩展里没有适用于这类组件的附加。可到“扩展”页打开一个。</translation>
-    </message>
-    <message>
         <source>Global · change it in this extension&apos;s settings on the Extensions page</source>
         <translation>全局 · 在扩展页这个扩展的设置里改</translation>
     </message>
@@ -9144,10 +9104,6 @@
     <message>
         <source>Use it in logic</source>
         <translation>在蓝图里引用它</translation>
-    </message>
-    <message>
-        <source>Pressing %1 only runs the logic: the logic listens to this key, so the component no longer presses the screen by itself.</source>
-        <translation>按 %1 只运行逻辑：逻辑接了这个键，组件自己不再按屏幕。</translation>
     </message>
     <message>
         <source>Add-ons</source>
@@ -9598,10 +9554,6 @@
         <translation>导出成扩展包…</translation>
     </message>
     <message>
-        <source>No picture. Import a screenshot of the game, or take one on the phone, to place the keys on it.</source>
-        <translation>没有画面。导入一张游戏截图，或在手机上截一张，就能在上面摆键位。</translation>
-    </message>
-    <message>
         <source>This is %1&apos;s draft, not in effect yet</source>
         <translation>这是 %1 的草稿，还没生效</translation>
     </message>
@@ -9842,6 +9794,10 @@
         <translation>滑到轮盘的一格</translation>
     </message>
     <message>
+        <source>No picture</source>
+        <translation>无画面</translation>
+    </message>
+    <message>
         <source>Picture</source>
         <translation>画面</translation>
     </message>
@@ -9938,10 +9894,6 @@
     <message>
         <source>Press a key for “%1”</source>
         <translation>按一个键绑定“%1”</translation>
-    </message>
-    <message>
-        <source>Mouse buttons and the wheel work too</source>
-        <translation>鼠标键、滚轮也行</translation>
     </message>
     <message>
         <source>Cancel</source>
@@ -10735,10 +10687,6 @@
         <translation>记住这个客户端</translation>
     </message>
     <message>
-        <source>Remembered clients are listed in Settings, under AI connection, where you can remove them.</source>
-        <translation>记住的客户端列在设置的“AI 连接”里，可以在那里移除。</translation>
-    </message>
-    <message>
         <source>Let %1 run a script on %2?</source>
         <translation>允许 %1 在 %2 上运行脚本吗？</translation>
     </message>
@@ -10825,10 +10773,6 @@
     <message>
         <source>The profile becomes a folder so that it can hold these files.</source>
         <translation>方案会变成文件夹，以便放下这些文件。</translation>
-    </message>
-    <message>
-        <source>If you do not apply it now, the draft is kept.</source>
-        <translation>现在不采用的话，草稿会留着。</translation>
     </message>
     <message numerus="yes">
         <source>It stops after %n second(s) at the latest.</source>
@@ -12882,14 +12826,6 @@
     <message>
         <source>The recording stopped early: %1</source>
         <translation>录制提前停止了：%1</translation>
-    </message>
-    <message>
-        <source>An MP4 made straight from the recorded stream, without encoding it again.</source>
-        <translation>直接用录下的码流做成 MP4，不重新编码。</translation>
-    </message>
-    <message>
-        <source>Pick the profile whose logic runs on this recording.</source>
-        <translation>选一个方案，在这段录像上运行它的逻辑。</translation>
     </message>
     <message>
         <source>No profile has logic yet — add logic to one with Edit logic… on the Profiles page.</source>
@@ -18971,16 +18907,8 @@
         <translation>原始</translation>
     </message>
     <message>
-        <source>Sends the phone&apos;s own resolution</source>
-        <translation>按手机自己的分辨率传</translation>
-    </message>
-    <message>
         <source>Follow phone</source>
         <translation>跟随手机</translation>
-    </message>
-    <message>
-        <source>Each phone uses its own refresh rate</source>
-        <translation>每台手机按自己的刷新率</translation>
     </message>
     <message>
         <source>H.264 (AVC)</source>
@@ -19235,10 +19163,6 @@
         <translation>每 %1 毫秒发一次移动</translation>
     </message>
     <message>
-        <source>Each phone uses twice its own refresh rate</source>
-        <translation>每台手机按自己刷新率的两倍</translation>
-    </message>
-    <message>
         <source>%1 times a second for the phone at %2 Hz now</source>
         <translation>手机当前 %2 Hz，每秒 %1 次</translation>
     </message>
@@ -19477,10 +19401,6 @@
         <translation>未生效：另一个命令占用了这组键。</translation>
     </message>
     <message>
-        <source>Not set</source>
-        <translation>未设置</translation>
-    </message>
-    <message>
         <source>Use here</source>
         <translation>改用到这里</translation>
     </message>
@@ -19659,10 +19579,6 @@
         <translation>新建键位方案</translation>
     </message>
     <message>
-        <source>Pick a starting point, then drag the keys onto the game&apos;s buttons in the editor.</source>
-        <translation>选一个起点，之后在编辑器里把键位拖到游戏的按钮上就能用。</translation>
-    </message>
-    <message>
         <source>Close</source>
         <translation>关闭</translation>
     </message>
@@ -19693,20 +19609,12 @@
         <translation>AI 起草</translation>
     </message>
     <message>
-        <source>Drafts the keys from the picture</source>
-        <translation>看画面起草键位</translation>
-    </message>
-    <message>
         <source>Set up a model in Settings &gt; AI first</source>
         <translation>先在“设置 &gt; AI”里填写模型</translation>
     </message>
     <message>
         <source>Start blank</source>
         <translation>新建空白</translation>
-    </message>
-    <message>
-        <source>Start from nothing and place every key yourself</source>
-        <translation>从零开始，每个键自己放</translation>
     </message>
 </context>
 <context>
@@ -19782,10 +19690,6 @@
     <message>
         <source>New task from an example</source>
         <translation>从示例新建任务</translation>
-    </message>
-    <message>
-        <source>Pick one to copy it to your tasks.</source>
-        <translation>选一个复制到你的任务里。</translation>
     </message>
     <message>
         <source>Cancel</source>
@@ -19896,10 +19800,6 @@
         </translation>
     </message>
     <message>
-        <source>Not running</source>
-        <translation>没在运行</translation>
-    </message>
-    <message>
         <source>This task comes with the extension %1. Copy it to your tasks to change it.</source>
         <translation>这个任务来自扩展 %1。要修改请先复制到你的任务。</translation>
     </message>
@@ -19970,10 +19870,6 @@
     <message>
         <source>Settings</source>
         <translation>设置</translation>
-    </message>
-    <message>
-        <source>GameScrcpy has to be running; a start missed while the computer sleeps is not made up.</source>
-        <translation>GameScrcpy 要开着；电脑睡眠时错过的不补跑。</translation>
     </message>
     <message>
         <source>When it fails</source>
@@ -20159,10 +20055,6 @@
         <translation>任务</translation>
     </message>
     <message>
-        <source>A task is logic that runs on a phone by itself.</source>
-        <translation>任务是在手机上独立运行的逻辑。</translation>
-    </message>
-    <message>
         <source>New task</source>
         <translation>新建任务</translation>
     </message>
@@ -20171,24 +20063,12 @@
         <translation>空白任务</translation>
     </message>
     <message>
-        <source>A small task to write your own logic in</source>
-        <translation>一个小的起步任务，用来写你自己的逻辑</translation>
-    </message>
-    <message>
         <source>From an example…</source>
         <translation>从示例…</translation>
     </message>
     <message>
-        <source>Copies a ready-made task that you can change</source>
-        <translation>复制一个现成的任务，可以随意修改</translation>
-    </message>
-    <message>
         <source>No tasks yet</source>
         <translation>还没有任务</translation>
-    </message>
-    <message>
-        <source>Not running</source>
-        <translation>没在运行</translation>
     </message>
     <message>
         <source>Stop</source>
@@ -20199,8 +20079,28 @@
         <translation>开始</translation>
     </message>
     <message>
+        <source>More</source>
+        <translation>更多</translation>
+    </message>
+    <message>
+        <source>Open folder</source>
+        <translation>打开文件夹</translation>
+    </message>
+    <message>
+        <source>Copy to my tasks</source>
+        <translation>复制到我的任务</translation>
+    </message>
+    <message>
+        <source>Delete…</source>
+        <translation>删除…</translation>
+    </message>
+    <message>
         <source>Recent runs</source>
         <translation>最近运行</translation>
+    </message>
+    <message>
+        <source>Clear</source>
+        <translation>清除</translation>
     </message>
     <message>
         <source>Added %1 to your tasks</source>
@@ -20842,10 +20742,6 @@
         <translation>颜色</translation>
     </message>
     <message>
-        <source>What you pick is kept as a resource with a new name.</source>
-        <translation>取到的会存成素材并自动起名。</translation>
-    </message>
-    <message>
         <source>No resources yet. Freeze the picture, then use the tools below it to add one.</source>
         <translation>还没有资源。先冻结画面，再用画面下方的工具添加。</translation>
     </message>
@@ -21062,14 +20958,6 @@
         <translation>配对码</translation>
     </message>
     <message>
-        <source>Scan this code with the phone.</source>
-        <translation>用手机扫描这个二维码。</translation>
-    </message>
-    <message>
-        <source>If it does not connect by itself, enter the address and port from its Wireless debugging screen under Recent connections.</source>
-        <translation>没有自动连上时，把手机“无线调试”页面上的 IP 地址和端口填到“最近连接”里。</translation>
-    </message>
-    <message>
         <source>Connected to %1.</source>
         <translation>已连上 %1。</translation>
     </message>
@@ -21144,10 +21032,6 @@
     <message>
         <source>On the phone: Developer options &gt; Wireless debugging &gt; Pair device with QR code.</source>
         <translation>手机：开发者选项 → 无线调试 → 使用二维码配对设备。</translation>
-    </message>
-    <message>
-        <source>Type the six digits the phone shows.</source>
-        <translation>输入手机上显示的六位配对码。</translation>
     </message>
     <message>
         <source>Connecting to %1…</source>

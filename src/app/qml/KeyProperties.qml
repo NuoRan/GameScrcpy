@@ -726,6 +726,7 @@ Item {
                 readonly property int most: 8
 
                 objectName: "addOns"
+                visible: attached.length > 0 || offers.length > 0
                 title: qsTr("Add-ons")
                 info: qsTr("Add-ons from extensions change what this component gets from the keys or how it "
                            + "touches the screen.")
@@ -734,18 +735,6 @@ Item {
                 Column {
                     width: parent.width
                     spacing: Theme.space.md
-
-                    Text {
-                        objectName: "addOnsEmpty"
-                        width: parent.width
-                        visible: addOns.attached.length === 0 && addOns.offers.length === 0
-                        wrapMode: Text.Wrap
-                        textFormat: Text.PlainText
-                        text: qsTr("No turned-on extension offers add-ons for this kind of component. "
-                                   + "Turn one on on the Extensions page.")
-                        color: Theme.colors.textTertiary
-                        font.pixelSize: Theme.type.caption.size
-                    }
 
                     Repeater {
                         model: addOns.attached.length
@@ -1001,8 +990,7 @@ Item {
                     Text {
                         width: logicKeyNote.width - Theme.size.iconSmall - logicKeyNote.spacing
                         textFormat: Text.PlainText
-                        text: qsTr("Pressing %1 only runs the logic: the logic listens to this key, so the component no "
-                                   + "longer presses the screen by itself.").arg(panel.row !== null ? panel.row.keys : "")
+                        text: qsTr("Pressing %1 only runs the logic").arg(panel.row !== null ? panel.row.keys : "")
                         color: Theme.colors.textSecondary
                         font.pixelSize: Theme.type.caption.size
                         wrapMode: Text.Wrap

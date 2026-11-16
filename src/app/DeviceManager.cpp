@@ -5658,6 +5658,18 @@ void DeviceManager::stopTask(const QString& id, const QString& serial)
     }
 }
 
+void DeviceManager::clearTaskHistory()
+{
+    if (m_taskHistory.isEmpty()) {
+        return;
+    }
+    m_taskHistory.clear();
+    if (m_tasks != nullptr) {
+        m_tasks->saveHistory(m_taskHistory);
+    }
+    emit taskRunsChanged();
+}
+
 void DeviceManager::stopTasksOn(const QString& serial, const QString& result)
 {
     std::vector<quint64> stopping;
@@ -10399,7 +10411,11 @@ namespace {
 QString claimedBy(const ProvidedDevice& device)
 {
     const HardwareClaims* claims = HardwareClaims::instance();
-    return claims != nullptr && !device.resource.empty() ? claims->holderName(device.resource) : QString();
+    if (claims == nullptr || device.resource.empty()) {
+        return {};
+    }
+    const QString holder = claims->holderName(device.resource);
+    return holder == device.extensionName ? QString() : holder;
 }
 
 }

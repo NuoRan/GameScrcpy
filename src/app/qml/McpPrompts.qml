@@ -154,16 +154,6 @@ Item {
                 objectName: "mcpRemember"
                 text: qsTr("Remember this client")
             }
-
-            Text {
-                width: parent.width
-                visible: remember.checked
-                textFormat: Text.PlainText
-                text: qsTr("Remembered clients are listed in Settings, under AI connection, where you can remove them.")
-                color: Theme.colors.textTertiary
-                font.pixelSize: Theme.type.caption.size
-                wrapMode: Text.Wrap
-            }
         }
     }
 
@@ -422,16 +412,6 @@ Item {
                     visible: confirm.applying && confirm.shown.folder === true
                     textFormat: Text.PlainText
                     text: qsTr("The profile becomes a folder so that it can hold these files.")
-                    color: Theme.colors.textSecondary
-                    font.pixelSize: Theme.type.caption.size
-                    wrapMode: Text.Wrap
-                }
-
-                Text {
-                    width: parent.width
-                    visible: confirm.applying
-                    textFormat: Text.PlainText
-                    text: qsTr("If you do not apply it now, the draft is kept.")
                     color: Theme.colors.textSecondary
                     font.pixelSize: Theme.type.caption.size
                     wrapMode: Text.Wrap
