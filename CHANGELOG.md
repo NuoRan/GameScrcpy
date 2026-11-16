@@ -13,6 +13,8 @@
 - **录像音画同步**：导出 MP4 时声音按一条连续的时钟排在画面上，中途没声音的地方补静音，声音晚开始时从开头补静音，完全重叠的声音包丢掉，中途重连后的第二段声音不再把声音截断；手机端先把每 20 毫秒的声音读出来再等编码器，编码器忙时不再丢声音。
 - **控制窗口**（没有画面，扩展提供的触控盒、AOA）：视角放开时按住 WASD 再动鼠标，按键不再失灵（鼠标移动按手机的触控频率合并后再发）；伴侣 App 报告手机转屏时窗口跟着转，竖屏转横屏不再卡住一块；视角锁定时手机光标停在角落，解锁后回到电脑鼠标所在的位置，回来之前的点击先排队。
 - **扩展面板**：在输入框里打完字直接点按钮，按钮收到的就是刚打的内容（以前要先按回车或点一下别处，否则 ESP32 触控盒改名会报“名称要有 1～32 个字节”，保存 Wi‑Fi 时密码是空的）；什么也不显示的部分不再占位置。
+- **打开设置时闪退**：偶尔一打开设置就闪退——Qt 6.10 的增量垃圾回收在页面创建到一半时回收了新对象的属性存储。现在每次垃圾回收一口气做完。
+- **扩展被误关**：Windows 重启或注销时会结束扩展的进程，以前被算成“一分钟内停了三次”、把扩展关掉（例如手感样例）；现在不算崩溃、不重启，也不关掉。之前因此被关掉的扩展，到扩展页重新打开即可。
 
 ### 界面
 
@@ -20,7 +22,7 @@
 
 ### English summary
 
-- **Fixes**: profiles can be renamed from the card's menu, by double-clicking the name and in the key mapping editor. Two extension cards side by side no longer stand far apart, and each row is as tall as its own tallest card. Recordings keep sound and picture together: the MP4 sound track runs on one continuous clock, silence fills gaps and a late start, a second audio session no longer cuts the sound off, and the phone no longer drops sound while the encoder is busy. In the Control window of a touch box or AOA the keys keep working while the mouse moves with the camera released (mouse motion is merged at the phone's touch rate), the window turns with the rotation the companion reports, and the phone's pointer parks while the camera is locked and comes back under the computer's pointer, with clicks held until it is there. A click in an extension panel carries the text just typed into a field.
+- **Fixes**: profiles can be renamed from the card's menu, by double-clicking the name and in the key mapping editor. Two extension cards side by side no longer stand far apart, and each row is as tall as its own tallest card. Recordings keep sound and picture together: the MP4 sound track runs on one continuous clock, silence fills gaps and a late start, a second audio session no longer cuts the sound off, and the phone no longer drops sound while the encoder is busy. In the Control window of a touch box or AOA the keys keep working while the mouse moves with the camera released (mouse motion is merged at the phone's touch rate), the window turns with the rotation the companion reports, and the phone's pointer parks while the camera is locked and comes back under the computer's pointer, with clicks held until it is there. A click in an extension panel carries the text just typed into a field. Opening Settings no longer crashes now and then (Qt 6.10's incremental garbage collector freed the property storage of objects still being created; each collection now runs to the end). Extensions are no longer turned off when Windows ends their process at a restart or sign-out; one turned off that way can be switched on again on the Extensions page.
 - **Interface**: many standing explanations are gone; the details sit behind info buttons or appear only when they apply.
 
 The server on the phone is updated (2.2.1, sound capture); the companion app is unchanged.
