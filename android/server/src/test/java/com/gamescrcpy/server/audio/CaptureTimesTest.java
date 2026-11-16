@@ -38,4 +38,15 @@ class CaptureTimesTest {
     void nothingRecordedYieldsZero() {
         assertEquals(0, new CaptureTimes(48_000).at(0));
     }
+
+    @Test
+    void readsOfOneOpusFrameKeepTheCaptureTimesExact() {
+        assertEquals(960 * AudioCapture.BYTES_PER_FRAME, AudioCapture.MAX_READ_BYTES);
+        final CaptureTimes times = new CaptureTimes(48_000);
+        for (int chunk = 0; chunk < 200; chunk++) {
+            times.add(chunk * 960L, 7_000_000L + chunk * 20_000L);
+        }
+        assertEquals(7_000_000L + 199 * 20_000L, times.at(199 * 960L));
+        assertEquals(7_000_000L + 200 * 20_000L, times.at(200 * 960L));
+    }
 }

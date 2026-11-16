@@ -8,14 +8,13 @@ import android.media.MediaRecorder;
 import android.os.Build;
 import com.gamescrcpy.protocol.Enums.ErrorCode;
 import com.gamescrcpy.server.wrappers.ProcessEnvironment;
-import java.nio.ByteBuffer;
 
 final class AudioCapture implements AutoCloseable {
 
     static final int SAMPLE_RATE = 48_000;
     static final int CHANNELS = 2;
     static final int BYTES_PER_FRAME = CHANNELS * 2;
-    static final int MAX_READ_BYTES = 1024 * BYTES_PER_FRAME;
+    static final int MAX_READ_BYTES = 960 * BYTES_PER_FRAME;
 
     private final AudioRecord record;
     private final AudioTimestamp timestamp = new AudioTimestamp();
@@ -56,10 +55,9 @@ final class AudioCapture implements AutoCloseable {
         }
     }
 
-    int read(ByteBuffer buffer) {
-        final int read = record.read(buffer, Math.min(buffer.remaining(), MAX_READ_BYTES));
+    int read(byte[] buffer, int length) {
+        final int read = record.read(buffer, 0, Math.min(length, MAX_READ_BYTES));
         if (read > 0) {
-            buffer.position(buffer.position() + read);
             framesRead += read / BYTES_PER_FRAME;
         }
         return read;

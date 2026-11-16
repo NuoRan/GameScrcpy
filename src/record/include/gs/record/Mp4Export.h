@@ -17,6 +17,8 @@ struct ExportedVideo {
     bool audio = false;
 };
 
+[[nodiscard]] std::vector<std::uint8_t> opusSilencePacket(int channels);
+
 [[nodiscard]] Expected<std::vector<ExportedVideo>, std::string> exportMp4(const std::filesystem::path& recording);
 
 }

@@ -94,21 +94,29 @@ final class AudioStreamer {
     private void feed() {
         ThreadPriority.raise(ThreadPriority.AUDIO);
         long frame = 0;
+        final byte[] pcm = new byte[AudioCapture.MAX_READ_BYTES];
         try {
             while (!ended.get()) {
-                final int index = codec.dequeueInputBuffer(-1);
-                final ByteBuffer buffer = codec.getInputBuffer(index);
-                if (buffer == null) {
-                    fail(ErrorCode.ENCODER_FAILURE, "the audio encoder has no input buffer");
-                    return;
-                }
-                final int read = capture.read(buffer);
+                final int read = capture.read(pcm, pcm.length);
                 if (read <= 0) {
                     fail(ErrorCode.AUDIO_CAPTURE_FAILED, "the audio capture stopped (read returned " + read + ")");
                     return;
                 }
                 captureTimes.add(frame, capture.captureTimeUs(frame));
-                codec.queueInputBuffer(index, 0, read, positionUs(frame), 0);
+                int offset = 0;
+                while (offset < read) {
+                    final int index = codec.dequeueInputBuffer(-1);
+                    final ByteBuffer buffer = codec.getInputBuffer(index);
+                    if (buffer == null || buffer.remaining() <= 0) {
+                        fail(ErrorCode.ENCODER_FAILURE, "the audio encoder has no input buffer");
+                        return;
+                    }
+                    final int size = Math.min(read - offset, buffer.remaining());
+                    buffer.put(pcm, offset, size);
+                    codec.queueInputBuffer(index, 0, size,
+                            positionUs(frame + offset / AudioCapture.BYTES_PER_FRAME), 0);
+                    offset += size;
+                }
                 frame += read / AudioCapture.BYTES_PER_FRAME;
             }
         } catch (IllegalStateException e) {

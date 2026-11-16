@@ -15,6 +15,11 @@
 
 #include <doctest/doctest.h>
 
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavutil/mem.h>
+}
+
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -186,6 +191,8 @@ struct Track {
     double width = 0.0;
     double height = 0.0;
     std::uint32_t samples = 0;
+    std::uint32_t edits = 0;
+    std::vector<std::uint32_t> durations;
 };
 
 struct Movie {
@@ -237,6 +244,22 @@ Movie movieOf(const fs::path& file)
         const auto stsz = child(*stbl, "stsz");
         REQUIRE(stsz);
         track.samples = big32(*stsz, 8);
+        const auto stts = child(*stbl, "stts");
+        REQUIRE(stts);
+        const std::uint32_t runs = big32(*stts, 4);
+        for (std::uint32_t run = 0; run < runs; ++run) {
+            REQUIRE(16 + 8 * static_cast<std::size_t>(run) <= stts->size());
+            const std::uint32_t count = big32(*stts, 8 + 8 * static_cast<std::size_t>(run));
+            const std::uint32_t duration = big32(*stts, 12 + 8 * static_cast<std::size_t>(run));
+            for (std::uint32_t sample = 0; sample < count; ++sample) {
+                track.durations.push_back(duration);
+            }
+        }
+        if (const auto edts = child(box.body, "edts")) {
+            if (const auto elst = child(*edts, "elst")) {
+                track.edits = big32(*elst, 4);
+            }
+        }
         movie.tracks.push_back(track);
     }
     return movie;
@@ -691,6 +714,157 @@ TEST_CASE("recording: MP4 export puts the recorded sound next to the picture")
     REQUIRE(sounds != movie.tracks.end());
     CHECK(sounds->samples == clips);
     CHECK(std::ranges::count(movie.tracks, std::string("vide"), &Track::handler) == 1);
+}
+
+TEST_CASE("R9: MP4 export keeps the sound on one clock through a hole, so it cannot run ahead of the picture")
+{
+    const std::vector<std::uint8_t> original = readBytes(media("emulator_h264.media"));
+    const std::vector<MediaPacket> packets = packetsOf(original);
+    std::int64_t first = -1;
+    std::int64_t secondSession = -1;
+    for (const MediaPacket& packet : packets) {
+        if (packet.header.kind == MediaKind::Session) {
+            if (first >= 0) {
+                secondSession = packet.header.ptsUs;
+                break;
+            }
+        } else if (packet.header.kind == MediaKind::Frame) {
+            first = first < 0 ? packet.header.ptsUs : first;
+        }
+    }
+    REQUIRE(first >= 0);
+    REQUIRE(secondSession > first);
+
+    const std::int64_t start = first + 100'000;
+    const std::int64_t holeFrom = first + 1'000'000;
+    const std::int64_t holeTo = first + 1'300'000;
+    std::vector<std::uint8_t> sound;
+    append(sound, gs::protocol::encodeAudioSession(
+                     1, gs::protocol::AudioSessionInfo{gs::protocol::AudioCodec::Opus, 48'000, 2}));
+    append(sound, gs::protocol::encodeMediaConfig(MediaChannel::Audio, 1, opusHead()));
+    std::uint32_t clips = 0;
+    for (std::int64_t at = start; at < secondSession; at += 20'000) {
+        if (at >= holeFrom && at < holeTo) {
+            continue;
+        }
+        append(sound, gs::protocol::encodeMediaFrame(MediaChannel::Audio, 1, {}, at, 0, opusPacket()));
+        ++clips;
+    }
+    REQUIRE(clips > 20);
+
+    const Folder root;
+    const fs::path recording = root.path() / "sync.gsrec";
+    writeBytes(recording / "video.media", original);
+    writeBytes(recording / "audio.media", sound);
+    writeText(recording / "session.json", sessionText(first, 5000, R"(, "audio": "audio.media")"));
+    const auto exported = record::exportMp4(recording);
+    REQUIRE_MESSAGE(exported, (exported ? std::string() : exported.error()));
+    REQUIRE(exported->size() == 2);
+    CHECK(exported->front().audio);
+    CHECK_FALSE((*exported)[1].audio);
+
+    const Movie movie = movieOf(exported->front().file);
+    const auto sounds = std::ranges::find(movie.tracks, std::string("soun"), &Track::handler);
+    REQUIRE(sounds != movie.tracks.end());
+    const std::uint32_t intro = static_cast<std::uint32_t>((start - first) * 48 / 1000);
+    const std::uint32_t hole = static_cast<std::uint32_t>((holeTo - holeFrom) * 48 / 1000);
+    CHECK(sounds->samples == clips * 960 + intro + hole);
+    CHECK(sounds->edits == 1);
+    REQUIRE(sounds->durations.size() == sounds->samples);
+    CHECK(std::ranges::all_of(sounds->durations, [](std::uint32_t duration) { return duration == 960U; }));
+    CHECK(std::abs(sounds->seconds - static_cast<double>(sounds->samples) / 48'000.0) < 0.002);
+}
+
+TEST_CASE("R9: MP4 export keeps the sound after the audio session is opened again")
+{
+    const std::vector<std::uint8_t> original = readBytes(media("emulator_h264.media"));
+    const std::vector<MediaPacket> packets = packetsOf(original);
+    std::int64_t first = -1;
+    for (const MediaPacket& packet : packets) {
+        if (packet.header.kind == MediaKind::Frame) {
+            first = first < 0 ? packet.header.ptsUs : first;
+        }
+    }
+    REQUIRE(first >= 0);
+
+    std::vector<std::uint8_t> sound;
+    append(sound, gs::protocol::encodeAudioSession(
+                     1, gs::protocol::AudioSessionInfo{gs::protocol::AudioCodec::Opus, 48'000, 2}));
+    append(sound, gs::protocol::encodeMediaConfig(MediaChannel::Audio, 1, opusHead()));
+    for (std::int64_t at = first; at < first + 200'000; at += 20'000) {
+        append(sound, gs::protocol::encodeMediaFrame(MediaChannel::Audio, 1, {}, at, 0, opusPacket()));
+    }
+    append(sound, gs::protocol::encodeAudioSession(
+                     2, gs::protocol::AudioSessionInfo{gs::protocol::AudioCodec::Opus, 48'000, 2}));
+    append(sound, gs::protocol::encodeMediaConfig(MediaChannel::Audio, 2, opusHead()));
+    for (std::int64_t at = first + 200'000; at < first + 400'000; at += 20'000) {
+        append(sound, gs::protocol::encodeMediaFrame(MediaChannel::Audio, 2, {}, at, 0, opusPacket()));
+    }
+
+    const Folder root;
+    const fs::path recording = root.path() / "again.gsrec";
+    writeBytes(recording / "video.media", original);
+    writeBytes(recording / "audio.media", sound);
+    writeText(recording / "session.json", sessionText(first, 5000, R"(, "audio": "audio.media")"));
+    const auto exported = record::exportMp4(recording);
+    REQUIRE_MESSAGE(exported, (exported ? std::string() : exported.error()));
+    REQUIRE_FALSE(exported->empty());
+    const Movie movie = movieOf(exported->front().file);
+    const auto sounds = std::ranges::find(movie.tracks, std::string("soun"), &Track::handler);
+    REQUIRE(sounds != movie.tracks.end());
+    CHECK(sounds->samples == 20U);
+    REQUIRE(sounds->durations.size() == sounds->samples);
+    CHECK(std::ranges::all_of(sounds->durations, [](std::uint32_t duration) { return duration == 960U; }));
+}
+
+TEST_CASE("R9: the packet the export writes for a hole is twenty milliseconds of Opus silence")
+{
+    const std::vector<std::uint8_t> packet = record::opusSilencePacket(2);
+    REQUIRE(packet.size() == 3);
+    const AVCodec* codec = avcodec_find_decoder_by_name("opus");
+    REQUIRE(codec != nullptr);
+    AVCodecContext* context = avcodec_alloc_context3(codec);
+    REQUIRE(context != nullptr);
+    const std::vector<std::uint8_t> head = opusHead();
+    context->extradata = static_cast<std::uint8_t*>(av_mallocz(head.size() + AV_INPUT_BUFFER_PADDING_SIZE));
+    REQUIRE(context->extradata != nullptr);
+    std::memcpy(context->extradata, head.data(), head.size());
+    context->extradata_size = static_cast<int>(head.size());
+    context->pkt_timebase = AVRational{1, 1'000'000};
+    REQUIRE(avcodec_open2(context, codec, nullptr) >= 0);
+    AVPacket* input = av_packet_alloc();
+    AVFrame* frame = av_frame_alloc();
+    REQUIRE(input != nullptr);
+    REQUIRE(frame != nullptr);
+    REQUIRE(av_new_packet(input, static_cast<int>(packet.size())) >= 0);
+    std::memcpy(input->data, packet.data(), packet.size());
+    input->pts = 0;
+    REQUIRE(avcodec_send_packet(context, input) >= 0);
+    REQUIRE(avcodec_send_packet(context, nullptr) >= 0);
+    int frames = 0;
+    float loudest = 0.0F;
+    for (;;) {
+        const int received = avcodec_receive_frame(context, frame);
+        if (received == AVERROR(EAGAIN) || received == AVERROR_EOF) {
+            break;
+        }
+        REQUIRE(received >= 0);
+        ++frames;
+        CHECK(frame->nb_samples == 960);
+        CHECK(frame->ch_layout.nb_channels == 2);
+        for (int channel = 0; channel < frame->ch_layout.nb_channels; ++channel) {
+            const auto* samples = reinterpret_cast<const float*>(frame->extended_data[channel]);
+            for (int sample = 0; sample < frame->nb_samples; ++sample) {
+                loudest = std::max(loudest, std::abs(samples[sample]));
+            }
+        }
+        av_frame_unref(frame);
+    }
+    CHECK(frames == 1);
+    CHECK(loudest < 1e-5F);
+    av_packet_free(&input);
+    av_frame_free(&frame);
+    avcodec_free_context(&context);
 }
 
 TEST_CASE("recording: replaying a recording answers vision from the frame shown at the event's time")

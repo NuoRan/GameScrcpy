@@ -14,10 +14,12 @@ extern "C" {
 }
 
 #include <algorithm>
+#include <array>
 #include <cstring>
 #include <format>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string_view>
 #include <system_error>
 #include <utility>
@@ -32,6 +34,43 @@ constexpr AVRational kVideoTimeBase{1, 90'000};
 constexpr std::int64_t kFallbackFrameUs = 33'333;
 constexpr int kOpusFrameSamples = 960;
 constexpr int kAacFrameSamples = 1024;
+constexpr std::int64_t kLongestSoundStartUs = 5 * 60 * 1'000'000;
+constexpr std::int64_t kLongestSoundFillSeconds = 300;
+
+int opusFrameSamples(int config) noexcept
+{
+    constexpr std::array<int, 4> kSilk{480, 960, 1920, 2880};
+    constexpr std::array<int, 4> kCelt{120, 240, 480, 960};
+    if (config < 12) {
+        return kSilk[static_cast<std::size_t>(config & 3)];
+    }
+    if (config < 16) {
+        return (config & 1) != 0 ? 960 : 480;
+    }
+    return kCelt[static_cast<std::size_t>(config & 3)];
+}
+
+std::int64_t opusSamples(std::span<const std::uint8_t> packet) noexcept
+{
+    if (packet.empty()) {
+        return 0;
+    }
+    const int toc = packet[0];
+    const int code = toc & 3;
+    std::int64_t frames = 1;
+    if (code == 1 || code == 2) {
+        frames = 2;
+    } else if (code == 3) {
+        if (packet.size() < 2) {
+            return 0;
+        }
+        frames = packet[1] & 0x3F;
+        if (frames == 0) {
+            return 0;
+        }
+    }
+    return frames * opusFrameSamples(toc >> 3);
+}
 
 std::string utf8Of(const std::filesystem::path& path)
 {
@@ -132,15 +171,15 @@ public:
         }
     }
 
-    [[nodiscard]] bool reach(std::int64_t from, std::int64_t until)
+    [[nodiscard]] std::optional<std::int64_t> reach(std::int64_t from, std::int64_t until)
     {
         if (!m_reader || !m_reader->opened()) {
-            return false;
+            return std::nullopt;
         }
         for (;;) {
             const std::optional<protocol::MediaHeader> header = m_reader->peek();
             if (!header) {
-                return false;
+                return std::nullopt;
             }
             if (header->kind != protocol::MediaKind::Frame) {
                 take();
@@ -150,7 +189,10 @@ public:
                 m_reader->skip();
                 continue;
             }
-            return header->ptsUs < until;
+            if (header->ptsUs >= until) {
+                return std::nullopt;
+            }
+            return header->ptsUs;
         }
     }
 
@@ -170,6 +212,19 @@ public:
             }
             return m_reader->next();
         }
+    }
+
+    bool resume()
+    {
+        if (!m_reader) {
+            return false;
+        }
+        const std::optional<protocol::MediaHeader> header = m_reader->peek();
+        if (!header || header->kind == protocol::MediaKind::Frame) {
+            return false;
+        }
+        take();
+        return true;
     }
 
     [[nodiscard]] const protocol::AudioSessionInfo& info() const noexcept { return m_info; }
@@ -288,28 +343,23 @@ public:
         return {};
     }
 
-    [[nodiscard]] std::string write(bool video, std::int64_t ptsUs, std::int64_t durationUs, bool key,
-                                    std::span<const std::uint8_t> data)
+    [[nodiscard]] std::string writeVideo(std::int64_t ptsUs, std::int64_t durationUs, bool key,
+                                         std::span<const std::uint8_t> data)
     {
-        const int index = video ? m_video : m_audio;
-        AVStream* stream = m_context->streams[index];
-        PacketPtr packet(av_packet_alloc());
-        if (packet == nullptr || av_new_packet(packet.get(), static_cast<int>(data.size())) < 0) {
-            return failure("copying a packet", AVERROR(ENOMEM));
-        }
-        std::memcpy(packet->data, data.data(), data.size());
-        std::int64_t& last = video ? m_lastVideo : m_lastAudio;
-        const std::int64_t at = std::max(av_rescale_q(ptsUs, kMicroseconds, stream->time_base), last + 1);
-        last = at;
-        packet->pts = at;
-        packet->dts = at;
-        packet->duration = std::max<std::int64_t>(av_rescale_q(durationUs, kMicroseconds, stream->time_base), 0);
-        packet->stream_index = index;
-        packet->flags = key ? AV_PKT_FLAG_KEY : 0;
-        if (const int written = av_interleaved_write_frame(m_context, packet.get()); written < 0) {
-            return failure("writing a packet", written);
-        }
-        return {};
+        AVStream* stream = m_context->streams[m_video];
+        const std::int64_t at = std::max(av_rescale_q(ptsUs, kMicroseconds, stream->time_base), m_lastVideo + 1);
+        m_lastVideo = at;
+        return writePacket(m_video, at,
+                           std::max<std::int64_t>(av_rescale_q(durationUs, kMicroseconds, stream->time_base), 0),
+                           key, data);
+    }
+
+    [[nodiscard]] std::string writeSound(std::int64_t ptsSamples, std::int64_t samples,
+                                         std::span<const std::uint8_t> data)
+    {
+        const std::int64_t at = std::max(ptsSamples, m_lastAudio + 1);
+        m_lastAudio = at;
+        return writePacket(m_audio, at, std::max<std::int64_t>(samples, 0), true, data);
     }
 
     [[nodiscard]] std::string finish()
@@ -324,6 +374,25 @@ public:
     }
 
 private:
+    [[nodiscard]] std::string writePacket(int index, std::int64_t at, std::int64_t duration, bool key,
+                                          std::span<const std::uint8_t> data)
+    {
+        PacketPtr packet(av_packet_alloc());
+        if (packet == nullptr || av_new_packet(packet.get(), static_cast<int>(data.size())) < 0) {
+            return failure("copying a packet", AVERROR(ENOMEM));
+        }
+        std::memcpy(packet->data, data.data(), data.size());
+        packet->pts = at;
+        packet->dts = at;
+        packet->duration = duration;
+        packet->stream_index = index;
+        packet->flags = key ? AV_PKT_FLAG_KEY : 0;
+        if (const int written = av_interleaved_write_frame(m_context, packet.get()); written < 0) {
+            return failure("writing a packet", written);
+        }
+        return {};
+    }
+
     AVFormatContext* m_context = nullptr;
     int m_video = -1;
     int m_audio = -1;
@@ -353,19 +422,107 @@ std::optional<Owned> nextFrame(MediaReader& reader, const Segment& segment)
     return std::nullopt;
 }
 
-std::optional<Owned> nextSound(AudioCursor& audio, std::int64_t until)
+struct SoundClip {
+    std::int64_t ptsSamples = 0;
+    std::int64_t samples = 0;
+    std::vector<std::uint8_t> data;
+};
+
+struct PendingSound {
+    std::int64_t ptsUs = 0;
+    std::int64_t samples = 0;
+    std::vector<std::uint8_t> data;
+};
+
+class SoundTrack
 {
-    const std::optional<protocol::MediaPacket> packet = audio.frameBefore(until);
-    if (!packet) {
-        return std::nullopt;
+public:
+    SoundTrack(AudioCursor& audio, const protocol::AudioSessionInfo& info, std::int64_t startUs,
+               std::int64_t untilUs)
+        : m_audio(audio)
+        , m_startUs(startUs)
+        , m_rate(info.sampleRate > 0 ? static_cast<std::int64_t>(info.sampleRate) : 48'000)
+        , m_aac(isRecordedAac(info))
+        , m_padding(!m_aac && info.channels >= 1 && info.channels <= 2)
+        , m_channels(static_cast<int>(info.channels))
+        , m_longestFill(m_rate * kLongestSoundFillSeconds)
+        , m_untilUs(untilUs)
+    {
     }
-    return Owned{.ptsUs = packet->header.ptsUs, .data = {packet->payload.begin(), packet->payload.end()}};
+
+    [[nodiscard]] std::int64_t rate() const noexcept { return m_rate; }
+
+    [[nodiscard]] std::optional<SoundClip> next()
+    {
+        for (;;) {
+            if (!m_pending) {
+                const std::optional<protocol::MediaPacket> packet = m_audio.frameBefore(m_untilUs);
+                if (!packet) {
+                    if (m_audio.resume()) {
+                        continue;
+                    }
+                    return std::nullopt;
+                }
+                std::int64_t samples = m_aac ? kAacFrameSamples : opusSamples(packet->payload);
+                if (samples <= 0) {
+                    samples = m_aac ? kAacFrameSamples : kOpusFrameSamples;
+                }
+                m_pending.emplace(PendingSound{.ptsUs = packet->header.ptsUs,
+                                               .samples = samples,
+                                               .data = {packet->payload.begin(), packet->payload.end()}});
+            }
+            const std::int64_t pts = sampleAt(m_pending->ptsUs);
+            if (pts + m_pending->samples <= m_end) {
+                m_pending.reset();
+                continue;
+            }
+            if (pts > m_end) {
+                const std::int64_t gap = pts - m_end;
+                if (m_padding && gap <= m_longestFill && gap >= kOpusFrameSamples) {
+                    m_end += kOpusFrameSamples;
+                    return SoundClip{.ptsSamples = m_end - kOpusFrameSamples,
+                                     .samples = kOpusFrameSamples,
+                                     .data = opusSilencePacket(m_channels)};
+                }
+                if (!m_padding || gap > m_longestFill) {
+                    m_end = pts;
+                }
+            }
+            SoundClip clip{.ptsSamples = m_end, .samples = m_pending->samples, .data = std::move(m_pending->data)};
+            m_end += clip.samples;
+            m_pending.reset();
+            return clip;
+        }
+    }
+
+private:
+    [[nodiscard]] std::int64_t sampleAt(std::int64_t ptsUs) const noexcept
+    {
+        return ((ptsUs - m_startUs) * m_rate + 500'000) / 1'000'000;
+    }
+
+    AudioCursor& m_audio;
+    std::int64_t m_startUs = 0;
+    std::int64_t m_rate = 48'000;
+    bool m_aac = false;
+    bool m_padding = false;
+    int m_channels = 0;
+    std::int64_t m_longestFill = 0;
+    std::int64_t m_untilUs = 0;
+    std::int64_t m_end = 0;
+    std::optional<PendingSound> m_pending;
+};
+
+std::int64_t microsecondsOf(std::int64_t samples, std::int64_t rate) noexcept
+{
+    return samples * 1'000'000 / rate;
 }
 
 Expected<ExportedVideo, std::string> exportSegment(const std::filesystem::path& file, const std::filesystem::path& video,
                                                    const Segment& segment, AudioCursor& audio, std::int64_t until)
 {
-    const bool sound = audio.reach(segment.firstPts, until);
+    const std::optional<std::int64_t> firstSound = audio.reach(segment.firstPts, until);
+    const bool sound = firstSound && *firstSound - segment.firstPts <= kLongestSoundStartUs;
     const std::filesystem::path part = file.parent_path() / (file.filename().wstring() + L".part");
     std::string problem;
     {
@@ -374,20 +531,19 @@ Expected<ExportedVideo, std::string> exportSegment(const std::filesystem::path& 
         MediaReader frames(video, protocol::MediaChannel::Video);
         frames.seek(segment.start);
         std::optional<Owned> picture = problem.empty() ? nextFrame(frames, segment) : std::nullopt;
-        std::optional<Owned> clip = problem.empty() && sound ? nextSound(audio, until) : std::nullopt;
-        std::int64_t clipUs = 0;
+        SoundTrack track(audio, audio.info(), segment.firstPts, until);
+        std::optional<SoundClip> clip = problem.empty() && sound ? track.next() : std::nullopt;
         while (problem.empty() && (picture || clip)) {
-            if (picture && (!clip || picture->ptsUs <= clip->ptsUs)) {
+            const std::int64_t clipUs = clip ? microsecondsOf(clip->ptsSamples, track.rate()) : 0;
+            if (picture && (!clip || picture->ptsUs - segment.firstPts <= clipUs)) {
                 std::optional<Owned> following = nextFrame(frames, segment);
                 const std::int64_t lasts = following ? following->ptsUs - picture->ptsUs : segment.gapUs();
-                problem = muxer.write(true, picture->ptsUs - segment.firstPts, lasts, picture->key, picture->data);
+                problem = muxer.writeVideo(picture->ptsUs - segment.firstPts, lasts, picture->key, picture->data);
                 picture = std::move(following);
                 continue;
             }
-            std::optional<Owned> following = sound ? nextSound(audio, until) : std::nullopt;
-            clipUs = following ? following->ptsUs - clip->ptsUs : clipUs;
-            problem = muxer.write(false, clip->ptsUs - segment.firstPts, clipUs, true, clip->data);
-            clip = std::move(following);
+            problem = muxer.writeSound(clip->ptsSamples, clip->samples, clip->data);
+            clip = track.next();
         }
         if (problem.empty()) {
             problem = muxer.finish();
@@ -410,6 +566,11 @@ Expected<ExportedVideo, std::string> exportSegment(const std::filesystem::path& 
                          .audio = sound};
 }
 
+}
+
+std::vector<std::uint8_t> opusSilencePacket(int channels)
+{
+    return {static_cast<std::uint8_t>(channels == 1 ? 0xF8 : 0xFC), 0xFF, 0xFE};
 }
 
 Expected<std::vector<ExportedVideo>, std::string> exportMp4(const std::filesystem::path& recording)
