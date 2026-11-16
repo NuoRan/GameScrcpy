@@ -4,7 +4,7 @@
 
 ## [2.2.1] - 未发布
 
-2.2.1 修了一批问题：方案可以改名，扩展页卡片的间距恢复正常，录像的声音与画面对齐，触控盒与 AOA 的控制窗口键鼠和转屏更顺，界面上常驻的说明小字也精简了。手机上的服务端随之更新（2.2.1，声音采集），伴侣 App 没有变化。
+2.2.1 修了一批问题：方案可以改名，任务可以删除、运行记录可以清除，扩展页卡片的间距恢复正常，录像的声音与画面对齐，触控盒与 AOA 的控制窗口键鼠和转屏更顺，打开设置不再偶尔闪退，界面上常驻的说明小字也精简了。手机上的服务端随之更新（2.2.1，声音采集），伴侣 App 没有变化。
 
 ### 修复
 
@@ -15,15 +15,17 @@
 - **扩展面板**：在输入框里打完字直接点按钮，按钮收到的就是刚打的内容（以前要先按回车或点一下别处，否则 ESP32 触控盒改名会报“名称要有 1～32 个字节”，保存 Wi‑Fi 时密码是空的）；什么也不显示的部分不再占位置。
 - **打开设置时闪退**：偶尔一打开设置就闪退——Qt 6.10 的增量垃圾回收在页面创建到一半时回收了新对象的属性存储。现在每次垃圾回收一口气做完。
 - **扩展被误关**：Windows 重启或注销时会结束扩展的进程，以前被算成“一分钟内停了三次”、把扩展关掉（例如手感样例）；现在不算崩溃、不重启，也不关掉。之前因此被关掉的扩展，到扩展页重新打开即可。
+- **任务**：任务卡片有了“更多”菜单（也可以右键），能打开文件夹、复制示例任务和删除任务；“最近运行”可以一键清除。
+- **触控盒**：设备页上的触控盒不再显示“正被 ESP32 触控盒使用”（那是它自己的扩展）。
 
 ### 界面
 
-- 删去一大批常驻的说明小字（安装对话框、设置、工作台、AI 小助手、设备页、蓝图、投屏窗口、键位编辑器）：细节放到旁边的 ⓘ 里，或者只在用得上时出现。
+- 删去一大批常驻的说明小字（安装对话框、设置、工作台、AI 小助手、设备页、蓝图、投屏窗口、键位编辑器，第二轮又精简了任务页、设置里的滑块、快捷键、无线配对、键位属性与附加功能、AI 模型选择、录像与几个对话框）：细节放到旁边的 ⓘ 里，或者只在用得上时出现。
 
 ### English summary
 
-- **Fixes**: profiles can be renamed from the card's menu, by double-clicking the name and in the key mapping editor. Two extension cards side by side no longer stand far apart, and each row is as tall as its own tallest card. Recordings keep sound and picture together: the MP4 sound track runs on one continuous clock, silence fills gaps and a late start, a second audio session no longer cuts the sound off, and the phone no longer drops sound while the encoder is busy. In the Control window of a touch box or AOA the keys keep working while the mouse moves with the camera released (mouse motion is merged at the phone's touch rate), the window turns with the rotation the companion reports, and the phone's pointer parks while the camera is locked and comes back under the computer's pointer, with clicks held until it is there. A click in an extension panel carries the text just typed into a field. Opening Settings no longer crashes now and then (Qt 6.10's incremental garbage collector freed the property storage of objects still being created; each collection now runs to the end). Extensions are no longer turned off when Windows ends their process at a restart or sign-out; one turned off that way can be switched on again on the Extensions page.
-- **Interface**: many standing explanations are gone; the details sit behind info buttons or appear only when they apply.
+- **Fixes**: profiles can be renamed from the card's menu, by double-clicking the name and in the key mapping editor. Two extension cards side by side no longer stand far apart, and each row is as tall as its own tallest card. Recordings keep sound and picture together: the MP4 sound track runs on one continuous clock, silence fills gaps and a late start, a second audio session no longer cuts the sound off, and the phone no longer drops sound while the encoder is busy. In the Control window of a touch box or AOA the keys keep working while the mouse moves with the camera released (mouse motion is merged at the phone's touch rate), the window turns with the rotation the companion reports, and the phone's pointer parks while the camera is locked and comes back under the computer's pointer, with clicks held until it is there. A click in an extension panel carries the text just typed into a field. Opening Settings no longer crashes now and then (Qt 6.10's incremental garbage collector freed the property storage of objects still being created; each collection now runs to the end). Extensions are no longer turned off when Windows ends their process at a restart or sign-out; one turned off that way can be switched on again on the Extensions page. Task cards have a menu (also on a right click) to open the folder, copy an example task or delete a task, and Recent runs can be cleared. A touch box on the Devices page is no longer shown as in use by its own extension.
+- **Interface**: many standing explanations are gone, in a second pass also on the Tasks page, the settings sliders, shortcuts, wireless pairing, key properties and add-ons, the AI model picker, recordings and several dialogs; the details sit behind info buttons or appear only when they apply.
 
 The server on the phone is updated (2.2.1, sound capture); the companion app is unchanged.
 
