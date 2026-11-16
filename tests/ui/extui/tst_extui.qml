@@ -17,6 +17,9 @@ Item {
             id: panelHost
 
             property var tree: null
+            property var sent: []
+
+            signal committing()
 
             function nodeAt(path) {
                 let found = panelHost.tree
@@ -26,6 +29,7 @@ Item {
             }
 
             function send(kind, id, value) {
+                panelHost.sent = panelHost.sent.concat([[kind, id, value]])
             }
 
             function release() {
@@ -235,6 +239,46 @@ Item {
             drop(split)
             drop(pair)
             drop(rule)
+        }
+
+        function test_r9_aClickCarriesTheTextTypedJustBefore() {
+            const node = settle(make({ type: "column", children: [{ type: "field", id: "name", title: "Name", value: "Old" },
+                                                                  { type: "button", id: "rename", title: "Rename" }] }))
+            const field = findChild(node, "nodeField")
+            const button = findChild(node, "nodeButton")
+            verify(field !== null)
+            verify(button !== null)
+            mouseClick(field)
+            tryVerify(() => field.activeFocus, 2000)
+            field.selectAll()
+            keyClick("n")
+            keyClick("e")
+            keyClick("w")
+            compare(field.text, "new")
+            compare(JSON.stringify(node.host.sent), "[]")
+            mouseClick(button)
+            compare(JSON.stringify(node.host.sent), JSON.stringify([["change", "name", "new"], ["click", "rename", null]]))
+            mouseClick(button)
+            compare(JSON.stringify(node.host.sent.slice(2)), JSON.stringify([["click", "rename", null]]))
+            drop(node)
+        }
+
+        function test_r9_aClickCarriesTheNumberTypedJustBefore() {
+            const node = settle(make({ type: "column", children: [{ type: "number", id: "rate", title: "Rate", value: 30,
+                                                                    min: 1, max: 120 },
+                                                                  { type: "button", id: "apply", title: "Apply" }] }))
+            const number = findChild(node, "nodeNumber")
+            const button = findChild(node, "nodeButton")
+            verify(number !== null)
+            verify(button !== null)
+            mouseClick(number)
+            tryVerify(() => number.activeFocus, 2000)
+            number.selectAll()
+            keyClick("6")
+            keyClick("0")
+            mouseClick(button)
+            compare(JSON.stringify(node.host.sent), JSON.stringify([["change", "rate", 60], ["click", "apply", null]]))
+            drop(node)
         }
     }
 }

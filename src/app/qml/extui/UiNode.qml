@@ -67,8 +67,11 @@ Item {
     }
 
     function send(kind: string, value: var) {
-        if (root.host !== null)
-            root.host.send(kind, root.nodeId, value)
+        if (root.host === null)
+            return
+        if (kind === "click" || kind === "select")
+            root.host.committing()
+        root.host.send(kind, root.nodeId, value)
     }
 
     function release() {
@@ -304,6 +307,7 @@ Item {
             Button {
                 id: button
 
+                objectName: "nodeButton"
                 width: Math.min(button.implicitWidth, parent.width)
                 enabled: root.usable
                 focusPolicy: Qt.TabFocus
@@ -361,6 +365,7 @@ Item {
                         root.send("change", field.text)
                     }
 
+                    objectName: "nodeField"
                     width: parent.width
                     enabled: root.usable
                     maximumLength: 4000
@@ -385,6 +390,15 @@ Item {
                     function onNodeChanged() {
                         if (!field.activeFocus)
                             field.sync()
+                    }
+                }
+
+                Connections {
+                    target: root.host
+
+                    function onCommitting() {
+                        if (field.activeFocus)
+                            field.report()
                     }
                 }
             }
@@ -414,6 +428,7 @@ Item {
                 NumberField {
                     id: number
 
+                    objectName: "nodeNumber"
                     width: Theme.size.numberFieldWide
                     enabled: root.usable
                     unit: root.node?.unit ?? ""
@@ -438,6 +453,15 @@ Item {
                     function onNodeChanged() {
                         if (!number.activeFocus)
                             number.value = root.node?.value ?? 0
+                    }
+                }
+
+                Connections {
+                    target: root.host
+
+                    function onCommitting() {
+                        if (number.activeFocus)
+                            number.submit()
                     }
                 }
             }

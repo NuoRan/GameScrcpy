@@ -14,6 +14,7 @@ Item {
     readonly property string key: view.entry?.key ?? ""
 
     signal released()
+    signal committing()
 
     implicitHeight: view.tree !== null ? scroller.contentHeight : waiting.implicitHeight + 2 * view.inset
 
