@@ -337,6 +337,9 @@ int main(int argc, char* argv[])
     if (!qEnvironmentVariableIsSet("QT_QPA_UPDATE_IDLE_TIME")) {
         qputenv("QT_QPA_UPDATE_IDLE_TIME", "0");
     }
+    if (!qEnvironmentVariableIsSet("QV4_GC_TIMELIMIT")) {
+        qputenv("QV4_GC_TIMELIMIT", "0");
+    }
 
     QGuiApplication app(argc, argv);
     if (!qEnvironmentVariableIsSet("QT_D3D_MAX_FRAME_LATENCY")) {
