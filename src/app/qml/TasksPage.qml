@@ -263,6 +263,13 @@ Item {
                         onTapped: page.chosen = card.modelData.id
                     }
 
+                    TapHandler {
+                        objectName: "taskCardMenu"
+                        acceptedButtons: Qt.RightButton
+                        gesturePolicy: TapHandler.ReleaseWithinBounds
+                        onTapped: eventPoint => cardMore.openAt(card, eventPoint.position)
+                    }
+
                     Item {
                         implicitWidth: card.availableWidth
                         implicitHeight: Math.max(cardTile.height, cardText.implicitHeight, cardSide.height)
@@ -347,6 +354,68 @@ Item {
                                         DeviceManager.stopTask(card.modelData.id, "")
                                     else
                                         page.start(card.modelData)
+                                }
+                            }
+
+                            Button {
+                                id: cardMore
+
+                                function openAt(source: Item, at: point) {
+                                    const spot = source.mapToItem(cardMore, at.x, at.y)
+                                    cardMenu.x = spot.x
+                                    cardMenu.y = spot.y
+                                    cardMenu.open()
+                                }
+
+                                objectName: "taskMore"
+                                anchors.verticalCenter: parent.verticalCenter
+                                small: true
+                                tone: "ghost"
+                                iconName: "ellipsis"
+                                toolTip: qsTr("More")
+                                onClicked: {
+                                    cardMenu.x = cardMore.width - cardMenu.width
+                                    cardMenu.y = cardMore.height + Theme.space.xs
+                                    cardMenu.open()
+                                }
+
+                                Menu {
+                                    id: cardMenu
+
+                                    MenuItem {
+                                        iconName: "folder-open"
+                                        text: qsTr("Open folder")
+                                        onTriggered: TaskLibrary.reveal(card.modelData.id)
+                                    }
+
+                                    MenuItem {
+                                        visible: card.modelData.readOnly === true
+                                        height: visible ? implicitHeight : 0
+                                        iconName: "copy"
+                                        text: qsTr("Copy to my tasks")
+                                        onTriggered: {
+                                            page.chosen = card.modelData.id
+                                            taskSettings.askCopy()
+                                        }
+                                    }
+
+                                    MenuSeparator {
+                                        visible: card.modelData.readOnly !== true
+                                        height: visible ? implicitHeight : 0
+                                    }
+
+                                    MenuItem {
+                                        objectName: "deleteTaskFromCard"
+                                        visible: card.modelData.readOnly !== true
+                                        height: visible ? implicitHeight : 0
+                                        iconName: "trash-2"
+                                        danger: true
+                                        text: qsTr("Delete…")
+                                        onTriggered: {
+                                            page.chosen = card.modelData.id
+                                            taskSettings.confirmRemoval()
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -476,6 +545,8 @@ Item {
         }
 
         TaskSettings {
+            id: taskSettings
+
             anchors.fill: parent
             anchors.leftMargin: Theme.size.stroke
             task: page.current

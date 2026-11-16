@@ -27,6 +27,16 @@ Item {
 
     signal notify(string message, string tone)
 
+    function confirmRemoval() {
+        if (settings.task !== null && !settings.readOnly)
+            removal.open()
+    }
+
+    function askCopy() {
+        if (settings.task !== null)
+            copyToMine.ask("task", settings.task.id, settings.task.name)
+    }
+
     function togglePhone(serial: string, on: bool) {
         const chosen = settings.task.phones.filter(each => each !== serial)
         if (on)
@@ -484,7 +494,7 @@ Item {
                     height: visible ? implicitHeight : 0
                     iconName: "copy"
                     text: qsTr("Copy to my tasks")
-                    onTriggered: copyToMine.ask("task", settings.task.id, settings.task.name)
+                    onTriggered: settings.askCopy()
                 }
 
                 MenuItem {
@@ -516,8 +526,9 @@ Item {
                     visible: settings.task !== null && settings.task.readOnly !== true
                     height: visible ? implicitHeight : 0
                     iconName: "trash-2"
+                    danger: true
                     text: qsTr("Delete…")
-                    onTriggered: removal.open()
+                    onTriggered: settings.confirmRemoval()
                 }
             }
         }
